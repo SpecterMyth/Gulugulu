@@ -43,11 +43,6 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: projects/gulugulu-app/src-tauri -> target
-
       - name: Install frontend dependencies
         run: npm ci
 
