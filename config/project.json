@@ -1,0 +1,13 @@
+{
+  "name": "gulugulu",
+  "displayName": "Gulugulu",
+  "phase": "initialization",
+  "storagePolicy": {
+    "buildableProjects": "projects/",
+    "codexFiles": "codex/",
+    "projectPlans": "docs/",
+    "specifications": "specification/",
+    "configuration": "config/",
+    "useGlobalCodexStorage": false
+  }
+}

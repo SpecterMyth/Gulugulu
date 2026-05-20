@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+target/
+dist/
+build/
+*.lock
+
+# Build artifacts
+*.exe
+*.dmg
+*.deb
+*.rpm
+*.AppImage
+
+# Logs
+*.log
+logs/
+tauri-dev*.log
+vite-dev*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+*.tmp
+*.pid
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets and environment
+.env
+.env.local
+*.env.*
+secrets/
+keys/
+
+# Large assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.mp4
+*.mp3
+*.wav
+arts/concepts/*.png
+
+# Git
+.git/
+.gitignore

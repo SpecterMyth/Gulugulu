@@ -1,0 +1,92 @@
+{
+  "character": "guluduck",
+  "source": "imagegen_pose_sheets",
+  "frameSize": {
+    "width": 768,
+    "height": 768
+  },
+  "anchor": {
+    "x": 384,
+    "y": 700
+  },
+  "animations": {
+    "idle_normal": {
+      "src": "/animations/guluduck/webp/idle_normal.webp",
+      "frames": 12,
+      "fps": 8,
+      "loop": true
+    },
+    "blink": {
+      "src": "/animations/guluduck/webp/blink.webp",
+      "frames": 6,
+      "fps": 12,
+      "loop": false
+    },
+    "walk": {
+      "src": "/animations/guluduck/webp/walk.webp",
+      "frames": 8,
+      "fps": 10,
+      "loop": true
+    },
+    "turn_around": {
+      "src": "/animations/guluduck/webp/turn_around.webp",
+      "frames": 10,
+      "fps": 12,
+      "loop": false
+    },
+    "back_climb": {
+      "src": "/animations/guluduck/webp/back_climb.webp",
+      "frames": 16,
+      "fps": 12,
+      "loop": true
+    },
+    "happy_dance": {
+      "src": "/animations/guluduck/webp/happy_dance.webp",
+      "frames": 16,
+      "fps": 12,
+      "loop": false
+    },
+    "confused": {
+      "src": "/animations/guluduck/webp/confused.webp",
+      "frames": 12,
+      "fps": 10,
+      "loop": false
+    },
+    "scared_backstep": {
+      "src": "/animations/guluduck/webp/scared_backstep.webp",
+      "frames": 14,
+      "fps": 12,
+      "loop": false
+    },
+    "angry_backturn": {
+      "src": "/animations/guluduck/webp/angry_backturn.webp",
+      "frames": 12,
+      "fps": 10,
+      "loop": false
+    },
+    "agent_thinking": {
+      "src": "/animations/guluduck/webp/agent_thinking.webp",
+      "frames": 12,
+      "fps": 8,
+      "loop": true
+    },
+    "agent_success": {
+      "src": "/animations/guluduck/webp/agent_success.webp",
+      "frames": 14,
+      "fps": 12,
+      "loop": false
+    },
+    "eat": {
+      "src": "/animations/guluduck/webp/eat.webp",
+      "frames": 16,
+      "fps": 10,
+      "loop": false
+    },
+    "pet_head": {
+      "src": "/animations/guluduck/webp/pet_head.webp",
+      "frames": 14,
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

@@ -1,0 +1,41 @@
+# OS/editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local runtime state
+.gulugulu.pid
+*.log
+*.tmp
+*.temp
+
+# Local Claude/Codex machine config
+claude/settings.json
+
+# Node/Vite
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.vite/
+
+# Tauri/Rust build output
+target/
+projects/gulugulu-app/src-tauri/target/
+projects/gulugulu-app/src-tauri/gen/
+
+# Tauri generated installers/bundles
+projects/gulugulu-app/src-tauri/target/release/bundle/
+
+# Python cache from asset scripts
+__pycache__/
+*.py[cod]
+
+# Environment files
+.env
+.env.*
+!.env.example
