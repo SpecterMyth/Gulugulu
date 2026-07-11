@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gulugulu Avatar Imagegen"
+  short_description: "Generate Gulugulu custom pet idle pose sheets"
+  default_prompt: "Use this skill to generate a Gulugulu custom pet idle animation asset package."

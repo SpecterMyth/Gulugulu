@@ -3,22 +3,31 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT=%~dp0"
 set "PID_FILE=%ROOT%.gulugulu.pid"
+set "AVATAR_PID_FILE=%ROOT%.gulugulu-avatar-gen.pid"
 
-if exist "%PID_FILE%" (
-  set /p PID=<"%PID_FILE%"
-  if defined PID (
-    echo Stopping Gulugulu process tree. PID: !PID!
-    taskkill /PID !PID! /T /F >nul 2>nul
+call :stop_saved_pid "%PID_FILE%" "Gulugulu"
+call :stop_saved_pid "%AVATAR_PID_FILE%" "Gulugulu avatar generator"
+
+echo Releasing Vite/Tauri/avatar generator ports if they are still in use...
+for %%A in (1420 4177 4178) do (
+  for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%%A" ^| findstr "LISTENING"') do (
+    taskkill /PID %%P /T /F >nul 2>nul
   )
-  del "%PID_FILE%" >nul 2>nul
-) else (
-  echo No saved Gulugulu PID found.
-)
-
-echo Releasing Vite dev port 1420 if it is still in use...
-for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":1420" ^| findstr "LISTENING"') do (
-  taskkill /PID %%P /T /F >nul 2>nul
 )
 
 echo Gulugulu stopped.
 ping -n 3 127.0.0.1 >nul
+exit /b 0
+
+:stop_saved_pid
+if exist "%~1" (
+  set /p PID=<"%~1"
+  if defined PID (
+    echo Stopping %~2 process tree. PID: !PID!
+    taskkill /PID !PID! /T /F >nul 2>nul
+  )
+  del "%~1" >nul 2>nul
+) else (
+  echo No saved %~2 PID found.
+)
+exit /b 0

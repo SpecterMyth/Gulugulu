@@ -11,6 +11,7 @@ export const SLEEP_TIMEOUT_MS = 60_000;
 
 export const transientStateDurationMs: Partial<Record<PetState, number>> = {
   clicked: 1500,
+  laboring: 800,
   drag_start: 1300,
   drop: 1000,
   success: 1500,
@@ -18,10 +19,23 @@ export const transientStateDurationMs: Partial<Record<PetState, number>> = {
   moving: 2200,
 };
 
+/** SVG 舞台的 one-shot 状态时长（与 sprites.css 对应动画时长对齐）。
+ *  不在表内的状态视为循环动画，由事件/transient 定时器驱动切换。
+ *  PNG 自定义头像仍走 animationDefinitions 的 frames/fps。 */
+export const svgStateDurationMs: Partial<Record<PetState, number>> = {
+  clicked: 1500,
+  laboring: 800, // rig-work-arm 0.4s × 2
+  drop: 1000, // rig-land-splat 1s
+  success: 1500, // rig-celebrate-hop 0.75s × 2
+  fed: 1700, // sprite-chomp 0.85s × 2
+};
+
 export const stateAnimationMap: Record<PetState, AnimationKey> = {
   idle: "idle_normal",
-  sleeping: "blink",
+  sleeping: "sleep",
   clicked: "pet_head",
+  laboring: "pet_head",
+  exhausted: "sleep",
   drag_start: "scared_backstep",
   dragging: "scared_backstep",
   drop: "turn_around",
@@ -36,6 +50,7 @@ export const stateAnimationMap: Record<PetState, AnimationKey> = {
 export const animationDefinitions: Record<AnimationKey, AnimationDefinition> = {
   idle_normal: { frames: 12, fps: 8, loop: true },
   blink: { frames: 6, fps: 12, loop: false },
+  sleep: { frames: 12, fps: 8, loop: true },
   walk: { frames: 8, fps: 10, loop: true },
   turn_around: { frames: 10, fps: 12, loop: false },
   happy_dance: { frames: 16, fps: 12, loop: false },
@@ -59,6 +74,12 @@ export function stateForPetEvent(event: PetEvent): PetState {
   switch (event.type) {
     case "user_click":
       return "clicked";
+    case "user_work_click":
+      return "laboring";
+    case "pet_exhausted":
+      return "exhausted";
+    case "pet_wake":
+      return "idle";
     case "user_drag_start":
       return "drag_start";
     case "user_drag_move":

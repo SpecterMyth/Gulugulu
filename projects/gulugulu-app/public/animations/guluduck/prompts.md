@@ -25,6 +25,17 @@ Each sheet is sliced by its declared grid, chroma-keyed from #00ff00, normalized
 - Imagegen prompt summary: 6-frame blink pose sheet: open, half, closed, relaxed, half, open.
 - Shared prompt constraints: round yellow Guluduck, orange bill and feet, red neckerchief, three head feathers, cute painterly sprite style, #00ff00 chroma-key background, no text, no watermark.
 
+## sleep
+
+- Purpose: sleep loop: closed-eye breathing with tiny head and feather motion
+- Pose sheet: `pose_sheets/sleep.png`
+- Grid: 4x3
+- Frames: 12
+- FPS: 8
+- Loop: true
+- Imagegen prompt summary: 12-frame sleeping loop: closed eyes, slow breathing squash-and-stretch, tiny head bob, tucked wings, feather bounce.
+- Shared prompt constraints: round yellow Guluduck, orange bill and feet, red neckerchief, three head feathers, cute painterly sprite style, #00ff00 chroma-key background, no text, no watermark.
+
 ## walk
 
 - Purpose: 小脚啪嗒走路，身体左右摇

@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gulugulu-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "projects/gulugulu-app"],
+      "port": 1420
+    },
+    {
+      "name": "gulugulu-preview-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "projects/gulugulu-app", "--", "--port", "3737"],
+      "port": 3737
+    },
+    {
+      "name": "gulugulu-preview-auto",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "projects/gulugulu-app"],
+      "autoPort": true
+    }
+  ]
+}

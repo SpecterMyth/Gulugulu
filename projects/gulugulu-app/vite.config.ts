@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   server: {
-    port: 1420,
+    // PORT 供预览工具分配动态端口；未设置时保持 Tauri devUrl 约定的 1420。
+    port: Number(process.env.PORT) || 1420,
     strictPort: true,
   },
   envPrefix: ["VITE_", "TAURI_"],

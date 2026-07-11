@@ -8,7 +8,7 @@ Desktop.ini
 *.swo
 
 # Local runtime state
-.gulugulu.pid
+.gulugulu*.pid
 *.log
 *.tmp
 *.temp
@@ -22,6 +22,9 @@ dist/
 dist-ssr/
 coverage/
 .vite/
+projects/services/avatar-gen/dist/
+projects/services/avatar-gen/dist-web/
+projects/services/avatar-gen/.data/
 
 # Tauri/Rust build output
 target/
@@ -39,3 +42,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Local provider config with API keys (keep the .example template tracked)
+projects/config/avatar-providers.json

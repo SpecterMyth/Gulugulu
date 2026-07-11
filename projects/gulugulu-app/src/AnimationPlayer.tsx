@@ -1,12 +1,16 @@
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { type MouseEventHandler, type PointerEventHandler, useEffect, useMemo, useRef, useState } from "react";
 import { animationDefinitions } from "./petEvents";
-import type { AnimationKey } from "./types";
+import type { AnimationKey, AvatarManifest } from "./types";
+import { isTauri } from "./tauri";
 
 const FALLBACK_DUCK_ASSET = "/guluduck_character_concept.png";
 
 type AnimationPlayerProps = {
   animationKey: AnimationKey;
   alt: string;
+  avatarManifest?: AvatarManifest;
+  avatarRootPath?: string | null;
   className?: string;
   draggable?: boolean;
   onPointerCancel?: PointerEventHandler<HTMLImageElement>;
@@ -17,14 +21,33 @@ type AnimationPlayerProps = {
   onComplete?: () => void;
 };
 
-function framePath(animationKey: AnimationKey, frame: number): string {
+function builtinFramePath(animationKey: AnimationKey, frame: number): string {
   const paddedFrame = String(frame).padStart(4, "0");
   return `/animations/guluduck/frames/${animationKey}/${animationKey}_${paddedFrame}.png`;
+}
+
+function avatarFramePath(manifest: AvatarManifest | undefined, rootPath: string | null | undefined, animationKey: AnimationKey, frame: number): string {
+  const definition = manifest?.animations[animationKey];
+  if (!definition?.framePathTemplate) return builtinFramePath(animationKey, frame);
+
+  const paddedFrame = String(frame).padStart(4, "0");
+  const relativePath = definition.framePathTemplate.replace("{frame}", paddedFrame);
+  if (!rootPath) return relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
+
+  const fullPath = `${rootPath.replace(/[\\/]+$/, "")}/${relativePath}`.replaceAll("\\", "/");
+  return isTauri() ? convertFileSrc(fullPath) : fullPath;
+}
+
+function resolveAnimationKey(manifest: AvatarManifest | undefined, animationKey: AnimationKey): AnimationKey {
+  if (!manifest) return animationKey;
+  return manifest.animations[animationKey] ? animationKey : "idle_normal";
 }
 
 export function AnimationPlayer({
   animationKey,
   alt,
+  avatarManifest,
+  avatarRootPath,
   className,
   draggable,
   onPointerCancel,
@@ -34,7 +57,8 @@ export function AnimationPlayer({
   onContextMenu,
   onComplete,
 }: AnimationPlayerProps) {
-  const definition = animationDefinitions[animationKey];
+  const resolvedAnimationKey = resolveAnimationKey(avatarManifest, animationKey);
+  const definition = avatarManifest?.animations[resolvedAnimationKey] ?? animationDefinitions[resolvedAnimationKey];
   const [frame, setFrame] = useState(1);
   const [failed, setFailed] = useState(false);
   const completedRef = useRef(false);
@@ -43,7 +67,7 @@ export function AnimationPlayer({
     setFrame(1);
     setFailed(false);
     completedRef.current = false;
-  }, [animationKey]);
+  }, [resolvedAnimationKey, avatarManifest?.id, avatarRootPath]);
 
   useEffect(() => {
     if (failed || definition.frames <= 1) return;
@@ -64,8 +88,8 @@ export function AnimationPlayer({
 
   const src = useMemo(() => {
     if (failed) return FALLBACK_DUCK_ASSET;
-    return framePath(animationKey, frame);
-  }, [animationKey, failed, frame]);
+    return avatarFramePath(avatarManifest, avatarRootPath, resolvedAnimationKey, frame);
+  }, [avatarManifest, avatarRootPath, failed, frame, resolvedAnimationKey]);
 
   return (
     <img

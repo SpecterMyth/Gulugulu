@@ -54,6 +54,17 @@ SPECS = [
         "6-frame blink pose sheet: open, half, closed, relaxed, half, open.",
     ),
     AnimationSpec(
+        "sleep",
+        "sleep loop: closed-eye breathing with tiny head and feather motion",
+        12,
+        8,
+        True,
+        4,
+        3,
+        "12-frame sleeping loop: closed eyes, slow breathing squash-and-stretch, tiny head bob, tucked wings, feather bounce.",
+        False,
+    ),
+    AnimationSpec(
         "walk",
         "小脚啪嗒走路，身体左右摇",
         8,

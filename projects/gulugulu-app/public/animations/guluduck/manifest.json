@@ -22,6 +22,12 @@
       "fps": 12,
       "loop": false
     },
+    "sleep": {
+      "src": "/animations/guluduck/webp/sleep.webp",
+      "frames": 12,
+      "fps": 8,
+      "loop": true
+    },
     "walk": {
       "src": "/animations/guluduck/webp/walk.webp",
       "frames": 8,

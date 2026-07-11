@@ -1,0 +1,33 @@
+{
+  "defaultProvider": "openrouter",
+  "providers": [
+    {
+      "id": "openrouter",
+      "label": "OpenRouter",
+      "kind": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "",
+      "apiKeyEnv": "OPENROUTER_API_KEY",
+      "referer": "https://github.com/SpecterMyth/Gulugulu",
+      "title": "Gulugulu Avatar Generator",
+      "defaultModel": "openai/gpt-5-image-mini",
+      "models": [
+        { "id": "openai/gpt-5-image-mini", "label": "GPT-5 Image Mini", "api": "chat" },
+        { "id": "openai/gpt-5-image", "label": "GPT-5 Image", "api": "chat" },
+        { "id": "google/gemini-2.5-flash-image", "label": "Gemini 2.5 Flash Image", "api": "chat" }
+      ]
+    },
+    {
+      "id": "mock",
+      "label": "Mock (offline placeholder)",
+      "kind": "mock",
+      "models": []
+    },
+    {
+      "id": "codex-cli",
+      "label": "Codex CLI",
+      "kind": "codex-cli",
+      "models": []
+    }
+  ]
+}

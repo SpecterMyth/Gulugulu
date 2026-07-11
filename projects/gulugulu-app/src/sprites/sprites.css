@@ -1,0 +1,853 @@
+/* =============================================================================
+   Sprite rig 动画词汇表 v2
+   原则（2026-07 动画返工）：
+   - 不做"简单压扁"式动画：形变只留呼吸级微缩放与落地瞬间的轻微缓冲；
+     动作感全部来自肢体（手/脚/尾/头饰/脸）分相位编舞 + 位移/旋转。
+   - 动画复用：laboring = working 同款 ×2 次；exhausted = sleeping + 灰度；
+     dragging = drag_start；thinking = idle + 思考表情。
+   - 点击反馈 = 轻微放大回弹（uniform scale），不压扁。
+   - 睡眠 = 整体躺倒在地 + 呼吸摇；漂浮物种落地侧倾小睡。
+   - 进食 = 食物飞入 → 分三口吃掉（steps）+ 喂食手 + 咀嚼嘴。
+   - 表情：normal 走 .sprite-eyes 眨眼；star/dizzy/munch 有各自微动画。
+   - 可调参数（物种级 CSS 变量）：--stride-dur --stride-deg --hop-h --bob-px
+   ============================================================================= */
+
+.svg-sprite {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.svg-sprite .svg-sprite-body {
+  transform-box: fill-box;
+  transform-origin: 50% 95%;
+}
+
+.sprite-shadow {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+/* ---- 眨眼（仅 normal 表情的基础眼） ---- */
+.svg-sprite .sprite-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sprite-blink 4.8s ease-in-out infinite;
+}
+
+/* ---- 工具：仅工作/庆祝可见 ---- */
+.svg-sprite .part-tool {
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+
+.svg-sprite-state-working .part-tool,
+.svg-sprite-state-laboring .part-tool,
+.svg-sprite-state-success .part-tool {
+  opacity: 1;
+}
+
+/* ---- 食物（仅 fed 渲染，动画见下方 fed 段） ---- */
+.part-food {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+/* =========================== 待机 / 思考 =========================== */
+.svg-sprite-state-idle .part-body,
+.svg-sprite-state-thinking .part-body {
+  animation: rig-breathe 2.6s ease-in-out infinite;
+}
+
+.svg-sprite-state-idle .part-tail,
+.svg-sprite-state-thinking .part-tail {
+  animation: rig-tail-sway 3.2s ease-in-out infinite;
+}
+
+.svg-sprite-state-idle .part-headtop,
+.svg-sprite-state-thinking .part-headtop {
+  animation: rig-headtop-bob 2.6s ease-in-out infinite;
+}
+
+.svg-sprite-state-idle .part-armL,
+.svg-sprite-state-thinking .part-armL {
+  animation: rig-arm-rock 2.6s ease-in-out infinite;
+}
+
+.svg-sprite-state-idle .part-armR,
+.svg-sprite-state-thinking .part-armR {
+  animation: rig-arm-rock 2.6s ease-in-out infinite;
+  animation-delay: -1.3s;
+}
+
+.svg-sprite-state-idle .part-face,
+.svg-sprite-state-thinking .part-face {
+  animation: rig-face-tilt 5.2s ease-in-out infinite;
+}
+
+/* 漂浮物种：整体上下悬浮 */
+.sprite-floating.svg-sprite-state-idle .svg-sprite-body,
+.sprite-floating.svg-sprite-state-thinking .svg-sprite-body,
+.sprite-floating.svg-sprite-state-working .svg-sprite-body,
+.sprite-floating.svg-sprite-state-laboring .svg-sprite-body {
+  animation: sprite-hover 3s ease-in-out infinite;
+}
+
+/* =========================== 移动（侧视 walk） =========================== */
+.svg-sprite-state-moving .part-body {
+  animation: rig-body-bob var(--stride-dur, 0.5s) ease-in-out infinite;
+}
+
+.svg-sprite-state-moving .part-legL {
+  animation: rig-stride var(--stride-dur, 0.5s) ease-in-out infinite;
+}
+
+.svg-sprite-state-moving .part-legR {
+  animation: rig-stride var(--stride-dur, 0.5s) ease-in-out infinite;
+  animation-delay: calc(var(--stride-dur, 0.5s) / -2);
+}
+
+.svg-sprite-state-moving .part-armL,
+.svg-sprite-state-moving .part-armR {
+  animation: rig-arm-swing var(--stride-dur, 0.5s) ease-in-out infinite;
+}
+
+.svg-sprite-state-moving .part-armR {
+  animation-delay: calc(var(--stride-dur, 0.5s) / -2);
+}
+
+.svg-sprite-state-moving .part-tail {
+  animation: rig-tail-sway 0.9s ease-in-out infinite;
+}
+
+.svg-sprite-state-moving .part-headtop {
+  animation: rig-headtop-bob var(--stride-dur, 0.5s) ease-in-out infinite;
+}
+
+.svg-sprite-state-moving .part-face {
+  animation: rig-face-bob var(--stride-dur, 0.5s) ease-in-out infinite;
+}
+
+/* 漂浮物种没有腿：加大身体起伏 + 尾鳍拍打 + 侧鳍划水 */
+.sprite-floating.svg-sprite-state-moving .svg-sprite-body {
+  animation: sprite-hover 0.9s ease-in-out infinite;
+}
+
+.sprite-floating.svg-sprite-state-moving .part-tail {
+  animation: rig-tail-flap 0.45s ease-in-out infinite;
+}
+
+.sprite-floating.svg-sprite-state-moving .part-armL,
+.sprite-floating.svg-sprite-state-moving .part-armR {
+  animation: rig-paddle 0.9s ease-in-out infinite;
+}
+
+/* ============== 工作（laboring 与 working 完全同一套动画） ============== */
+.svg-sprite-state-working .part-armR,
+.svg-sprite-state-laboring .part-armR {
+  animation: rig-work-arm 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+
+.svg-sprite-state-working .part-armL,
+.svg-sprite-state-laboring .part-armL {
+  animation: rig-brace 0.55s ease-in-out infinite;
+}
+
+.svg-sprite-state-working .part-body,
+.svg-sprite-state-laboring .part-body {
+  animation: rig-work-rock 0.55s ease-in-out infinite;
+}
+
+.svg-sprite-state-working .part-tail,
+.svg-sprite-state-laboring .part-tail {
+  animation: rig-tail-flick 0.55s ease-in-out infinite;
+}
+
+.svg-sprite-state-working .part-headtop,
+.svg-sprite-state-laboring .part-headtop {
+  animation: rig-headtop-bob 0.55s ease-in-out infinite;
+}
+
+.svg-sprite-state-working .part-face,
+.svg-sprite-state-laboring .part-face {
+  animation: rig-face-nod 0.55s ease-in-out infinite;
+}
+
+.svg-sprite-state-working .part-tool,
+.svg-sprite-state-laboring .part-tool {
+  animation: rig-tool-bob 0.55s ease-in-out infinite;
+}
+
+/* =========================== 庆祝 =========================== */
+.svg-sprite-state-success .svg-sprite-body {
+  animation: rig-celebrate-hop 0.75s cubic-bezier(0.36, 1.2, 0.5, 1) 2;
+}
+
+.svg-sprite-state-success .part-armL {
+  animation: rig-arm-cheer 0.375s ease-in-out 4;
+}
+
+.svg-sprite-state-success .part-armR {
+  animation: rig-arm-cheer 0.375s ease-in-out 4;
+  animation-delay: -0.19s;
+}
+
+.svg-sprite-state-success .part-legL {
+  animation: rig-leg-tuck 0.75s ease-in-out 2;
+}
+
+.svg-sprite-state-success .part-legR {
+  animation: rig-leg-tuck 0.75s ease-in-out 2;
+  animation-delay: -0.12s;
+}
+
+.svg-sprite-state-success .part-tail {
+  animation: rig-tail-wag-fast 0.25s ease-in-out 6;
+}
+
+.svg-sprite-state-success .part-headtop {
+  animation: rig-headtop-flutter 0.375s ease-in-out 4;
+}
+
+.svg-sprite-state-success .part-tool {
+  animation: rig-tool-raise 0.75s ease-in-out 2;
+}
+
+/* 星星眼闪烁 */
+.face-eyes-star {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: face-twinkle 0.375s ease-in-out infinite;
+}
+
+/* =========================== 进食（食物互动） =========================== */
+.svg-sprite-state-fed .part-body {
+  animation: rig-munch-rock 0.425s ease-in-out 4;
+}
+
+.svg-sprite-state-fed .part-armR {
+  animation: rig-arm-feed 0.85s ease-in-out 2;
+}
+
+.svg-sprite-state-fed .part-tail {
+  animation: rig-tail-sway 0.85s ease-in-out 2;
+}
+
+.svg-sprite-state-fed .part-face {
+  animation: rig-face-chewbob 0.425s ease-in-out 4;
+}
+
+.svg-sprite-state-fed .food-cookie {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: rig-food-eat 1.7s ease-in-out 1 both;
+}
+
+.svg-sprite-state-fed .food-crumbs {
+  animation: rig-food-crumbs 1.7s ease-out 1 both;
+}
+
+.face-chew {
+  transform-box: fill-box;
+  transform-origin: 50% 20%;
+  animation: face-chew 0.28s ease-in-out infinite;
+}
+
+/* ======== 睡眠（exhausted 与 sleeping 完全同一套；趴地姿势由 rig 的
+   pose="lie" 绘制，这里只做呼吸与 Zzz） ======== */
+.svg-sprite-state-sleeping .part-body,
+.svg-sprite-state-exhausted .part-body {
+  animation: rig-sleep-breathe 3.4s ease-in-out infinite;
+}
+
+.svg-sprite-state-sleeping .part-tail,
+.svg-sprite-state-exhausted .part-tail {
+  animation: rig-tail-sway 5s ease-in-out infinite;
+}
+
+.sprite-zzz {
+  animation: zzz-float 2.2s ease-in-out infinite;
+}
+
+/* =========================== 拖拽 / 落地 =========================== */
+.svg-sprite-state-drag_start .svg-sprite-body,
+.svg-sprite-state-dragging .svg-sprite-body {
+  animation: rig-dangle 0.8s ease-in-out infinite;
+}
+
+.svg-sprite-state-drag_start .part-legL,
+.svg-sprite-state-dragging .part-legL {
+  animation: rig-kick 0.24s ease-in-out infinite alternate;
+}
+
+.svg-sprite-state-drag_start .part-legR,
+.svg-sprite-state-dragging .part-legR {
+  animation: rig-kick 0.24s ease-in-out infinite alternate-reverse;
+}
+
+.svg-sprite-state-drag_start .part-armL,
+.svg-sprite-state-dragging .part-armL {
+  animation: rig-flail 0.3s ease-in-out infinite alternate;
+}
+
+.svg-sprite-state-drag_start .part-armR,
+.svg-sprite-state-dragging .part-armR {
+  animation: rig-flail 0.3s ease-in-out infinite alternate-reverse;
+}
+
+.svg-sprite-state-drag_start .part-tail,
+.svg-sprite-state-dragging .part-tail {
+  animation: rig-tail-sway 0.6s ease-in-out infinite;
+}
+
+.svg-sprite-state-drop .svg-sprite-body {
+  animation: rig-land-bounce 1s cubic-bezier(0.3, 1.2, 0.4, 1) 1;
+}
+
+.svg-sprite-state-drop .part-armL {
+  animation: rig-arm-splay 1s ease-out 1;
+}
+
+.svg-sprite-state-drop .part-armR {
+  animation: rig-arm-splay-r 1s ease-out 1;
+}
+
+.svg-sprite-state-drop .part-legL {
+  animation: rig-leg-splay 1s ease-out 1;
+}
+
+.svg-sprite-state-drop .part-legR {
+  animation: rig-leg-splay-r 1s ease-out 1;
+}
+
+/* =========================== 出错 =========================== */
+.svg-sprite-state-error .svg-sprite-body {
+  animation: sprite-shiver 0.3s linear 4;
+}
+
+.svg-sprite-state-error .part-face {
+  animation: rig-face-shake 0.3s linear 4;
+}
+
+.svg-sprite-state-error .part-tail {
+  animation: rig-tail-droop 1.2s ease-out 1 both;
+}
+
+.svg-sprite-state-error .part-armL,
+.svg-sprite-state-error .part-armR {
+  animation: rig-arm-droop 1.2s ease-out 1 both;
+}
+
+.face-eyes-dizzy path {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: face-dizzy-spin 1.1s linear infinite;
+}
+
+.sprite-sweat {
+  animation: sweat-drip 1.2s ease-in 1 both;
+}
+
+/* =========================== 思考点点 =========================== */
+.sprite-think circle {
+  animation: think-pulse 1.4s ease-in-out infinite;
+}
+
+.sprite-think circle:nth-child(2) {
+  animation-delay: 0.22s;
+}
+
+.sprite-think circle:nth-child(3) {
+  animation-delay: 0.44s;
+}
+
+/* =========================== 元素粒子层 =========================== */
+.sprite-fx .fx-p {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-duration: 0s; /* 由强度类点亮 */
+}
+
+.fx-m-twinkle { animation-name: fx-twinkle; }
+.fx-m-rise { animation-name: fx-rise; }
+.fx-m-flicker { animation-name: fx-flicker; animation-timing-function: steps(2, jump-none); }
+.fx-m-bubble { animation-name: fx-bubble; }
+.fx-m-fall { animation-name: fx-fall; }
+.fx-m-snow { animation-name: fx-snow; }
+
+.fx-low .fx-slot-0,
+.fx-low .fx-slot-1 {
+  animation-duration: 3.6s;
+}
+
+.fx-med .fx-p,
+.fx-burst .fx-p {
+  animation-duration: 1.8s;
+}
+
+.fx-burst-p {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.fx-burst .fx-burst-p {
+  animation: fx-burst-out 0.65s ease-out 1 both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprite-fx {
+    display: none;
+  }
+}
+
+/* =========================== 打工粒子（点击爽快感） =========================== */
+/* 覆盖在精灵上的同 viewBox 叠加层；粒子从工具位置按 --dx/--dy 飞散 */
+.work-burst {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.work-burst .work-p {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation-name: work-fly;
+  animation-timing-function: cubic-bezier(0.16, 0.6, 0.4, 1);
+  animation-fill-mode: both;
+}
+
+@keyframes work-fly {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.25) rotate(0deg);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(calc(var(--dx) * 0.3), calc(var(--dy) * 0.3)) scale(var(--sc, 1)) rotate(calc(var(--rot) * 0.3));
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(calc(var(--sc, 1) * 0.8)) rotate(var(--rot));
+  }
+}
+
+/* 每 10 连击的超级爆炸冲击环 */
+.work-boom {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: work-boom-ring 0.55s cubic-bezier(0.2, 0.8, 0.4, 1) 1 both;
+}
+
+.work-boom-late {
+  animation-delay: 0.08s;
+  animation-duration: 0.62s;
+}
+
+@keyframes work-boom-ring {
+  0% {
+    opacity: 1;
+    transform: scale(0.25);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(var(--boom-scale, 4.2));
+  }
+}
+
+/* =========================== 点击反馈叠加层 =========================== */
+/* 轻微放大回弹（uniform scale，不压扁）。连点靠 -a/-b 类交替重启动画。 */
+.pet-react-pulse {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-origin: 50% 95%;
+}
+
+.pet-react-pulse-a {
+  animation: rig-react-pop 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) 1;
+}
+
+.pet-react-pulse-b {
+  animation: rig-react-pop-alt 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) 1;
+}
+
+.reaction-burst {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.reaction-burst .reaction-p {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: reaction-fly 0.55s ease-out 1 both;
+}
+
+/* =============================== keyframes =============================== */
+
+@keyframes sprite-blink {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94% { transform: scaleY(0.1); }
+  97% { transform: scaleY(1); }
+}
+
+/* 呼吸级微缩放（非压扁） */
+@keyframes rig-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.018, 0.988); }
+}
+
+@keyframes sprite-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes rig-tail-sway {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(9deg); }
+}
+
+@keyframes rig-tail-flap {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-16deg); }
+}
+
+@keyframes rig-tail-flick {
+  0%, 100% { transform: rotate(-3deg); }
+  45% { transform: rotate(12deg); }
+}
+
+@keyframes rig-tail-wag-fast {
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(12deg); }
+}
+
+@keyframes rig-tail-droop {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-22deg); }
+}
+
+@keyframes rig-headtop-bob {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-6deg); }
+}
+
+@keyframes rig-headtop-flutter {
+  0%, 100% { transform: rotate(0deg) scaleY(1); }
+  50% { transform: rotate(8deg) scaleY(1.12); }
+}
+
+@keyframes rig-body-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(calc(var(--bob-px, 5px) * -1)) rotate(-2deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(calc(var(--bob-px, 5px) * -1)) rotate(2deg); }
+}
+
+@keyframes rig-stride {
+  0%, 100% { transform: rotate(var(--stride-deg, 16deg)); }
+  50% { transform: rotate(calc(var(--stride-deg, 16deg) * -1)); }
+}
+
+@keyframes rig-arm-swing {
+  0%, 100% { transform: rotate(10deg); }
+  50% { transform: rotate(-10deg); }
+}
+
+@keyframes rig-arm-rock {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+
+@keyframes rig-paddle {
+  0%, 100% { transform: rotate(-14deg); }
+  50% { transform: rotate(10deg); }
+}
+
+@keyframes rig-brace {
+  0%, 100% { transform: rotate(4deg); }
+  40% { transform: rotate(-8deg); }
+}
+
+@keyframes rig-work-arm {
+  0%, 100% { transform: rotate(0deg); }
+  40% { transform: rotate(-28deg); }
+  70% { transform: rotate(10deg); }
+}
+
+/* 工作时身体前倾后仰（位移+旋转，无压扁） */
+@keyframes rig-work-rock {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  40% { transform: rotate(-3deg) translateY(2px); }
+  70% { transform: rotate(2deg) translateY(-2px); }
+}
+
+@keyframes rig-tool-bob {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  40% { transform: rotate(-6deg) translateY(2px); }
+  70% { transform: rotate(4deg) translateY(-2px); }
+}
+
+@keyframes rig-tool-raise {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  35%, 65% { transform: translateY(-26px) rotate(-12deg); }
+}
+
+/* 庆祝大跳：位移+旋转+空中轻微拉伸（非压扁） */
+@keyframes rig-celebrate-hop {
+  0%, 100% { transform: translateY(0) rotate(0deg) scale(1, 1); }
+  18% { transform: translateY(-6px) rotate(-4deg); }
+  45% { transform: translateY(calc(var(--hop-h, 30px) * -1)) rotate(5deg) scale(0.99, 1.04); }
+  72% { transform: translateY(-4px) rotate(-2deg); }
+  86% { transform: translateY(0) rotate(1deg); }
+}
+
+@keyframes rig-arm-cheer {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(-36deg); }
+}
+
+@keyframes rig-leg-tuck {
+  0%, 100% { transform: rotate(0deg); }
+  45% { transform: rotate(24deg); }
+}
+
+/* 进食：小口咀嚼的身体轻摇 */
+@keyframes rig-munch-rock {
+  0%, 100% { transform: rotate(-1.5deg) translateY(0); }
+  50% { transform: rotate(1.5deg) translateY(-1.5px); }
+}
+
+@keyframes rig-arm-feed {
+  0%, 100% { transform: rotate(0deg); }
+  30%, 70% { transform: rotate(-32deg); }
+}
+
+@keyframes rig-face-chewbob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(1.4px) rotate(1deg); }
+}
+
+/* 食物：飞入嘴边 → 三口吃掉（steps 离散缩小）→ 消失 */
+@keyframes rig-food-eat {
+  0% { opacity: 0; transform: translate(30px, -34px) rotate(20deg) scale(0.9); }
+  16% { opacity: 1; transform: translate(2px, -4px) rotate(0deg) scale(1); }
+  34% { transform: translate(0, 0) rotate(-6deg) scale(1); }
+  35% { transform: translate(0, 0) rotate(4deg) scale(0.72); }
+  54% { transform: translate(0, 0) rotate(-4deg) scale(0.72); }
+  55% { transform: translate(0, 0) rotate(6deg) scale(0.45); }
+  74% { transform: translate(0, 0) rotate(-4deg) scale(0.45); }
+  75%, 100% { opacity: 0; transform: translate(0, 0) scale(0.2); }
+}
+
+@keyframes rig-food-crumbs {
+  0%, 34% { opacity: 0; transform: translateY(0); }
+  38% { opacity: 1; }
+  74% { opacity: 1; transform: translateY(10px); }
+  85%, 100% { opacity: 0; transform: translateY(16px); }
+}
+
+@keyframes face-chew {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.5); }
+}
+
+/* 睡眠呼吸（趴地姿势由 rig 绘制，这里只做轻微起伏） */
+@keyframes rig-sleep-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.025, 0.972); }
+}
+
+@keyframes rig-dangle {
+  0%, 100% { transform: rotate(-5deg) scale(0.99, 1.04); }
+  50% { transform: rotate(5deg) scale(0.99, 1.04); }
+}
+
+@keyframes rig-kick {
+  from { transform: rotate(-18deg); }
+  to { transform: rotate(18deg); }
+}
+
+@keyframes rig-flail {
+  from { transform: rotate(-24deg); }
+  to { transform: rotate(24deg); }
+}
+
+/* 落地：弹跳缓冲（冲击瞬间极短轻缓冲，主体是位移与肢体张开） */
+@keyframes rig-land-bounce {
+  0% { transform: translateY(-16px); }
+  22% { transform: translateY(0) scale(1.05, 0.95); }
+  30% { transform: translateY(-1px) scale(1, 1); }
+  48% { transform: translateY(-9px); }
+  64% { transform: translateY(0) scale(1.02, 0.98); }
+  72% { transform: translateY(0) scale(1, 1); }
+  84% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes rig-arm-splay {
+  0% { transform: rotate(0deg); }
+  22% { transform: rotate(-42deg); }
+  55% { transform: rotate(-10deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes rig-arm-splay-r {
+  0% { transform: rotate(0deg); }
+  22% { transform: rotate(42deg); }
+  55% { transform: rotate(10deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes rig-leg-splay {
+  0% { transform: rotate(0deg); }
+  22% { transform: rotate(-24deg); }
+  60% { transform: rotate(-6deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes rig-leg-splay-r {
+  0% { transform: rotate(0deg); }
+  22% { transform: rotate(24deg); }
+  60% { transform: rotate(6deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes sprite-shiver {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px) rotate(-1.5deg); }
+  75% { transform: translateX(4px) rotate(1.5deg); }
+}
+
+@keyframes rig-face-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+@keyframes rig-arm-droop {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(16deg); }
+}
+
+@keyframes rig-face-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes rig-face-nod {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  40% { transform: rotate(2.5deg) translateY(1.5px); }
+}
+
+@keyframes rig-face-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+@keyframes face-twinkle {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.15) rotate(8deg); }
+}
+
+@keyframes face-dizzy-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sweat-drip {
+  0% { transform: translateY(-6px); opacity: 0; }
+  25% { opacity: 1; }
+  100% { transform: translateY(14px); opacity: 0; }
+}
+
+@keyframes think-pulse {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-3px); }
+}
+
+@keyframes zzz-float {
+  0%, 100% { transform: translateY(0); opacity: 0.85; }
+  50% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* 点击轻微放大回弹（-a/-b 同款，仅用于重启动画） */
+@keyframes rig-react-pop {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  72% { transform: scale(0.985); }
+}
+
+@keyframes rig-react-pop-alt {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  72% { transform: scale(0.985); }
+}
+
+@keyframes reaction-fly {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--bx, 0px), var(--by, -50px)) scale(1.05); }
+}
+
+/* ---- 粒子 keyframes（首尾 opacity 0，天然无缝） ---- */
+@keyframes fx-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.2) rotate(0deg); }
+  50% { opacity: 0.85; transform: scale(1) rotate(45deg); }
+}
+
+@keyframes fx-rise {
+  0%, 100% { opacity: 0; transform: translateY(6px) translateX(0) scale(0.7); }
+  25% { opacity: 0.9; }
+  55% { transform: translateY(-14px) translateX(4px) scale(1); }
+  85% { opacity: 0; transform: translateY(-26px) translateX(-3px) scale(0.8); }
+}
+
+@keyframes fx-flicker {
+  0%, 44%, 100% { opacity: 0; }
+  48%, 58% { opacity: 1; transform: scale(1.1); }
+  62%, 70% { opacity: 0.25; }
+  74%, 80% { opacity: 0.9; transform: scale(0.9); }
+}
+
+@keyframes fx-bubble {
+  0%, 100% { opacity: 0; transform: translateY(8px) scale(0.5); }
+  30% { opacity: 0.9; }
+  75% { opacity: 0.9; transform: translateY(-18px) scale(1); }
+  88% { opacity: 0; transform: translateY(-22px) scale(1.35); }
+}
+
+@keyframes fx-fall {
+  0%, 100% { opacity: 0; transform: translateY(-10px) translateX(0) rotate(-18deg); }
+  25% { opacity: 0.9; }
+  60% { transform: translateY(10px) translateX(6px) rotate(14deg); }
+  90% { opacity: 0; transform: translateY(22px) translateX(-2px) rotate(-10deg); }
+}
+
+@keyframes fx-snow {
+  0%, 100% { opacity: 0; transform: translateY(-10px) rotate(0deg); }
+  25% { opacity: 0.9; }
+  85% { opacity: 0; transform: translateY(20px) rotate(160deg); }
+}
+
+@keyframes fx-burst-out {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.3); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--bx, 40px), var(--by, -40px)) scale(1.1); }
+}

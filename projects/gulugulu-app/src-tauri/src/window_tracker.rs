@@ -52,3 +52,47 @@ pub fn active_window_bounds() -> Option<WindowBounds> {
 pub fn active_window_bounds() -> Option<WindowBounds> {
     None
 }
+
+/// 包含 (x, y) 那台显示器的工作区（去掉任务栏后的可用区域）。
+/// 后院停靠布局用它把窗口铺满屏宽、底边贴任务栏上沿。
+#[cfg(windows)]
+pub fn work_area_at(x: i32, y: i32) -> Option<WindowBounds> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    };
+
+    unsafe {
+        let monitor = MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONEAREST);
+        if monitor.0.is_null() {
+            return None;
+        }
+
+        let mut info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+            return None;
+        }
+
+        let work = info.rcWork;
+        let width = work.right - work.left;
+        let height = work.bottom - work.top;
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+
+        Some(WindowBounds {
+            x: work.left,
+            y: work.top,
+            width,
+            height,
+        })
+    }
+}
+
+#[cfg(not(windows))]
+pub fn work_area_at(_x: i32, _y: i32) -> Option<WindowBounds> {
+    None
+}

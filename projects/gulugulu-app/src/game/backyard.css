@@ -1,0 +1,973 @@
+/* =========================================================================
+   后院横向卷轴场景（claude_design/游戏UI风格设计-handoff · 后院 横向卷轴原型）
+   世界坐标：近景 4400px / 中景 3400px / 远景 2600px，元素一律 bottom 锚定。
+   ========================================================================= */
+
+/* 场景本体透明：天空区域直接透出桌面，只有木件/地面/角色是实体 */
+.backyard {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 缩放舞台：设计坐标系（高 560）的画布。
+   高度缩放 = transform: scale()（左下为原点），宽度只改 width（扩画卷）。 */
+.by-stage {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform-origin: left bottom;
+}
+
+.by-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  will-change: transform;
+}
+
+/* ---- 场景关键帧（与设计稿同名同参） ---- */
+@keyframes gg-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes gg-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes gg-sway { 0%, 100% { transform: rotate(3deg); } 50% { transform: rotate(-3.5deg); } }
+@keyframes gg-swing { 0%, 100% { transform: rotate(5deg); } 50% { transform: rotate(-5deg); } }
+@keyframes gg-glow { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.95; transform: scale(1.2); } }
+@keyframes gg-flame { 0%, 100% { transform: scale(1) rotate(-2deg); } 50% { transform: scale(1.12) rotate(2deg); } }
+@keyframes gg-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes gg-hatch { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
+
+/* ---- 主角 ---- */
+.by-char {
+  position: absolute;
+  z-index: 5;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.by-char-face { width: 100%; height: 100%; }
+
+/* 不再上下浮动：待机/移动姿态全部交给精灵自身的动画词汇 */
+.by-char-walk { width: 100%; height: 100%; }
+
+.by-char .svg-sprite { width: 100%; height: 100%; }
+
+.by-char-zzz {
+  position: absolute;
+  left: 50%;
+  top: -20px;
+  transform: translateX(-50%);
+  padding: 1px 8px 2px;
+  border-radius: 999px;
+  background: rgba(59, 43, 29, 0.7);
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffe9c9;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---- 伙伴（点击直接打工；闲时踱步用 left 过渡平滑挪动） ---- */
+.by-pet {
+  position: absolute;
+  z-index: 3;
+  cursor: pointer;
+  transition: left 2.2s linear;
+}
+
+.by-pet-body { width: 100%; height: 100%; }
+
+.by-pet .svg-sprite { width: 100%; height: 100%; }
+
+.by-pet.is-exhausted .svg-sprite { filter: grayscale(0.55); }
+
+/* 打工粒子/爆发覆盖层：与精灵同框，允许飞出 */
+.by-work-fx {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* 进食收益飘字容器（挂在主角身上，跟镜头走） */
+.by-char-pops {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 6;
+}
+
+.by-pet-tag {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  margin-bottom: 4px;
+  transform: translateX(-50%);
+  padding: 1px 8px 2px;
+  border-radius: 999px;
+  background: rgba(59, 43, 29, 0.7);
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffe9c9;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---- 药丸标签 ---- */
+.by-pill {
+  box-sizing: border-box;
+  padding: 2px 9px 3px;
+  border: 1.5px solid #6b4520;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.by-pill.is-dark { background: rgba(59, 43, 29, 0.78); color: #ffe9c9; }
+
+.by-pill.is-light { background: rgba(255, 247, 226, 0.92); color: #8a6410; }
+
+.by-pill.is-gold { border-color: #b07708; background: linear-gradient(180deg, #ffe9ad, #f7d373); color: #4a3313; }
+
+.by-pill.is-dim { background: rgba(59, 43, 29, 0.45); border-color: rgba(107, 69, 32, 0.6); color: rgba(255, 233, 201, 0.8); }
+
+/* ---- 孵化区蛋坑 ---- */
+.by-pit {
+  position: absolute;
+  width: 84px;
+  height: 158px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  cursor: default;
+}
+
+.by-pit.is-actionable { cursor: pointer; }
+
+.by-pit.is-actionable:hover .by-pill { filter: brightness(1.06); }
+
+.by-pit-mound {
+  position: absolute;
+  left: 0;
+  bottom: 34px;
+  width: 84px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #efcb74, #d9a94f);
+}
+
+.by-pit.is-locked .by-pit-mound { filter: grayscale(0.55); opacity: 0.8; }
+
+.by-pit-hole {
+  position: absolute;
+  left: 13px;
+  bottom: 40px;
+  width: 58px;
+  height: 20px;
+  border-radius: 50%;
+  background: #8a6437;
+  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.4);
+}
+
+.by-pit-glow {
+  position: absolute;
+  left: -13px;
+  bottom: 30px;
+  width: 110px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(247, 211, 115, 0.8) 0%, rgba(247, 211, 115, 0) 70%);
+  animation: gg-glow 1.6s ease-in-out infinite;
+}
+
+.by-pit-egg {
+  position: absolute;
+  left: 19px;
+  bottom: 42px;
+  width: 46px;
+  height: 46px;
+}
+
+.by-pit-lock {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  font-size: 17px;
+}
+
+.by-pit .by-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+
+/* 待孵化蛋（栅栏边的库存） */
+.by-egg-inv {
+  position: absolute;
+  z-index: 2;
+  width: 30px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.by-egg-inv:hover { transform: translateY(-2px); }
+
+.by-egg-inv:disabled { cursor: not-allowed; filter: grayscale(0.4); }
+
+/* ---- 商店弹出商品板（位置由场景按主角方位内联指定，贴地展开） ---- */
+.by-shop-pop {
+  position: absolute;
+  width: 304px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 3px solid #6b4520;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #b07b44, #96622f);
+  box-shadow: 0 14px 26px rgba(43, 26, 8, 0.4);
+  opacity: 0;
+  transform: translateY(14px) scale(0.92);
+  transform-origin: 50% 100%;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+  z-index: 6;
+  cursor: default;
+}
+
+.by-shop-pop.is-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.by-shop-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.by-shop-card {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 4px 5px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 247, 226, 0.94);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.14s ease, background 0.14s ease;
+}
+
+.by-shop-card:hover:not(:disabled) { background: #fffdf6; transform: translateY(-1px); }
+
+.by-shop-card:disabled { filter: grayscale(0.75); opacity: 0.62; cursor: not-allowed; }
+
+.by-shop-egg { width: 30px; height: 30px; }
+
+.by-shop-name { font-size: 11px; font-weight: 800; color: #4a3313; }
+
+.by-shop-price { font-size: 11px; font-weight: 900; color: #8a6410; font-variant-numeric: tabular-nums; }
+
+.by-shop-price.is-short { color: #b3452e; }
+
+.by-shop-note {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 10px;
+  color: #ffe9c9;
+  opacity: 0.85;
+}
+
+
+/* ---- 公告板内容 ---- */
+.by-board-inner {
+  position: absolute;
+  inset: 9px;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: #f5ead2;
+  box-shadow: inset 0 2px 6px rgba(59, 43, 29, 0.25);
+  display: grid;
+  align-content: space-between;
+}
+
+/* 公告板主区：全局 Token 大字 + Agent 连接状态 */
+.by-board-main {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 7px;
+  padding-bottom: 4px;
+  border-bottom: 1.5px dashed rgba(138, 116, 88, 0.5);
+}
+
+.by-board-token {
+  font-family: var(--font-display);
+  font-size: 21px;
+  line-height: 1.15;
+  color: #4a3313;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.by-board-token-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #8a7458;
+  white-space: nowrap;
+}
+
+.by-board-status {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 800;
+  color: #57742e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.by-board-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #4a3313;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.by-board-foot {
+  font-size: 10px;
+  color: #8a7458;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- 靠近伙伴的动作牌：插在脚下的土层剖面里（bottom 0–132 土层带） ---- */
+.by-bubble {
+  position: absolute;
+  width: 300px;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  z-index: 7;
+  cursor: default;
+  animation: by-bubble-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes by-bubble-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* 动作牌布局：左侧大融合印章 + 右列上下两小牌（等高） */
+.by-bubble-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.by-bubble-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 融合大按钮：与小木牌同款式的标准长方形，只是更大、金色（与右列两键等高） */
+.by-bubble-fuse {
+  box-sizing: border-box;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 1px;
+  padding: 6px 26px 7px;
+  border: 2px solid #6b4520;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffe9ad, #f7d373);
+  font-family: var(--font-display);
+  letter-spacing: 1px;
+  color: #4a3313;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 3px 0 #6b4520, 0 0 14px 2px rgba(247, 211, 115, 0.45);
+  transition: filter 0.12s ease;
+}
+
+.by-bubble-fuse b {
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.by-bubble-fuse small {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 800;
+  color: #8a6410;
+}
+
+.by-bubble-fuse:hover:not(.is-disabled) { filter: brightness(1.05); }
+
+.by-bubble-fuse:active:not(.is-disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 1px 0 #6b4520;
+}
+
+.by-bubble-fuse.is-disabled {
+  border-color: #6e675c;
+  background: linear-gradient(180deg, #b8b0a2, #9a9184);
+  color: #efeae0;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.2), 0 3px 0 #6e675c;
+  cursor: default;
+}
+
+.by-bubble-fuse.is-disabled small { color: #e3ded4; }
+
+/* 陪伴 / 放生：规则并排的小木牌 */
+.by-bubble-row { display: flex; gap: 12px; align-items: center; justify-content: center; }
+
+.by-bubble-mini {
+  box-sizing: border-box;
+  padding: 4px 12px 5px;
+  border: 2px solid #6b4520;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #c08a4e, #a06a33);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #fff3d9;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), 0 3px 0 #6b4520;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.by-bubble-mini:hover:not(:disabled) { filter: brightness(1.07); }
+
+.by-bubble-mini:active:not(:disabled) { box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), 0 1px 0 #6b4520; }
+
+.by-bubble-mini:disabled { opacity: 0.55; cursor: default; }
+
+.by-bubble-mini.is-danger { color: #ffc9b0; }
+
+.by-bubble-hint {
+  padding: 2px 10px 3px;
+  border-radius: 999px;
+  background: rgba(59, 43, 29, 0.82);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #ffe9c9;
+  white-space: nowrap;
+}
+
+/* ---- 升级后院木牌 ---- */
+.by-upgrade-btn {
+  position: absolute;
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+  box-sizing: border-box;
+  padding: 6px 14px 7px;
+  border: 2.5px solid #6b4520;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #d9a514, #b07708);
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  line-height: 1.25;
+  color: #fff7dc;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.3), 0 4px 0 #6b4520, 0 10px 18px rgba(43, 26, 8, 0.28);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.by-upgrade-btn:disabled {
+  filter: grayscale(0.45) brightness(0.92);
+  cursor: not-allowed;
+}
+
+.by-upgrade-btn .by-upgrade-sub { font-size: 11px; font-family: inherit; opacity: 0.92; }
+
+/* ---- 泥土层常驻 UI：左下角同框牌簇（后院在上，返回/金币在下，等宽对齐） ---- */
+.by-soil-ui {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  display: grid;
+  gap: 5px;
+  justify-items: stretch;
+  z-index: 8;
+  cursor: default;
+}
+
+.by-soil-row {
+  display: flex;
+  gap: 5px;
+}
+
+.by-soil-row .by-soil-chip { flex: 1; }
+
+/* 三块牌子共用同一种背景框；标题与下排整体等宽 */
+.by-soil-chip {
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 7px;
+  padding: 3px 12px 4px;
+  border: 2px solid #6b4520;
+  border-radius: 9px;
+  background: var(--wood-grain, none), linear-gradient(180deg, #b07b44, #96622f);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), 0 3px 0 #4a2f14, 0 6px 12px rgba(43, 26, 8, 0.35);
+  font: inherit;
+  color: #fff3d9;
+  white-space: nowrap;
+}
+
+.by-soil-back {
+  font-size: 12.5px;
+  font-weight: 900;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.by-soil-back:hover { filter: brightness(1.08); }
+
+.by-soil-back:active { transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), 0 1px 0 #4a2f14; }
+
+.by-soil-coins {
+  font-size: 13px;
+  font-weight: 900;
+  color: #ffe9ad;
+  font-variant-numeric: tabular-nums;
+}
+
+.by-bar-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.1;
+  letter-spacing: 2px;
+  color: #ffe9ad;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+.by-bar-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e8c990;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+
+/* 可融合提示（右下角泥土层） */
+.by-soil-goal {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  box-sizing: border-box;
+  padding: 4px 13px 5px;
+  border: 1.5px solid rgba(247, 211, 115, 0.55);
+  border-radius: 999px;
+  background: rgba(59, 43, 29, 0.72);
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffe9c9;
+  white-space: nowrap;
+  z-index: 8;
+  cursor: default;
+}
+
+.by-soil-goal b { color: #ffd93b; }
+
+.by-bar-goal-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffd93b;
+  box-shadow: 0 0 8px 2px rgba(255, 217, 59, 0.6);
+  animation: gg-glow 1.6s ease-in-out infinite;
+}
+
+/* 首次进入的移动引导（一次性） */
+.by-guide {
+  position: absolute;
+  left: 50%;
+  bottom: 148px;
+  transform: translateX(-50%);
+  z-index: 8;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+  padding: 7px 18px 8px;
+  border: 2.5px solid var(--wood-border, #6b4520);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fffdf6, #f5ead2);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), 0 8px 18px rgba(43, 26, 8, 0.3);
+  pointer-events: none;
+  animation: by-guide-in 0.4s cubic-bezier(0.18, 0.92, 0.28, 1.25);
+}
+
+.by-guide-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #4a3313;
+  white-space: nowrap;
+}
+
+.by-guide-sub {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #8a7458;
+  white-space: nowrap;
+}
+
+@keyframes by-guide-in {
+  0% { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.94); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* 场景内 SVG 蛋直接铺满容器 */
+.by-pit-egg .egg-svg,
+.by-egg-inv .egg-svg,
+.by-shop-egg.egg-svg { width: 100%; height: 100%; }
+
+/* ---- 主角头顶对话气泡（台词/提示/融合条件统一表达，紧贴头顶） ---- */
+.by-char-say {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  max-width: 300px;
+  box-sizing: border-box;
+  padding: 7px 12px 8px;
+  border: 2.5px solid #6b4520;
+  border-radius: 13px;
+  background: linear-gradient(180deg, #fffdf6, #f8ecd0);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.8), 0 6px 14px rgba(43, 26, 8, 0.28);
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #4a3313;
+  text-align: center;
+  white-space: normal;
+  width: max-content;
+  pointer-events: none;
+  z-index: 7;
+  animation: by-say-pop 0.28s cubic-bezier(0.18, 0.92, 0.28, 1.22);
+}
+
+.by-char-say::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-right: 2.5px solid #6b4520;
+  border-bottom: 2.5px solid #6b4520;
+  border-radius: 0 0 4px 0;
+  background: #f8ecd0;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+@keyframes by-say-pop {
+  0% { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.92); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* ---- POI 弹板（图鉴馆 / 交易市场，与商店板同一形制） ---- */
+.by-poi-pop {
+  position: absolute;
+  width: 320px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 3px solid #6b4520;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #b07b44, #96622f);
+  box-shadow: 0 14px 26px rgba(43, 26, 8, 0.4);
+  opacity: 0;
+  transform: translateY(14px) scale(0.92);
+  transform-origin: 50% 100%;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+  z-index: 6;
+  cursor: default;
+}
+
+.by-poi-pop.is-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+
+.by-poi-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: #ffe9ad;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  text-align: center;
+  margin-bottom: 7px;
+  white-space: nowrap;
+}
+
+.by-poi-empty {
+  padding: 10px 6px;
+  border-radius: 8px;
+  background: rgba(255, 247, 226, 0.94);
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a7458;
+  text-align: center;
+}
+
+.by-poi-note {
+  margin-top: 6px;
+  font-size: 10px;
+  color: #ffe9c9;
+  opacity: 0.8;
+  text-align: center;
+}
+
+.by-poi-cta {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  box-sizing: border-box;
+  padding: 7px 10px 8px;
+  border: 2px solid #b07708;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #ffe9ad, #f7d373);
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: #4a3313;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 3px 0 #6b4520;
+  cursor: pointer;
+}
+
+.by-poi-cta:hover { filter: brightness(1.05); }
+
+.by-poi-cta:active { transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 1px 0 #6b4520; }
+
+/* 图鉴馆弹板：已收集角色的彩色缩略图 */
+.by-dex-thumbs {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.by-dex-thumb {
+  aspect-ratio: 1;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(255, 247, 226, 0.94);
+  box-sizing: border-box;
+}
+
+.by-dex-thumb .svg-sprite { width: 100%; height: 100%; }
+
+/* 交易市场弹板：行情行 */
+.by-market-rows {
+  display: grid;
+  gap: 5px;
+}
+
+.by-market-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(255, 247, 226, 0.94);
+}
+
+.by-market-sprite {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.by-market-sprite .svg-sprite { width: 100%; height: 100%; }
+
+.by-market-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #4a3313;
+}
+
+.by-market-price {
+  flex: none;
+  font-size: 12px;
+  font-weight: 900;
+  color: #2f7d2b;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 图鉴全屏浮层（窗口坐标，不随舞台缩放） ---- */
+.by-dex-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(30, 20, 10, 0.45);
+  backdrop-filter: blur(2px);
+  cursor: default;
+}
+
+.by-dex-panel {
+  width: min(560px, calc(100% - 48px));
+  max-height: calc(100% - 40px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border: 3px solid #6b4520;
+  border-radius: 14px;
+  background: var(--wood-grain, none), linear-gradient(180deg, #b07b44, #96622f);
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.24), 0 18px 40px rgba(20, 12, 4, 0.5);
+  overflow: hidden;
+  animation: by-say-pop 0.24s cubic-bezier(0.18, 0.92, 0.28, 1.2);
+}
+
+.by-dex-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+}
+
+.by-dex-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: #ffe9ad;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.by-dex-progress {
+  font-size: 12px;
+  font-weight: 800;
+  color: #e8c990;
+}
+
+.by-dex-close {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid #6b4520;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #c08a4e, #a06a33);
+  color: #fff3d9;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), 0 2px 0 #4a2f14;
+  cursor: pointer;
+}
+
+.by-dex-close:hover { filter: brightness(1.08); }
+
+.by-dex-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+  margin: 0 10px 10px;
+  padding: 10px;
+  border-radius: 9px;
+  background: #f5ead2;
+  box-shadow: inset 0 2px 6px rgba(59, 43, 29, 0.25);
+}
+
+.by-dex-cell {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 7px 4px 6px;
+  border-radius: 9px;
+  background: rgba(255, 253, 246, 0.9);
+  border: 1.5px solid rgba(107, 69, 32, 0.25);
+}
+
+.by-dex-cell.is-collected {
+  border-color: rgba(176, 119, 8, 0.55);
+  box-shadow: 0 0 8px rgba(247, 211, 115, 0.45);
+}
+
+.by-dex-cell-sprite {
+  position: relative;
+  width: 52px;
+  height: 52px;
+}
+
+.by-dex-cell-sprite .svg-sprite { width: 100%; height: 100%; }
+
+/* 未收集：黑影 + 问号 */
+.by-dex-cell.is-unknown .by-dex-cell-sprite .svg-sprite {
+  filter: brightness(0) opacity(0.55);
+}
+
+.by-dex-q {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: #fff3d9;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.by-dex-cell-name {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #4a3313;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.by-dex-cell.is-unknown .by-dex-cell-name { color: #a08d76; }

@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the Gulugulu desktop pet window.",
-  "windows": ["main"],
+  "description": "Default permissions for the Gulugulu desktop pet window (main) and the FX overlay (fx).",
+  "windows": ["main", "fx"],
   "permissions": [
     "core:default",
     "core:window:allow-outer-position",
