@@ -63,6 +63,9 @@
   left: 50%;
   top: -20px;
   transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 1px 8px 2px;
   border-radius: 999px;
   background: rgba(59, 43, 29, 0.7);
@@ -71,6 +74,21 @@
   color: #ffe9c9;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* 充电药丸内嵌微型精力条（§6.4：恢复期 = 休息不是死亡） */
+.by-char-zzz .energy-bar-tag {
+  width: 40px;
+}
+
+/* 主角头顶悬浮精力条（§6.1 表面 b）：满格时组件自会卸载 */
+.by-char-energy {
+  position: absolute;
+  left: 50%;
+  top: -16px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* ---- 伙伴（点击直接打工；闲时踱步用 left 过渡平滑挪动） ---- */
@@ -112,14 +130,51 @@
   bottom: 100%;
   margin-bottom: 4px;
   transform: translateX(-50%);
-  padding: 1px 8px 2px;
-  border-radius: 999px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 8px 3px;
+  border-radius: 10px;
   background: rgba(59, 43, 29, 0.7);
   font-size: 10px;
   font-weight: 700;
   color: #ffe9c9;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* 名牌第一行：等级 + 阶数星（次要信息，略小略暗） */
+.by-pet-tag-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.15;
+  font-size: 9px;
+  font-weight: 800;
+  color: #ffd9a0;
+  letter-spacing: 0.2px;
+}
+
+/* 阶数五角星：几阶几星，金色紧凑 */
+.by-pet-tag-stars {
+  color: #ffd15c;
+  font-size: 8.5px;
+  letter-spacing: -0.5px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* 名牌第二行：名字（主信息，最亮最粗） */
+.by-pet-tag-name {
+  line-height: 1.2;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff3df;
+}
+
+/* 满级：名字转暖金（取代旧的"满级 ★"标记，避免与阶数星混淆） */
+.by-pet-tag.is-max .by-pet-tag-name {
+  color: #ffe08a;
 }
 
 /* ---- 药丸标签 ---- */
@@ -296,6 +351,55 @@
   opacity: 0.85;
 }
 
+/* 商店分阶翻页头（‹ N 阶蛋 · 页 N/M ›）与升级按钮（EconomyScaling.md §6.3） */
+.by-shop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.by-shop-arrow {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: #ffe9c9;
+  color: #6b4520;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.by-shop-arrow:hover:not(:disabled) { background: #fffdf6; }
+
+.by-shop-arrow:disabled { opacity: 0.35; cursor: default; }
+
+.by-shop-title {
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffe9c9;
+  font-variant-numeric: tabular-nums;
+}
+
+.by-shop-upgrade {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(#ffd98a, #f0b34a);
+  color: #5a3a12;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.by-shop-upgrade:hover:not(:disabled) { filter: brightness(1.05); }
+
+.by-shop-upgrade:disabled { filter: grayscale(0.7); opacity: 0.6; cursor: not-allowed; }
+
 
 /* ---- 公告板内容 ---- */
 .by-board-inner {
@@ -355,6 +459,32 @@
   color: #4a3313;
   line-height: 1.35;
   white-space: nowrap;
+}
+
+/* 今日互动状态行：爱心额度 + 满格一瞥（从左下常驻 HUD 迁入公告板，§6.2/§6.6） */
+.by-board-love-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1.5px dashed rgba(138, 116, 88, 0.5);
+}
+
+.by-board-love {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #4a3313;
+  white-space: nowrap;
+}
+
+/* 公告板奶油底：爱心计数字改用深棕（默认 --cream-title 是给深色木底的浅字） */
+.by-board-love .love-meter-count {
+  color: #4a3313;
+  text-shadow: none;
 }
 
 .by-board-foot {
@@ -531,7 +661,7 @@
 
 .by-soil-row .by-soil-chip { flex: 1; }
 
-/* 三块牌子共用同一种背景框；标题与下排整体等宽 */
+/* 两块牌子共用同一种背景框；标题与下排整体等宽 */
 .by-soil-chip {
   box-sizing: border-box;
   display: flex;
@@ -848,13 +978,16 @@
   z-index: 20;
   display: grid;
   place-items: center;
-  background: rgba(30, 20, 10, 0.45);
-  backdrop-filter: blur(2px);
+  /* 不压暗/模糊背后的场景：只作点击关闭的透明捕获层，让图鉴板直接融入桌面，
+     与欢迎卡一致。板本身靠边框与投影和背景区分。 */
+  background: transparent;
   cursor: default;
 }
 
 .by-dex-panel {
-  width: min(560px, calc(100% - 48px));
+  /* 够宽以让一条配方行的全部 11 个槽位（1 固定 + 10 AI 变种）在一行内不横滚可见
+     （槽区实测需 ~861px，含开销约需 975px；取 1000px 留余量；窄窗回退横滚）。 */
+  width: min(1000px, calc(100% - 32px));
   max-height: calc(100% - 40px);
   display: flex;
   flex-direction: column;
@@ -971,3 +1104,123 @@
 }
 
 .by-dex-cell.is-unknown .by-dex-cell-name { color: #a08d76; }
+
+/* ── 图鉴详情：按配方铺行（PokedexSystem.md §4）── */
+.by-dex-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 10px 10px;
+  padding: 10px 10px 12px;
+  border-radius: 9px;
+  background: #f5ead2;
+  box-shadow: inset 0 2px 6px rgba(59, 43, 29, 0.25);
+}
+
+.by-dex-section-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  color: #7a5320;
+  margin: 8px 2px 6px;
+  padding-bottom: 3px;
+  border-bottom: 2px dashed rgba(122, 83, 32, 0.35);
+}
+.by-dex-section-label:first-child { margin-top: 0; }
+
+.by-dex-baserow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.by-dex-reciperow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(107, 69, 32, 0.12);
+}
+
+.by-dex-recipe-label {
+  flex: 0 0 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.by-dex-recipe-label .el-icon {
+  display: block;
+  filter: drop-shadow(0 1px 0.5px rgba(43, 26, 8, 0.18));
+}
+.by-dex-recipe-count { font-size: 9px; font-weight: 800; color: #7a5320; white-space: nowrap; }
+
+.by-dex-recipe-slots {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.by-dex-recipe-slots .by-dex-cell { flex: 0 0 62px; }
+.by-dex-recipe-slots .by-dex-cell-sprite { width: 44px; height: 44px; }
+
+/* 固定/AI 分隔（PokedexSystem §4.1）。 */
+.by-dex-sep {
+  flex: 0 0 0;
+  align-self: stretch;
+  border-left: 2px dotted rgba(107, 69, 32, 0.5);
+  margin: 4px 3px;
+}
+
+.by-dex-cell.is-locked { opacity: 0.5; }
+
+.by-dex-cell-count { font-size: 9px; font-weight: 700; color: #b0872b; }
+
+.by-dex-mystery {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: #6b5636;
+  pointer-events: none;
+}
+
+/* 黑影上叠：当前生成概率 / 未解锁锁 */
+.by-dex-prob,
+.by-dex-lock {
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.by-dex-prob {
+  background: rgba(46, 30, 8, 0.82);
+  color: #ffe9ad;
+  border: 1px solid rgba(255, 233, 173, 0.5);
+}
+.by-dex-lock { background: transparent; font-size: 14px; }
+
+/* 博物馆速览溢出格 +x */
+.by-dex-thumb-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 900;
+  color: #7a5320;
+  background: rgba(247, 211, 115, 0.5);
+}

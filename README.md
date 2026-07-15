@@ -53,6 +53,14 @@ npm run tauri:build
 
 GitHub Actions builds Windows, macOS, and Linux installers when a `v*` tag is pushed.
 
+## Keyboard Charging & Privacy
+
+Typing anywhere on your desktop feeds the pet's stamina ("键盘充能", Windows only). The privacy contract, enforced in `src-tauri/src/key_watcher.rs`:
+
+- Game logic only ever receives a per-second **count** of key presses.
+- Key characters exist solely as transient glyphs (≤250ms) to render the flying-keycap effect — they are **never logged, saved to disk, or transmitted**, and no text-reconstruction APIs (e.g. `ToUnicode`) are used.
+- Toggle it off anytime via the tray menu item "键盘充能" — disabling truly uninstalls the system hook.
+
 ## Notes
 
 Generated folders such as `node_modules`, `dist`, and `src-tauri/target` are intentionally ignored by git. Release installers should be produced from a clean checkout.

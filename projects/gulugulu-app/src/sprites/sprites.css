@@ -851,3 +851,83 @@
   15% { opacity: 1; }
   100% { opacity: 0; transform: translate(var(--bx, 40px), var(--by, -40px)) scale(1.1); }
 }
+
+/* =============================================================================
+   融合 2.0 一次性新增（Batch 0）：阶数光圈 + 通用装饰件
+   - 阶数光圈：SvgSprite 的 tier prop ≥2 时渲染，向外扩散渐隐循环。
+   - 装饰类 part-orbit/part-aura/part-crest/part-banner：状态无关的持续循环，
+     供 e4+ 物种的环绕件/光环/冠羽/旗帜使用；睡眠时减速。
+   ============================================================================= */
+
+.sprite-grade-halo .grade-ring {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: grade-ring-expand 2.4s ease-out infinite;
+  opacity: 0;
+}
+
+.sprite-grade-halo .grade-ring-b { animation-delay: -1.2s; }
+.sprite-grade-halo .grade-ring-c { animation-delay: -0.7s; }
+
+@keyframes grade-ring-expand {
+  0% { transform: scale(0.45); opacity: 0.85; }
+  70% { opacity: 0.28; }
+  100% { transform: scale(1.75); opacity: 0; }
+}
+
+.svg-sprite .part-orbit {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: orn-orbit 9s linear infinite;
+}
+
+.svg-sprite .part-aura {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: orn-aura 3.2s ease-in-out infinite;
+}
+
+.svg-sprite .part-crest {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: orn-crest 3.4s ease-in-out infinite;
+}
+
+.svg-sprite .part-banner {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: orn-banner 3.8s ease-in-out infinite;
+}
+
+.svg-sprite-state-sleeping .part-orbit,
+.svg-sprite-state-exhausted .part-orbit { animation-duration: 22s; }
+
+.svg-sprite-state-sleeping .part-aura,
+.svg-sprite-state-exhausted .part-aura { animation-duration: 8s; }
+
+@keyframes orn-orbit { to { transform: rotate(360deg); } }
+
+@keyframes orn-aura {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.05); }
+}
+
+@keyframes orn-crest {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+
+@keyframes orn-banner {
+  0%, 100% { transform: skewX(-4deg); }
+  50% { transform: skewX(5deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprite-grade-halo .grade-ring { animation: none; opacity: 0.4; transform: scale(1.1); }
+  .sprite-grade-halo .grade-ring-b,
+  .sprite-grade-halo .grade-ring-c { opacity: 0; }
+  .svg-sprite .part-orbit,
+  .svg-sprite .part-aura,
+  .svg-sprite .part-crest,
+  .svg-sprite .part-banner { animation: none; }
+}

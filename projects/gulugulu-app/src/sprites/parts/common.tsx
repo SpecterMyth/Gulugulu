@@ -141,6 +141,37 @@ export function PawFoot({ x, y, rx = 13, color }: { x: number; y: number; rx?: n
   return <ellipse cx={x} cy={y} rx={rx} ry={rx * 0.58} fill={color} stroke={OUTLINE} strokeWidth={4.5} />;
 }
 
+/** 阶数光圈色阶（融合 2.0：2 青碧 / 3 湛蓝 / 4 绛紫 / 5 鎏金；6=六色棱光三环）。 */
+export const GRADE_RING_COLORS: Record<number, string> = {
+  2: "#6FD3A6",
+  3: "#5AA9F0",
+  4: "#B07DE8",
+  5: "#F5C542",
+};
+
+/** 阶数光圈：pet.tier ≥ 2 时画在影子层旁的向外扩散彩环
+ *  （动画 grade-ring-expand 见 sprites.css；离线渲染不传 tier 即不出现）。 */
+export function GradeHalo({ tier, rx }: { tier: number; rx: number }) {
+  if (tier < 2) return null;
+  const ry = Math.max(8, rx * 0.18);
+  if (tier >= 6) {
+    return (
+      <g className="sprite-grade-halo" aria-hidden="true">
+        <ellipse className="grade-ring" cx={128} cy={236} rx={rx} ry={ry} fill="none" stroke="#E85D3A" strokeWidth={4.5} />
+        <ellipse className="grade-ring grade-ring-b" cx={128} cy={236} rx={rx} ry={ry} fill="none" stroke="#FFD93B" strokeWidth={3.2} />
+        <ellipse className="grade-ring grade-ring-c" cx={128} cy={236} rx={rx} ry={ry} fill="none" stroke="#5AA9F0" strokeWidth={2.2} />
+      </g>
+    );
+  }
+  const color = GRADE_RING_COLORS[Math.min(Math.max(tier, 2), 5)];
+  return (
+    <g className="sprite-grade-halo" aria-hidden="true">
+      <ellipse className="grade-ring" cx={128} cy={236} rx={rx} ry={ry} fill="none" stroke={color} strokeWidth={4.5} />
+      <ellipse className="grade-ring grade-ring-b" cx={128} cy={236} rx={rx} ry={ry} fill="none" stroke={color} strokeWidth={2.4} />
+    </g>
+  );
+}
+
 /** 头顶"…"思考气泡（thinking 状态由装配器渲染） */
 export function ThinkDots() {
   return (

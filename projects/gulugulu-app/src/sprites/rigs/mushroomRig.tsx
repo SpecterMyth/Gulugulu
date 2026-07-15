@@ -4,7 +4,7 @@ import { ExpFace, ExpSideFace } from "../parts/faces";
 import { CapSpots, GillSkirt, MushroomCap, Sprout } from "../kits/grassKit";
 
 // -----------------------------------------------------------------------------
-// 蘑菇底座（sproutcap 芽芽菇 / 菇林兽 mycobeast / 烬叶菇 cinderleaf /
+// 蘑菇底座（sproutcap 嫩芽菇 / 菇林兽 mycobeast / 烬叶菇 cinderleaf /
 // 霜霜兔 frostbunny 的基体）。
 // 剪影：一顶占画面 2/3 的大圆顶伞帽 + 帽下一小截奶白菌柄（脸长在菌柄上，
 // 眼睛贴着帽檐下缘）。帽子是身体主形的一部分（画在 part-body 里，走路跟着

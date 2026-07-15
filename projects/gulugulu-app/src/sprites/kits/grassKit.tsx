@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { OUTLINE, type RigPalette } from "../rigTypes";
 
 // -----------------------------------------------------------------------------
-// 草系签名件（sproutcap 芽芽菇底座 / 二阶复用）。局部坐标，pivot 见各件注释。
+// 草系签名件（sproutcap 嫩芽菇底座 / 二阶复用）。局部坐标，pivot 见各件注释。
 // - MushroomCap：苔羽鸭(mossduck) scale≈0.4 当帽子戴；莲叶鲸(lotusturtle)
 //   换 colors 做莲叶变体。
 // - Sprout：藤电鼠(vinevolt)/莲叶鲸 复用为头顶嫩芽。
@@ -88,6 +88,19 @@ export function GillSkirt({
   }
   return (
     <path d={segments.join(" ")} stroke={color} strokeWidth={3} strokeLinecap="round" fill="none" opacity={opacity} />
+  );
+}
+
+/** 迷你小蘑菇（菇林兽"帽上蘑菇林"等复用）。pivot=(0,0)=柄底。
+ *  原生于 speciesTable，抽到 kit 供部件注册表/二阶槽位共用。 */
+export function MiniShroom({ color = "#8CD97B", deep = "#57B84C", scale = 1 }: { color?: string; deep?: string; scale?: number }) {
+  return (
+    <g transform={scale !== 1 ? `scale(${scale})` : undefined}>
+      <path d="M-4.5 0 L4.5 0 L3.5 -9 L-3.5 -9 Z" fill="#FFF4DC" stroke={OUTLINE} strokeWidth={3.4} strokeLinejoin="round" />
+      <g transform="translate(0 -8)">
+        <MushroomCap scale={0.17} color={color} deep={deep} outlineWidth={22} />
+      </g>
+    </g>
   );
 }
 

@@ -27,9 +27,53 @@ export type RigView = "front" | "side";
 /** baby=一阶新生儿比例（头≥60%）；kid=二阶幼童比例（头40-50%，躯干/腿拉长）。 */
 export type RigStage = "baby" | "kid";
 
-/** 六个底座 rig。config.json 的 body 字符串是不透明 ID：
- *  frog→whale（鲸）、penguin→yeti（雪怪），其余同名。 */
-export type RigKind = "duck" | "fox" | "mouse" | "whale" | "mushroom" | "yeti";
+/** 六个动物底座 rig + chimera 参数化底座。config.json 的 body 字符串是
+ *  不透明 ID：frog→whale（鲸）、penguin→yeti（雪怪），其余同名。
+ *  chimera 是 AI 融合专用的"拼装身体"底座——身体由 ChimeraForm 参数化
+ *  搭建，剪影可与 6 个动物完全不同，但仍走标准 Part 包装继承全部动画。 */
+export type RigKind = "duck" | "fox" | "mouse" | "whale" | "mushroom" | "yeti" | "chimera";
+
+/** 体型原型：AI 融合先选一种"像某类动物"的骨架，再用其余参数微调。
+ *  stack=旧版竖直堆叠体块（仅为兼容早期存档；新生成一律选下面 6 种动物体型之一）。
+ *  round=圆团崽 · upright=直立崽 · quadruped=四足兽 · long=长条崽 ·
+ *  floaty=漂浮崽 · bighead=大头崽。每种剪影差异极大，见 chimeraRig 的原型注释。 */
+export type BodyPlan =
+  | "stack"
+  | "round"
+  | "upright"
+  | "quadruped"
+  | "long"
+  | "floaty"
+  | "bighead";
+
+/** chimera 参数化身体：AI 先选 bodyPlan 动物体型，再用这套参数搭出全新剪影
+ *  （圆团/直立/四足横身/长条/悬浮/大头…）。所有数值在渲染层夹取到安全范围。 */
+export type ChimeraForm = {
+  /** 体型原型（决定整体剪影拓扑；先选它，其余参数只做微调） */
+  bodyPlan: BodyPlan;
+  /** 身体段数：stack=自下而上堆叠体块数(1~3)；long=分节小丘数(2~3)；其余体型忽略 */
+  segments: 1 | 2 | 3;
+  /** 整体宽度系数（相对基准，0.75~1.3） */
+  bodyW: number;
+  /** 整体高度系数（相对基准，0.75~1.35） */
+  bodyH: number;
+  /** 上段收窄程度（0=毛虫等宽，1=锥形大肚小顶） */
+  taper: number;
+  /** 头：merged=最上段即头（史莱姆感）；perched=另加一个头球 */
+  headStyle: "merged" | "perched";
+  /** perched 头相对顶段的大小（0.5~1.0） */
+  headScale: number;
+  /** 腿型：none 无（配合漂浮）/ stub 短墩 / tall 长腿 */
+  legStyle: "none" | "stub" | "tall";
+  /** 腿数：2 或 4（四足兽） */
+  legCount: 2 | 4;
+  /** 手型：none / nub 小圆手 / wing 小翅 / flipper 桨鳍 */
+  armStyle: "none" | "nub" | "wing" | "flipper";
+  /** 内建耳型（仍可被 headTop 槽叠加）：none / round 圆耳 / point 尖耳 / long 长垂耳 / fin 背鳍状 */
+  earStyle: "none" | "round" | "point" | "long" | "fin";
+  /** 漂浮（离地浮动，通常配 legStyle=none） */
+  floating: boolean;
+};
 
 export type EyeVariant = "round" | "happy" | "sleepy";
 
@@ -85,6 +129,8 @@ export type RigProps = {
   expression?: Expression;
   /** 姿势（默认 stand）；睡眠/力竭时装配器传 lie，rig 绘制趴地构图 */
   pose?: RigPose;
+  /** chimera rig 专用：参数化身体描述（其余 rig 忽略） */
+  form?: ChimeraForm;
 };
 
 export type RigComponent = (props: RigProps) => ReactNode;
@@ -93,7 +139,9 @@ export const OUTLINE = "#3B2B1D";
 
 /** 每个物种一行的视觉声明（计划 §2.2 speciesTable）。 */
 export type SpeciesVisual = {
-  rig: RigKind;
+  /** rig 注册表键：六个动物底座/chimera 用 RigKind 字面量；
+   *  融合 2.0 新物种（species2 包）用 codename（一物种一 rig）。 */
+  rig: string;
   stage: RigStage;
   /** 整体缩放（二阶 1.1~1.25） */
   scale: number;
@@ -112,4 +160,6 @@ export type SpeciesVisual = {
   floating?: boolean;
   /** 按物种微调动画参数（--stride-deg 等 CSS 变量） */
   cssVars?: CSSProperties;
+  /** chimera rig 专用：参数化身体描述 */
+  form?: ChimeraForm;
 };

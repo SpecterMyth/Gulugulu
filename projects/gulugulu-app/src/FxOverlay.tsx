@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { emitTo, listen } from "@tauri-apps/api/event";
-import { WORK_FX, WorkBurst } from "./sprites/parts/workFx";
+import { resolveWorkFx, WorkBurst } from "./sprites/parts/workFx";
+import type { ResolvedWorkFx } from "./sprites/customSpecies";
 
 // -----------------------------------------------------------------------------
 // 全屏打工特效覆盖层（"fx" 子窗口的根组件，见 main.tsx 的窗口 label 分流）。
@@ -9,7 +10,8 @@ import { WORK_FX, WorkBurst } from "./sprites/parts/workFx";
 // 对应屏幕位置（screen 模式：粒子更多、飞得更远）。
 // -----------------------------------------------------------------------------
 
-/** 主窗口 → 覆盖层的爆发事件（fx://burst）。x/y 为发射点在本窗口的逻辑坐标。 */
+/** 主窗口 → 覆盖层的爆发事件（fx://burst）。x/y 为发射点在本窗口的逻辑坐标。
+ *  customFx：AI 融合物种的粒子设计（本窗口没有物种注册表，随事件携带）。 */
 type FxBurstPayload = {
   species: string;
   tier: number;
@@ -17,6 +19,9 @@ type FxBurstPayload = {
   boom: boolean;
   x: number;
   y: number;
+  customFx?: ResolvedWorkFx | null;
+  /** 手中工具 id：粒子=工具产物；legacy 与 AI 兜底路径靠它解析。 */
+  toolId?: string | null;
 };
 
 type OverlayBurst = FxBurstPayload & { id: number };
@@ -50,7 +55,8 @@ export function FxOverlay() {
   return (
     <div className="fx-overlay" aria-hidden="true">
       {bursts.map((burst) => {
-        const emitter = WORK_FX[burst.species]?.emitter ?? { x: 128, y: 128 };
+        const emitter =
+          resolveWorkFx(burst.species, burst.toolId, burst.customFx)?.emitter ?? { x: 128, y: 128 };
         return (
           <div
             key={burst.id}
@@ -58,7 +64,15 @@ export function FxOverlay() {
             // 256 viewBox 以 1:1 渲染，把发射点精确对到主窗口里工具的屏幕位置
             style={{ left: burst.x - emitter.x, top: burst.y - emitter.y }}
           >
-            <WorkBurst species={burst.species} tier={burst.tier} seed={burst.seed} boom={burst.boom} screen />
+            <WorkBurst
+              species={burst.species}
+              tier={burst.tier}
+              seed={burst.seed}
+              boom={burst.boom}
+              customFx={burst.customFx}
+              toolId={burst.toolId}
+              screen
+            />
           </div>
         );
       })}

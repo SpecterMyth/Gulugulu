@@ -1,0 +1,157 @@
+{
+  "$comment": "AI 融合共享部件目录（单一事实源）。TS 端 customSpecies.tsx import 校验/渲染；Rust 端 fusion_gen.rs include_str! 生成提示词与校验白名单。部件 id 必须与 customSpecies.tsx 的 PART_REGISTRY 一一对应。",
+  "rigs": {
+    "duck": { "zh": "胖蛋头小白鸭底座：大扁嘴、蹼足、圆滚滚" },
+    "fox": { "zh": "尖耳小狐底座：奶油口鼻、蓬尾" },
+    "mouse": { "zh": "圆耳小鼠底座：掌心大小、大圆耳" },
+    "whale": { "zh": "漂浮圆鲸底座：悬浮离地、小侧鳍（可设 floating）" },
+    "mushroom": { "zh": "大菌帽蘑菇底座：头顶超大蘑菇帽的小不点" },
+    "yeti": { "zh": "毛绒雪怪底座：矮墩墩蓬毛小雪怪" }
+  },
+  "eyes": ["round", "happy", "sleepy"],
+  "tools": {
+    "laptop": "笔记本电脑",
+    "fountainPen": "钢笔",
+    "wok": "炒锅",
+    "mjolnir": "雷神小锤",
+    "lifebuoy": "救生圈",
+    "cauldron": "药锅",
+    "iceScepter": "冰权杖",
+    "skewer": "烤串签",
+    "printer": "打印机",
+    "waterCooler": "饮水机",
+    "wateringCan": "洒水壶",
+    "shavedIce": "刨冰机",
+    "laserPointer": "激光笔",
+    "flatIron": "熨斗",
+    "emberLantern": "火种灯笼",
+    "acRemote": "空调遥控器",
+    "stormStaff": "风暴法杖",
+    "headset": "耳机",
+    "tabletPen": "数位笔",
+    "pondNet": "捞网",
+    "crystalBall": "水晶球",
+    "yarnBall": "毛线球",
+    "sproutWand": "嫩芽魔杖",
+    "keyboard": "机械键盘",
+    "mop": "拖把",
+    "snowGlobe": "雪球摆件",
+    "torch": "料理喷枪"
+  },
+  "$commentToolFxHints": "每件工具「打工时喷出的产物」——点击打工粒子必须画这些（用工具/材料固有色），元素点缀最多 1 种。Rust 拼提示词用，也是 TS 端 TOOL_FX 视觉实现的文字事实源。",
+  "toolFxHints": {
+    "laptop": "代码符号·闪烁光标（蓝）",
+    "fountainPen": "墨滴·书写笔锋（墨蓝）",
+    "wok": "火星·翻炒的食材块·油花",
+    "mjolnir": "电花星·闪电（金黄）",
+    "lifebuoy": "水花·泡泡（浅蓝）",
+    "cauldron": "翻涌药泡·药水滴（绿）·灵光",
+    "iceScepter": "冰晶·雪花·霜光（青蓝）",
+    "skewer": "火星·烤好的肉块·青烟",
+    "printer": "打印纸片·墨点",
+    "waterCooler": "水珠·气泡（蓝）",
+    "wateringCan": "水珠·花瓣·嫩叶",
+    "shavedIce": "冰刨屑·雪花·糖浆滴（红）",
+    "laserPointer": "激光点（红）·翻页幻灯片",
+    "flatIron": "蒸汽团·水珠（白）",
+    "emberLantern": "火星·暖光点（橙黄）",
+    "acRemote": "雪花·暖气热浪（冷热双色）",
+    "stormStaff": "闪电·小乌云·雨滴",
+    "headset": "外放声波弧·客服对话框",
+    "tabletPen": "数码彩点·笔触闪光",
+    "pondNet": "水珠·捞起的小鱼·浮叶",
+    "crystalBall": "星芒·灵光旋涡（紫）",
+    "yarnBall": "织出的线脚·缠线小球",
+    "sproutWand": "嫩叶·新芽星光（绿）",
+    "keyboard": "弹出的键帽·电花",
+    "mop": "水珠·肥皂泡",
+    "snowGlobe": "雪花·冰晶（白青）",
+    "torch": "火星·余烬（橙红）"
+  },
+  "slots": {
+    "tail": {
+      "duckCurl": "鸭系上卷羽尾（deep 色）",
+      "flame": "单簇火焰尾（火焰固有红/橙/奶白）",
+      "flameTriple": "三条火焰大尾（火焰固有色，气场型）",
+      "bolt": "闪电折线尾（accent 色底+白芯）",
+      "boltDouble": "双股闪电尾（accent 色）",
+      "fluke": "心形双叶尾鳍（accent 上叶 / deep 下叶）",
+      "iceSpikesTail": "冰凌小尾（固有青蓝冰晶）",
+      "pomIceTail": "绒球尾+冰晶尖（belly 色绒球）",
+      "flameBolt": "火焰尾嵌闪电芯（火焰色+accent 电芯）"
+    },
+    "headTop": {
+      "ahoge": "三撮绒羽呆毛（body 色）",
+      "fluffTuft": "单撮高绒羽（body 色）",
+      "pointedEars": "狐狸尖耳（body 色 / belly 内耳）",
+      "roundEars": "鼠系大圆耳（body 色 / belly 内耳）",
+      "spout": "头顶单喷水柱（固有浅蓝水柱 / deep 喷口）",
+      "spoutDouble": "双柱小喷泉（同上）",
+      "sprout": "两叶嫩绿芽（固有嫩绿）",
+      "miniShroomTrio": "帽顶迷你蘑菇林（固有绿系）",
+      "mushroomCapHat": "迷你菌帽小圆帽（accent 帽面 / deep 帽檐）",
+      "silverCrown": "银灰小王冠（固有银灰）",
+      "staticCrown": "静电金冠（固有金黄+电花）",
+      "icicleCrown": "冰凌王冠（固有青蓝）",
+      "lilyPadSprout": "莲叶圆帽+嫩芽（固有绿）",
+      "bunnyEarTufts": "兔耳形雪绒×2（固有雪青白）",
+      "stormCloud": "悬浮小乌云（固有灰云+黄电）",
+      "steamPuffs": "白蒸汽团（固有雪白）",
+      "flameTrio": "三簇小火苗（火焰固有色）",
+      "flameCrest": "眉心单火苗（火焰固有色）"
+    },
+    "back": {
+      "furRidge": "蓬蓬毛围脖（belly 色锯齿绒毛）",
+      "iceSpikesBack": "背部冰晶簇（accent 色 / belly 高光）",
+      "redCape": "小红披风（固有正红）",
+      "waveCrest": "背驮一朵卷浪（固有浅蓝）",
+      "foxEarsBack": "脑后探出的狐耳（body 色 / belly 内耳）"
+    },
+    "cheeks": {
+      "sparkCheeks": "电花脸颊：橙圆斑+白电花（固有橙）",
+      "leafCheeks": "叶绿颊斑（固有嫩绿）"
+    },
+    "marking": {
+      "bellyWave": "波浪顶边浅色肚皮补丁（belly 色 / accent 波纹）",
+      "chestZigzag": "胸口锯齿电纹（accent 色）",
+      "frostSpots": "青蓝霜斑三点（accent / accent2）",
+      "mossPatches": "苔藓圆斑（accent 色）",
+      "emberSpots": "焦黑余烬斑+两粒小火星（固有深褐+火焰色）",
+      "lotusRipples": "浮萍圆斑+双荷纹（accent 色）"
+    },
+    "platform": {
+      "iceFloe": "随身小浮冰座台（固有冰白）"
+    }
+  },
+  "slotGeometry": {
+    "tail": "原点(0,0)=尾根贴身点，向上/向后作画（-y 为上）。建议高≤90、宽≤60。由骨架摆放到身体后方，自动随动画摆动。",
+    "headTop": "原点(0,0)=底部中点，坐在头顶弧上，向上作画（-y）。建议 x∈[-40,40]、y∈[-55,5]。",
+    "back": "原点(0,0)=背部贴合点；向上的冠/刺画 -y，披风/垂毛画 +y。建议 x∈[-56,56]、y∈[-45,60]。画在身体后面，会被身体遮住一部分。",
+    "cheeks": "原点(0,0)=两颊中心参考点；请左右各画一个对称元素，横向间距约 ±24~28。建议 y∈[-14,14]。",
+    "marking": "原点(0,0)=身体正面中心（蘑菇底座=帽面中心），叠在主体色上、脸之下。建议 x∈[-45,45]、y∈[-35,35]。",
+    "platform": "原点(0,0)=脚下座台顶面中点，向下作画（+y）。建议 x∈[-70,70]、y∈[0,20]。"
+  },
+  "customDrawRules": "自定义部件：flat 卡通平涂。主形状描边统一用 $outline、strokeWidth 3.5~5、strokeLinejoin round；小装饰可不描边。形状要少而胖（1 个主形 + 少量装饰），节点数≤12，path 指令只用 M/L/C/Q/A/Z 及小写变体。颜色只能用调色板 token（$body/$deep/$belly/$accent/$accent2/$outline）或 #rrggbb。",
+  "paletteTokens": ["$body", "$deep", "$belly", "$accent", "$accent2", "$outline"],
+  "elementHints": {
+    "normal": { "parts": ["ahoge", "fluffTuft", "duckCurl", "silverCrown"], "colors": ["#FFFFFF", "#2E2E36", "#D9DAE0", "#F5A83B"] },
+    "fire": { "parts": ["flame", "flameTriple", "flameTrio", "flameCrest", "pointedEars", "emberSpots"], "colors": ["#E85D3A", "#C23B1F", "#FFB03A", "#FFF1C9", "#FFE8D6"] },
+    "electric": { "parts": ["bolt", "boltDouble", "roundEars", "sparkCheeks", "staticCrown", "chestZigzag", "stormCloud"], "colors": ["#FFD93B", "#E39B00", "#FF9B3D", "#FFF6CE"] },
+    "water": { "parts": ["fluke", "spout", "spoutDouble", "waveCrest", "bellyWave", "lotusRipples"], "colors": ["#2E7BD6", "#1B5FB0", "#9BDCFF", "#EAF7FF"] },
+    "grass": { "parts": ["sprout", "miniShroomTrio", "mushroomCapHat", "mossPatches", "leafCheeks", "lilyPadSprout"], "colors": ["#57B84C", "#3B8F33", "#8CD97B", "#FFF4DC"] },
+    "ice": { "parts": ["iceSpikesTail", "iceSpikesBack", "furRidge", "icicleCrown", "frostSpots", "bunnyEarTufts", "iceFloe", "pomIceTail"], "colors": ["#CFEFF6", "#8FD8E8", "#B0E5F0", "#F7FCFD", "#4FA6C9"] }
+  },
+  "speciesSignatures": {
+    "guluduck": ["ahoge", "duckCurl"],
+    "emberfox": ["pointedEars", "flame"],
+    "voltmouse": ["roundEars", "bolt", "sparkCheeks"],
+    "bubblefrog": ["spout", "fluke"],
+    "sproutcap": ["mushroomCapHat", "sprout"],
+    "frostpeng": ["furRidge", "iceSpikesBack"]
+  },
+  "styleRedLines": [
+    "冰雪/白色系身体禁用大面积纯 #FFFFFF，一律带青（#CFEFF6/#F7FCFD 家族）",
+    "全身可读色不超过 3 组 + 点缀，肚皮/脸永远用浅色",
+    "槽位总数≤4，宁少勿多，简单 > 好看 > 可爱是排序也是底线"
+  ]
+}

@@ -5,10 +5,10 @@ import {
   type RigPalette,
   type SpeciesVisual,
 } from "./rigTypes";
-import { FlameTail, PointedEars, SideEar as FoxSideEar } from "./kits/fireKit";
+import { FlameTail, PointedEars, SideEar as FoxSideEar, SmallFlame } from "./kits/fireKit";
 import { BoltTail, SparkCheeks, RoundEars, SideEar as MouseSideEar } from "./kits/electricKit";
 import { BellyWave, Fluke, Spout } from "./kits/waterKit";
-import { CapSpots, MushroomCap, Sprout } from "./kits/grassKit";
+import { CapSpots, MiniShroom, MushroomCap, Sprout } from "./kits/grassKit";
 import { FurRidge, IceSpikes } from "./kits/iceKit";
 import {
   BunnyEarTufts,
@@ -22,6 +22,8 @@ import {
   WaveCrest,
 } from "./kits/specials";
 import { FluffTuft } from "./kits/duckKit";
+import { getCustomVisual } from "./customSpecies";
+import { VISUALS2 } from "./species2";
 
 // -----------------------------------------------------------------------------
 // 27 只宠物的视觉声明表（计划 §1.2/§1.3）。
@@ -39,6 +41,7 @@ export const BODY_TO_RIG: Record<string, RigKind> = {
   frog: "whale",
   mushroom: "mushroom",
   penguin: "yeti",
+  chimera: "chimera",
 };
 
 // 共享调色板底稿
@@ -48,35 +51,6 @@ const MOUSE: RigPalette = { body: "#FFD93B", deep: "#E39B00", belly: "#FFF6CE", 
 const WHALE: RigPalette = { body: "#2E7BD6", deep: "#1B5FB0", belly: "#EAF7FF", accent: "#9BDCFF" };
 const SHROOM: RigPalette = { body: "#57B84C", deep: "#3B8F33", belly: "#FFF4DC", accent: "#8CD97B" };
 const YETI: RigPalette = { body: "#CFEFF6", deep: "#8FD8E8", belly: "#F7FCFD", accent: "#B0E5F0" };
-
-/** 小火苗（火系点缀通用件）。pivot=(0,0)=焰根，向上生长，高 ~18。 */
-function SmallFlame({ scale = 1 }: { scale?: number }) {
-  return (
-    <g transform={scale !== 1 ? `scale(${scale})` : undefined}>
-      <path
-        d="M0 0 q-7 -6 -4 -14 q3 -8 9 -13 q-2 8 3 12 q6 5 4 11 a8.5 8.5 0 0 1 -12 4 z"
-        fill="#E85D3A"
-        stroke={OUTLINE}
-        strokeWidth={3.5}
-        strokeLinejoin="round"
-      />
-      <path d="M1 -2 q-4 -4 -1 -9 q5 4 4 8 a4 4 0 0 1 -3 1 z" fill="#FFB03A" />
-      <circle cx={1.5} cy={-4} r={1.7} fill="#FFF1C9" />
-    </g>
-  );
-}
-
-/** 迷你小蘑菇（菇林兽的"帽上蘑菇林"）。pivot=(0,0)=柄底。 */
-function MiniShroom({ color = "#8CD97B", deep = "#57B84C", scale = 1 }: { color?: string; deep?: string; scale?: number }) {
-  return (
-    <g transform={scale !== 1 ? `scale(${scale})` : undefined}>
-      <path d="M-4.5 0 L4.5 0 L3.5 -9 L-3.5 -9 Z" fill="#FFF4DC" stroke={OUTLINE} strokeWidth={3.4} strokeLinejoin="round" />
-      <g transform="translate(0 -8)">
-        <MushroomCap scale={0.17} color={color} deep={deep} outlineWidth={22} />
-      </g>
-    </g>
-  );
-}
 
 export const SPECIES_VISUALS: Record<string, SpeciesVisual> = {
   // ======================= 一阶（新生儿比例 baby） =======================
@@ -467,10 +441,15 @@ export const SPECIES_VISUALS: Record<string, SpeciesVisual> = {
   },
 };
 
-/** 兜底：未登记物种（未来自定义等）按 config 数据推一个视觉声明。 */
+/** 查找链：本表（6 一阶+旧二阶）→ species2 包（融合 2.0 新物种）→
+ *  AI 自定义注册表 → config 数据兜底。 */
 export function getSpeciesVisual(species: string, info: SpeciesInfo | undefined): SpeciesVisual {
   const known = SPECIES_VISUALS[species];
   if (known) return known;
+  const pack = VISUALS2[species];
+  if (pack) return pack;
+  const custom = getCustomVisual(species);
+  if (custom) return custom;
   const colors = info?.colors ?? ["#F5C542"];
   return {
     rig: BODY_TO_RIG[info?.body ?? "duck"] ?? "duck",

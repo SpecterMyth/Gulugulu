@@ -4,6 +4,7 @@ import { SvgSprite } from "../sprites/SvgSprite";
 import { ReactionBurst } from "../sprites/parts/vfx";
 import { WORK_FX, WorkBurst } from "../sprites/parts/workFx";
 import type { GameBridge } from "./bridge";
+import { formatCount } from "./format";
 
 // -----------------------------------------------------------------------------
 // 动画调试面板（计划 §四）：逐个选择 27 只角色，预览全部状态动画。
@@ -111,9 +112,22 @@ export function DebugPanel({
     );
   };
 
+  const debugDrainStamina = () =>
+    runSaveDebug(
+      () => bridge.debugDrainStamina(),
+      () => "主宠精力已放空（验证恢复期/唤醒/键盘充能）",
+    );
+
+  const debugFeedKeys = () =>
+    runSaveDebug(
+      () => bridge.debugFeedKeys(30),
+      () => "模拟敲了 30 个键（精力按阶换算入账）",
+    );
+
   const speciesEntries = Object.entries(config.species);
-  const tier1 = speciesEntries.filter(([, info]) => info.tier === 1);
-  const tier2 = speciesEntries.filter(([, info]) => info.tier >= 2);
+  // 融合 2.0：新物种无自带 tier，按元素数分组（单元素基础 / 多元素融合），显示全谱。
+  const tier1 = speciesEntries.filter(([, info]) => (info.elements?.length ?? 1) === 1);
+  const tier2 = speciesEntries.filter(([, info]) => (info.elements?.length ?? 1) >= 2);
   const info = config.species[species];
   const elementColor = config.elements[info?.elements[0] ?? "normal"]?.color ?? "#F5917B";
 
@@ -182,7 +196,7 @@ export function DebugPanel({
       <div className="debug-game">
         <span className="debug-group-label">存档调试</span>
         <div className="debug-game-readout">
-          金币 {save?.coins ?? 0} · 精灵 {save?.pets.length ?? 0} · 蛋 {save?.eggs.length ?? 0}
+          金币 {formatCount(save?.coins ?? 0)} · 精灵 {save?.pets.length ?? 0} · 蛋 {save?.eggs.length ?? 0}
         </div>
         <div className="debug-game-row">
           <button type="button" disabled={saveBusy} onClick={debugAddCoins}>
@@ -197,13 +211,22 @@ export function DebugPanel({
           <button type="button" className="is-danger" disabled={saveBusy} onClick={debugClearSave}>
             清除存档
           </button>
+          <button type="button" disabled={saveBusy} onClick={debugDrainStamina}>
+            放空精力
+          </button>
+          <button type="button" disabled={saveBusy} onClick={debugFeedKeys}>
+            模拟 30 键
+          </button>
           {onFeedTokens && (
             <>
-              <button type="button" disabled={saveBusy} onClick={() => onFeedTokens(5)}>
-                喂 5 Token Exp
+              <button type="button" disabled={saveBusy} onClick={() => onFeedTokens(2000)}>
+                Token 2k🍙
               </button>
-              <button type="button" disabled={saveBusy} onClick={() => onFeedTokens(50)}>
-                喂 50（触发上限）
+              <button type="button" disabled={saveBusy} onClick={() => onFeedTokens(8000)}>
+                Token 8k🍙
+              </button>
+              <button type="button" disabled={saveBusy} onClick={() => onFeedTokens(32000)}>
+                Token 32k🍙
               </button>
             </>
           )}
@@ -284,7 +307,7 @@ export function DebugPanel({
 
       {/* 物种选择 */}
       <div className="debug-species">
-        <span className="debug-group-label">一阶（6）</span>
+        <span className="debug-group-label">单元素（{tier1.length}）</span>
         <div className="debug-species-grid">
           {tier1.map(([codename, speciesInfo]) => (
             <button
@@ -299,7 +322,7 @@ export function DebugPanel({
             </button>
           ))}
         </div>
-        <span className="debug-group-label">二阶（{tier2.length}）</span>
+        <span className="debug-group-label">多元素融合（{tier2.length}）</span>
         <div className="debug-species-grid">
           {tier2.map(([codename, speciesInfo]) => (
             <button

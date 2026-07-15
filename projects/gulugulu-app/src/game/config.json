@@ -1,74 +1,1432 @@
 {
   "initialCoins": 50,
   "historicalExpCoinCap": 200,
-  "eggPrices": { "normal": 80, "fire": 120, "water": 120, "grass": 120, "electric": 150, "ice": 150 },
+  "eggPrices": {
+    "normal": 80,
+    "fire": 120,
+    "water": 120,
+    "grass": 120,
+    "electric": 150,
+    "ice": 150
+  },
   "tier2EggPriceBonus": 100,
-  "hatchSeconds": { "tutorial": 60, "normal": 180, "fire": 300, "water": 300, "grass": 300, "electric": 480, "ice": 480, "tier2": 1800 },
+  "hatchSeconds": {
+    "tutorial": 60,
+    "normal": 180,
+    "fire": 300,
+    "water": 300,
+    "grass": 300,
+    "electric": 480,
+    "ice": 480,
+    "tier2": 1800,
+    "tier3": 3600,
+    "tier4": 7200,
+    "tier5": 14400,
+    "tier6": 28800
+  },
+  "tierGrowthFactor": 5,
   "clickCoinsBase": 1,
   "clickCoinsPerLevel": 1,
-  "clickCoinsPerTier": 10,
-  "clickExp": 2,
-  "clickSoftCap1": 1500,
-  "clickSoftCap2": 3000,
-  "staminaMax": 100,
-  "staminaPerClick": 5,
-  "staminaRegenSeconds": 6,
-  "wakeThreshold": 60,
+  "clickExpBase": 2,
+  "dailyClickCap": 2000,
+  "staminaMax": 200,
+  "staminaPerClick": 1,
+  "staminaRegenSecondsBase": 3,
+  "wakeThreshold": 20,
   "tickSeconds": 60,
-  "mainExpPerTick": 1,
-  "yardTicksPerExp": 5,
-  "coinTicksPerCoin": 10,
-  "idleCoinDailyCap": 50,
-  "wanderCoinMin": 1,
-  "wanderCoinMax": 2,
-  "wanderCoinDailyCap": 50,
-  "tokenExpDailyCap": 300,
-  "overflowCoinDailyCap": 200,
-  "levelExpFactor": [10, 25],
-  "maxLevel": [10, 20],
+  "keysPerStaminaBase": 1,
+  "keyRateCapPerSec": 15,
+  "tokensPerStaminaBase": 8,
+  "wanderSnackStaminaMin": 2,
+  "wanderSnackStaminaMax": 5,
+  "wanderSnackDailyCap": 20,
+  "levelExpFactor": [
+    10,
+    50,
+    250,
+    1250,
+    6250,
+    31250
+  ],
+  "maxLevel": [
+    10,
+    20,
+    30,
+    40,
+    50,
+    60
+  ],
   "fusionFee": 100,
-  "hatcherySlots": [1, 2, 3],
-  "hatcheryUpgradeCosts": [200, 800],
-  "yardCapacity": [3, 5, 8],
-  "yardUpgradeCosts": [300, 1200],
+  "aiFusionChance": 0.5,
+  "aiFusionChanceByRecipe": {},
+  "hatcherySlots": [1, 2, 3, 4, 5, 6, 7, 8],
+  "hatcheryUpgradeCosts": [100, 1000, 10000, 100000, 1000000, 10000000, 100000000],
+  "yardCapacity": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
+  "yardUpgradeCosts": [50, 78, 119, 183, 278, 421, 632, 945, 1403, 2070, 3036, 4425, 6411, 9232, 13210, 18790, 26560, 37320, 52110, 72330, 99760, 136800, 186300, 252300, 339600, 454300, 603900, 797900, 1048000, 1368000, 1774000, 2287000, 2931000, 3732000, 4724000, 5943000, 7430000, 9232000, 11400000, 14000000, 17070000, 20700000, 24950000, 29880000, 35560000, 42070000, 49470000],
   "releaseRefundRate": 0.25,
   "releaseRefundPerLevel": 5,
   "elements": {
-    "normal": { "nameZh": "一般", "color": "#6E6E78", "badge": "star" },
-    "fire": { "nameZh": "火", "color": "#E85D3A", "badge": "flame" },
-    "electric": { "nameZh": "电", "color": "#FFD93B", "badge": "bolt" },
-    "water": { "nameZh": "水", "color": "#2E7BD6", "badge": "drop" },
-    "grass": { "nameZh": "草", "color": "#57B84C", "badge": "leaf" },
-    "ice": { "nameZh": "冰", "color": "#8FD8E8", "badge": "snow" }
+    "normal": {
+      "nameZh": "一般",
+      "color": "#6E6E78",
+      "badge": "star"
+    },
+    "fire": {
+      "nameZh": "火",
+      "color": "#E85D3A",
+      "badge": "flame"
+    },
+    "electric": {
+      "nameZh": "电",
+      "color": "#FFD93B",
+      "badge": "bolt"
+    },
+    "water": {
+      "nameZh": "水",
+      "color": "#2E7BD6",
+      "badge": "drop"
+    },
+    "grass": {
+      "nameZh": "草",
+      "color": "#57B84C",
+      "badge": "leaf"
+    },
+    "ice": {
+      "nameZh": "冰",
+      "color": "#8FD8E8",
+      "badge": "snow"
+    }
   },
   "species": {
-    "guluduck": { "nameZh": "咕噜鸭", "tier": 1, "elements": ["normal"], "colors": ["#2E2E36"], "body": "duck", "desc": "换上黑白礼服的嘴硬奶鸭，口头禅\"嘎？这合理吗？\"" },
-    "emberfox": { "nameZh": "炎尾狐", "tier": 1, "elements": ["fire"], "colors": ["#E85D3A"], "body": "fox", "desc": "急性子的高个子奶狐，火焰尾巴比头还高，随情绪忽大忽小" },
-    "voltmouse": { "nameZh": "啾雷鼠", "tier": 1, "elements": ["electric"], "colors": ["#FFD93B"], "body": "mouse", "desc": "巴掌大的迷你雷鼠，兴奋时会把静电传给别人" },
-    "bubblefrog": { "nameZh": "泡泡鲸", "tier": 1, "elements": ["water"], "colors": ["#2E7BD6"], "body": "frog", "desc": "飘在半空的圆滚小鲸，慢性子乐天派，喷水柱里装着今天的心情" },
-    "sproutcap": { "nameZh": "芽芽菇", "tier": 1, "elements": ["grass"], "colors": ["#57B84C"], "body": "mushroom", "desc": "顶着比身体大三倍的菌帽，晒到太阳会不自觉左右摇摆" },
-    "frostpeng": { "nameZh": "霜霜雪怪", "tier": 1, "elements": ["ice"], "colors": ["#8FD8E8"], "body": "penguin", "desc": "毛茸茸的壮实小雪怪，高冷话少，其实最怕别人不理它" },
-    "guluswan": { "nameZh": "咕噜天鹅", "tier": 2, "elements": ["normal"], "colors": ["#2E2E36", "#FFFFFF"], "body": "duck", "desc": "黑白礼服的优雅天鹅，激动时仍会\"嘎\"地破音" },
-    "infernofox": { "nameZh": "炎狱狐", "tier": 2, "elements": ["fire"], "colors": ["#E85D3A", "#B32E17"], "body": "fox", "desc": "三条火焰尾的大狐狸，走过之处留下小小焦印" },
-    "thunderking": { "nameZh": "雷霆鼠皇", "tier": 2, "elements": ["electric"], "colors": ["#FFD93B", "#E39B00"], "body": "mouse", "desc": "头戴静电王冠的胖鼠皇，打个哈欠都带雷声" },
-    "tidefrog": { "nameZh": "浪涛鲸", "tier": 2, "elements": ["water"], "colors": ["#2E7BD6", "#1B5FB0"], "body": "frog", "desc": "背驮一朵永不落下的浪花的大鲸，游过带起水雾" },
-    "mycobeast": { "nameZh": "菇林兽", "tier": 2, "elements": ["grass"], "colors": ["#57B84C", "#2F7D2B"], "body": "mushroom", "desc": "帽子上长着一整片小蘑菇林的温顺巨菇" },
-    "glacierpeng": { "nameZh": "极冰雪帝", "tier": 2, "elements": ["ice"], "colors": ["#8FD8E8", "#4FA6C9"], "body": "penguin", "desc": "披冰晶披风的雪怪皇帝，呼吸凝成雪花" },
-    "blazeduck": { "nameZh": "焰羽鸭", "tier": 2, "elements": ["fire", "normal"], "colors": ["#E85D3A", "#FFFFFF"], "body": "duck", "desc": "呆毛烧成三簇小火苗的白鸭，尾巴是一撮狐火" },
-    "sparkduck": { "nameZh": "闪光鸭", "tier": 2, "elements": ["electric", "normal"], "colors": ["#FFD93B", "#FFFFFF"], "body": "duck", "desc": "羽毛噼啪带电的白鸭，摸头会被轻微电到" },
-    "rippleduck": { "nameZh": "涟漪鸭", "tier": 2, "elements": ["water", "normal"], "colors": ["#2E7BD6", "#FFFFFF"], "body": "duck", "desc": "尾巴变成小尾鳍的水灵鸭，走路自带涟漪光环" },
-    "mossduck": { "nameZh": "苔羽鸭", "tier": 2, "elements": ["grass", "normal"], "colors": ["#57B84C", "#FFFFFF"], "body": "duck", "desc": "头顶小菇帽、背上长苔藓的悠闲鸭" },
-    "frostduck": { "nameZh": "霜羽鸭", "tier": 2, "elements": ["ice", "normal"], "colors": ["#8FD8E8", "#FFFFFF"], "body": "duck", "desc": "围着蓬蓬霜毛围脖的酷鸭，羽毛结着细霜" },
-    "plasmatanuki": { "nameZh": "电浆狐", "tier": 2, "elements": ["fire", "electric"], "colors": ["#E85D3A", "#FFD93B"], "body": "fox", "desc": "圆耳朵的狐狸，火焰尾里裹着一道噼啪电芯" },
-    "steamander": { "nameZh": "蒸汽鲸", "tier": 2, "elements": ["water", "fire"], "colors": ["#2E7BD6", "#E85D3A"], "body": "frog", "desc": "喷汽不喷水的温泉鲸，尾鳍尖上燃着小火" },
-    "cinderleaf": { "nameZh": "余烬菇", "tier": 2, "elements": ["fire", "grass"], "colors": ["#E85D3A", "#57B84C"], "body": "mushroom", "desc": "帽檐永远燃着一线火星的蘑菇，自带炭火气" },
-    "thermowolf": { "nameZh": "熔霜狼", "tier": 2, "elements": ["fire", "ice"], "colors": ["#E85D3A", "#8FD8E8"], "body": "penguin", "desc": "半身火纹半身冰纹的毛怪，冷热同体" },
-    "stormeel": { "nameZh": "雷雨鲸", "tier": 2, "elements": ["electric", "water"], "colors": ["#FFD93B", "#2E7BD6"], "body": "frog", "desc": "头顶自带一朵小雷雨云的发光电鲸" },
-    "vinevolt": { "nameZh": "藤电鼠", "tier": 2, "elements": ["electric", "grass"], "colors": ["#FFD93B", "#57B84C"], "body": "mouse", "desc": "闪电尾上缠着发光藤蔓的小鼠，晒太阳就是充电" },
-    "auroramink": { "nameZh": "极光貂", "tier": 2, "elements": ["electric", "ice"], "colors": ["#FFD93B", "#8FD8E8"], "body": "mouse", "desc": "皮毛流动着极光色彩的蓬毛小貂" },
-    "lotusturtle": { "nameZh": "莲叶鲸", "tier": 2, "elements": ["water", "grass"], "colors": ["#2E7BD6", "#57B84C"], "body": "frog", "desc": "头顶莲叶帽、喷水口里长出嫩芽的池塘园丁" },
-    "floeseal": { "nameZh": "浮冰雪怪", "tier": 2, "elements": ["ice", "water"], "colors": ["#8FD8E8", "#2E7BD6"], "body": "penguin", "desc": "坐在随身小浮冰上的圆雪怪，尾巴是一片尾鳍" },
-    "frostbunny": { "nameZh": "雪兔菇", "tier": 2, "elements": ["grass", "ice"], "colors": ["#57B84C", "#8FD8E8"], "body": "mushroom", "desc": "帽顶竖着两只雪绒\"兔耳\"的冻蘑菇，会织围巾" }
+    "guluduck": {
+      "steamItemDef": 101,
+      "nameZh": "咕噜鸭",
+      "tier": 1,
+      "elements": [
+        "normal"
+      ],
+      "colors": [
+        "#2E2E36"
+      ],
+      "body": "duck",
+      "desc": "换上黑白礼服的嘴硬奶鸭，口头禅\"嘎？这合理吗？\""
+    },
+    "emberfox": {
+      "steamItemDef": 102,
+      "nameZh": "炎尾狐",
+      "tier": 1,
+      "elements": [
+        "fire"
+      ],
+      "colors": [
+        "#E85D3A"
+      ],
+      "body": "fox",
+      "desc": "急性子的高个子奶狐，火焰尾巴比头还高，随情绪忽大忽小"
+    },
+    "voltmouse": {
+      "steamItemDef": 103,
+      "nameZh": "啾雷鼠",
+      "tier": 1,
+      "elements": [
+        "electric"
+      ],
+      "colors": [
+        "#FFD93B"
+      ],
+      "body": "mouse",
+      "desc": "巴掌大的迷你雷鼠，兴奋时会把静电传给别人"
+    },
+    "bubblefrog": {
+      "steamItemDef": 104,
+      "nameZh": "气泡鲸",
+      "tier": 1,
+      "elements": [
+        "water"
+      ],
+      "colors": [
+        "#2E7BD6"
+      ],
+      "body": "frog",
+      "desc": "飘在半空的圆滚小鲸，慢性子乐天派，喷水柱里装着今天的心情"
+    },
+    "sproutcap": {
+      "steamItemDef": 105,
+      "nameZh": "嫩芽菇",
+      "tier": 1,
+      "elements": [
+        "grass"
+      ],
+      "colors": [
+        "#57B84C"
+      ],
+      "body": "mushroom",
+      "desc": "顶着比身体大三倍的菌帽，晒到太阳会不自觉左右摇摆"
+    },
+    "frostpeng": {
+      "steamItemDef": 106,
+      "nameZh": "霜雪怪",
+      "tier": 1,
+      "elements": [
+        "ice"
+      ],
+      "colors": [
+        "#8FD8E8"
+      ],
+      "body": "penguin",
+      "desc": "毛茸茸的壮实小雪怪，高冷话少，其实最怕别人不理它"
+    },
+    "guluswan": {
+      "steamItemDef": 219,
+      "nameZh": "咕噜天鹅",
+      "tier": 2,
+      "elements": [
+        "normal"
+      ],
+      "colors": [
+        "#2E2E36",
+        "#FFFFFF"
+      ],
+      "body": "duck",
+      "desc": "黑白礼服的优雅天鹅，激动时仍会\"嘎\"地破音"
+    },
+    "infernofox": {
+      "steamItemDef": 207,
+      "nameZh": "炎狱狐",
+      "tier": 2,
+      "elements": [
+        "fire"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#B32E17"
+      ],
+      "body": "fox",
+      "desc": "三条火焰尾的大狐狸，走过之处留下小小焦印"
+    },
+    "thunderking": {
+      "steamItemDef": 201,
+      "nameZh": "雷霆鼠皇",
+      "tier": 2,
+      "elements": [
+        "electric"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E39B00"
+      ],
+      "body": "mouse",
+      "desc": "头戴静电王冠的胖鼠皇，打个哈欠都带雷声"
+    },
+    "tidefrog": {
+      "steamItemDef": 221,
+      "nameZh": "浪涛鲸",
+      "tier": 2,
+      "elements": [
+        "water"
+      ],
+      "colors": [
+        "#2E7BD6",
+        "#1B5FB0"
+      ],
+      "body": "frog",
+      "desc": "背驮一朵永不落下的浪花的大鲸，游过带起水雾"
+    },
+    "mycobeast": {
+      "steamItemDef": 212,
+      "nameZh": "菇林兽",
+      "tier": 2,
+      "elements": [
+        "grass"
+      ],
+      "colors": [
+        "#57B84C",
+        "#2F7D2B"
+      ],
+      "body": "mushroom",
+      "desc": "帽子上长着一整片小蘑菇林的温顺巨菇"
+    },
+    "glacierpeng": {
+      "steamItemDef": 216,
+      "nameZh": "极冰雪帝",
+      "tier": 2,
+      "elements": [
+        "ice"
+      ],
+      "colors": [
+        "#8FD8E8",
+        "#4FA6C9"
+      ],
+      "body": "penguin",
+      "desc": "披冰晶披风的雪怪皇帝，呼吸凝成雪花"
+    },
+    "blazeduck": {
+      "steamItemDef": 210,
+      "nameZh": "焰羽鸭",
+      "tier": 2,
+      "elements": [
+        "fire",
+        "normal"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#FFFFFF"
+      ],
+      "body": "duck",
+      "desc": "呆毛烧成三簇小火苗的白鸭，尾巴是一撮狐火"
+    },
+    "sparkduck": {
+      "steamItemDef": 205,
+      "nameZh": "闪光鸭",
+      "tier": 2,
+      "elements": [
+        "electric",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#FFFFFF"
+      ],
+      "body": "duck",
+      "desc": "羽毛噼啪带电的白鸭，摸头会被轻微电到"
+    },
+    "rippleduck": {
+      "steamItemDef": 220,
+      "nameZh": "涟漪鸭",
+      "tier": 2,
+      "elements": [
+        "water",
+        "normal"
+      ],
+      "colors": [
+        "#2E7BD6",
+        "#FFFFFF"
+      ],
+      "body": "duck",
+      "desc": "尾巴变成小尾鳍的水灵鸭，走路自带涟漪光环"
+    },
+    "mossduck": {
+      "steamItemDef": 214,
+      "nameZh": "苔羽鸭",
+      "tier": 2,
+      "elements": [
+        "grass",
+        "normal"
+      ],
+      "colors": [
+        "#57B84C",
+        "#FFFFFF"
+      ],
+      "body": "duck",
+      "desc": "头顶小菇帽、背上长苔藓的悠闲鸭"
+    },
+    "frostduck": {
+      "steamItemDef": 217,
+      "nameZh": "霜羽鸭",
+      "tier": 2,
+      "elements": [
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#8FD8E8",
+        "#FFFFFF"
+      ],
+      "body": "duck",
+      "desc": "围着蓬蓬霜毛围脖的酷鸭，羽毛结着细霜"
+    },
+    "plasmatanuki": {
+      "steamItemDef": 202,
+      "nameZh": "电浆狐",
+      "tier": 2,
+      "elements": [
+        "fire",
+        "electric"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#FFD93B"
+      ],
+      "body": "fox",
+      "desc": "圆耳朵的狐狸，火焰尾里裹着一道噼啪电芯"
+    },
+    "steamander": {
+      "steamItemDef": 211,
+      "nameZh": "蒸汽鲸",
+      "tier": 2,
+      "elements": [
+        "water",
+        "fire"
+      ],
+      "colors": [
+        "#2E7BD6",
+        "#E85D3A"
+      ],
+      "body": "frog",
+      "desc": "喷汽不喷水的温泉鲸，尾鳍尖上燃着小火"
+    },
+    "cinderleaf": {
+      "steamItemDef": 208,
+      "nameZh": "余烬菇",
+      "tier": 2,
+      "elements": [
+        "fire",
+        "grass"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C"
+      ],
+      "body": "mushroom",
+      "desc": "帽檐永远燃着一线火星的蘑菇，自带炭火气"
+    },
+    "thermowolf": {
+      "steamItemDef": 209,
+      "nameZh": "熔霜狼",
+      "tier": 2,
+      "elements": [
+        "fire",
+        "ice"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#8FD8E8"
+      ],
+      "body": "penguin",
+      "desc": "半身火纹半身冰纹的毛怪，冷热同体"
+    },
+    "stormeel": {
+      "steamItemDef": 206,
+      "nameZh": "雷雨鲸",
+      "tier": 2,
+      "elements": [
+        "electric",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#2E7BD6"
+      ],
+      "body": "frog",
+      "desc": "头顶自带一朵小雷雨云的发光电鲸"
+    },
+    "vinevolt": {
+      "steamItemDef": 203,
+      "nameZh": "藤电鼠",
+      "tier": 2,
+      "elements": [
+        "electric",
+        "grass"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C"
+      ],
+      "body": "mouse",
+      "desc": "闪电尾上缠着发光藤蔓的小鼠，晒太阳就是充电"
+    },
+    "auroramink": {
+      "steamItemDef": 204,
+      "nameZh": "极光貂",
+      "tier": 2,
+      "elements": [
+        "electric",
+        "ice"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#8FD8E8"
+      ],
+      "body": "mouse",
+      "desc": "皮毛流动着极光色彩的蓬毛小貂"
+    },
+    "lotusturtle": {
+      "steamItemDef": 215,
+      "nameZh": "莲叶鲸",
+      "tier": 2,
+      "elements": [
+        "water",
+        "grass"
+      ],
+      "colors": [
+        "#2E7BD6",
+        "#57B84C"
+      ],
+      "body": "frog",
+      "desc": "头顶莲叶帽、喷水口里长出嫩芽的池塘园丁"
+    },
+    "floeseal": {
+      "steamItemDef": 218,
+      "nameZh": "浮冰雪怪",
+      "tier": 2,
+      "elements": [
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "penguin",
+      "desc": "坐在随身小浮冰上的圆雪怪，尾巴是一片尾鳍"
+    },
+    "frostbunny": {
+      "steamItemDef": 213,
+      "nameZh": "雪兔菇",
+      "tier": 2,
+      "elements": [
+        "grass",
+        "ice"
+      ],
+      "colors": [
+        "#57B84C",
+        "#8FD8E8"
+      ],
+      "body": "mushroom",
+      "desc": "帽顶竖着两只雪绒\"兔耳\"的冻蘑菇，会织围巾"
+    },
+    "weldbug": {
+      "steamItemDef": 601,
+      "nameZh": "焊花虫",
+      "elements": [
+        "electric",
+        "fire"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A"
+      ],
+      "body": "weldbug",
+      "desc": "圆滚小甲虫，鞘翅是两块可开合的焊接面罩，屁股喷焊花；一丝不苟的工地老师傅"
+    },
+    "voltquill": {
+      "steamItemDef": 602,
+      "nameZh": "电叶猬",
+      "elements": [
+        "electric",
+        "grass"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C"
+      ],
+      "body": "voltquill",
+      "desc": "小刺猬，背刺是一根根蓄电叶片，受惊全体炸毛发光；胆小但好奇心旺盛"
+    },
+    "aurowl": {
+      "steamItemDef": 603,
+      "nameZh": "极光鸮",
+      "elements": [
+        "electric",
+        "ice"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#8FD8E8"
+      ],
+      "body": "aurowl",
+      "desc": "圆滚雪鸮，眉羽是两道小极光，尾羽拖极光丝带；熬夜观星的学者"
+    },
+    "zapbun": {
+      "steamItemDef": 604,
+      "nameZh": "静电兔",
+      "elements": [
+        "electric",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#6E6E78"
+      ],
+      "body": "zapbun",
+      "desc": "长耳是两根天线、背插发条钥匙的小兔，蹦跳时耳尖冒电火；电量满格的话痨"
+    },
+    "voltmare": {
+      "steamItemDef": 605,
+      "nameZh": "雷海马",
+      "elements": [
+        "electric",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#2E7BD6"
+      ],
+      "body": "voltmare",
+      "desc": "直立漂浮小海马，卷尾缠着一朵小雷云，背鳍是均衡器光条；节奏感天生满分"
+    },
+    "chilizard": {
+      "steamItemDef": 606,
+      "nameZh": "火辣蜥",
+      "elements": [
+        "fire",
+        "grass"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C"
+      ],
+      "body": "chilizard",
+      "desc": "低趴小蜥蜴，尾巴是一根卷曲红辣椒，背脊一排叶鳍；嗜辣暴脾气（但很小只）"
+    },
+    "onsenmonk": {
+      "steamItemDef": 607,
+      "nameZh": "温泉猴",
+      "elements": [
+        "fire",
+        "ice"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#8FD8E8"
+      ],
+      "body": "onsenmonk",
+      "desc": "泡温泉的雪猴，左颊暖橘右颊霜蓝，头顶常年蒸汽；享受主义慢性子"
+    },
+    "waxlamb": {
+      "steamItemDef": 608,
+      "nameZh": "烛焰羊",
+      "elements": [
+        "fire",
+        "normal"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#6E6E78"
+      ],
+      "body": "waxlamb",
+      "desc": "奶白蜡质卷毛羊，呆毛是一撮烛火，情绪越高火越旺；温吞治愈系"
+    },
+    "steamalotl": {
+      "steamItemDef": 609,
+      "nameZh": "汽雾螈",
+      "elements": [
+        "fire",
+        "water"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#2E7BD6"
+      ],
+      "body": "steamalotl",
+      "desc": "粉白六角螈，六根外鳃是噗噗冒汽的蒸汽管；笑眯眯的按部就班派"
+    },
+    "pinefawn": {
+      "steamItemDef": 610,
+      "nameZh": "雪松鹿",
+      "elements": [
+        "grass",
+        "ice"
+      ],
+      "colors": [
+        "#57B84C",
+        "#8FD8E8"
+      ],
+      "body": "pinefawn",
+      "desc": "细腿小鹿，角是两枝挂雪松枝，松绿短绒；安静的冬日邮差气质"
+    },
+    "potturtle": {
+      "steamItemDef": 611,
+      "nameZh": "花盆龟",
+      "elements": [
+        "grass",
+        "normal"
+      ],
+      "colors": [
+        "#57B84C",
+        "#6E6E78"
+      ],
+      "body": "potturtle",
+      "desc": "龟壳是一只陶土花盆，盆里种着嫩芽，浇水会开小花；佛系园丁"
+    },
+    "lilyfrog": {
+      "steamItemDef": 612,
+      "nameZh": "荷叶蛙",
+      "elements": [
+        "grass",
+        "water"
+      ],
+      "colors": [
+        "#57B84C",
+        "#2E7BD6"
+      ],
+      "body": "lilyfrog",
+      "desc": "蹲坐小青蛙，头顶荷叶圆帽，喉囊鼓起像小荷苞；一下雨就开心"
+    },
+    "snowcub": {
+      "steamItemDef": 613,
+      "nameZh": "雪球熊",
+      "elements": [
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#8FD8E8",
+        "#6E6E78"
+      ],
+      "body": "snowcub",
+      "desc": "站立圆雪球小白熊，围星星围巾，肚皮是软雪；冷链快递实习生，干劲十足"
+    },
+    "icejelly": {
+      "steamItemDef": 614,
+      "nameZh": "冰晶水母",
+      "elements": [
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "icejelly",
+      "desc": "伞盖是一坨旋涡冰淇淋的小水母，触手是四根奶油卷；飘来飘去的甜品师"
+    },
+    "sudsotter": {
+      "steamItemDef": 615,
+      "nameZh": "泡澡獭",
+      "elements": [
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "sudsotter",
+      "desc": "顺滑长身水獭，永远顶着一撮肥皂泡刘海；爱干净的社交达人"
+    },
+    "pyrepeacock": {
+      "steamItemDef": 616,
+      "nameZh": "烟花雀",
+      "elements": [
+        "electric",
+        "fire",
+        "grass"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#57B84C"
+      ],
+      "body": "pyrepeacock",
+      "desc": "小孔雀，开屏即一面烟花：羽眼是火星、羽枝带电光、羽底叶纹；爱炫但业务过硬"
+    },
+    "stormdrake": {
+      "steamItemDef": 617,
+      "nameZh": "风暴龙",
+      "elements": [
+        "electric",
+        "fire",
+        "ice"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#8FD8E8"
+      ],
+      "body": "stormdrake",
+      "desc": "面条身形的东方小龙，一角冒火一角结霜，背鬃是静电茸毛；云端气象员"
+    },
+    "rockrooster": {
+      "steamItemDef": 618,
+      "nameZh": "摇滚鸡",
+      "elements": [
+        "electric",
+        "fire",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#6E6E78"
+      ],
+      "body": "rockrooster",
+      "desc": "大红摇滚公鸡，鸡冠是跳动火焰，尾羽三根闪电；嗓门大心肠软"
+    },
+    "boilshrimp": {
+      "steamItemDef": 619,
+      "nameZh": "沸腾虾",
+      "elements": [
+        "electric",
+        "fire",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#2E7BD6"
+      ],
+      "body": "boilshrimp",
+      "desc": "卷成 C 形的小虾，背壳是麻辣锅纹，长须带电；夜市摊主嗓门王"
+    },
+    "glowhum": {
+      "steamItemDef": 620,
+      "nameZh": "光蜂鸟",
+      "elements": [
+        "electric",
+        "grass",
+        "ice"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C",
+        "#8FD8E8"
+      ],
+      "body": "glowhum",
+      "desc": "拇指大的蜂鸟，翅膀振出极光残影，尾羽是冰晶叶；实验室里最快的观察员"
+    },
+    "windmole": {
+      "steamItemDef": 621,
+      "nameZh": "风车鼹",
+      "elements": [
+        "electric",
+        "grass",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C",
+        "#6E6E78"
+      ],
+      "body": "windmole",
+      "desc": "圆滚鼹鼠背着小风车背包，护目镜推在头顶；田园发电站站长"
+    },
+    "glowfly": {
+      "steamItemDef": 622,
+      "nameZh": "流萤虫",
+      "elements": [
+        "electric",
+        "grass",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C",
+        "#2E7BD6"
+      ],
+      "body": "glowfly",
+      "desc": "尾灯是暖黄小灯泡的萤火虫，叶形翅挂着露珠；夜班图书管理员"
+    },
+    "waddleskate": {
+      "steamItemDef": 623,
+      "nameZh": "滑冰鹅",
+      "elements": [
+        "electric",
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#8FD8E8",
+        "#6E6E78"
+      ],
+      "body": "waddleskate",
+      "desc": "圆企鹅，脚蹼是两片冰刀，围脖别着号码牌；冰壶馆全能选手"
+    },
+    "frostangler": {
+      "steamItemDef": 624,
+      "nameZh": "霜灯鱼",
+      "elements": [
+        "electric",
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "frostangler",
+      "desc": "圆滚深海鮟鱇，头顶钓竿挑着闪电灯泡，冰牙软糯无害；夜班巡逻员"
+    },
+    "maildove": {
+      "steamItemDef": 625,
+      "nameZh": "信使鸽",
+      "elements": [
+        "electric",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "maildove",
+      "desc": "灰白信鸽挎云朵邮包，护目镜带电光；使命必达急性子"
+    },
+    "seasonleon": {
+      "steamItemDef": 626,
+      "nameZh": "四季龙",
+      "elements": [
+        "fire",
+        "grass",
+        "ice"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C",
+        "#8FD8E8"
+      ],
+      "body": "seasonleon",
+      "desc": "变色龙，身体三段花色（焰橙/叶绿/霜蓝）随心情流动，卷尾是调色环；艺术家脾气"
+    },
+    "toastybara": {
+      "steamItemDef": 627,
+      "nameZh": "暖包豚",
+      "elements": [
+        "fire",
+        "grass",
+        "normal"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C",
+        "#6E6E78"
+      ],
+      "body": "toastybara",
+      "desc": "方砖体型水豚，头顶吐司帽，尾巴是麦穗；面包房定海神针，处变不惊"
+    },
+    "bobamingo": {
+      "steamItemDef": 628,
+      "nameZh": "啵茶鸟",
+      "elements": [
+        "fire",
+        "grass",
+        "water"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C",
+        "#2E7BD6"
+      ],
+      "body": "bobamingo",
+      "desc": "奶茶粉火烈鸟单腿站立，脖颈弯成吸管弧度，腿挂珍珠脚环；下午茶宣传大使"
+    },
+    "lattegolem": {
+      "steamItemDef": 629,
+      "nameZh": "拿铁雪人",
+      "elements": [
+        "fire",
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#8FD8E8",
+        "#6E6E78"
+      ],
+      "body": "lattegolem",
+      "desc": "两段式雪人，胸口嵌温热咖啡心，头顶奶泡贝雷帽；咖啡店店长，字面意义外冷内热"
+    },
+    "saunapuff": {
+      "steamItemDef": 630,
+      "nameZh": "桑拿豚",
+      "elements": [
+        "fire",
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "saunapuff",
+      "desc": "圆滚河豚，鼓气喷蒸汽、泄气飘雪粒，刺是软桑拿木钉；呼吸自成节奏"
+    },
+    "ramencoon": {
+      "steamItemDef": 631,
+      "nameZh": "拉面熊",
+      "elements": [
+        "fire",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "ramencoon",
+      "desc": "小浣熊顶着冒热气的拉面碗帽，尾环纹像叉烧卷；深夜食堂主厨"
+    },
+    "yarncat": {
+      "steamItemDef": 632,
+      "nameZh": "毛线猫",
+      "elements": [
+        "grass",
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#57B84C",
+        "#8FD8E8",
+        "#6E6E78"
+      ],
+      "body": "yarncat",
+      "desc": "蜷成毛线球的猫，只露耳朵尾巴，冰蓝×叶绿双股线；织补铺看板猫，懒得可爱"
+    },
+    "terrasnail": {
+      "steamItemDef": 633,
+      "nameZh": "苔壳蜗",
+      "elements": [
+        "grass",
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#57B84C",
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "terrasnail",
+      "desc": "蜗牛壳是玻璃冰花房，壳里飘微型雪、养一株小绿植；移动温室管理员"
+    },
+    "scaresprout": {
+      "steamItemDef": 634,
+      "nameZh": "稻草人",
+      "elements": [
+        "grass",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#57B84C",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "scaresprout",
+      "desc": "田间稻草人小神，草帽垂稻穗，袖口漏新芽；守田的老好人"
+    },
+    "bowlrus": {
+      "steamItemDef": 635,
+      "nameZh": "冰海象",
+      "elements": [
+        "ice",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#8FD8E8",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "bowlrus",
+      "desc": "敦实小海象，獠牙是保龄球瓶纹，肚皮球道条纹；冰上保龄球馆馆长"
+    },
+    "lanternloong": {
+      "steamItemDef": 636,
+      "nameZh": "舞龙灯",
+      "elements": [
+        "electric",
+        "fire",
+        "grass",
+        "ice"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#57B84C",
+        "#8FD8E8"
+      ],
+      "body": "lanternloong",
+      "desc": "纸扎小龙灯，灯身四段各透一色元素光，竹篾骨架流苏尾；节庆巡游台柱"
+    },
+    "discobloom": {
+      "steamItemDef": 637,
+      "nameZh": "摇摆葵",
+      "elements": [
+        "electric",
+        "fire",
+        "grass",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#57B84C",
+        "#6E6E78"
+      ],
+      "body": "discobloom",
+      "desc": "会走的向日葵，花盘是镭射唱片纹，花瓣火橙电黄相间；夜场主唱"
+    },
+    "juicepitcher": {
+      "steamItemDef": 638,
+      "nameZh": "蜜壶草",
+      "elements": [
+        "electric",
+        "fire",
+        "grass",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#57B84C",
+        "#2E7BD6"
+      ],
+      "body": "juicepitcher",
+      "desc": "圆滚猪笼草，笼身是果汁杯、插藤蔓吸管，笼盖小草帽；果汁摊摊主"
+    },
+    "mochipop": {
+      "steamItemDef": 639,
+      "nameZh": "爆浆糬",
+      "elements": [
+        "electric",
+        "fire",
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#8FD8E8",
+        "#6E6E78"
+      ],
+      "body": "mochipop",
+      "desc": "雪白年糕团子，烤到微鼓会\"啵\"地弹起，头插仙女棒；跨年夜限定艺人"
+    },
+    "meteoropus": {
+      "steamItemDef": 640,
+      "nameZh": "云章鱼",
+      "elements": [
+        "electric",
+        "fire",
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "meteoropus",
+      "desc": "骑在自己云朵上的小章鱼，四触手各拎一种天气；气象台外景主播"
+    },
+    "grillgator": {
+      "steamItemDef": 641,
+      "nameZh": "烧烤鳄",
+      "elements": [
+        "electric",
+        "fire",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "grillgator",
+      "desc": "低趴长身小鳄，背鳞是一排冒火光的烤炉格栅，尾拴灯串；夜市烧烤扛把子"
+    },
+    "chimebell": {
+      "steamItemDef": 642,
+      "nameZh": "风铃草",
+      "elements": [
+        "electric",
+        "grass",
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C",
+        "#8FD8E8",
+        "#6E6E78"
+      ],
+      "body": "chimebell",
+      "desc": "倒挂风铃草精灵，花铃结冰晶铃舌，风过叮咚带电微光；禅意音疗师"
+    },
+    "frostclione": {
+      "steamItemDef": 643,
+      "nameZh": "海天使",
+      "elements": [
+        "electric",
+        "grass",
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C",
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "frostclione",
+      "desc": "半透明冰蓝海天使，小翅拍出极光涟漪，胸口一点叶绿心；安静的深海诗人"
+    },
+    "mistyox": {
+      "steamItemDef": 644,
+      "nameZh": "谷雨牛",
+      "elements": [
+        "electric",
+        "grass",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "mistyox",
+      "desc": "青灰小水牛，角间挂一串算珠，背上一小片自带细雨的稻云；算账最快的老会计"
+    },
+    "subhermit": {
+      "steamItemDef": 645,
+      "nameZh": "潜艇蟹",
+      "elements": [
+        "electric",
+        "ice",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#8FD8E8",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "subhermit",
+      "desc": "寄居蟹背着黄色小潜水艇当壳，潜望镜从壳顶伸出；深海快递潜航员"
+    },
+    "teapir": {
+      "steamItemDef": 646,
+      "nameZh": "抹茶貘",
+      "elements": [
+        "fire",
+        "grass",
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C",
+        "#8FD8E8",
+        "#6E6E78"
+      ],
+      "body": "teapir",
+      "desc": "圆滚食梦貘，长鼻是茶壶嘴，呼出的梦是茶香白雾；睡觉即本职工作的茶艺师"
+    },
+    "brewbat": {
+      "steamItemDef": 647,
+      "nameZh": "炼药蝠",
+      "elements": [
+        "fire",
+        "grass",
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C",
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "brewbat",
+      "desc": "圆耳小蝙蝠，翅膜内衬四色药剂分层纹，总倒挂着摇瓶子；炼金夜班学徒"
+    },
+    "porkchef": {
+      "steamItemDef": 648,
+      "nameZh": "掌勺猪",
+      "elements": [
+        "fire",
+        "grass",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "porkchef",
+      "desc": "圆成汤圆的小猪，厨师帽永远歪着，围裙四色酱渍；农家乐大厨，尝菜比做菜多"
+    },
+    "spadolphin": {
+      "steamItemDef": 649,
+      "nameZh": "泡汤豚",
+      "elements": [
+        "fire",
+        "ice",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#8FD8E8",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "spadolphin",
+      "desc": "奶白小海豚，背鳍挂温泉旅馆门帘，额顶小毛巾；旅馆女将，鞠躬弧度完美"
+    },
+    "snowbonsai": {
+      "steamItemDef": 650,
+      "nameZh": "雪盆栽",
+      "elements": [
+        "grass",
+        "ice",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#57B84C",
+        "#8FD8E8",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "snowbonsai",
+      "desc": "会走路的雪松盆景，枝上积雪终年不化，盆沿结冰棱花边；自称百岁的园艺大师"
+    },
+    "liondance": {
+      "steamItemDef": 651,
+      "nameZh": "醒狮",
+      "elements": [
+        "electric",
+        "fire",
+        "grass",
+        "ice",
+        "normal"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#57B84C",
+        "#8FD8E8",
+        "#6E6E78"
+      ],
+      "body": "liondance",
+      "desc": "节庆舞狮，狮头五彩流苏对应五元素、额镜眨眼会响铃；揭幕仪式专业户"
+    },
+    "manacorn": {
+      "steamItemDef": 652,
+      "nameZh": "灵角兽",
+      "elements": [
+        "electric",
+        "fire",
+        "grass",
+        "ice",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#57B84C",
+        "#8FD8E8",
+        "#2E7BD6"
+      ],
+      "body": "manacorn",
+      "desc": "小独角兽，鬃毛是流动的五元素光带，独角是水晶塔罗签；占卜从不失手（因为只说好话）"
+    },
+    "queenbuzz": {
+      "steamItemDef": 653,
+      "nameZh": "女王蜂",
+      "elements": [
+        "electric",
+        "fire",
+        "grass",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#57B84C",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "queenbuzz",
+      "desc": "蜂后，五瓣花冠冠冕，腹纹五色渐变环，翅膀振出音浪纹；乐团首席指挥"
+    },
+    "gargoylite": {
+      "steamItemDef": 654,
+      "nameZh": "石像咕",
+      "elements": [
+        "electric",
+        "fire",
+        "ice",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#8FD8E8",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "gargoylite",
+      "desc": "胖石像鬼，石翅内衬四色元素纹，自带小石柱平台；城市天台导游"
+    },
+    "crystalwing": {
+      "steamItemDef": 655,
+      "nameZh": "琉璃蜓",
+      "elements": [
+        "electric",
+        "grass",
+        "ice",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#57B84C",
+        "#8FD8E8",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "crystalwing",
+      "desc": "蜻蜓，四片翅膀是四色雕花玻璃，尾灯一点星光；湿地自然观察员"
+    },
+    "claypango": {
+      "steamItemDef": 656,
+      "nameZh": "赤陶甲",
+      "elements": [
+        "fire",
+        "grass",
+        "ice",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#E85D3A",
+        "#57B84C",
+        "#8FD8E8",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "claypango",
+      "desc": "穿山甲，鳞片是一片片上釉陶瓦、五色釉彩；古法窑厂传人，慢工出细活"
+    },
+    "prismkirin": {
+      "steamItemDef": 657,
+      "nameZh": "晶麒麟",
+      "elements": [
+        "electric",
+        "fire",
+        "grass",
+        "ice",
+        "normal",
+        "water"
+      ],
+      "colors": [
+        "#FFD93B",
+        "#E85D3A",
+        "#57B84C",
+        "#8FD8E8",
+        "#6E6E78",
+        "#2E7BD6"
+      ],
+      "body": "prismkirin",
+      "desc": "六棱水晶角小麒麟，鬃与尾是六色流光，蹄踏云纹光环，背脊浮六枚元素徽；全谱旗舰，登场自带 BGM（自己哼的）"
+    }
   },
   "fusionTable": {
     "normal+normal": "guluswan",
@@ -92,5 +1450,83 @@
     "grass+water": "lotusturtle",
     "ice+water": "floeseal",
     "grass+ice": "frostbunny"
+  },
+  "speciesByRecipe": {
+    "normal": "guluduck",
+    "fire": "emberfox",
+    "electric": "voltmouse",
+    "water": "bubblefrog",
+    "grass": "sproutcap",
+    "ice": "frostpeng",
+    "electric+fire": "weldbug",
+    "electric+grass": "voltquill",
+    "electric+ice": "aurowl",
+    "electric+normal": "zapbun",
+    "electric+water": "voltmare",
+    "fire+grass": "chilizard",
+    "fire+ice": "onsenmonk",
+    "fire+normal": "waxlamb",
+    "fire+water": "steamalotl",
+    "grass+ice": "pinefawn",
+    "grass+normal": "potturtle",
+    "grass+water": "lilyfrog",
+    "ice+normal": "snowcub",
+    "ice+water": "icejelly",
+    "normal+water": "sudsotter",
+    "electric+fire+grass": "pyrepeacock",
+    "electric+fire+ice": "stormdrake",
+    "electric+fire+normal": "rockrooster",
+    "electric+fire+water": "boilshrimp",
+    "electric+grass+ice": "glowhum",
+    "electric+grass+normal": "windmole",
+    "electric+grass+water": "glowfly",
+    "electric+ice+normal": "waddleskate",
+    "electric+ice+water": "frostangler",
+    "electric+normal+water": "maildove",
+    "fire+grass+ice": "seasonleon",
+    "fire+grass+normal": "toastybara",
+    "fire+grass+water": "bobamingo",
+    "fire+ice+normal": "lattegolem",
+    "fire+ice+water": "saunapuff",
+    "fire+normal+water": "ramencoon",
+    "grass+ice+normal": "yarncat",
+    "grass+ice+water": "terrasnail",
+    "grass+normal+water": "scaresprout",
+    "ice+normal+water": "bowlrus",
+    "electric+fire+grass+ice": "lanternloong",
+    "electric+fire+grass+normal": "discobloom",
+    "electric+fire+grass+water": "juicepitcher",
+    "electric+fire+ice+normal": "mochipop",
+    "electric+fire+ice+water": "meteoropus",
+    "electric+fire+normal+water": "grillgator",
+    "electric+grass+ice+normal": "chimebell",
+    "electric+grass+ice+water": "frostclione",
+    "electric+grass+normal+water": "mistyox",
+    "electric+ice+normal+water": "subhermit",
+    "fire+grass+ice+normal": "teapir",
+    "fire+grass+ice+water": "brewbat",
+    "fire+grass+normal+water": "porkchef",
+    "fire+ice+normal+water": "spadolphin",
+    "grass+ice+normal+water": "snowbonsai",
+    "electric+fire+grass+ice+normal": "liondance",
+    "electric+fire+grass+ice+water": "manacorn",
+    "electric+fire+grass+normal+water": "queenbuzz",
+    "electric+fire+ice+normal+water": "gargoylite",
+    "electric+grass+ice+normal+water": "crystalwing",
+    "fire+grass+ice+normal+water": "claypango",
+    "electric+fire+grass+ice+normal+water": "prismkirin"
+  },
+  "fusionFees": [75, 3000, 120000, 4800000, 192000000, 7680000000],
+  "fusionEggPriceBonus": 100,
+  "eggTierPriceMultiplier": 15,
+  "shopMaxLevel": 4,
+  "shopUpgradeCosts": [50000, 750000, 11250000],
+  "eggRarityFalloffDenom": 3,
+  "aiTotalChanceByElementCount": {
+    "2": 0.6,
+    "3": 0.4,
+    "4": 0.2,
+    "5": 0.1,
+    "6": 0.05
   }
 }

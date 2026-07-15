@@ -66,10 +66,10 @@ pub struct CodexActivityEvent {
     pub experience_delta: u64,
     pub project_total_tokens: u64,
     pub project_experience: u64,
-    /// Exp actually fed to a pet by this event (game layer, daily-capped).
-    pub pet_exp_delta: u64,
-    /// Coins minted from overflow token exp by this event (game layer).
-    pub fed_coins: u64,
+    /// 本次事件实际喂进宠物的精力点数（game 层，token→精力，v1.1）。
+    pub fed_stamina: i64,
+    /// 本次喂养的主要受益宠（份额最大者；前端 Token 飞行 FX 的锚点）。
+    pub fed_pet_id: Option<String>,
     pub total_usage: Option<TokenUsage>,
     pub last_usage: Option<TokenUsage>,
 }
@@ -607,8 +607,8 @@ fn parse_claude_code_assistant_message(
             experience_delta: 0,
             project_total_tokens: 0,
             project_experience: 0,
-            pet_exp_delta: 0,
-            fed_coins: 0,
+            fed_stamina: 0,
+            fed_pet_id: None,
             total_usage: Some(usage.clone()),
             last_usage: Some(usage),
         });
@@ -781,8 +781,8 @@ fn parse_event_msg(
                 experience_delta: 0,
                 project_total_tokens: 0,
                 project_experience: 0,
-                pet_exp_delta: 0,
-                fed_coins: 0,
+                fed_stamina: 0,
+                fed_pet_id: None,
                 total_usage: parse_usage(info.get("total_token_usage")),
                 last_usage: parse_usage(info.get("last_token_usage")),
             }]
@@ -895,8 +895,8 @@ fn activity(source: &str, session_id: &str, timestamp: String, kind: &str) -> Co
         experience_delta: 0,
         project_total_tokens: 0,
         project_experience: 0,
-        pet_exp_delta: 0,
-        fed_coins: 0,
+        fed_stamina: 0,
+        fed_pet_id: None,
         total_usage: None,
         last_usage: None,
     }
@@ -922,8 +922,8 @@ fn emit_activity(
         experience_delta: 0,
         project_total_tokens: progress.map(|item| item.total_tokens).unwrap_or(0),
         project_experience: progress.map(|item| item.experience).unwrap_or(0),
-        pet_exp_delta: 0,
-        fed_coins: 0,
+        fed_stamina: 0,
+        fed_pet_id: None,
         total_usage,
         last_usage,
     };
@@ -941,8 +941,8 @@ fn emit_error(app: &AppHandle, source: &str, error: &str) {
         experience_delta: 0,
         project_total_tokens: 0,
         project_experience: 0,
-        pet_exp_delta: 0,
-        fed_coins: 0,
+        fed_stamina: 0,
+        fed_pet_id: None,
         total_usage: None,
         last_usage: None,
     };
@@ -1043,43 +1043,48 @@ fn apply_agent_token_event(
         experience_delta,
         project_total_tokens,
         project_experience,
-        pet_exp_delta: 0,
-        fed_coins: 0,
+        fed_stamina: 0,
+        fed_pet_id: None,
         total_usage: event.total_usage,
         last_usage: event.last_usage,
     })
 }
 
-/// Feed the game layer with the fresh experience this token event produced
-/// (ledger-increment semantics, GDD §12.4) and stamp the outcome onto the
-/// event so the frontend can float the right numbers.
+/// Feed the game layer with the fresh raw tokens this event produced
+/// (ledger-increment semantics; v1.1 tokens→精力, InteractionEconomy §9) and
+/// stamp the outcome onto the event so the frontend can fly the token chip.
 fn enrich_with_game_feed(app: &AppHandle, mut activity: CodexActivityEvent) -> CodexActivityEvent {
     if let Some(project_path) = activity.project_path.clone() {
         if let Some(state) = app.try_state::<crate::game::SharedGameState>() {
-            if let Some(outcome) = crate::game::feed_from_project_experience(
+            if let Some(outcome) = crate::game::feed_from_project_tokens(
                 app,
                 state.inner(),
                 &project_path,
-                activity.project_experience,
+                activity.project_total_tokens,
             ) {
-                activity.pet_exp_delta = outcome.pet_exp;
-                activity.fed_coins = outcome.coins;
+                activity.fed_stamina = outcome.stamina_fed;
+                activity.fed_pet_id = outcome
+                    .per_pet
+                    .iter()
+                    .max_by_key(|gain| gain.stamina_gained)
+                    .map(|gain| gain.pet_id.clone());
             }
         }
     }
     activity
 }
 
-/// Sum of every project's ledger experience plus a per-project baseline map,
-/// used once when the game save is first created (GDD §3.3 并轨).
-pub fn progress_experience_snapshot(app: &AppHandle) -> (u64, BTreeMap<String, u64>) {
+/// 进度存档快照：(全项目累计 experience 之和, 按项目的原始 total_tokens 基线)。
+/// 前者用于首建存档的历史折币礼包（GDD §3.3 并轨），后者播种 v3 的
+/// token→精力增量账本（InteractionEconomy §9）。
+pub fn progress_snapshot(app: &AppHandle) -> (u64, BTreeMap<String, u64>) {
     match load_progress_store(app) {
         Ok(store) => {
             let mut baseline = BTreeMap::new();
             let mut total = 0u64;
             for (path, project) in &store.projects {
                 total = total.saturating_add(project.experience);
-                baseline.insert(path.clone(), project.experience);
+                baseline.insert(path.clone(), project.total_tokens);
             }
             (total, baseline)
         }

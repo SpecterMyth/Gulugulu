@@ -1,19 +1,24 @@
+mod cli_spawn;
 mod codex_adapter;
-mod avatar_manager;
+mod fusion_gen;
+mod fusion_slots;
 mod game;
 mod game_config;
+mod key_watcher;
+mod quote_gen;
+mod settings;
+mod steam;
+mod steam_inventory;
+mod steam_sync;
+mod steam_workshop;
+mod tray;
 mod window_tracker;
 
-use avatar_manager::{AvatarSelection, InstalledAvatar};
 use codex_adapter::{CodexStatus, SharedCodexState};
 use game::SharedGameState;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, WebviewUrl,
     WebviewWindowBuilder,
@@ -50,11 +55,6 @@ fn get_active_window_bounds() -> Option<window_tracker::WindowBounds> {
     window_tracker::active_window_bounds()
 }
 
-#[tauri::command]
-fn open_avatar_generator(app: AppHandle) -> Result<(), String> {
-    avatar_manager::open_avatar_generator(app)
-}
-
 /// Resize the game window to a logical size, keeping the horizontal center
 /// fixed (GDD §12.6): height grows downward for free (top-left is anchored by
 /// set_size), width changes are compensated by shifting x by −Δw/2.
@@ -71,8 +71,8 @@ fn resize_game_window(app: AppHandle, width: f64, height: f64) -> Result<(), Str
     let target_physical_height = (height * scale).round() as i32;
     let delta_w = target_physical_width - current.width as i32;
 
-    // 非后院模式恢复桌宠常态：置顶 + 固定尺寸（后院 dock 时反向设置）。
-    let _ = window.set_always_on_top(true);
+    // 非后院模式恢复桌宠常态：置顶（按用户偏好）+ 固定尺寸（后院 dock 时反向设置）。
+    let _ = window.set_always_on_top(settings::load(&app).always_on_top);
     let _ = window.set_resizable(false);
     window
         .set_size(LogicalSize::new(width, height))
@@ -212,50 +212,14 @@ async fn hide_fx_overlay(app: AppHandle) {
 fn spawn_game_tick(app: AppHandle, state: SharedGameState) {
     thread::spawn(move || {
         let tick_seconds = state.config.tick_seconds.max(1);
-        let mut tick_index: u64 = 0;
         loop {
             thread::sleep(Duration::from_secs(tick_seconds));
-            tick_index += 1;
-            if let Some(save) = game::run_tick(&app, &state, tick_index) {
+            // v1.1：tick 只做精力结算/日期翻转并推送刷新（无任何挂机产出）。
+            if let Some(save) = game::run_tick(&app, &state) {
                 let _ = app.emit("game://state", save);
             }
         }
     });
-}
-
-#[tauri::command]
-fn list_avatars(app: AppHandle) -> Result<Vec<InstalledAvatar>, String> {
-    avatar_manager::list_avatars(app)
-}
-
-#[tauri::command]
-fn get_current_avatar(app: AppHandle) -> Result<AvatarSelection, String> {
-    avatar_manager::get_current_avatar(app)
-}
-
-#[tauri::command]
-fn set_current_avatar(app: AppHandle, id: String) -> Result<AvatarSelection, String> {
-    avatar_manager::set_current_avatar(app, id)
-}
-
-#[tauri::command]
-fn install_avatar_from_url(app: AppHandle, url: String) -> Result<AvatarSelection, String> {
-    avatar_manager::install_avatar_from_url(app, url)
-}
-
-#[tauri::command]
-async fn fuse_avatars(
-    app: AppHandle,
-    id_a: String,
-    id_b: String,
-    provider: Option<String>,
-    model: Option<String>,
-) -> Result<AvatarSelection, String> {
-    // The fusion job takes minutes; run the blocking HTTP/poll/install work off
-    // the main thread so the pet window stays responsive.
-    tauri::async_runtime::spawn_blocking(move || avatar_manager::fuse_avatars(app, id_a, id_b, provider, model))
-        .await
-        .map_err(|error| error.to_string())?
 }
 
 pub fn run() {
@@ -263,54 +227,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(SharedCodexState::new())
         .manage(game::new_shared_state())
+        .manage(fusion_gen::new_state())
+        .manage(quote_gen::new_state())
+        .manage(steam::new_shared_state())
         .setup(|app| {
-            let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
-            let hide = MenuItem::with_id(app, "hide", "Hide", true, None::<&str>)?;
-            let always_on_top = CheckMenuItem::with_id(
-                app,
-                "always_on_top",
-                "Always on top",
-                true,
-                true,
-                None::<&str>,
-            )?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &hide, &always_on_top, &quit])?;
-
-            let always_on_top_state = Arc::new(Mutex::new(true));
-            let always_on_top_for_menu = Arc::clone(&always_on_top_state);
-
-            TrayIconBuilder::new()
-                .icon(Image::from_bytes(include_bytes!("../icons/tray-duck.png"))?)
-                .tooltip("Gulugulu")
-                .menu(&menu)
-                .show_menu_on_left_click(true)
-                .on_menu_event(move |app, event| {
-                    if let Some(window) = app.get_webview_window("main") {
-                        match event.id().as_ref() {
-                            "show" => {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                            "hide" => {
-                                let _ = window.hide();
-                            }
-                            "always_on_top" => {
-                                if let Ok(mut enabled) = always_on_top_for_menu.lock() {
-                                    *enabled = !*enabled;
-                                    let _ = window.set_always_on_top(*enabled);
-                                }
-                            }
-                            "quit" => app.exit(0),
-                            _ => {}
-                        }
-                    }
-                })
-                .build(app)?;
-
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_always_on_top(true);
-            }
+            // 托盘菜单（双语 + 与设置面板同步的开关）。见 tray.rs。
+            tray::build(app.handle())?;
 
             let app_handle = app.handle().clone();
             let state = app.state::<SharedCodexState>().inner().clone();
@@ -319,7 +241,23 @@ pub fn run() {
             codex_adapter::spawn_claude_code_watcher(app_handle.clone(), state);
 
             let game_state = app.state::<SharedGameState>().inner().clone();
-            spawn_game_tick(app_handle, game_state);
+            spawn_game_tick(app_handle.clone(), game_state.clone());
+
+            // 键盘充能：全局键盘钩子（Windows）+ 250ms/1s 双节拍泵。
+            key_watcher::spawn_key_watcher(app_handle.clone(), game_state.clone());
+
+            // AI 融合后台 worker：扫描存档里的挂起融合蛋并调本地 CLI 生成。
+            let fusion_state = app.state::<fusion_gen::FusionGenState>().inner().clone();
+            fusion_gen::spawn_fusion_worker(app_handle.clone(), game_state.clone(), fusion_state);
+
+            // 动态台词后台生成：连接 Claude/Codex 后预生成一批双语吐槽台词，
+            // 落盘 gulugulu-quotes.json 并推 quotes://ready。
+            let quote_state = app.state::<quote_gen::QuoteGenState>().inner().clone();
+            quote_gen::spawn_quote_worker(app_handle.clone(), quote_state);
+
+            // Steam 集成：init 失败 → unavailable 优雅降级（GitHub 分发版照常跑）。
+            let steam_state = app.state::<steam::SharedSteamState>().inner().clone();
+            steam::init(app_handle, game_state, steam_state);
 
             Ok(())
         })
@@ -328,17 +266,15 @@ pub fn run() {
             set_codex_home,
             close_pet,
             get_active_window_bounds,
-            open_avatar_generator,
-            list_avatars,
-            get_current_avatar,
-            set_current_avatar,
-            install_avatar_from_url,
-            fuse_avatars,
             resize_game_window,
             dock_backyard_window,
             open_steam_market,
             ensure_fx_overlay,
             hide_fx_overlay,
+            fusion_gen::check_fusion_cli,
+            fusion_gen::fuse_pets_ai,
+            quote_gen::get_dynamic_quotes,
+            quote_gen::regenerate_quotes,
             game::get_game_state,
             game::get_game_config,
             game::click_work,
@@ -348,14 +284,28 @@ pub fn run() {
             game::fuse_pets,
             game::upgrade_hatchery,
             game::upgrade_yard,
+            game::upgrade_shop,
             game::release_pet,
             game::set_active_pet,
             game::advance_tutorial,
-            game::wander_pickup,
+            game::wander_snack,
             game::debug_add_coins,
             game::debug_hatch_now,
             game::debug_max_pets,
-            game::debug_clear_save
+            game::debug_drain_stamina,
+            game::debug_feed_keys,
+            game::debug_clear_save,
+            key_watcher::get_keyboard_capture,
+            key_watcher::set_keyboard_capture,
+            settings::get_settings,
+            settings::set_always_on_top,
+            settings::set_random_movement,
+            settings::set_language,
+            steam::get_steam_status,
+            steam::steam_sync_now,
+            steam::steam_confirm_rebind,
+            steam::debug_steam_generate_items,
+            steam::debug_steam_consume_all
         ])
         .run(tauri::generate_context!())
         .expect("error while running Gulugulu");

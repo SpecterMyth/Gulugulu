@@ -8,9 +8,11 @@ import { MouseRig } from "./rigs/mouseRig";
 import { MushroomRig } from "./rigs/mushroomRig";
 import { WhaleRig } from "./rigs/whaleRig";
 import { YetiRig } from "./rigs/yetiRig";
+import { ChimeraRig } from "./rigs/chimeraRig";
 import { TOOLS } from "./parts/tools";
 import { FxLayer, type FxLevel } from "./parts/vfx";
-import { SleepZzz, SweatDrop, ThinkDots } from "./parts/common";
+import { GradeHalo, SleepZzz, SweatDrop, ThinkDots } from "./parts/common";
+import { RIGS2 } from "./species2";
 
 // -----------------------------------------------------------------------------
 // SvgSprite —— 装配器（计划 §2.2）
@@ -25,6 +27,9 @@ const RIGS: Partial<Record<string, RigComponent>> = {
   mushroom: MushroomRig,
   whale: WhaleRig,
   yeti: YetiRig,
+  chimera: ChimeraRig,
+  // 融合 2.0 新物种：一物种一 rig（键=codename，见 species2/）
+  ...RIGS2,
 };
 
 function fxLevelForState(state: PetState): FxLevel {
@@ -78,11 +83,13 @@ export type SvgSpriteProps = {
   species: string;
   config: GameConfig;
   petState?: PetState;
+  /** 阶数（融合 2.0）：≥2 时脚底渲染按阶变色的扩散光圈 */
+  tier?: number;
   className?: string;
   style?: CSSProperties;
 };
 
-export function SvgSprite({ species, config, petState = "idle", className, style }: SvgSpriteProps) {
+export function SvgSprite({ species, config, petState = "idle", tier, className, style }: SvgSpriteProps) {
   const info = config.species[species];
   const visual = getSpeciesVisual(species, info);
   const Rig = RIGS[visual.rig] ?? DuckRig;
@@ -118,6 +125,8 @@ export function SvgSprite({ species, config, petState = "idle", className, style
     >
       {/* 地面影子（漂浮物种小影子，与身体留空隙） */}
       <ellipse className="sprite-shadow" cx={128} cy={236} rx={visual.shadowRx ?? 58} ry={10} fill={OUTLINE} opacity={0.14} />
+      {/* 阶数光圈（融合 2.0：2 阶起显示，颜色按阶） */}
+      {tier != null && tier >= 2 && <GradeHalo tier={tier} rx={(visual.shadowRx ?? 58) + 10} />}
       <g className="svg-sprite-body">
         <g
           transform={
@@ -134,6 +143,7 @@ export function SvgSprite({ species, config, petState = "idle", className, style
             eyes={visual.eyes}
             expression={expressionForState(petState)}
             pose={petState === "sleeping" || petState === "exhausted" ? "lie" : "stand"}
+            form={visual.form}
           />
           {/* 进食互动：Token 饼干飞入嘴边，分三口吃掉（动画见 sprites.css） */}
           {petState === "fed" && (

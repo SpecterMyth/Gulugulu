@@ -36,6 +36,24 @@ export function FlameTail({ scale = 1, layers = 3 }: { scale?: number; layers?: 
   );
 }
 
+/** 小火苗（火系点缀通用件）。pivot=(0,0)=焰根，向上生长，高 ~18。
+ *  原生于 speciesTable，抽到 kit 供部件注册表/二阶槽位共用。 */
+export function SmallFlame({ scale = 1 }: { scale?: number }) {
+  return (
+    <g transform={scale !== 1 ? `scale(${scale})` : undefined}>
+      <path
+        d="M0 0 q-7 -6 -4 -14 q3 -8 9 -13 q-2 8 3 12 q6 5 4 11 a8.5 8.5 0 0 1 -12 4 z"
+        fill={FLAME_RED}
+        stroke={OUTLINE}
+        strokeWidth={3.5}
+        strokeLinejoin="round"
+      />
+      <path d="M1 -2 q-4 -4 -1 -9 q5 4 4 8 a4 4 0 0 1 -3 1 z" fill={FLAME_ORANGE} />
+      <circle cx={1.5} cy={-4} r={1.7} fill={FLAME_CREAM} />
+    </g>
+  );
+}
+
 /**
  * 双尖三角耳（front）。pivot=(0,0)=两耳基线中点；耳基下沉到 y≈+12，
  * 放置在头顶弧上并画在头形*后面*，由头把基线盖住。

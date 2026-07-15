@@ -75,12 +75,12 @@ img,
 .speech {
   position: relative;
   min-height: 0;
-  max-height: 76px;
+  max-height: 92px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 9px 13px 10px;
+  padding: 17px 13px;
   border: 2.5px solid var(--wood-border);
   border-radius: 18px 18px 16px 16px;
   background:
@@ -108,16 +108,17 @@ img,
     transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* --speech-drop：由 App.tsx 按角色实际头顶高度算出的下移量，让气泡贴住头顶 */
 .speech.is-visible {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0) scale(1);
+  transform: translateY(var(--speech-drop, 0px)) scale(1);
 }
 
 .speech.is-hidden {
   opacity: 0;
   pointer-events: none;
-  transform: translateY(0) scale(1);
+  transform: translateY(var(--speech-drop, 0px)) scale(1);
 }
 
 .speech::before {
@@ -137,24 +138,45 @@ img,
   box-shadow: 5px 5px 10px rgba(64, 39, 18, 0.08);
 }
 
-.speech::after {
-  content: "";
+/* 左上角装饰位：当前角色的属性（元素）图标徽章，有几个显示几个（见 App.tsx stageElements）。
+   小羊皮纸吊牌，跨在气泡左上边缘，取代原先固定的鸭子挂饰。 */
+.speech-elements {
   position: absolute;
-  left: 14px;
-  top: -21px;
-  width: 44px;
-  height: 34px;
-  background: url("/speech-decoration-duck-charm.png") center / contain no-repeat;
-  filter: drop-shadow(0 3px 0 rgba(59, 43, 29, 0.12));
-  transform: rotate(-7deg);
+  left: 12px;
+  top: -13px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  border: 2px solid var(--wood-border);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fffef9, #f6e7c4);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 3px 6px rgba(64, 39, 18, 0.18);
+  transform: rotate(-5deg);
+  transform-origin: 50% 120%;
+  transition: opacity 0.18s ease;
 }
 
-.speech.is-hidden::before,
-.speech.is-hidden::after {
+.speech-elements .el-icon {
+  display: block;
+  filter: drop-shadow(0 1px 0 rgba(59, 43, 29, 0.14));
+}
+
+.speech.is-hidden::before {
   opacity: 0;
 }
 
-.speech span {
+/* 装饰徽章随气泡一起淡出 */
+.speech.is-hidden .speech-elements {
+  opacity: 0;
+}
+
+/* 只作用于台词文本 span，排除左上角的属性徽章 .speech-elements（它自己是 flex 行） */
+.speech span:not(.speech-elements) {
   position: relative;
   z-index: 1;
   display: -webkit-box;
@@ -177,7 +199,7 @@ img,
 }
 
 /* 引导文案更长：允许三行 */
-.speech.is-hint span {
+.speech.is-hint span:not(.speech-elements) {
   -webkit-line-clamp: 3;
 }
 
@@ -292,6 +314,13 @@ img,
   gap: 8px;
 }
 
+/* 开关行：标签在上、开/关分段按钮在下（与语言选择器同构）。 */
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .settings-label {
   padding: 2px 2px 0;
   color: #75624e;
@@ -347,15 +376,15 @@ img,
 @keyframes speech-pop {
   0% {
     opacity: 0;
-    transform: translateY(4px) scale(0.96, 1.04);
+    transform: translateY(calc(var(--speech-drop, 0px) + 4px)) scale(0.96, 1.04);
   }
   62% {
     opacity: 1;
-    transform: translateY(-1px) scale(1.02, 0.98);
+    transform: translateY(calc(var(--speech-drop, 0px) - 1px)) scale(1.02, 0.98);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(var(--speech-drop, 0px)) scale(1);
   }
 }
 
@@ -613,6 +642,7 @@ img,
 .game-hud {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 0 2px;
 }
@@ -633,7 +663,8 @@ img,
 }
 
 .hud-stamina {
-  flex: 1;
+  /* 固定宽度：不随右侧金币位数伸缩（精力条本体宽度见 .energy-bar-hud） */
+  flex: none;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -668,6 +699,8 @@ img,
 }
 
 .hud-coins {
+  /* 金币始终单行：数值再长也不换行（space-between 负责把它顶到右缘） */
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 3px;
@@ -676,6 +709,228 @@ img,
   color: var(--cream-title);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- 精力条（EnergyBar，InteractionEconomy §6.1）----
+   以 .hud-stamina-* 的"木槽"语言为母本：≥60% 绿 / 10~60% 橙 /
+   <10% 恢复期灰紫呼吸；轨道内 10% 唤醒刻痕；获得脉冲扫光。 */
+.energy-bar {
+  position: relative;
+  box-sizing: border-box;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--wood-border);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.energy-bar-hud {
+  /* 固定长度：菜单栏窄（~280px 窗），金币位数会变，精力条不跟着缩放 */
+  flex: none;
+  width: 54px;
+  height: 11px;
+}
+
+.energy-bar-tag {
+  width: 34px;
+  height: 5px;
+  padding: 1px;
+  border-radius: 4px;
+}
+
+.energy-bar-float {
+  width: 64px;
+  height: 7px;
+  padding: 1.5px;
+  border-radius: 5px;
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.45), 0 2px 5px rgba(43, 26, 8, 0.35);
+}
+
+.energy-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #a5d37e, #7cbe5f);
+  transition: width 0.3s ease;
+}
+
+.energy-bar.is-low .energy-bar-fill {
+  background: linear-gradient(180deg, #ffb454, #f5913a);
+}
+
+/* 恢复期（<10%）：灰紫"充电"呼吸——是休息不是死亡 */
+.energy-bar.is-recovering .energy-bar-fill {
+  background: linear-gradient(180deg, #c9c2b8, #a89f92);
+  animation: energy-recover-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes energy-recover-breathe {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+
+/* 10% 唤醒刻痕：恢复期时闪烁提示"快醒了" */
+.energy-bar-mark {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: rgba(255, 244, 220, 0.55);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.energy-bar.is-recovering .energy-bar-mark {
+  animation: energy-mark-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes energy-mark-blink {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+/* 获得脉冲：键盘/Token/零食入账时沿填充区亮白扫一下（key 重挂载重播） */
+.energy-bar-pulse {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  animation: energy-gain-tick 0.45s ease-out both;
+  pointer-events: none;
+}
+
+@keyframes energy-gain-tick {
+  0% { opacity: 0; transform: translateX(-30%); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(30%); }
+}
+
+/* ---- 每日爱心计（DailyLoveMeter，InteractionEconomy §6.2）---- */
+.love-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
+}
+
+.love-meter-outline {
+  fill: rgba(0, 0, 0, 0.18);
+  stroke: var(--wood-border);
+  stroke-width: 2;
+}
+
+.love-meter-liquid {
+  transition: y 0.4s ease;
+}
+
+.love-meter.is-pink .love-meter-liquid { fill: #f5917b; }
+.love-meter.is-amber .love-meter-liquid { fill: #ffb454; }
+.love-meter.is-gold .love-meter-liquid { fill: #f7d373; }
+
+.love-meter.is-gold svg {
+  animation: badge-pulse 1.6s ease-in-out infinite;
+}
+
+.love-meter-moon {
+  font-size: 13px;
+  filter: drop-shadow(0 0 3px rgba(247, 211, 115, 0.8));
+}
+
+.love-meter-count {
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--cream-title);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ---- 汇聚飞行系统（FlightLayer，InteractionEconomy §6.3）----
+   向内=获得精力：外层水平线性 + 内层垂直先扬后坠 = 抛物线弧；
+   落点缩小淡出读作"被吸收"。全部只用 transform/opacity。 */
+.flight-layer {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.flight {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.flight-x {
+  display: block;
+  animation: flight-arc-x var(--fdur) linear var(--fdelay) both;
+}
+
+.flight-y {
+  display: block;
+  animation: flight-arc-y var(--fdur) cubic-bezier(0.3, -0.35, 0.72, 1) var(--fdelay) both;
+}
+
+@keyframes flight-arc-x {
+  from { transform: translateX(var(--fsx)); }
+  to { transform: translateX(0); }
+}
+
+@keyframes flight-arc-y {
+  0% { transform: translateY(var(--fsy)) scale(1); opacity: 0; }
+  8% { opacity: 1; }
+  80% { transform: translateY(calc(var(--fsy) * 0.06)) scale(1); opacity: 1; }
+  100% { transform: translateY(0) scale(0.35); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flight-layer { display: none; }
+  .energy-bar-pulse { animation: none; opacity: 0; }
+  .is-waking { animation: none; }
+}
+
+/* 主窗口舞台悬浮精力条（§6.1 表面 c）：脚影下方居中，满格时组件自会卸载 */
+.stage-energy {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  z-index: 30;
+  pointer-events: none;
+}
+
+/* 10% 唤醒瞬间的 CSS 伸懒腰（InteractionEconomy §6.4；无 rig 改动） */
+.is-waking {
+  animation: rig-wake-stretch 0.9s ease;
+  transform-origin: 50% 100%;
+}
+
+@keyframes rig-wake-stretch {
+  0% { transform: scaleY(0.92) scaleX(1.05); }
+  45% { transform: scaleY(1.08) scaleX(0.96); }
+  75% { transform: scaleY(0.99) scaleX(1.01); }
+  100% { transform: none; }
+}
+
+/* 吃到 Token 能量饭团的夸张吃相：大口一咬 → 咽下 → 满足回弹，
+   与飞入食物"缩小消失"衔接（InteractionEconomy §6.3）。循环 2 次覆盖
+   fed 状态 ~1.7s 咀嚼时长。 */
+.is-eating {
+  animation: pet-gulp 0.85s ease-in-out 2;
+  transform-origin: 50% 92%;
+}
+
+@keyframes pet-gulp {
+  0% { transform: scale(1, 1); }
+  22% { transform: scale(1.14, 0.84); }
+  46% { transform: scale(0.88, 1.16) translateY(-2px); }
+  70% { transform: scale(1.06, 0.96); }
+  100% { transform: scale(1, 1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-eating { animation: none; }
 }
 
 /* ---- panel chrome：木板 + 羊皮纸内页（仅调试面板在用） ---- */
@@ -787,6 +1042,11 @@ img,
   color: #c9c2b4;
 }
 
+/* 精力增益飘字（v1.1）：与精力条填充同绿，建立"飘字→条"的颜色关联 */
+.pop-stamina {
+  color: #a5d37e;
+}
+
 .pop-levelup {
   color: #ff9b3d;
   font-size: 24px;
@@ -832,6 +1092,7 @@ img,
   animation: combo-punch-alt 0.28s cubic-bezier(0.3, 1.6, 0.5, 1) 1;
 }
 
+/* 描边与 .exp-pop 同款：对角 + 正方向各四份，否则笔画圆头处描边断开 */
 .combo-count {
   color: #ff9b3d;
   font-size: 15px;
@@ -839,7 +1100,11 @@ img,
     -1.5px -1.5px 0 #3b2b1d,
     1.5px -1.5px 0 #3b2b1d,
     -1.5px 1.5px 0 #3b2b1d,
-    1.5px 1.5px 0 #3b2b1d;
+    1.5px 1.5px 0 #3b2b1d,
+    0 -1.9px 0 #3b2b1d,
+    0 1.9px 0 #3b2b1d,
+    -1.9px 0 0 #3b2b1d,
+    1.9px 0 0 #3b2b1d;
 }
 
 .combo-line {
@@ -851,6 +1116,10 @@ img,
     2px -2px 0 #3b2b1d,
     -2px 2px 0 #3b2b1d,
     2px 2px 0 #3b2b1d,
+    0 -2.5px 0 #3b2b1d,
+    0 2.5px 0 #3b2b1d,
+    -2.5px 0 0 #3b2b1d,
+    2.5px 0 0 #3b2b1d,
     0 5px 10px rgba(48, 31, 13, 0.35);
 }
 
@@ -1149,24 +1418,29 @@ img,
 }
 
 /* 欢迎回来摘要卡（每天开场的兑现舞台） */
+/* 弹窗不压暗/模糊背后的面板，保持整窗融入桌面；仅作为点击关闭的透明捕获层，
+   卡片本身靠自带边框与投影与背景区分。 */
 .welcome-overlay {
   position: fixed;
   inset: 0;
   z-index: 80;
   display: grid;
   place-items: center;
-  background: rgba(43, 26, 8, 0.42);
-  backdrop-filter: blur(3px);
+  background: transparent;
   animation: welcome-fade 0.25s ease;
 }
 
 .welcome-card {
+  /* border-box：width 含 padding+border，否则内容盒 88% 再加 32px padding+6px border
+     会超出 260px 窗口，左右被裁切。 */
+  box-sizing: border-box;
   width: min(88%, 300px);
   padding: 16px 16px 14px;
   border: 3px solid var(--wood-border);
   border-radius: 16px;
   background: linear-gradient(180deg, #fffdf6, #ffe9ad);
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), 0 16px 30px rgba(43, 26, 8, 0.4);
+  /* 收紧投影：透明无边框窗口上，大范围 drop shadow 会在卡片下方糊出一坨半透明阴影。 */
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6), 0 4px 10px rgba(43, 26, 8, 0.22);
   text-align: center;
   animation: welcome-pop 0.32s cubic-bezier(0.18, 0.92, 0.28, 1.25);
 }
@@ -1220,6 +1494,129 @@ img,
 
 .welcome-cta:active {
   transform: translateY(1px);
+}
+
+/* ===== AI 融合弹窗（复用 welcome 卡体系） ===== */
+.fusion-modal-parents {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin: 10px 0 4px;
+}
+
+.fusion-modal-parent {
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.fusion-modal-parent svg {
+  width: 86px;
+  height: 86px;
+}
+
+.fusion-modal-plus {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--gold-ink);
+  transform: translateY(-8px);
+}
+
+.fusion-modal-note {
+  margin: 8px 2px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: var(--ink);
+  opacity: 0.88;
+}
+
+.fusion-modal-note b {
+  color: #b3392b;
+}
+
+.fusion-modal-detail {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1.5px solid rgba(107, 69, 32, 0.25);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #7a5a33;
+  word-break: break-all;
+  max-height: 72px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.fusion-modal-spinner {
+  margin: 14px auto 6px;
+  font-size: 26px;
+  animation: fusion-spin 1.2s linear infinite;
+  width: fit-content;
+}
+
+@keyframes fusion-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.fusion-modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.fusion-modal-actions .welcome-cta {
+  flex: 1;
+  margin-top: 0;
+  padding: 8px 10px;
+}
+
+.welcome-cta.is-secondary {
+  background: linear-gradient(180deg, #e8dcc0, #cdbb92);
+  color: #6b4520;
+}
+
+.welcome-cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 孵化坑里的 AI 融合状态小徽标（叠在蛋上方） */
+.by-pit-fusion {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 96px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(60, 34, 8, 0.55);
+  background: linear-gradient(180deg, #6d54c9, #52399f);
+  color: #f3ecff;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 8px rgba(43, 26, 8, 0.35);
+}
+
+.by-pit-fusion.is-resolved {
+  background: linear-gradient(180deg, #4faf5c, #35823f);
+  color: #eaffe9;
+}
+
+.by-pit-fusion.is-failed {
+  background: linear-gradient(180deg, #9c9c9c, #6f6f6f);
+  color: #f4f4f4;
 }
 
 @keyframes welcome-fade {

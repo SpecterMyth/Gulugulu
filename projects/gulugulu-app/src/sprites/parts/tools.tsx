@@ -346,7 +346,11 @@ function yarnBall(): ReactNode {
   );
 }
 
+import { TOOLS2 } from "../species2";
+
 export const TOOLS: Record<string, ToolRenderer> = {
+  // 融合 2.0 新物种专属工具（键=codename，来自 species2 包）
+  ...TOOLS2,
   laptop,
   fountainPen,
   wok,

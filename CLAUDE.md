@@ -12,12 +12,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository shape
 
-This is a monorepo with two buildable Node projects plus supporting material:
+This is a monorepo with one buildable Node project plus supporting material:
 
 - `projects/gulugulu-app/` — the product: a **Tauri 2 + React 19 + TypeScript (Vite)** desktop pet app. Rust backend in `src-tauri/`, React frontend in `src/`.
-- `projects/services/avatar-gen/` — a separate **Node/Express + React (Vite)** service that turns an uploaded reference image into a custom avatar package the desktop app can import. Not part of the shipped installer.
-- `arts/` concept art · `docs/` + `specification/` planning · `config/` project config · `codex/` + `claude/` agent working notes · `.agents/skills/gulugulu-avatar-imagegen/` a Codex skill used by avatar-gen.
-- `start.bat` / `stop.bat` (repo root) — Windows helpers that launch/stop the avatar-gen service **and** the desktop app together.
+- `arts/` concept art · `docs/` + `specification/` planning · `config/` project config · `codex/` + `claude/` agent working notes.
+- `start.bat` / `stop.bat` (repo root) — Windows helpers that launch/stop the desktop app.
 
 > ⚠️ `claude/CLAUDE.md` and `claude/memory/*` predate the current implementation and describe an aspirational **Vue 3 / Pinia / ESLint / `commands/`+`core/`+`db/`** layout with `npm run lint` / `type-check` scripts. None of that exists — the app is React with the structure below and no lint/test tooling. Trust the code over those memory docs.
 
@@ -33,16 +32,7 @@ npm run build         # tsc && vite build — this is also the typecheck gate
 npm run tauri:build   # production bundle → src-tauri/target/release/bundle/
 ```
 
-Avatar-gen service (`cd projects/services/avatar-gen`):
-
-```
-npm run dev     # API (tsx watch src/server.ts on :4178) + web UI (Vite on :4177), in parallel
-npm run check   # tsc --noEmit typecheck
-npm run build   # tsc + vite build
-npm run start   # node dist/server.js
-```
-
-There is **no lint, no formatter, and no test suite** in either project. `npm run build` (app) and `npm run check` (avatar-gen) are the only static gates. Rust is checked by `cargo build` via `tauri:dev` / `tauri:build`.
+There is **no lint, no formatter, and no JS test suite**. `npm run build` (app) is the only frontend static gate. The Rust backend, however, **does** have unit tests — run `cargo test` from `src-tauri/` (covers the pure game logic, CLI-output validation, and fusion-job scheduling) — plus `cargo build` via `tauri:dev` / `tauri:build`.
 
 ## Desktop app architecture
 
@@ -56,36 +46,35 @@ The whole app is a single **frameless, transparent, always-on-top 260×320 windo
   - Claude Code: `<CLAUDE_HOME>/projects/**/*.jsonl` (`CLAUDE_HOME` env or platform candidates).
   - Both threads share one `SharedCodexState` and **emit on the same `codex://activity` event channel** — the channel name is historical; the `source` field (`"codex"` | `"claudeCode"`) distinguishes them.
   - Per-project running totals (`total_tokens`, and `experience` = tokens/1000) are persisted to `gulugulu-progress.json` in the app data dir, with per-session byte offsets so restarts don't double-count.
-- `avatar_manager.rs` — built-in `guluduck` manifest + custom avatars unzipped from `.gulupet.zip` packages into `<app_data>/avatars/`. IPC to list / select / install avatars and open the avatar-gen URL. Validates manifests and does safe (no path-traversal) zip extraction.
+- `cli_spawn.rs` — the shared Windows-safe CLI spawn toolset (`where`/`which` resolution, `.cmd` wrapping, `CREATE_NO_WINDOW`, `taskkill /T` tree-kill, the `claude -p` / `codex exec` invocation, and brace-balanced JSON extraction). `Provider` / `available_providers` / `run_provider` are `pub(crate)` and reused by **both** `fusion_gen.rs` and `quote_gen.rs`.
+- `fusion_gen.rs` — AI species-fusion worker. Spawns the local Codex/Claude CLI (via `cli_spawn`) off the UI thread to design new species, validates the returned JSON against a strict schema, and pushes progress on `fusion://progress`. A background worker drains pending-fusion eggs one at a time; on generation failure it **auto-retries in-session** up to `MAX_FUSION_ATTEMPTS` (and startup recovery resets `failed`/`generating` → `pending`), before the egg falls back to a `guluduck` hatch at its deadline. The pick order is pure and unit-tested (`pick_fusion_job`): new `pending` eggs first, then retryable `failed` ones.
+- `quote_gen.rs` — background worker that, once a Codex/Claude CLI is connected, pre-generates a batch of humorous bilingual speech quotes (via `cli_spawn`'s toolset, run in a neutral temp cwd), caches them to `gulugulu-quotes.json`, exposes `get_dynamic_quotes` / `regenerate_quotes`, and pushes `quotes://ready`. The frontend mixes them 50/50 with the static `ai_quotes.json` pool.
+- `game/` — the gameplay backend (save data, click-economy, shop/egg-pool, hatching, fusion, facility upgrades, Steam sync), split into submodules: `model` (serde save DTOs, `#[serde(rename_all = "camelCase")]`), `state` (the shared `Mutex<GameSave>` + id counter), `logic/*` (pure, **unit-tested** rules — `progression` / `economy` / `fusion` / `facility` / `energy`), `persist` (atomic save write + the central `with_save` lock wrapper + schema migration + the watcher-thread entry points), `commands` (`#[tauri::command]` IPC, incl. the Steam-integrated blocking flows), `debug` (debug-build-only cheats), and `tests`. **All mutable state funnels through `with_save`**; the `logic_*` functions take `&GameConfig` + `&mut GameSave` and never touch the lock, which is why they're directly testable. `game_config.rs`, `fusion_slots.rs`, and `steam*.rs` back these.
 - `window_tracker.rs` — Windows-only Win32 call returning the foreground window bounds so the pet can wander *away* from the active window. No-op (returns `None`) on other platforms.
 
 ### Frontend (React, `projects/gulugulu-app/src/`)
 
-- `App.tsx` — everything UI: the pet state machine, pointer drag/click handling, autonomous screen wandering (`chooseAutonomousTarget` avoids the active window), bilingual speech bubbles, the token/exp status panel, and the avatar-selection context menu. Subscribes to `codex://activity` and also polls `get_codex_status` every 2s.
-- `petEvents.ts` — the state-machine tables: `PetEventType → PetState` (`stateForPetEvent`), `PetState → AnimationKey` (`stateAnimationMap`), animation timing (`animationDefinitions`), and normalization of raw agent events (`normalizeCodexEvent`).
-- `AnimationPlayer.tsx` — plays a PNG frame sequence with `setInterval` at each animation's fps; loads built-in frames from `public/animations/guluduck/frames/<key>/` or a custom avatar's frames via `convertFileSrc`; falls back to a static image on load error.
+- `App.tsx` — the top-level UI **composition root** plus the coupled interaction core that resists extraction (pointer drag/click, the feeding/experience queue, click-fx juice, the `codex://activity` subscription + 2s `get_codex_status` poll). It has been decomposed into `src/app/`:
+  - `app/hooks/usePetStateMachine.ts` — the pet state machine + **agent-active latch** (keeps the pet in the looping `working`/`thinking` animation while any Codex/Claude session runs; one-shot events like `fed`/`success`/`error` settle back to that baseline, not idle). It owns `stateRef`/`lastEventAt`/the latch refs and the three dispatch callbacks; the *state-machine effects* deliberately stay in `App.tsx` (reading the hook's returned API) so effect ordering is unchanged.
+  - `app/` pure helpers — `geometry.ts`, `wander.ts` (`chooseAutonomousTarget` avoids the active window), `speech.ts` (the bilingual quote engine).
+  - `app/` presentational — `PetStage.tsx`, `Overlays.tsx`, `SettingsPanel.tsx`, `SpeechBubble.tsx`, `pops.ts`.
+  - `app/hooks/` subscription hooks — `useAppSettings`, `useSteamStatus`, `useDynamicQuotes`, `useFusionProgress`, `useEggCountdown`, `useWelcomeBack`.
+- `game/BackyardScene.tsx` — the full-screen backyard/economy scene (its own composition root). Decomposed into sibling presentational components (`BackyardDecor`, `BackyardHatcheryPits`, `BackyardShopPopup`, `BackyardMuseumPanel`, `BackyardMarketPanel`, `BackyardNoticeBoard`, `BackyardNearPetActions`, `BackyardDex`) and hooks (`useBackyardMotion` — the rAF walk/camera/parallax loop; `useBackyardWorkFx`; `useCharSpeech`). It mutates game state only through `game/bridge.ts` + callback props passed down from `App.tsx`.
+- `petEvents.ts` — the state-machine tables: `PetEventType → PetState` (`stateForPetEvent`), one-shot durations (`transientStateDurationMs` / `svgStateDurationMs`), the activity-latch constants (`AGENT_ACTIVE_WINDOW_MS`, `agentActivityEventTypes`, `sustainedAgentBaseline`), and normalization of raw agent events (`normalizeCodexEvent`).
+- `sprites/SvgSprite.tsx` — renders every species from a code-drawn SVG **rig**; the current `petState` becomes a `.svg-sprite-state-<petState>` class and `sprites.css` drives all motion (loop vs one-shot lives in the CSS iteration-count). This is the only render path — there are no PNG frames.
 - `types.ts` — TypeScript mirrors of the Rust structs.
 - `tauri.ts` — `isTauri()` guard. When false ("preview mode", i.e. plain browser via `npm run dev`), all `invoke`/native calls are skipped and the pet just idles/animates.
 
 ### End-to-end flow
 
-Agent writes a JSONL session line → Rust watcher tails the file, parses it, updates the progress store, and emits `codex://activity` → `App.tsx` dispatches a pet event through the state machine → `AnimationPlayer` renders the matching sprite. `token_count` events additionally drive an "experience / feeding" queue that plays the `eat` animation (frontend dedupes them via `seenTokenEventKeysRef`).
+Agent writes a JSONL session line → Rust watcher tails the file, parses it, updates the progress store, and emits `codex://activity` → `App.tsx` dispatches a pet event through the state machine (`usePetStateMachine`, refreshing the agent-active latch) → `SvgSprite` renders the matching `.svg-sprite-state-*` animation. `token_count` events additionally drive an "experience / feeding" queue that plays the `eat` animation (frontend dedupes them via `seenTokenEventKeysRef`); the pet then returns to the `working`/`thinking` baseline until the session goes quiet (~10s), when it falls back to idle.
 
 ### Cross-cutting rules
 
 - **Rust ↔ TS type parity**: Rust serde structs use `#[serde(rename_all = "camelCase")]` to match `types.ts`. Change one side → change the other.
-- **Adding a pet animation touches four places**: PNG frames under `public/animations/guluduck/frames/<key>/`, plus `animationDefinitions` + `stateAnimationMap` in `petEvents.ts`, `AnimationKey` in `types.ts`, and `builtin_manifest()` in `avatar_manager.rs`.
-- The window CSP (`tauri.conf.json`) only allows `img-src` from self/`data:`/`asset:` — custom avatar frames must go through `convertFileSrc`.
-
-## Avatar generation service
-
-`projects/services/avatar-gen/` accepts a reference image and produces a `.gulupet.zip` (manifest + PNG frames + WebP strip) that the desktop app installs via `install_avatar_from_url`.
-
-- `src/server.ts` — Express API + SSE job events; serves the built web UI.
-- `src/pipeline.ts` — the generation pipeline: generate design + 16-frame idle pose sheet → slice → chroma-key to transparent frames → visual QA → WebP strip → manifest → zip.
-- `AVATAR_IMAGE_PROVIDER` env selects the provider: `mock` (default, deterministic placeholders — no image quota) or `codex-cli` (runs Codex CLI with the `gulugulu-avatar-imagegen` skill).
-- **Only `idle_normal` is customized** for imported avatars; all other pet states fall back to the built-in Guluduck frames.
+- **Adding a pet animation** is SVG-only: add the `PetState` in `types.ts`, map events to it in `stateForPetEvent` (`petEvents.ts`), add a `.svg-sprite-state-<state>` rule in `sprites/sprites.css` (loop vs one-shot = CSS iteration-count), and — for one-shots — a duration in `transientStateDurationMs` / `svgStateDurationMs`.
+- The window CSP (`tauri.conf.json`) allows `img-src` only from self/`data:`.
 
 ## Release
 
-Pushing a `v*` tag (or manual `workflow_dispatch`) runs `.github/workflows/release.yml`, which builds macOS / Ubuntu 22.04 / Windows installers with `tauri-action` and uploads them to a **draft** GitHub Release. Generated dirs (`node_modules`, `dist`, `src-tauri/target`, avatar-gen `.data/`) are gitignored — build from a clean checkout.
+Pushing a `v*` tag (or manual `workflow_dispatch`) runs `.github/workflows/release.yml`, which builds macOS / Ubuntu 22.04 / Windows installers with `tauri-action` and uploads them to a **draft** GitHub Release. Generated dirs (`node_modules`, `dist`, `src-tauri/target`) are gitignored — build from a clean checkout.

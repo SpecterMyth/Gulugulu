@@ -266,73 +266,76 @@ function MouseSide({ stage, palette, slots = {}, eyes = "round", expression = "n
   );
 }
 
-/** 睡眠大字趴（趴成饼的仓鼠）：头球压扁贴地、双圆耳向两侧耷拉、
- *  豆芽手向前摊平在地、小点脚在后方露出一点、闪电尾放平软软拖在身后。 */
-function MouseLieFront({ stage, palette, slots = {}, eyes = "round", expression = "sleep" }: RigProps) {
-  const baby = stage === "baby";
-  // 压扁的头球（baby 高 ~72 ≈ 站姿 64%；kid 大头趴在矮墩身体前）
-  const head = baby ? { cx: 128, cy: 197, rx: 66, ry: 36 } : { cx: 128, cy: 190, rx: 40, ry: 31 };
-  const ear = baby ? { dx: 63, y: 178, r: 28 } : { dx: 33, y: 167, r: 17 };
-  const eyeDx = baby ? 26 : 17;
-  const eyeY = baby ? 193 : 187;
-  const mouthY = baby ? 207 : 200;
-  const mouthHW = baby ? 12 : 10;
+/** 睡眠趴姿分发：baby=仓鼠枕爪趴睡；kid=矮墩身体 + 大头前趴（雷霆鼠皇等二阶）。 */
+function MouseLieFront(props: RigProps) {
+  if (props.stage === "baby") return <MouseLieBabyFront {...props} />;
+  return <MouseLieKidFront {...props} />;
+}
+
+/** 一阶睡眠·仓鼠枕爪趴睡（非压扁——baby 整只=头球，压扁只会读成"压扁的头"）：
+ *  头球保持圆润、整体下沉贴低，下巴枕在收拢到身前的两只豆芽手上；身后露出
+ *  趴平的低扁后身，小脚丫从身侧向外摊平；双圆耳向外耷拉（耳根被头压住）；
+ *  闪电尾放平软软拖在身后地上。 */
+function MouseLieBabyFront({ palette, slots = {}, eyes = "round", expression = "sleep" }: RigProps) {
+  const head = { cx: 128, cy: 176, r: 48 };
+  const mouthY = 203;
+  const mouthHW = 11;
 
   return (
     <Part name="body" origin="50% 100%">
-      {/* 闪电尾放平：软软拖在身后地上（tail-sway 缓慢摇摆） */}
-      <g transform={baby ? "translate(70 226) rotate(-70)" : "translate(86 224) rotate(-60)"}>
+      {/* 闪电尾放平：从后身下钻出、贴地拖在身侧（tail-sway 缓慢摇摆） */}
+      <g transform="translate(74 228) rotate(-76)">
         <Part name="tail" origin="70% 100%">
           {slots.tail ?? <BoltTail scale={1.3} />}
         </Part>
       </g>
-      {/* 背部槽：披风/围脖摊在趴姿身后的地上（横向放宽贴地） */}
+      {/* 背部槽：披风/围脖搭在趴平的后身上 */}
       {slots.back && (
-        <g transform={baby ? "translate(128 176) scale(1.2 0.9)" : "translate(128 184) scale(1.35 0.85)"}>
+        <g transform="translate(128 190) scale(1.15 0.85)">
           <Part name="back" origin="50% 80%">{slots.back}</Part>
         </g>
       )}
-      {/* kid：矮墩身体（大部分被前趴的头挡住） */}
-      {!baby && <ellipse cx={128} cy={214} rx={54} ry={19} fill={palette.body} stroke={OUTLINE} strokeWidth={6} />}
-      {/* 小点脚在后方露出一点（被身体压住大半，避开前伸的豆芽手） */}
-      <g transform={`translate(${baby ? 66 : 78} ${baby ? 213 : 225}) rotate(-14)`}>
+      {/* 趴平的后身（低扁团子，大半被头挡住，两侧露出小屁股） */}
+      <ellipse cx={128} cy={208} rx={60} ry={23} fill={palette.body} stroke={OUTLINE} strokeWidth={6} />
+      {/* 小脚丫从身侧向外摊平（脚底微微朝外） */}
+      <g transform="translate(78 224) rotate(-24)">
         <Part name="legL" origin="50% 50%">
-          <ellipse cx={0} cy={0} rx={baby ? 9.5 : 8} ry={baby ? 5.5 : 4.5} fill={palette.deep} stroke={OUTLINE} strokeWidth={4} />
+          <ellipse cx={0} cy={0} rx={9.5} ry={5.5} fill={palette.deep} stroke={OUTLINE} strokeWidth={4} />
         </Part>
       </g>
-      <g transform={`translate(${baby ? 190 : 178} ${baby ? 213 : 225}) rotate(14)`}>
+      <g transform="translate(178 224) rotate(24)">
         <Part name="legR" origin="50% 50%">
-          <ellipse cx={0} cy={0} rx={baby ? 9.5 : 8} ry={baby ? 5.5 : 4.5} fill={palette.deep} stroke={OUTLINE} strokeWidth={4} />
+          <ellipse cx={0} cy={0} rx={9.5} ry={5.5} fill={palette.deep} stroke={OUTLINE} strokeWidth={4} />
         </Part>
       </g>
-      {/* 超大双圆耳向两侧耷拉：中心外移下移 + 微旋压扁（头轮廓压住耳根） */}
-      <g transform={`translate(${128 - ear.dx} ${ear.y}) rotate(-18) scale(1 0.82)`}>
-        <SideEar body={palette.body} inner={palette.belly} r={ear.r} />
+      {/* 超大双圆耳向外耷拉：外移下移 + 外旋微压（头轮廓压住耳根） */}
+      <g transform="translate(78 154) rotate(-24) scale(1 0.85)">
+        <SideEar body={palette.body} inner={palette.belly} r={28} />
       </g>
-      <g transform={`translate(${128 + ear.dx} ${ear.y}) rotate(18) scale(1 0.82)`}>
-        <SideEar body={palette.body} inner={palette.belly} r={ear.r} />
+      <g transform="translate(178 154) rotate(24) scale(1 0.85)">
+        <SideEar body={palette.body} inner={palette.belly} r={28} />
       </g>
-      {/* 压扁头球（baby=整只；kid=趴在身前的大头） */}
-      <ellipse cx={head.cx} cy={head.cy} rx={head.rx} ry={head.ry} fill={palette.body} stroke={OUTLINE} strokeWidth={6} />
+      {/* 豆芽手收拢到身前当枕头（先手后头 → 下巴枕在手上、手从颌下探出） */}
+      <g transform="translate(111 225) rotate(-8)">
+        <Part name="armL" origin="50% 50%">
+          <ellipse cx={0} cy={0} rx={11} ry={6} fill={palette.body} stroke={OUTLINE} strokeWidth={5} />
+        </Part>
+      </g>
+      <g transform="translate(145 225) rotate(8)">
+        <Part name="armR" origin="50% 50%">
+          <ellipse cx={0} cy={0} rx={11} ry={6} fill={palette.body} stroke={OUTLINE} strokeWidth={5} />
+        </Part>
+      </g>
+      {/* 头球（整只=头）：保持圆形，只是位置下沉，不做压扁 */}
+      <circle cx={head.cx} cy={head.cy} r={head.r} fill={palette.body} stroke={OUTLINE} strokeWidth={6} />
       {slots.marking}
-      {/* 豆芽手向前伸出、摊平在地 */}
-      <g transform={baby ? "translate(86 228) rotate(-18)" : "translate(94 226) rotate(-16)"}>
-        <Part name="armL" origin="80% 50%">
-          <ellipse cx={0} cy={0} rx={baby ? 13.5 : 11.5} ry={baby ? 6.5 : 6} fill={palette.body} stroke={OUTLINE} strokeWidth={5} />
-        </Part>
-      </g>
-      <g transform={baby ? "translate(170 228) rotate(18)" : "translate(162 226) rotate(16)"}>
-        <Part name="armR" origin="20% 50%">
-          <ellipse cx={0} cy={0} rx={baby ? 13.5 : 11.5} ry={baby ? 6.5 : 6} fill={palette.body} stroke={OUTLINE} strokeWidth={5} />
-        </Part>
-      </g>
-      {/* 脸（闭眼 + w 嘴 + 电花颊），朝观众 */}
+      {/* 脸（闭眼 + w 嘴 + 电花颊）落在头球下半，贴近地面 */}
       <g className="part-face">
         <ExpFace
-          cx1={128 - eyeDx}
-          cx2={128 + eyeDx}
-          cy={eyeY}
-          r={baby ? 10 : 9}
+          cx1={104}
+          cx2={152}
+          cy={188}
+          r={10}
           mouthY={0}
           expression={expression}
           base={eyes}
@@ -345,15 +348,111 @@ function MouseLieFront({ stage, palette, slots = {}, eyes = "round", expression 
           strokeWidth={4}
           strokeLinecap="round"
         />
-        <g transform={`translate(128 ${baby ? 205 : 198})`}>
+        <g transform="translate(128 199)">
           <Part name="cheeks" origin="50% 50%">
-            {slots.cheeks ?? <SparkCheeks spread={baby ? 45 : 27} r={baby ? 9 : 6.5} />}
+            {slots.cheeks ?? <SparkCheeks spread={34} r={8} />}
           </Part>
         </g>
       </g>
-      {/* 头顶槽（趴下后的头顶：压扁头球顶点） */}
-      <g transform={`translate(128 ${baby ? 164 : 162})`}>
-        <Part name="headtop" origin="50% 100%">{slots.headTop ?? <ZigAhoge scale={baby ? 1.3 : 1} />}</Part>
+      {/* 头顶槽（圆头顶点） */}
+      <g transform="translate(128 129)">
+        <Part name="headtop" origin="50% 100%">{slots.headTop ?? <ZigAhoge scale={1.3} />}</Part>
+      </g>
+      {/* 座台槽（浮冰等：画在最前，边缘压住身体底缘=趴在座台上） */}
+      {slots.platform && (
+        <g transform="translate(128 231)">
+          <Part name="platform" origin="50% 0%">{slots.platform}</Part>
+        </g>
+      )}
+    </Part>
+  );
+}
+
+/** 二阶睡眠·矮墩身体 + 大头前趴：头略压圆趴在身前，豆芽手向前摊平在地。 */
+function MouseLieKidFront({ palette, slots = {}, eyes = "round", expression = "sleep" }: RigProps) {
+  const head = { cx: 128, cy: 190, rx: 40, ry: 31 };
+  const ear = { dx: 33, y: 167, r: 17 };
+  const eyeDx = 17;
+  const eyeY = 187;
+  const mouthY = 200;
+  const mouthHW = 10;
+
+  return (
+    <Part name="body" origin="50% 100%">
+      {/* 闪电尾放平：软软拖在身后地上（tail-sway 缓慢摇摆） */}
+      <g transform="translate(86 224) rotate(-60)">
+        <Part name="tail" origin="70% 100%">
+          {slots.tail ?? <BoltTail scale={1.3} />}
+        </Part>
+      </g>
+      {/* 背部槽：披风/围脖摊在趴姿身后的地上（横向放宽贴地） */}
+      {slots.back && (
+        <g transform="translate(128 184) scale(1.35 0.85)">
+          <Part name="back" origin="50% 80%">{slots.back}</Part>
+        </g>
+      )}
+      {/* 矮墩身体（大部分被前趴的头挡住） */}
+      <ellipse cx={128} cy={214} rx={54} ry={19} fill={palette.body} stroke={OUTLINE} strokeWidth={6} />
+      {/* 小点脚在后方露出一点（被身体压住大半，避开前伸的豆芽手） */}
+      <g transform="translate(78 225) rotate(-14)">
+        <Part name="legL" origin="50% 50%">
+          <ellipse cx={0} cy={0} rx={8} ry={4.5} fill={palette.deep} stroke={OUTLINE} strokeWidth={4} />
+        </Part>
+      </g>
+      <g transform="translate(178 225) rotate(14)">
+        <Part name="legR" origin="50% 50%">
+          <ellipse cx={0} cy={0} rx={8} ry={4.5} fill={palette.deep} stroke={OUTLINE} strokeWidth={4} />
+        </Part>
+      </g>
+      {/* 超大双圆耳向两侧耷拉：中心外移下移 + 微旋压扁（头轮廓压住耳根） */}
+      <g transform={`translate(${128 - ear.dx} ${ear.y}) rotate(-18) scale(1 0.82)`}>
+        <SideEar body={palette.body} inner={palette.belly} r={ear.r} />
+      </g>
+      <g transform={`translate(${128 + ear.dx} ${ear.y}) rotate(18) scale(1 0.82)`}>
+        <SideEar body={palette.body} inner={palette.belly} r={ear.r} />
+      </g>
+      {/* 略压圆的大头趴在身前 */}
+      <ellipse cx={head.cx} cy={head.cy} rx={head.rx} ry={head.ry} fill={palette.body} stroke={OUTLINE} strokeWidth={6} />
+      {slots.marking}
+      {/* 豆芽手向前伸出、摊平在地 */}
+      <g transform="translate(94 226) rotate(-16)">
+        <Part name="armL" origin="80% 50%">
+          <ellipse cx={0} cy={0} rx={11.5} ry={6} fill={palette.body} stroke={OUTLINE} strokeWidth={5} />
+        </Part>
+      </g>
+      <g transform="translate(162 226) rotate(16)">
+        <Part name="armR" origin="20% 50%">
+          <ellipse cx={0} cy={0} rx={11.5} ry={6} fill={palette.body} stroke={OUTLINE} strokeWidth={5} />
+        </Part>
+      </g>
+      {/* 脸（闭眼 + w 嘴 + 电花颊），朝观众 */}
+      <g className="part-face">
+        <ExpFace
+          cx1={128 - eyeDx}
+          cx2={128 + eyeDx}
+          cy={eyeY}
+          r={9}
+          mouthY={0}
+          expression={expression}
+          base={eyes}
+          withMouth={false}
+        />
+        <path
+          d={`M${128 - mouthHW} ${mouthY} q${mouthHW / 2} 5 ${mouthHW} 0 q${mouthHW / 2} 5 ${mouthHW} 0`}
+          fill="none"
+          stroke={OUTLINE}
+          strokeWidth={4}
+          strokeLinecap="round"
+        />
+        <g transform="translate(128 198)">
+          <Part name="cheeks" origin="50% 50%">
+            {slots.cheeks ?? <SparkCheeks spread={27} r={6.5} />}
+          </Part>
+        </g>
+      </g>
+      {/* 头顶槽（趴下后的头顶） */}
+      <g transform="translate(128 162)">
+        <Part name="headtop" origin="50% 100%">{slots.headTop ?? <ZigAhoge />}</Part>
       </g>
       {/* 座台槽（浮冰等：画在最前，边缘压住身体底缘=趴在座台上） */}
       {slots.platform && (

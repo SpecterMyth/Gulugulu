@@ -3,13 +3,11 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT=%~dp0"
 set "PID_FILE=%ROOT%.gulugulu.pid"
-set "AVATAR_PID_FILE=%ROOT%.gulugulu-avatar-gen.pid"
 
 call :stop_saved_pid "%PID_FILE%" "Gulugulu"
-call :stop_saved_pid "%AVATAR_PID_FILE%" "Gulugulu avatar generator"
 
-echo Releasing Vite/Tauri/avatar generator ports if they are still in use...
-for %%A in (1420 4177 4178) do (
+echo Releasing Vite/Tauri ports if they are still in use...
+for %%A in (1420) do (
   for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%%A" ^| findstr "LISTENING"') do (
     taskkill /PID %%P /T /F >nul 2>nul
   )

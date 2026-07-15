@@ -16,10 +16,17 @@ tauri-build = { version = "2.6.2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = "0.4"
-tauri = { version = "2.11.2", features = ["protocol-asset", "tray-icon", "image-png"] }
+tauri = { version = "2.11.2", features = [ "tray-icon", "image-png"] }
 tauri-plugin-opener = "2.5.4"
 reqwest = { version = "0.12", features = ["blocking", "json", "multipart", "rustls-tls"], default-features = false }
 zip = "2"
+# Steam 集成（plans/steam_trade/02-rust-core.md）。高层 crate 无 Inventory 模块，
+# 库存走 steamworks-sys 原生绑定（steam_inventory.rs 薄封装；版本必须与
+# steamworks 内部依赖一致）。
+steamworks = "0.13"
+steamworks-sys = "0.13"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }
+# Win32_UI_Input_KeyboardAndMouse + Win32_System_Threading 供 key_watcher.rs 的
+# WH_KEYBOARD_LL 低级键盘钩子（键盘充能，InteractionEconomy.md §5）。
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_Threading"] }

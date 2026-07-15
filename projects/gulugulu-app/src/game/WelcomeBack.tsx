@@ -64,7 +64,7 @@ function goalText(save: GameSave, config: GameConfig): string {
   if (fusionReady(config, save)) return "把两只满级伙伴融合，见证 2 阶诞生";
   const cheapest = Math.min(...Object.values(config.eggPrices));
   if (save.pets.length < 2 && save.coins >= cheapest) return "再买一颗蛋，凑一对好融合";
-  if (save.pets.some((pet) => !isMaxLevel(config, pet))) return "挂机 + 点两下，把伙伴养到满级";
+  if (save.pets.some((pet) => !isMaxLevel(config, pet))) return "精力攒满了，亲手点它升到满级";
   return "点两下打工攒金币，升级后院多养几只";
 }
 
@@ -92,7 +92,7 @@ export function WelcomeBackCard({
     active == null
       ? "还没有精灵"
       : active.stamina >= config.staminaMax
-        ? "精力已回满，随时能开工"
+        ? `精力已回满，攒好 ${config.staminaMax} 击随时开工`
         : `精力恢复到 ${active.stamina}/${config.staminaMax}`;
   const eggText =
     readyEggs > 0

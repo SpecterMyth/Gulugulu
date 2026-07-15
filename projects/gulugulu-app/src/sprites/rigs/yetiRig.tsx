@@ -4,7 +4,7 @@ import { ExpFace, ExpSideFace } from "../parts/faces";
 import { FrostBreath, FurRidge, IceSpikes, ICE_DEEP_TEAL } from "../kits/iceKit";
 
 // -----------------------------------------------------------------------------
-// 雪怪底座（frostpeng 霜霜雪怪 / glacierpeng 极冰雪帝 / 冰组合系的基体）。
+// 雪怪底座（frostpeng 霜雪怪 / glacierpeng 极冰雪帝 / 冰组合系的基体）。
 // 剪影：宽梯形锯齿毛边轮廓 + 两条垂到地面的大手臂——一只毛边三角饭团，
 // 全阵容"最壮"。baby：头脸占上部 ~60%，短粗腿藏毛下只露脚尖；
 // kid：身体拉高、腰身出现、腿露出一点，站得更挺。默认件=头顶立毛+小冰晶

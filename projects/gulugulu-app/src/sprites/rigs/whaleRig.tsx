@@ -4,7 +4,7 @@ import { ExpFace, ExpSideFace } from "../parts/faces";
 import { BellyWave, Flippers, Fluke, SideFlipper, Spout } from "../kits/waterKit";
 
 // -----------------------------------------------------------------------------
-// 鲸底座（bubblefrog 泡泡鲸 / 水系家族的基体）——漂浮物种（无腿）。
+// 鲸底座（bubblefrog 气泡鲸 / 水系家族的基体）——漂浮物种（无腿）。
 // 剪影：悬浮的宽胶囊（仍是全阵容最宽最圆）+ 鲸鱼体型语言：
 //   - 右后方伸出上翘的尾柄，末端立起一片大尾鳍（鲸鱼翘尾巴）；
 //     尾柄画在 rig 里，slots.tail 装在尾柄末端（闪电尾等替换件继续可用）。

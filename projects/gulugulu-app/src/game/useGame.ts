@@ -1,15 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 import type { GameConfig, GameSave } from "../types";
 import { getGameBridge } from "./bridge";
+import { registerCustomSpecies } from "../sprites/customSpecies";
 
 /** Loads the game config + save, subscribes to backend tick pushes, and polls
  *  as a safety net. All mutations go through the returned bridge and should
- *  setSave() with the returned snapshot. */
+ *  setSave() with the returned snapshot.
+ *
+ *  存档三条路径（首载/事件推送/轮询）与所有变更回写都走这里包装过的
+ *  setSave：先把 save.customSpecies 灌进精灵运行时注册表（AI 融合物种），
+ *  再进 React 状态，保证渲染时视觉表已就绪。返回的 config 是"有效配置"
+ *  （config.species 合并自定义物种），下游名字/配色/元素查询零改动生效。 */
 export function useGame() {
   const bridge = useMemo(() => getGameBridge(), []);
   const [config, setConfig] = useState<GameConfig | null>(null);
   const [testMode, setTestMode] = useState(false);
-  const [save, setSave] = useState<GameSave | null>(null);
+  const [save, setSaveRaw] = useState<GameSave | null>(null);
+
+  const setSave = useCallback((action: SetStateAction<GameSave | null>) => {
+    if (typeof action !== "function") {
+      if (action) registerCustomSpecies(action.customSpecies);
+      setSaveRaw(action);
+      return;
+    }
+    setSaveRaw((prev) => {
+      const next = (action as (p: GameSave | null) => GameSave | null)(prev);
+      if (next) registerCustomSpecies(next.customSpecies);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -45,9 +64,20 @@ export function useGame() {
       unsubscribe();
       window.clearInterval(poll);
     };
-  }, [bridge]);
+  }, [bridge, setSave]);
 
-  return { bridge, config, testMode, save, setSave };
+  const effectiveConfig = useMemo(() => {
+    if (!config) return null;
+    const customs = save?.customSpecies;
+    if (!customs || Object.keys(customs).length === 0) return config;
+    const species = { ...config.species };
+    for (const [codename, entry] of Object.entries(customs)) {
+      species[codename] = entry.info;
+    }
+    return { ...config, species };
+  }, [config, save?.customSpecies]);
+
+  return { bridge, config: effectiveConfig, testMode, save, setSave };
 }
 
 /** 1s ticker for countdowns; only active while `enabled`. */
