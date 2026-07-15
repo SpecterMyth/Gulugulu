@@ -244,7 +244,7 @@ fn attempt(prompt: &str) -> GenOutcome {
     }
     let timeout = Duration::from_secs(GEN_TIMEOUT_SECS);
     for (provider, path) in providers {
-        if let Ok(raw) = run_provider(provider, &path, prompt, timeout) {
+        if let Ok(raw) = run_provider(provider, &path, prompt, timeout, None) {
             let quotes = parse_quotes(&raw);
             if quotes.len() >= MIN_QUOTES {
                 return GenOutcome::Generated(quotes, provider.name().to_string());

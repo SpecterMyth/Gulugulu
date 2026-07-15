@@ -1,4 +1,4 @@
-use crate::cli_spawn::{available_providers, probe_cli, run_provider, tail_of};
+use crate::cli_spawn::{available_providers, probe_cli, run_provider, tail_of, Provider};
 use crate::game::{
     self, ChimeraForm, CustomPalette, CustomSpeciesEntry, CustomVisualSpec, CustomWorkFx,
     EggInstance, GameSave, ShapeNode, SharedGameState, SlotSpec,
@@ -215,6 +215,23 @@ fn fusion_timeout() -> Duration {
     Duration::from_secs(secs)
 }
 
+/// 融合物种设计用的模型：物种形象是全局最重要的创作，默认用**最强**模型。
+/// - claude：`opus`（别名解析到最新 Opus，最强）；
+/// - codex：用其自身默认模型（不同装机差异大，不硬编码）。
+/// `GULUGULU_FUSION_MODEL` 环境变量可整体覆盖（两个 provider 都用它）。
+fn fusion_model(provider: Provider) -> Option<String> {
+    if let Ok(model) = std::env::var("GULUGULU_FUSION_MODEL") {
+        let model = model.trim().to_string();
+        if !model.is_empty() {
+            return Some(model);
+        }
+    }
+    match provider {
+        Provider::Claude => Some("opus".to_string()),
+        Provider::Codex => None,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // CLI 输出校验（权威校验；TS 渲染层另有静默兜底）
 // ---------------------------------------------------------------------------
@@ -284,7 +301,8 @@ fn normalize_form(input: ChimeraFormInput) -> ChimeraForm {
         body_plan,
         segments: clampf(input.segments, 1.0, 3.0, 1.0).round() as u8,
         body_w: clampf(input.body_w, 0.75, 1.3, 1.0),
-        body_h: clampf(input.body_h, 0.75, 1.35, 1.0),
+        // bodyH 下限 0.85：更低会压成扁片/虫子，破坏可爱幼态（与渲染层一致）。
+        body_h: clampf(input.body_h, 0.85, 1.35, 1.0),
         taper: clampf(input.taper, 0.0, 1.0, 0.3),
         head_style: one_of(&input.head_style, &["merged", "perched"], "merged"),
         head_scale: clampf(input.head_scale, 0.7, 1.0, 0.8),
@@ -668,7 +686,7 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("- \"floaty\"：漂浮崽——离地圆身 + 侧鳍/小翅、无腿（鲸/水母/幽灵），配 legStyle=none、armStyle=flipper|wing\n");
     p.push_str("- \"bighead\"：大头崽——巨头压在小小的身体上（蝌蚪/Q 版大头）\n");
     p.push_str("其余参数在所选体型上微调（都可省，缺省即合理）：\n");
-    p.push_str("- bodyW: 0.75~1.3 宽度 · bodyH: 0.75~1.35 高度（用来拉开胖瘦高矮）\n");
+    p.push_str("- bodyW: 0.75~1.3 宽度 · bodyH: 0.85~1.35 高度（拉开胖瘦高矮；**别压太扁**——身体要圆胖，扁片/瘫地不可爱）\n");
     p.push_str("- segments: 2|3 —— 仅 long 用（分节小丘数），其余体型可省\n");
     p.push_str("- legStyle: \"none\"|\"stub\"（短墩）|\"tall\"（长腿）；legCount: 2|4（四足兽用 4）\n");
     p.push_str("- armStyle: \"none\"|\"nub\"（小圆手）|\"wing\"（小翅）|\"flipper\"（桨鳍）\n");
@@ -677,6 +695,7 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("选一个能呼应双亲元素气质的动物体型 + 一两处点缀，就是一只崭新的小动物！\n\n");
 
     p.push_str("【调色板 palette】body=身体主色 deep=阴影/深部 belly=肚皮/脸浅色 accent=元素点缀 accent2=第二点缀(可选)。全部 #rrggbb。\n");
+    p.push_str("- **配色要有对比、别灰扑扑**：body 用饱和度够的主色，belly/脸用明显更浅的浅色兜住表情，accent 用对比元素色点亮一两处；切忌整只同一个浅蓝/浅色（单调、不可爱）。\n");
     p.push_str("双亲元素的锚定色参考（挑一两个揉进去即可，不必全用）：\n");
     let mut hint_elements: Vec<&str> = Vec::new();
     for element in inputs
@@ -1184,7 +1203,7 @@ fn process_job(app: &AppHandle, game_state: &SharedGameState, job: FusionJob) {
                 started,
             );
             let prompt = build_prompt(&inputs, feedback.as_deref());
-            let json_text = match run_provider(*provider, path, &prompt, timeout) {
+            let json_text = match run_provider(*provider, path, &prompt, timeout, fusion_model(*provider).as_deref()) {
                 Ok(text) => text,
                 Err(error) => {
                     // provider 级失败（未登录/超时/崩溃）：纠错重试无意义，换下一个 provider。
@@ -1641,7 +1660,7 @@ mod tests {
         let mut json = None;
         for (prov, prov_path) in &providers {
             println!("尝试 provider = {} ({})", prov.name(), prov_path.display());
-            match run_provider(*prov, prov_path, &prompt, Duration::from_secs(300)) {
+            match run_provider(*prov, prov_path, &prompt, Duration::from_secs(300), fusion_model(*prov).as_deref()) {
                 Ok(text) => {
                     json = Some(text);
                     break;

@@ -310,9 +310,67 @@ fn neutral_cwd() -> PathBuf {
 // CLI 调用（claude -p / codex exec）
 // ---------------------------------------------------------------------------
 
-fn run_claude(path: &Path, prompt: &str, timeout: Duration) -> Result<String, String> {
+/// Windows：Claude Code CLI 依赖 Git-Bash，未配置 `CLAUDE_CODE_GIT_BASH_PATH`
+/// 且 bash 不在 PATH 时会启动即报错退出——导致融合/语录**全部静默回退到 codex**，
+/// 用不上 Opus。这里探测本机 Git-Bash 的 bash.exe：从 git.exe 上溯到 Git 根
+/// （同时含 `bin\bash.exe` 与 `usr\bin\bash.exe` 的目录即为根），
+/// 避开 System32/WindowsApps 下的 WSL bash（Claude Code 不认）。
+#[cfg(windows)]
+fn find_git_bash() -> Option<PathBuf> {
+    fn from_git_exe(git: &Path) -> Option<PathBuf> {
+        let mut dir = git.parent();
+        while let Some(d) = dir {
+            let bin = d.join("bin").join("bash.exe");
+            if bin.exists() && d.join("usr").join("bin").join("bash.exe").exists() {
+                return Some(bin); // d = Git 安装根
+            }
+            dir = d.parent();
+        }
+        None
+    }
+    if let Ok(out) = base_command("cmd").args(["/C", "where", "git"]).stdin(Stdio::null()).output() {
+        if out.status.success() {
+            for line in String::from_utf8_lossy(&out.stdout).lines() {
+                if let Some(bash) = from_git_exe(Path::new(line.trim())) {
+                    return Some(bash);
+                }
+            }
+        }
+    }
+    for c in [r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files (x86)\Git\bin\bash.exe"] {
+        let p = PathBuf::from(c);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    if let Ok(out) = base_command("cmd").args(["/C", "where", "bash"]).stdin(Stdio::null()).output() {
+        if out.status.success() {
+            for line in String::from_utf8_lossy(&out.stdout).lines() {
+                let p = PathBuf::from(line.trim());
+                let lower = p.to_string_lossy().to_lowercase();
+                if p.exists() && !lower.contains("system32") && !lower.contains("windowsapps") {
+                    return Some(p);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn run_claude(path: &Path, prompt: &str, timeout: Duration, model: Option<&str>) -> Result<String, String> {
     let mut cmd = cli_command(path);
     cmd.args(["-p", "--output-format", "json"]);
+    // 指定模型（如 opus=最新最强 Opus）；不给则用 CLI 默认模型。
+    if let Some(model) = model {
+        cmd.args(["--model", model]);
+    }
+    // Windows：未配置 Git-Bash 时自动探测并注入，否则 claude 启动即报错、回退 codex。
+    #[cfg(windows)]
+    if std::env::var_os("CLAUDE_CODE_GIT_BASH_PATH").is_none() {
+        if let Some(bash) = find_git_bash() {
+            cmd.env("CLAUDE_CODE_GIT_BASH_PATH", bash);
+        }
+    }
     cmd.current_dir(neutral_cwd());
     let output = run_cli_with_timeout(cmd, Some(prompt), timeout)?;
     if output.timed_out {
@@ -343,7 +401,7 @@ fn run_claude(path: &Path, prompt: &str, timeout: Duration) -> Result<String, St
     extract_json_object(&text).ok_or_else(|| "输出里没有找到 JSON 对象".to_string())
 }
 
-fn run_codex(path: &Path, prompt: &str, timeout: Duration) -> Result<String, String> {
+fn run_codex(path: &Path, prompt: &str, timeout: Duration, model: Option<&str>) -> Result<String, String> {
     let out_file = std::env::temp_dir().join(format!(
         "gulugulu-fusion-last-{}-{}.txt",
         std::process::id(),
@@ -351,8 +409,12 @@ fn run_codex(path: &Path, prompt: &str, timeout: Duration) -> Result<String, Str
     ));
     let _ = std::fs::remove_file(&out_file);
     let mut cmd = cli_command(path);
-    cmd.arg("exec")
-        .arg("--skip-git-repo-check")
+    cmd.arg("exec");
+    // 指定模型；不给则用 codex 默认模型。
+    if let Some(model) = model {
+        cmd.args(["-m", model]);
+    }
+    cmd.arg("--skip-git-repo-check")
         .args(["--sandbox", "read-only"])
         .arg("--output-last-message")
         .arg(&out_file)
@@ -372,10 +434,16 @@ fn run_codex(path: &Path, prompt: &str, timeout: Duration) -> Result<String, Str
     extract_json_object(&text).ok_or_else(|| "输出里没有找到 JSON 对象".to_string())
 }
 
-pub(crate) fn run_provider(provider: Provider, path: &Path, prompt: &str, timeout: Duration) -> Result<String, String> {
+pub(crate) fn run_provider(
+    provider: Provider,
+    path: &Path,
+    prompt: &str,
+    timeout: Duration,
+    model: Option<&str>,
+) -> Result<String, String> {
     match provider {
-        Provider::Claude => run_claude(path, prompt, timeout),
-        Provider::Codex => run_codex(path, prompt, timeout),
+        Provider::Claude => run_claude(path, prompt, timeout, model),
+        Provider::Codex => run_codex(path, prompt, timeout, model),
     }
 }
 
