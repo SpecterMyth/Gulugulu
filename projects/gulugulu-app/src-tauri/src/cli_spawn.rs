@@ -1,8 +1,67 @@
 use serde_json::Value;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
+
+/// 在飞的 CLI 生成子进程 PID 注册表：应用退出时统一树杀，防生成中途关应用留下
+/// `node.exe` 孤儿继续跑、白烧 API 额度（review 第 7 项）。进程内共享。
+static LIVE_CHILDREN: OnceLock<Mutex<HashSet<u32>>> = OnceLock::new();
+
+fn live_children() -> &'static Mutex<HashSet<u32>> {
+    LIVE_CHILDREN.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+/// 树杀某个 PID 及其子树（Windows `taskkill /T`；其它平台 best-effort `kill -9`）。
+fn kill_pid_tree(pid: u32) {
+    #[cfg(windows)]
+    {
+        let _ = base_command("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = base_command("kill").args(["-9", &pid.to_string()]).status();
+    }
+}
+
+/// 应用退出钩子调用：树杀所有仍在飞的 CLI 生成子进程（含其 node.exe 子树）。
+/// 只覆盖优雅退出（关窗口 / 托盘退出）；硬杀应用不会走到这里（需 Job Object，从缺）。
+pub(crate) fn kill_all_live_children() {
+    let pids: Vec<u32> = live_children()
+        .lock()
+        .map(|set| set.iter().copied().collect())
+        .unwrap_or_default();
+    for pid in pids {
+        kill_pid_tree(pid);
+    }
+}
+
+/// 进程生命周期内登记一个在飞子进程；Drop 时自动注销（覆盖正常返回/超时/错误/panic）。
+struct ChildGuard(u32);
+
+impl ChildGuard {
+    fn register(pid: u32) -> Self {
+        if let Ok(mut set) = live_children().lock() {
+            set.insert(pid);
+        }
+        ChildGuard(pid)
+    }
+}
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if let Ok(mut set) = live_children().lock() {
+            set.remove(&self.0);
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // 通用 CLI spawn 工具集：Windows 安全地解析 / 探测 / 调用本地 CLI
@@ -173,6 +232,9 @@ fn run_cli_with_timeout(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = cmd.spawn().map_err(|error| format!("无法启动命令：{error}"))?;
+    // 登记 PID：应用退出时统一树杀，避免生成中途关应用留下 node.exe 孤儿。
+    // _child_guard 在本函数任一返回路径（正常/超时/错误/panic）Drop 时注销。
+    let _child_guard = ChildGuard::register(child.id());
 
     if let Some(data) = stdin_data {
         if let Some(mut stdin) = child.stdin.take() {
@@ -266,6 +328,192 @@ pub(crate) fn probe_cli(name: &str) -> Result<(PathBuf, String), String> {
     Ok((path, version))
 }
 
+/// 真实登录态探测结果。比 `--version` 更强：过期/未刷新的 OAuth token
+/// `--version` 照样过（融合会静默回退 codex），这里跑各家 auth-status 子命令。
+pub(crate) struct LoginProbe {
+    pub installed: bool,
+    pub logged_in: bool,
+    pub version: Option<String>,
+    /// 账号标识（claude=email；codex=状态行文本）。
+    pub account: Option<String>,
+    pub error: Option<String>,
+}
+
+const AUTH_TIMEOUT: Duration = Duration::from_secs(12);
+
+/// 探测某 provider 的**真实登录态**（先 `--version` 确认装机，再跑 auth-status）。
+/// - claude：`claude auth status` → JSON `{"loggedIn":bool,"email":...}`
+/// - codex：`codex login status` → stdout 含 "Logged in"
+pub(crate) fn probe_login(provider: Provider) -> LoginProbe {
+    let name = provider.name();
+    let (path, version) = match probe_cli(name) {
+        Ok(pair) => pair,
+        Err(error) => {
+            return LoginProbe {
+                installed: false,
+                logged_in: false,
+                version: None,
+                account: None,
+                error: Some(error),
+            };
+        }
+    };
+    match provider {
+        Provider::Claude => probe_claude_login(&path, version),
+        Provider::Codex => probe_codex_login(&path, version),
+    }
+}
+
+fn probe_claude_login(path: &Path, version: String) -> LoginProbe {
+    let mut cmd = cli_command(path);
+    cmd.args(["auth", "status"]);
+    // Windows：auth status 同样依赖 Git-Bash，未配置时注入探测到的 bash。
+    #[cfg(windows)]
+    if std::env::var_os("CLAUDE_CODE_GIT_BASH_PATH").is_none() {
+        if let Some(bash) = find_git_bash() {
+            cmd.env("CLAUDE_CODE_GIT_BASH_PATH", bash);
+        }
+    }
+    cmd.current_dir(neutral_cwd());
+    match run_cli_with_timeout(cmd, None, AUTH_TIMEOUT) {
+        Ok(out) => {
+            let parsed = serde_json::from_str::<Value>(out.stdout.trim()).ok();
+            let logged_in = parsed
+                .as_ref()
+                .and_then(|v| v.get("loggedIn"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let account = parsed
+                .as_ref()
+                .and_then(|v| v.get("email"))
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            LoginProbe {
+                installed: true,
+                logged_in,
+                version: Some(version),
+                account,
+                error: if logged_in { None } else { Some("未登录或登录已过期".to_string()) },
+            }
+        }
+        Err(error) => LoginProbe {
+            installed: true,
+            logged_in: false,
+            version: Some(version),
+            account: None,
+            error: Some(error),
+        },
+    }
+}
+
+fn probe_codex_login(path: &Path, version: String) -> LoginProbe {
+    let mut cmd = cli_command(path);
+    cmd.args(["login", "status"]);
+    cmd.current_dir(neutral_cwd());
+    match run_cli_with_timeout(cmd, None, AUTH_TIMEOUT) {
+        Ok(out) => {
+            let hay = format!("{}\n{}", out.stdout, out.stderr).to_lowercase();
+            let logged_in = out.success && hay.contains("logged in") && !hay.contains("not logged in");
+            let account = out
+                .stdout
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+                .map(|s| s.to_string());
+            LoginProbe {
+                installed: true,
+                logged_in,
+                version: Some(version),
+                account: if logged_in { account } else { None },
+                error: if logged_in { None } else { Some("未登录".to_string()) },
+            }
+        }
+        Err(error) => LoginProbe {
+            installed: true,
+            logged_in: false,
+            version: Some(version),
+            account: None,
+            error: Some(error),
+        },
+    }
+}
+
+/// 打开一个**可见**控制台窗口跑交互式登录（OAuth 需浏览器 + 可读终端）。
+/// Windows：CREATE_NEW_CONSOLE 新开控制台，`cmd /K` 让窗口在登录结束后保留
+/// （用户能看到成功/失败并自行关闭）。返回后前端轮询 check_agent_connections。
+pub(crate) fn spawn_login_terminal(provider: Provider) -> Result<(), String> {
+    let name = provider.name();
+    let path = resolve_cli(name)
+        .ok_or_else(|| format!("未找到 {name}（不在 PATH 或常见安装位置），请先安装该 CLI"))?;
+    let login_args: &[&str] = match provider {
+        Provider::Claude => &["auth", "login"],
+        Provider::Codex => &["login"],
+    };
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+        // cmd /K「"<cli>" <args>」：新控制台里跑登录，结束保留窗口。
+        // raw_arg 逐字透传，绕开 Rust 对 cmd 参数的引号转义（否则 cmd 收到被转义的乱码）。
+        let payload = format!("\"\"{}\" {}\"", path.display(), login_args.join(" "));
+        let mut cmd = Command::new("cmd");
+        cmd.creation_flags(CREATE_NEW_CONSOLE);
+        cmd.raw_arg("/K");
+        cmd.raw_arg(payload);
+        if matches!(provider, Provider::Claude)
+            && std::env::var_os("CLAUDE_CODE_GIT_BASH_PATH").is_none()
+        {
+            if let Some(bash) = find_git_bash() {
+                cmd.env("CLAUDE_CODE_GIT_BASH_PATH", bash);
+            }
+        }
+        cmd.spawn().map_err(|e| format!("无法打开登录终端：{e}"))?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        // 非 Windows：best-effort 直接 spawn（继承 stdio）；无 TTY 时提示手动运行。
+        let mut cmd = cli_command(&path);
+        cmd.args(login_args);
+        cmd.spawn()
+            .map_err(|e| format!("无法启动登录（请在终端手动运行 `{name} {}`）：{e}", login_args.join(" ")))?;
+        Ok(())
+    }
+}
+
+/// 断开连接：清除本机 CLI 凭据（登出）。登出是非交互命令，直接跑并回报结果，
+/// 无需可见终端；前端在成功后重新 `check_agent_connections` 刷新为「未连接」。
+/// claude：`auth logout`；codex：`logout`。
+pub(crate) fn run_logout(provider: Provider) -> Result<(), String> {
+    let name = provider.name();
+    let path = resolve_cli(name)
+        .ok_or_else(|| format!("未找到 {name}（不在 PATH 或常见安装位置）"))?;
+    let logout_args: &[&str] = match provider {
+        Provider::Claude => &["auth", "logout"],
+        Provider::Codex => &["logout"],
+    };
+    let mut cmd = cli_command(&path);
+    cmd.args(logout_args);
+    // Windows：claude 登出同样依赖 Git-Bash，未配置时注入探测到的 bash。
+    #[cfg(windows)]
+    if matches!(provider, Provider::Claude)
+        && std::env::var_os("CLAUDE_CODE_GIT_BASH_PATH").is_none()
+    {
+        if let Some(bash) = find_git_bash() {
+            cmd.env("CLAUDE_CODE_GIT_BASH_PATH", bash);
+        }
+    }
+    cmd.current_dir(neutral_cwd());
+    match run_cli_with_timeout(cmd, None, AUTH_TIMEOUT) {
+        Ok(out) if out.success => Ok(()),
+        // 与 probe_cli / run_claude / run_codex 一致：超时单独给「登出超时」，
+        // 不落到 map_cli_error 的「退出异常（无错误输出）」误导文案。
+        Ok(out) if out.timed_out => Err(format!("{name} 登出超时")),
+        Ok(out) => Err(map_cli_error(name, &out)),
+        Err(error) => Err(error),
+    }
+}
+
 /// 本次生成可用的 provider 顺序（claude 优先）。
 pub(crate) fn available_providers() -> Vec<(Provider, PathBuf)> {
     let mut providers = Vec::new();
@@ -301,9 +549,19 @@ fn map_cli_error(name: &str, output: &CliRunOutput) -> String {
     }
 }
 
-/// 中性 cwd：避免把用户项目的 CLAUDE.md / hooks / git 状态泄进生成会话。
+/// 生成/探测专用中性 cwd：一个**独立子目录**（非裸 temp）。两个作用：
+/// (1) 避免把用户项目的 CLAUDE.md / hooks / git 状态泄进生成会话；
+/// (2) 给 watcher 一个可识别的标记路径，用来剔除「App 自己的 CLI 生成」写出的会话日志
+///     ——否则 quote/fusion 生成消耗的 token 会被 watcher 当成用户 agent 活动，
+///     计进经济、喂给陪伴宠、还抢走「最新会话」焦点（见 codex_adapter 采纳过滤）。
+pub(crate) fn generation_cwd() -> PathBuf {
+    let dir = std::env::temp_dir().join("gulugulu-gen");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
 fn neutral_cwd() -> PathBuf {
-    std::env::temp_dir()
+    generation_cwd()
 }
 
 // ---------------------------------------------------------------------------
