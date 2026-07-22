@@ -1,0 +1,49 @@
+{
+  "codename": "otterpaddle", "nameZh": "溪桨獭", "prototype": "水獭",
+  "desc": "系着蓝围巾的小水獭，最爱用捞网捞落进溪里的星星",
+  "scale": 1.12,
+  "palette": { "body": "#A47C50", "deep": "#6E5334", "belly": "#F3E8D3", "accent": "#5FAFD6", "accent2": "#7FB86E" },
+  "eyes": "round", "toolId": "pondNet",
+  "customRig": { "front": {
+    "bodyY": 198,
+    "body": [
+      { "type": "ellipse", "cx": 0, "cy": -2, "rx": 52, "ry": 40, "fill": "$body", "stroke": "$outline", "strokeWidth": 6 },
+      { "type": "ellipse", "cx": -34, "cy": 30, "rx": 12, "ry": 8, "fill": "$deep", "stroke": "$outline", "strokeWidth": 4 },
+      { "type": "ellipse", "cx": 34, "cy": 30, "rx": 12, "ry": 8, "fill": "$deep", "stroke": "$outline", "strokeWidth": 4 }
+    ],
+    "belly": [ { "type": "ellipse", "cx": 0, "cy": 10, "rx": 30, "ry": 28, "fill": "$belly" } ],
+    "headY": 126,
+    "head": [ { "type": "ellipse", "cx": 0, "cy": 0, "rx": 42, "ry": 39, "fill": "$body", "stroke": "$outline", "strokeWidth": 6 } ],
+    "muzzle": [
+      { "type": "path", "d": "M-26 6 Q0 -4 26 6 Q24 26 0 28 Q-24 26 -26 6 Z", "fill": "$belly" },
+      { "type": "path", "d": "M-8 8 Q0 4 8 8 L0 16 Z", "fill": "$outline" },
+      { "type": "path", "d": "M0 15 L0 21", "stroke": "$outline", "strokeWidth": 2.4 },
+      { "type": "path", "d": "M-7 18 Q-19 17 -27 13 M-7 21 Q-19 22 -27 21", "stroke": "$outline", "strokeWidth": 1.5, "fill": "none" },
+      { "type": "path", "d": "M7 18 Q19 17 27 13 M7 21 Q19 22 27 21", "stroke": "$outline", "strokeWidth": 1.5, "fill": "none" },
+      { "type": "ellipse", "cx": -22, "cy": 6, "rx": 6, "ry": 4, "fill": "#E7A0A0", "opacity": 0.65 },
+      { "type": "ellipse", "cx": 22, "cy": 6, "rx": 6, "ry": 4, "fill": "#E7A0A0", "opacity": 0.65 }
+    ],
+    "face": { "eyeR": 8, "eyeDx": 15, "eyeDy": -8, "mouthDy": 15, "mouthW": 9 },
+    "headTopAt": { "x": 128, "y": 90 },
+    "headTop": [
+      { "type": "ellipse", "cx": -28, "cy": 2, "rx": 10, "ry": 8, "fill": "$body", "stroke": "$outline", "strokeWidth": 4 },
+      { "type": "ellipse", "cx": -28, "cy": 2, "rx": 4, "ry": 3, "fill": "$deep" },
+      { "type": "ellipse", "cx": 28, "cy": 2, "rx": 10, "ry": 8, "fill": "$body", "stroke": "$outline", "strokeWidth": 4 },
+      { "type": "ellipse", "cx": 28, "cy": 2, "rx": 4, "ry": 3, "fill": "$deep" }
+    ],
+    "decor": [
+      { "type": "path", "d": "M100 160 Q128 172 156 160 L154 170 Q128 181 102 170 Z", "fill": "$accent", "stroke": "$outline", "strokeWidth": 4, "strokeLinejoin": "round" },
+      { "type": "path", "d": "M120 170 L114 188 L126 184 L124 170 Z", "fill": "$accent", "stroke": "$outline", "strokeWidth": 3.5 }
+    ],
+    "armY": 190, "armSpread": 46,
+    "armL": [ { "type": "ellipse", "cx": 0, "cy": 12, "rx": 9, "ry": 14, "fill": "$body", "stroke": "$outline", "strokeWidth": 5 } ],
+    "legY": 228, "legSpread": 22,
+    "legL": [ { "type": "ellipse", "cx": 0, "cy": 2, "rx": 11, "ry": 6, "fill": "$deep", "stroke": "$outline", "strokeWidth": 4 } ],
+    "tailAt": { "x": 84, "y": 210, "rot": -28 },
+    "tail": [ { "type": "path", "d": "M0 0 Q28 4 34 -18 Q36 -32 26 -36 Q31 -22 20 -13 Q8 -5 0 -10 Z", "fill": "$body", "stroke": "$outline", "strokeWidth": 5, "strokeLinejoin": "round" } ]
+  } },
+  "workFx": { "particles": [
+    { "nodes": [ { "type": "path", "d": "M0 -7 C4 -2 6 2 6 4 A6 6 0 1 1 -6 4 C-6 2 -4 -2 0 -7 Z", "fill": "#5FAFD6", "stroke": "$outline", "strokeWidth": 2 }, { "type": "ellipse", "cx": -2, "cy": 3, "rx": 1.6, "ry": 2.2, "fill": "#DFF1FB" } ] },
+    { "nodes": [ { "type": "path", "d": "M-7 4 Q0 -6 7 4", "fill": "none", "stroke": "#5FAFD6", "strokeWidth": 2.4, "strokeLinecap": "round" }, { "type": "circle", "cx": -9, "cy": -2, "r": 1.7, "fill": "#9CD0EC" }, { "type": "circle", "cx": 9, "cy": -3, "r": 1.5, "fill": "#9CD0EC" } ] }
+  ] }
+}

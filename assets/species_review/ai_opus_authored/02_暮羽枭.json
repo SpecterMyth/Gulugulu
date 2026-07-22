@@ -1,0 +1,45 @@
+{
+  "codename": "duskowl", "nameZh": "暮羽枭", "prototype": "猫头鹰",
+  "desc": "白天装睿智、天一黑就打盹的小枭，翅膀底下藏着水晶球",
+  "scale": 1.12,
+  "palette": { "body": "#8C7050", "deep": "#5C4835", "belly": "#F0E3C8", "accent": "#B79769", "accent2": "#EAB53E" },
+  "eyes": "round", "toolId": "crystalBall",
+  "customRig": { "front": {
+    "bodyY": 190,
+    "body": [
+      { "type": "path", "d": "M-46 -28 Q-52 42 0 48 Q52 42 46 -28 Q30 -54 0 -54 Q-30 -54 -46 -28 Z", "fill": "$body", "stroke": "$outline", "strokeWidth": 6 }
+    ],
+    "belly": [
+      { "type": "path", "d": "M0 -22 Q28 -20 30 16 Q22 42 0 42 Q-22 42 -30 16 Q-28 -20 0 -22 Z", "fill": "$belly" },
+      { "type": "path", "d": "M-16 -8 q5 7 0 14 M-1 -10 q5 7 0 14 M14 -8 q5 7 0 14 M-9 6 q5 7 0 14 M6 6 q5 7 0 14", "stroke": "$accent", "strokeWidth": 2, "fill": "none", "opacity": 0.7 }
+    ],
+    "headY": 122,
+    "head": [
+      { "type": "circle", "cx": 0, "cy": 0, "r": 45, "fill": "$body", "stroke": "$outline", "strokeWidth": 6 }
+    ],
+    "muzzle": [
+      { "type": "circle", "cx": -19, "cy": -3, "r": 23, "fill": "$belly" },
+      { "type": "circle", "cx": 19, "cy": -3, "r": 23, "fill": "$belly" },
+      { "type": "circle", "cx": -19, "cy": -3, "r": 23, "fill": "none", "stroke": "$deep", "strokeWidth": 2, "opacity": 0.4 },
+      { "type": "circle", "cx": 19, "cy": -3, "r": 23, "fill": "none", "stroke": "$deep", "strokeWidth": 2, "opacity": 0.4 },
+      { "type": "path", "d": "M0 4 L-8 12 Q0 20 8 12 Z", "fill": "$accent2", "stroke": "$outline", "strokeWidth": 3.5, "strokeLinejoin": "round" }
+    ],
+    "face": { "eyeR": 13, "eyeDx": 19, "eyeDy": -3, "mouthDy": 20, "mouthW": 6 },
+    "headTopAt": { "x": 128, "y": 78 },
+    "headTop": [
+      { "type": "path", "d": "M-32 6 Q-34 -18 -20 -24 Q-14 -12 -12 6 Z", "fill": "$body", "stroke": "$outline", "strokeWidth": 4, "strokeLinejoin": "round" },
+      { "type": "path", "d": "M32 6 Q34 -18 20 -24 Q14 -12 12 6 Z", "fill": "$body", "stroke": "$outline", "strokeWidth": 4, "strokeLinejoin": "round" }
+    ],
+    "armY": 176, "armSpread": 44,
+    "armL": [
+      { "type": "path", "d": "M4 -8 Q-18 -2 -20 32 Q-15 44 -4 39 Q6 16 8 -8 Z", "fill": "$accent", "stroke": "$outline", "strokeWidth": 5, "strokeLinejoin": "round" },
+      { "type": "path", "d": "M-13 10 q-3 11 -2 24 M-6 8 q-3 12 -1 26 M1 6 q-3 12 -1 26", "stroke": "$deep", "strokeWidth": 1.6, "fill": "none" }
+    ],
+    "legY": 232, "legSpread": 15,
+    "legL": [ { "type": "path", "d": "M-6 0 L-6 6 M0 0 L0 7 M6 0 L6 6", "stroke": "$accent2", "strokeWidth": 3.5, "fill": "none", "strokeLinecap": "round" } ]
+  } },
+  "workFx": { "particles": [
+    { "nodes": [ { "type": "path", "d": "M0 -8 L2.2 -2.4 L8 0 L2.2 2.4 L0 8 L-2.2 2.4 L-8 0 L-2.2 -2.4 Z", "fill": "#EAD79A", "stroke": "$outline", "strokeWidth": 1.8 } ] },
+    { "nodes": [ { "type": "circle", "cx": -3, "cy": 0, "r": 2.6, "fill": "#F3E7BE" }, { "type": "circle", "cx": 5, "cy": -4, "r": 1.6, "fill": "#F3E7BE" }, { "type": "circle", "cx": 4, "cy": 5, "r": 1.4, "fill": "#F3E7BE" } ] }
+  ] }
+}
