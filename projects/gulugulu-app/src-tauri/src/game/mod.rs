@@ -19,6 +19,7 @@ pub(crate) use std::sync::{Arc, Mutex};
 pub(crate) use std::time::{SystemTime, UNIX_EPOCH};
 pub(crate) use tauri::{AppHandle, Manager};
 
+mod achievements;
 mod commands;
 mod debug;
 mod logic;
@@ -26,6 +27,7 @@ mod model;
 mod persist;
 mod state;
 
+pub(crate) use achievements::*;
 pub(crate) use commands::*;
 pub(crate) use debug::*;
 pub(crate) use logic::*;

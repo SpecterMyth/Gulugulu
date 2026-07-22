@@ -6,6 +6,36 @@ use std::collections::BTreeMap;
 const NORMAL_CONFIG_JSON: &str = include_str!("../../src/game/config.json");
 const TEST_CONFIG_JSON: &str = include_str!("../../src/game/config.test.json");
 
+/// Token 四分喂养权重。每 1 个对应 token 折算成的"喂养单位"数——喂养单位再
+/// 按 `tokens_per_exp` 折成陪伴宠的经验点（2026-07-21 起 Token → 经验）。
+/// 默认 = 用户规定的 cache_read/cache_create/output/input → 0.01/0.2/2/5。
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenFeedWeights {
+    pub input: f64,
+    pub cache_create: f64,
+    pub cache_read: f64,
+    pub output: f64,
+}
+
+impl Default for TokenFeedWeights {
+    fn default() -> Self {
+        Self { input: 5.0, cache_create: 0.2, cache_read: 0.01, output: 2.0 }
+    }
+}
+
+impl TokenFeedWeights {
+    /// 把一份四分明细折算成喂养单位（各项 ×权重求和，四舍五入取整）。
+    /// 传入的是账本差分（本次真正新增的四分 token），值有界，f64 精度足够。
+    pub fn feed_units(&self, breakdown: &crate::codex_adapter::TokenBreakdown) -> u64 {
+        let units = breakdown.input as f64 * self.input
+            + breakdown.cache_create as f64 * self.cache_create
+            + breakdown.cache_read as f64 * self.cache_read
+            + breakdown.output as f64 * self.output;
+        units.round().max(0.0) as u64
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ElementInfo {
@@ -18,6 +48,10 @@ pub struct ElementInfo {
 #[serde(rename_all = "camelCase")]
 pub struct SpeciesInfo {
     pub name_zh: String,
+    /// 英文名。目录物种留空（英文名由 codename TitleCase 求得，见 src/i18n/species.ts）；
+    /// AI 融合物种由生成器填入专有英文名，缺失时前端本地兜底推导。
+    #[serde(default)]
+    pub name_en: String,
     /// 旧模型的物种自带阶数（1=一阶、2=旧二阶）。融合 2.0 起阶数只在实例上，
     /// 57 只新物种不带此字段（default 0 = 无自带阶数，华丽度用 `element_count()`）。
     #[serde(default)]
@@ -26,6 +60,10 @@ pub struct SpeciesInfo {
     pub colors: Vec<String>,
     pub body: String,
     pub desc: String,
+    /// 英文图鉴文案。目录物种留空（英文文案在 SPECIES_EN_DESC 表）；
+    /// AI 融合物种由生成器填入英文设定，缺失时前端回退。
+    #[serde(default)]
+    pub desc_en: String,
     /// Steam Inventory itemdefid（plans/steam_trade/00-decisions.md 编号规则，
     /// 一经上传不可回改）。0 = 未映射（AI 自定义物种走 0，Steam 侧按其配方
     /// 对应的目录物种记账）。
@@ -67,11 +105,17 @@ pub struct GameConfig {
     pub keys_per_stamina_base: u64,
     /// 键盘充能的计数限速（次/秒，防宏）。
     pub key_rate_cap_per_sec: u64,
-    /// 1 阶每 1 点精力需要的 token 数（实际按阶 ×tier_factor）。
-    pub tokens_per_stamina_base: u64,
-    pub wander_snack_stamina_min: i64,
-    pub wander_snack_stamina_max: i64,
-    pub wander_snack_daily_cap: u64,
+    /// 每 1 点经验需要的加权 Token 单位数，**按阶数组**（索引 = 阶−1，越界回退末项）。
+    /// **按阶递减**（2026-07-21 调整）：`level_exp_factor` 是 ×10/阶暴涨，若用扁平率，
+    /// 「吃 Token 满级」所需单位从 T1→T6 天然膨胀 ~11 万×——低阶几分钟满级、高阶几十天，
+    /// 完全断层。递减率把该倍率压回约 1000×（T6 满级 ≈1 亿单位 ≈ 中度 1000 万/天 × 10 天），
+    /// 满级绝对单位仍随阶单调递增。取率走 `tokens_per_exp_for`。
+    pub tokens_per_exp: Vec<u64>,
+    /// Token 四分喂养权重（用户 2026-07-20 决策）：每类 token 折算成喂养单位时
+    /// 的乘率。四分先各自 ×权重求和，再按 `tokens_per_exp` 折成经验。
+    /// serde default 保证旧 config.json 缺字段时仍取规定比例。
+    #[serde(default)]
+    pub token_feed_weights: TokenFeedWeights,
     pub level_exp_factor: Vec<u64>,
     pub max_level: Vec<u32>,
     pub fusion_fee: u64,
@@ -118,6 +162,16 @@ pub struct GameConfig {
     /// c1..6 = 243/81/27/9/3/1）。定点权重避免浮点漂移（EconomyScaling.md §7.2）。
     #[serde(default = "default_egg_rarity_falloff_denom")]
     pub egg_rarity_falloff_denom: u64,
+    /// 每日蛋产出上限：索引 = 蛋阶 − 1（生产值 1~4 阶 = [10,8,6,3]，全 ≤10 = Steam
+    /// `drop_max_per_window` 硬上限）。达上限拒绝购买孵化 + Steam 24h 窗口封顶（EconomyScaling.md
+    /// §7.5）。超出数组的阶 = 无上限。
+    #[serde(default = "default_egg_daily_mint_caps")]
+    pub egg_daily_mint_caps: Vec<u32>,
+    /// 每日融合上限：索引 = 结果配方元素数 − 1（生产值 [5,5,2,2,1,1]）。按配方键计数、
+    /// 达上限拒绝融合（EconomyScaling.md §7.5；客户端 pacing——exchange 无窗口机制，
+    /// 服务器安全性来自材料真实消耗净 −1 + 上游水龙头窗口封顶）。超出数组 = 无上限。
+    #[serde(default = "default_fusion_daily_mint_caps")]
+    pub fusion_daily_mint_caps: Vec<u32>,
 }
 
 impl GameConfig {
@@ -151,19 +205,25 @@ impl GameConfig {
         self.stamina_regen_seconds_base.max(1).saturating_mul(factor)
     }
 
-    /// 每 1 点精力需要的按键数（按阶放大；1 阶 1 键 → 200 键回满）。
+    /// 每 1 点精力需要的按键数（按阶放大；只喂陪伴宠，1 阶 1 键/点）。
     pub fn keys_per_stamina_for(&self, tier: u8) -> u64 {
         self.keys_per_stamina_base.max(1).saturating_mul(self.tier_factor(tier))
-    }
-
-    /// 每 1 点精力需要的 token 数（按阶放大；1 阶 10 → 2000 tokens 回满）。
-    pub fn tokens_per_stamina_for(&self, tier: u8) -> u64 {
-        self.tokens_per_stamina_base.max(1).saturating_mul(self.tier_factor(tier))
     }
 
     /// Exp for one work click: clickExpBase × 阶系数。
     pub fn click_exp_for(&self, tier: u8) -> u64 {
         self.click_exp_base.saturating_mul(self.tier_factor(tier))
+    }
+
+    /// 该阶每 1 点经验所需的加权 Token 单位（`tokens_per_exp` 按阶取值，索引 = 阶−1；
+    /// 越界回退末项，空数组回退 40；下限钳 1）。按阶递减，见字段文档。
+    pub fn tokens_per_exp_for(&self, tier: u8) -> u64 {
+        self.tokens_per_exp
+            .get((tier as usize).saturating_sub(1))
+            .copied()
+            .or_else(|| self.tokens_per_exp.last().copied())
+            .unwrap_or(40)
+            .max(1)
     }
 
     /// Coins for one work click: (base + perLevel × level) × 阶系数。
@@ -238,8 +298,13 @@ impl GameConfig {
     /// (Σ 各元素 1 阶基价) × eggTierPriceMultiplier^(实例阶−1)。按**实例阶** `tier`
     /// 缩放（取代旧 tier2_egg_price_bonus 加法项），故新物种（species.tier==0）也精确。
     pub fn equivalent_egg_price(&self, species: &SpeciesInfo, tier: u8) -> u64 {
-        let base_sum: u64 = species
-            .elements
+        self.equivalent_egg_price_for_elements(&species.elements, tier)
+    }
+
+    /// 元素集合直算版（同一口径）：物种资料缺失、只能从确定性 codename 反解出
+    /// 配方元素时用（Steam 侧导入的未注册 AI 变种放生兜底）。
+    pub fn equivalent_egg_price_for_elements(&self, elements: &[String], tier: u8) -> u64 {
+        let base_sum: u64 = elements
             .iter()
             .map(|e| self.egg_prices.get(e).copied().unwrap_or(0))
             .sum();
@@ -271,6 +336,22 @@ impl GameConfig {
         let denom = self.egg_rarity_falloff_denom.max(1);
         let exp = 6u32.saturating_sub(element_count.min(6) as u32);
         denom.saturating_pow(exp)
+    }
+
+    /// 该阶蛋的每日产出上限（EconomyScaling.md §7.5）；超出配置数组的阶 = 无上限。
+    pub fn egg_daily_mint_cap(&self, tier: u8) -> u32 {
+        self.egg_daily_mint_caps
+            .get((tier as usize).saturating_sub(1))
+            .copied()
+            .unwrap_or(u32::MAX)
+    }
+
+    /// 该配方（按结果元素数）的每日融合上限（EconomyScaling.md §7.5）；越界 = 无上限。
+    pub fn fusion_daily_mint_cap(&self, element_count: usize) -> u32 {
+        self.fusion_daily_mint_caps
+            .get(element_count.saturating_sub(1))
+            .copied()
+            .unwrap_or(u32::MAX)
     }
 
     pub fn hatchery_slot_count(&self, hatchery_level: u8) -> u8 {
@@ -306,6 +387,14 @@ fn default_shop_max_level() -> u8 {
 
 fn default_egg_rarity_falloff_denom() -> u64 {
     3
+}
+
+fn default_egg_daily_mint_caps() -> Vec<u32> {
+    vec![10, 8, 6, 3]
+}
+
+fn default_fusion_daily_mint_caps() -> Vec<u32> {
+    vec![5, 5, 2, 2, 1, 1]
 }
 
 // ---------------------------------------------------------------------------
@@ -374,7 +463,7 @@ mod tests {
             assert!(config.daily_click_cap > 0);
             assert!(config.tier_growth_factor >= 1);
             assert!(config.key_rate_cap_per_sec >= 1);
-            assert!(config.wander_snack_stamina_min <= config.wander_snack_stamina_max);
+            assert!(!config.tokens_per_exp.is_empty() && config.tokens_per_exp.iter().all(|&r| r >= 1));
             assert_eq!(config.fusion_table.len(), 21, "legacy fusion table still 21 combos");
             assert_eq!(
                 config.species.values().filter(|s| s.tier == 1).count(),
@@ -488,7 +577,7 @@ mod tests {
                 );
             }
 
-            // 全局唯一 + 双向查询一致（84 物种全部已上链，无 def==0）。
+            // 全局唯一 + 双向查询一致（84 物种全部已同步 Steam，无 def==0）。
             let mut seen = std::collections::BTreeSet::new();
             for (codename, info) in &config.species {
                 assert_ne!(info.steam_item_def, 0, "{codename} 应已映射 Steam itemdef");
@@ -519,23 +608,77 @@ mod tests {
         assert_eq!(config.tier_factor(1), 1);
         assert_eq!(config.tier_factor(2), 5);
         assert_eq!(config.tier_factor(3), 25);
-        // 金币 = (1 + 等级) × 阶系数（InteractionEconomy §4.1）。
+        // 金币 = (1 + 等级) × 阶系数（EconomyScaling v1.2 收益减半：1 阶满级 11/击，
+        // 日产出 D1=2750 … D6=4766 万；100 点击/管精力不变）。
         assert_eq!(config.click_coins_for(1, 1), 2);
         assert_eq!(config.click_coins_for(1, 10), 11);
         assert_eq!(config.click_coins_for(2, 1), 10);
         assert_eq!(config.click_coins_for(2, 20), 105);
-        // 经验 = 2 × 阶系数。
-        assert_eq!(config.click_exp_for(1), 2);
-        assert_eq!(config.click_exp_for(2), 10);
-        // 恢复三途径（1 阶回满：10 分钟 / 200 键 / 2000 tokens；2 阶 ×5）。
+        // 经验 = 4 × 阶系数。
+        assert_eq!(config.click_exp_for(1), 4);
+        assert_eq!(config.click_exp_for(2), 20);
+        // 恢复两途径（2026-07-21 起）：挂机全员 + 键盘只喂陪伴宠（1 阶回满：10 分钟 / 200 键；2 阶 ×5）。
         assert_eq!(config.stamina_regen_seconds_for(1), 3);
         assert_eq!(config.stamina_regen_seconds_for(2), 15);
         assert_eq!(config.keys_per_stamina_for(1), 1);
         assert_eq!(config.keys_per_stamina_for(2), 5);
-        // EconomyScaling.md §9：tokensPerStaminaBase 10→8（5000 万 Token/天 = 点满 4 只 ×500 击）。
-        assert_eq!(config.tokens_per_stamina_for(1), 8);
-        assert_eq!(config.tokens_per_stamina_for(2), 40);
         assert_eq!(config.stamina_regen_seconds_for(1) * config.stamina_max, 600);
+        // Token → 经验：按阶递减率（2026-07-21 调整）。levelExpFactor ×10/阶 会让扁平率下
+        // 「吃 Token 满级」单位从 T1→T6 天然膨胀 ~11 万×，递减率把它压回约 1000×。
+        assert_eq!(config.tokens_per_exp, vec![555, 210, 80, 35, 15, 5]);
+        assert_eq!(config.tokens_per_exp_for(1), 555);
+        assert_eq!(config.tokens_per_exp_for(6), 5);
+        assert_eq!(config.tokens_per_exp_for(7), 5, "越界阶回退末项");
+        // 各阶满级所需加权 Token 单位 = 满级总经验 × 该阶率；验 T6/T1 倍率 ≈1000× 且单调递增。
+        let units_to_max = |tier: u8| -> u64 {
+            let level = u64::from(config.max_level_for_tier(tier));
+            let total_exp = config.level_exp_factor[usize::from(tier) - 1] * (level - 1) * level / 2;
+            total_exp * config.tokens_per_exp_for(tier)
+        };
+        let ladder: Vec<u64> = (1..=6).map(units_to_max).collect();
+        // T6 ≈1 亿单位（中度 1000 万加权/天 ≈ 10 天满级；重度 1 亿/天 ≈ 1 天）。
+        assert_eq!(ladder, vec![99_900, 399_000, 1_566_000, 6_825_000, 29_400_000, 99_562_500]);
+        let ratio = ladder[5] as f64 / ladder[0] as f64;
+        assert!((900.0..=1100.0).contains(&ratio), "T6/T1 满级单位倍率 {ratio:.0}× 应≈1000×");
+        for w in ladder.windows(2) {
+            assert!(w[1] > w[0], "满级单位应随阶单调递增：{ladder:?}");
+        }
+    }
+
+    /// 升级曲线的**设计意图**锚点（EconomyScaling.md v1.3 §2.1）：把「Lv1 → 满级要点几下」
+    /// 钉成一条 ×2 阶梯 45/95/196/390/784/1593（目标 50/100/200/400/800/1600）。
+    /// `levelExpFactor` 是反解出来的从属量，不是设计输入——旧值 `[5,50,…]` 首步 ×10、其余 ×5，
+    /// 造成 1→2 阶 8.3× 断层（二阶点满要 475 击 = 半天全额度），本测试防止再漂回去。
+    #[test]
+    fn level_curve_click_ladder_doubles_per_tier() {
+        let config: GameConfig = serde_json::from_str(NORMAL_CONFIG_JSON).unwrap();
+        // 点满一只 T 阶宠所需点击 = ⌈factor × (L−1)L/2 ÷ (clickExpBase × 5^(T−1))⌉。
+        let clicks_to_max = |tier: u8| -> u64 {
+            let level = u64::from(config.max_level_for_tier(tier));
+            let total_exp = config.level_exp_factor[usize::from(tier) - 1] * (level - 1) * level / 2;
+            total_exp.div_ceil(config.click_exp_for(tier))
+        };
+        let ladder: Vec<u64> = (1..=6).map(clicks_to_max).collect();
+        assert_eq!(ladder, vec![45, 95, 196, 390, 784, 1593], "满级点击阶梯");
+        // 每一阶都必须落在「上一阶 ×2」的 ±10% 内——断层是本次重调要根治的问题。
+        for pair in ladder.windows(2) {
+            let ratio = pair[1] as f64 / pair[0] as f64;
+            assert!((1.8..=2.2).contains(&ratio), "阶梯断层：{pair:?} 比值 {ratio:.2}×");
+        }
+        // 逐击验证与 gain_exp 的实际行为一致（div_ceil 只是闭式，真源是循环）。
+        for tier in 1..=6u8 {
+            let mut pet = crate::game::PetInstance {
+                id: "t".into(), species: "guluduck".into(), tier, level: 1, exp: 0,
+                stamina: 0, stamina_updated_at: 0, exhausted: false,
+                key_buffer: 0, token_buffer: 0, steam_item_id: None, steam_item_def: None,
+            };
+            let mut clicks = 0u64;
+            while pet.level < config.max_level_for_tier(tier) {
+                crate::game::gain_exp(&config, &mut pet, config.click_exp_for(tier));
+                clicks += 1;
+            }
+            assert_eq!(clicks, ladder[usize::from(tier) - 1], "{tier} 阶逐击点满");
+        }
     }
 
     #[test]
@@ -559,10 +702,11 @@ mod tests {
                 .map(String::as_str),
             Some("prismkirin")
         );
-        // 按亲代阶数融合费（EconomyScaling.md §5：×40 阶梯 base75；5→6 = 1.92 亿 ≈ 2×D6）。
-        assert_eq!(config.fusion_fee_for(1), 75);
-        assert_eq!(config.fusion_fee_for(5), 192_000_000);
-        assert_eq!(config.fusion_fee_for(6), 7_680_000_000); // 越界钳到末项（守卫值，永不计费）
+        // 按亲代阶数融合费（EconomyScaling.md v1.3 §5：×20 阶梯 base1500，末档 5→6 单独 ×10
+        // 降到 1.2 亿 —— 升级曲线砍到 1/5 后升级期顺带收入同步缩水，2.4 亿会把登顶拖到 33 天）。
+        assert_eq!(config.fusion_fee_for(1), 1000);
+        assert_eq!(config.fusion_fee_for(5), 120_000_000);
+        assert_eq!(config.fusion_fee_for(6), 2_400_000_000); // 越界钳到末项（守卫值，永不计费）
         // AI 总概率按元素数（FusionRecipeSlots §3.2）。
         assert_eq!(config.ai_total_chance_percent_for_count(2), 60);
         assert_eq!(config.ai_total_chance_percent_for_count(3), 40);
@@ -614,7 +758,7 @@ mod tests {
             assert_eq!(config.egg_rarity_weight(6), 1);
         }
         // 正式 config 的 EconomyScaling.md 锚点。
-        assert_eq!(normal.egg_price_for("fire", 4), 405_000, "4 阶火蛋 = 120×15³");
+        assert_eq!(normal.egg_price_for("fire", 4), 147_390_000, "4 阶火蛋 = 240×85³");
         assert_eq!(normal.hatchery_upgrade_costs[6], 100_000_000, "第 8 槽 = 1 亿 ≈ D6");
         assert_eq!(*normal.yard_capacity.last().unwrap(), 50, "后院上限 50");
         assert_eq!(normal.shop_upgrade_costs, vec![50_000, 750_000, 11_250_000]);

@@ -1,4 +1,4 @@
-import type { Language } from "../i18n";
+import { fmt, type Language, t } from "../i18n";
 import type { PetEvent, PetEventType, PetState } from "../types";
 import { randomItem } from "./geometry";
 import { formatCount } from "../game/format";
@@ -65,7 +65,7 @@ export function makePetEvent(type: PetEventType): PetEvent {
 
 export function loadInitialLanguage(): Language {
   const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  return savedLanguage === "en" || savedLanguage === "zh" ? savedLanguage : "zh";
+  return savedLanguage === "en" || savedLanguage === "zh" ? savedLanguage : "en";
 }
 
 export function createQuoteDecks(): Record<Language, Set<string>> {
@@ -96,7 +96,7 @@ function pickFromPool(
   const selected = randomItem(candidates.length > 0 ? candidates : languageQuotes);
   if (!selected) return null;
   unusedIds.delete(selected.id);
-  return selected.text.replace("XXX", language === "zh" ? "状态" : "state");
+  return selected.text.replace("XXX", t(language).sh.speech.statePlaceholder);
 }
 
 /** 选一条随机台词：连接 Claude/Codex 后动态池非空时，一半概率走动态句、一半走
@@ -116,24 +116,36 @@ export function shouldSpeakForEvent(type: PetEventType): boolean {
 }
 
 /** 恢复期点击的驳回文案（InteractionEconomy §6.4：不是错误，是"让我睡会"）。 */
-export function staminaRecoveryText(stamina?: number, wakeThreshold?: number): string {
+export function staminaRecoveryText(
+  stamina: number | undefined,
+  wakeThreshold: number | undefined,
+  language: Language,
+): string {
+  const sp = t(language).sh.speech;
   if (stamina == null || wakeThreshold == null || wakeThreshold <= 0) {
-    return "嘘…让我睡会，马上就好";
+    return sp.recoveryNap;
   }
   const shown = Math.max(0, Math.min(stamina, wakeThreshold));
-  return `嘘…让我睡会，充到 ${wakeThreshold}⚡ 就起来（${shown}/${wakeThreshold}）`;
+  return fmt(sp.recoveryProgress, { threshold: wakeThreshold, shown });
 }
 
-/** Token 餐气泡（token→精力，InteractionEconomy §3.3）：吃到某个 Agent 产出的
- *  Token、精力回一点时冒的话。source 认得 "codex"/"claudeCode"，其它（调试投喂等）
- *  省略来源名。token 数走 formatCount（万/亿·k/m/b）保持大数可读。 */
-export function tokenMealText(source: string, tokens: number, language: Language): string {
+/** Token 餐气泡（token→经验，2026-07-21 机制修订，InteractionEconomy §3.3）：
+ *  吃到某个 Agent 产出的 Token、陪伴宠经验涨了时冒的话。只报吃到的 Token 总量
+ *  + 涨了多少经验（+是否升级），不再拆四分明细——「吃到 Codex 的 2.5万 Token，
+ *  经验 +50！」。source 认得 "codex"/"claudeCode"，其它（调试投喂等）省略来源名。
+ *  数字走 formatCount（万/亿·k/m/b）保持大数可读；调用方已保证 exp > 0。 */
+export function tokenMealText(
+  source: string,
+  totalTokens: number,
+  exp: number,
+  leveledUp: boolean,
+  language: Language,
+): string {
   const name = source === "claudeCode" ? "Claude" : source === "codex" ? "Codex" : "";
-  const amount = formatCount(tokens, language);
-  if (language === "en") {
-    return name
-      ? `Ate ${amount} tokens from ${name} — energy restored!`
-      : `Ate ${amount} tokens — energy restored!`;
-  }
-  return name ? `吃到 ${name} 的 ${amount} Token，精力恢复！` : `吃到 ${amount} Token，精力恢复！`;
+  const sp = t(language).sh.speech;
+  const amount = formatCount(totalTokens, language);
+  const tail = fmt(leveledUp ? sp.tokenMealLevelUp : sp.tokenMealExp, {
+    exp: formatCount(exp, language),
+  });
+  return name ? fmt(sp.tokenMealNamed, { name, amount, tail }) : fmt(sp.tokenMealAnon, { amount, tail });
 }

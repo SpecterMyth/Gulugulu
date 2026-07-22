@@ -40,21 +40,10 @@ struct TrayLabels {
     quit: &'static str,
 }
 
-/// 托盘文案表。语言码未知时回退中文（与 settings 默认一致）。
+/// 托盘文案表。语言码未知时回退英文（与 settings 默认一致）。
 fn labels(language: &str) -> TrayLabels {
     match language {
-        "en" => TrayLabels {
-            show: "Show",
-            hide: "Hide",
-            always_on_top: "Always on top",
-            keyboard_capture: "Keyboard charging",
-            random_movement: "Random movement",
-            language: "Language",
-            lang_zh: "简体中文",
-            lang_en: "English",
-            quit: "Quit",
-        },
-        _ => TrayLabels {
+        "zh" => TrayLabels {
             show: "显示",
             hide: "隐藏",
             always_on_top: "总在最前",
@@ -64,6 +53,17 @@ fn labels(language: &str) -> TrayLabels {
             lang_zh: "简体中文",
             lang_en: "English",
             quit: "退出",
+        },
+        _ => TrayLabels {
+            show: "Show",
+            hide: "Hide",
+            always_on_top: "Always on top",
+            keyboard_capture: "Keyboard charging",
+            random_movement: "Random movement",
+            language: "Language",
+            lang_zh: "简体中文",
+            lang_en: "English",
+            quit: "Quit",
         },
     }
 }

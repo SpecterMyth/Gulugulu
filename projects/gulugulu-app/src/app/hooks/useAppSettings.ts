@@ -8,6 +8,7 @@ type UseAppSettingsResult = {
   handleAlwaysOnTop: (enabled: boolean) => void;
   handleKeyboardCapture: (enabled: boolean) => void;
   handleRandomMovement: (enabled: boolean) => void;
+  handleAutostart: (enabled: boolean) => void;
 };
 
 /** 设备/隐私设置（键盘充能/总在最前/随机移动/语言）：托盘与设置面板共享的真源。 */
@@ -65,6 +66,15 @@ export function useAppSettings(
     },
     [bridge],
   );
+  // 开机自启：真源在系统注册项，乐观更新即时反馈；set_autostart 会广播回填**实际**态
+  // （写入失败时开关回弹到真实状态）。
+  const handleAutostart = useCallback(
+    (enabled: boolean) => {
+      setAppSettings((prev) => (prev ? { ...prev, autostart: enabled } : prev));
+      void bridge.setAutostart(enabled).catch(() => undefined);
+    },
+    [bridge],
+  );
 
-  return { appSettings, handleAlwaysOnTop, handleKeyboardCapture, handleRandomMovement };
+  return { appSettings, handleAlwaysOnTop, handleKeyboardCapture, handleRandomMovement, handleAutostart };
 }

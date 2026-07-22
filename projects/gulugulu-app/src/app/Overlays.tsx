@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { WelcomeBackCard } from "../game/WelcomeBack";
+import { AutostartPromptCard } from "./AutostartPromptCard";
 import { FusionModal } from "../game/FusionModal";
 import type { GameBridge } from "../game/bridge";
 import type { UiMode } from "../game/GamePanels";
@@ -12,7 +13,6 @@ type OverlaysProps = {
   toast: { id: number; text: string } | null;
   uiMode: UiMode;
   activePet: PetInstance | null;
-  fusionFlash: boolean;
   fusionPair: { a: PetInstance; b: PetInstance } | null;
   gameConfig: GameConfig | null;
   bridge: GameBridge;
@@ -21,6 +21,10 @@ type OverlaysProps = {
   welcomeOffline: number | null;
   save: GameSave | null;
   setWelcomeOffline: Dispatch<SetStateAction<number | null>>;
+  onWelcomeMeasure: (height: number) => void;
+  autostartPromptOpen: boolean;
+  onAutostartAccept: () => void;
+  onAutostartDecline: () => void;
 };
 
 export function Overlays({
@@ -29,7 +33,6 @@ export function Overlays({
   toast,
   uiMode,
   activePet,
-  fusionFlash,
   fusionPair,
   gameConfig,
   bridge,
@@ -38,6 +41,10 @@ export function Overlays({
   welcomeOffline,
   save,
   setWelcomeOffline,
+  onWelcomeMeasure,
+  autostartPromptOpen,
+  onAutostartAccept,
+  onAutostartDecline,
 }: OverlaysProps) {
   return (
     <>
@@ -53,8 +60,6 @@ export function Overlays({
           {toast.text}
         </div>
       )}
-
-      {fusionFlash && <div className="fusion-flash" />}
 
       {fusionPair && gameConfig && (
         <FusionModal
@@ -72,7 +77,12 @@ export function Overlays({
           config={gameConfig}
           offlineMs={welcomeOffline}
           onClose={() => setWelcomeOffline(null)}
+          onMeasure={onWelcomeMeasure}
         />
+      )}
+
+      {autostartPromptOpen && (
+        <AutostartPromptCard onAccept={onAutostartAccept} onDecline={onAutostartDecline} />
       )}
     </>
   );

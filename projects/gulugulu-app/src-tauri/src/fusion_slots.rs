@@ -209,6 +209,59 @@ pub fn ai_item_def(recipe_ordinal: usize, slot: usize) -> u32 {
     AI_ITEM_DEF_BASE + recipe_ordinal as u32 * 100 + slot as u32
 }
 
+/// 并集融合生成器 itemdef 号段基址（2026-07-16 上架定案，00-decisions）。
+pub const UNION_GEN_BASE: u32 = 20_000;
+
+/// 并集融合生成器 itemdefid = 20000 + 序号（每多元素配方一条，exchange 枚举全部并集对）。
+pub fn union_gen_def(recipe_ordinal: usize) -> u32 {
+    UNION_GEN_BASE + recipe_ordinal as u32
+}
+
+/// 是否并集融合生成器 def（20000..=20056，最多 57 条多元素配方）。服务器兑换时才掷 0 号
+/// 固定 / AI 槽，兑换前无法预知结果 def → 融合结果需先挂 pending 等实发 def 精化。
+pub fn is_union_gen_def(def: u32) -> bool {
+    (UNION_GEN_BASE..=UNION_GEN_BASE + 56).contains(&def)
+}
+
+/// 商店蛋生成器 itemdef 号段基址（2026-07-16 上架定案）。
+pub const SHOP_GEN_BASE: u32 = 21_000;
+
+/// 商店蛋生成器 itemdefid = 21000 + 阶*10 + (一阶宠 def − 100)
+/// （阶 1..=4 × 一阶 def 101..=106 → 21011..=21046；playtimegenerator，
+/// `drop_interval:1` + `drop_max_per_window:eggDailyMintCaps[阶−1]`，窗口=应用级 1440）。
+pub fn shop_gen_def(tier: u8, tier1_pet_def: u32) -> u32 {
+    SHOP_GEN_BASE + tier as u32 * 10 + (tier1_pet_def - 100)
+}
+
+/// codename → AI 槽 itemdef 反解（仅新式 `aif`+2位序+2位槽；旧随机 `aif{6hex}` → None）。
+/// Steam 融合重接线用：同物种 AI 变种升阶的兑换目标 def。
+pub fn ai_def_for_codename(codename: &str) -> Option<u32> {
+    let digits = codename.strip_prefix("aif")?;
+    if digits.len() != 4 || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let ordinal: usize = digits[..2].parse().ok()?;
+    let slot: usize = digits[2..].parse().ok()?;
+    if ordinal > 56 || !(1..=MAX_AI_SLOTS).contains(&slot) {
+        return None;
+    }
+    Some(ai_item_def(ordinal, slot))
+}
+
+/// AI 槽 itemdef → codename 反解（10001..=15610 且槽号 1..=10；其余 None）。
+/// Steam 掷出 AI 槽 def 时定物种身份用。
+pub fn codename_for_ai_def(def: u32) -> Option<String> {
+    if !(AI_ITEM_DEF_BASE + 1..=AI_ITEM_DEF_BASE + 5610).contains(&def) {
+        return None;
+    }
+    let rest = (def - AI_ITEM_DEF_BASE) as usize;
+    let (ordinal, slot) = (rest / 100, rest % 100);
+    if ordinal > 56 || !(1..=MAX_AI_SLOTS).contains(&slot) {
+        return None;
+    }
+    Some(slot_codename(ordinal, slot))
+}
+
 /// AI 变种槽全局确定性 codename = `aif` + 2 位序号 + 2 位 slot（如 `aif0001`/`aif5610`）。
 /// 满足 `fusion_gen::is_valid_codename`（长 7、首字母、余小写数字），与随机 `aif{6hex}`（长 9）不同长不撞。
 pub fn slot_codename(recipe_ordinal: usize, slot: usize) -> String {
@@ -519,6 +572,34 @@ mod tests {
         assert_eq!(slot_codename(0, 1), "aif0001");
         assert_eq!(slot_codename(56, 10), "aif5610");
         assert_eq!(slot_codename(5, 3), "aif0503");
+        // 并集融合生成器（2026-07-16 上架定案）：20000..=20056，不撞 AI 段（≤15610）。
+        assert_eq!(union_gen_def(0), 20_000);
+        assert_eq!(union_gen_def(56), 20_056);
+        assert!(union_gen_def(0) > ai_item_def(56, 10));
+        // 商店蛋生成器：21011..=21046（阶 1..4 × 一阶 101..106），不撞并集段。
+        assert_eq!(shop_gen_def(1, 101), 21_011);
+        assert_eq!(shop_gen_def(1, 106), 21_016);
+        assert_eq!(shop_gen_def(4, 106), 21_046);
+        assert!(shop_gen_def(1, 101) > union_gen_def(56));
+        // codename ↔ AI def 双向反解（新式 4 位数字；旧随机 6hex 与越界 → None）。
+        assert_eq!(ai_def_for_codename("aif0503"), Some(10_503));
+        assert_eq!(ai_def_for_codename("aif0001"), Some(10_001));
+        assert_eq!(ai_def_for_codename("aif5610"), Some(15_610));
+        assert_eq!(ai_def_for_codename("aif5711"), None); // ord 57 / slot 11 越界
+        assert_eq!(ai_def_for_codename("aifab12cd"), None); // 旧随机 hex
+        assert_eq!(codename_for_ai_def(10_503).as_deref(), Some("aif0503"));
+        assert_eq!(codename_for_ai_def(15_610).as_deref(), Some("aif5610"));
+        assert_eq!(codename_for_ai_def(10_000), None); // slot 0 非法
+        assert_eq!(codename_for_ai_def(601), None);
+        for ord in 0..57usize {
+            for slot in 1..=MAX_AI_SLOTS {
+                assert_eq!(
+                    ai_def_for_codename(&slot_codename(ord, slot)),
+                    Some(ai_item_def(ord, slot)),
+                    "roundtrip ord={ord} slot={slot}"
+                );
+            }
+        }
     }
 
     #[test]

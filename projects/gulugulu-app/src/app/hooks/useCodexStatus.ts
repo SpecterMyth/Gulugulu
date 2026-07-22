@@ -5,11 +5,29 @@ import { isTauri } from "../../tauri";
 import { type Language, t } from "../../i18n";
 import { normalizeCodexEvent } from "../../petEvents";
 import type { GameBridge } from "../../game/bridge";
-import type { CodexActivityEvent, CodexStatus, GameSave, PetEvent, PetEventType } from "../../types";
+import {
+  type CodexActivityEvent,
+  type CodexStatus,
+  type GameSave,
+  type PetEvent,
+  type PetEventType,
+  type TokenBreakdown,
+  type TokenStats,
+  breakdownTotal,
+  EMPTY_TOKEN_WINDOW,
+} from "../../types";
+
+const EMPTY_TOKEN_STATS: TokenStats = {
+  all: EMPTY_TOKEN_WINDOW,
+  d1: EMPTY_TOKEN_WINDOW,
+  w1: EMPTY_TOKEN_WINDOW,
+  m1: EMPTY_TOKEN_WINDOW,
+};
 
 type UseCodexStatusResult = {
   status: CodexStatus | null;
-  projectTokens: number;
+  /** 全局 Token 的多时间窗聚合（默认 all；公告板本地切 1d/1w/1m）。 */
+  tokenStats: TokenStats;
   statusText: string;
 };
 
@@ -19,11 +37,10 @@ export function useCodexStatus(
   language: Language,
   dispatchPetEvent: (event: PetEvent) => void,
   dispatchLocalEvent: (type: PetEventType) => void,
-  enqueueFed: (stamina: number, tokens: number, source: string) => void,
+  enqueueFed: (exp: number, breakdown: TokenBreakdown, source: string, leveledUp: boolean) => void,
   setSave: (action: SetStateAction<GameSave | null>) => void,
 ): UseCodexStatusResult {
   const [status, setStatus] = useState<CodexStatus | null>(null);
-  const [projectTokens, setProjectTokens] = useState(0);
   const seenTokenEventKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -34,7 +51,6 @@ export function useCodexStatus(
       .then((nextStatus) => {
         if (disposed) return;
         setStatus(nextStatus);
-        setProjectTokens(nextStatus.totalTokens);
         if (nextStatus.error) dispatchLocalEvent("agent_error");
       })
       .catch(() => dispatchLocalEvent("agent_error"));
@@ -44,7 +60,6 @@ export function useCodexStatus(
         .then((nextStatus) => {
           if (disposed) return;
           setStatus(nextStatus);
-          setProjectTokens(nextStatus.totalTokens);
         })
         .catch(() => undefined);
     }, 2000);
@@ -77,11 +92,16 @@ export function useCodexStatus(
       }
 
       if (payload.kind === "token_count") {
-        setProjectTokens(payload.projectTotalTokens);
-        if (payload.tokenDelta > 0 && payload.fedStamina > 0) {
-          enqueueFed(payload.fedStamina, payload.tokenDelta, payload.source);
+        // 累计读数改由下方 get_codex_status 刷新的 tokenStats 驱动（全局口径），
+        // 不再用本事件的单项目 projectTotalTokens——那会让读数随项目跳变。
+        // 只要真的吃进了 token 就播进食动画——陪伴宠满级也照吃，只是
+        // fedExp=0 时不涨经验（下游按 exp>0 才冒 +经验 飘字/气泡）。
+        // v1.3 四分喂养：喂养账本吃进的四分明细（fedBreakdown）驱动餐级/气泡，
+        // 由后端加权账本差分算出（含 cache_read，但按 0.1 折算）。
+        if (breakdownTotal(payload.fedBreakdown) > 0) {
+          enqueueFed(payload.fedExp, payload.fedBreakdown, payload.source, payload.fedLeveledUp);
         }
-        // Token events change the save (stamina/buffers) — refresh it.
+        // Token events change the save (陪伴宠 exp/level + buffers) — refresh it.
         bridge
           .getState()
           .then(setSave)
@@ -110,25 +130,17 @@ export function useCodexStatus(
     const copy = t(language);
     if (!isTauri()) return copy.previewMode;
     if (status?.error) return language === "zh" ? copy.statusError : status.error;
-    if (status?.codexWatching && status.claudeCodeWatching) {
-      return language === "zh" ? "Codex + Claude Code 在线" : "Codex + Claude Code online";
-    }
+    if (status?.codexWatching && status.claudeCodeWatching) return copy.codexClaudeOnline;
     if (status?.codexWatching) return copy.codexOnline;
-    if (status?.claudeCodeWatching) {
-      return language === "zh" ? "Claude Code 在线" : "Claude Code online";
-    }
-    if (status?.watching && status.activeSource === "claudeCode") {
-      return language === "zh" ? "Claude Code 在线" : "Claude Code online";
-    }
+    if (status?.claudeCodeWatching) return copy.claudeCodeOnline;
+    if (status?.watching && status.activeSource === "claudeCode") return copy.claudeCodeOnline;
     if (status?.watching && status.activeSource && status.activeSource !== "codex") {
-      return language === "zh" ? "Agent 在线" : "Agent online";
+      return copy.agentOnline;
     }
     if (status?.watching) return copy.codexOnline;
-    if (status?.claudeHome && !status?.codexHome) {
-      return language === "zh" ? "寻找 Agent" : "Finding agent";
-    }
+    if (status?.claudeHome && !status?.codexHome) return copy.findingAgent;
     return copy.findingCodex;
   }, [language, status]);
 
-  return { status, projectTokens, statusText };
+  return { status, tokenStats: status?.tokenStats ?? EMPTY_TOKEN_STATS, statusText };
 }

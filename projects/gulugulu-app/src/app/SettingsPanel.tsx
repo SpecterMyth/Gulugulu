@@ -11,6 +11,7 @@ type SettingsPanelProps = {
   handleAlwaysOnTop: (enabled: boolean) => void;
   handleKeyboardCapture: (enabled: boolean) => void;
   handleRandomMovement: (enabled: boolean) => void;
+  handleAutostart: (enabled: boolean) => void;
   selectPanel: (mode: Exclude<UiMode, "pet" | "menu">) => void;
   closePet: () => void;
 };
@@ -24,6 +25,7 @@ export function SettingsPanel({
   handleAlwaysOnTop,
   handleKeyboardCapture,
   handleRandomMovement,
+  handleAutostart,
   selectPanel,
   closePet,
 }: SettingsPanelProps) {
@@ -63,6 +65,13 @@ export function SettingsPanel({
           onText={copy.on}
           offText={copy.off}
           onToggle={handleRandomMovement}
+        />
+        <SettingToggle
+          label={copy.autostart}
+          enabled={appSettings?.autostart ?? false}
+          onText={copy.on}
+          offText={copy.off}
+          onToggle={handleAutostart}
         />
         <button type="button" className="settings-btn settings-action" onClick={() => selectPanel("debug")}>
           🛠 {copy.debug}

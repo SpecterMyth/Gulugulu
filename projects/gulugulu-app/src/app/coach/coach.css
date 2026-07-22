@@ -1,0 +1,203 @@
+/* 新手强引导手势层（docs/gdd/OnboardingCoach.md §2）。仅 transform/opacity；
+   外层由 JS 逐帧锚定（transform 定位），动画走内层，互不打架。 */
+
+.coach-fx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none; /* 非阻塞：绝不挡任何点击 */
+  z-index: 9000;
+  overflow: hidden;
+}
+
+.coach-hold {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transition: opacity 0.18s ease;
+  will-change: transform, opacity;
+}
+
+/* ── G5 高亮环（只描边、不压暗） ── */
+.coach-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  border: 3px solid #ffcc4d;
+  border-radius: 16px;
+  box-shadow: 0 0 10px 2px rgba(255, 204, 77, 0.55);
+  transition: opacity 0.18s ease;
+  will-change: transform, opacity, box-shadow;
+  animation: coach-ring-breathe 1.4s ease-in-out infinite;
+}
+
+@keyframes coach-ring-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 8px 1px rgba(255, 204, 77, 0.4);
+    border-color: #ffcc4d;
+  }
+  50% {
+    box-shadow: 0 0 16px 4px rgba(255, 204, 77, 0.75);
+    border-color: #ffb020;
+  }
+}
+
+/* ── G1/G2 手指点击（内层做点按动画；连点 = 提速） ── */
+.coach-hand {
+  transform-origin: 50% 0;
+  animation: coach-tap 1.05s ease-in-out infinite;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25));
+}
+.coach-hand.is-rapid {
+  animation-duration: 0.5s;
+}
+
+/* #3 贴底按钮：手指翻到上方、指尖朝下点按（scaleY(-1) 翻转 + 向下轻点） */
+.coach-hand.is-down {
+  animation-name: coach-tap-down;
+}
+.coach-hand.is-down.is-rapid {
+  animation-duration: 0.5s;
+}
+@keyframes coach-tap-down {
+  0%,
+  100% {
+    transform: scaleY(-1) translateY(4px);
+  }
+  45%,
+  60% {
+    transform: scaleY(-1) translateY(-7px);
+  }
+}
+
+@keyframes coach-tap {
+  0%,
+  100% {
+    transform: translateY(4px) rotate(-4deg);
+  }
+  45% {
+    transform: translateY(-7px) rotate(2deg);
+  }
+  60% {
+    transform: translateY(-7px) rotate(2deg);
+  }
+}
+
+/* ── G3 按键图标（◀▶ / ⌨） ── */
+.coach-keys {
+  display: flex;
+  gap: 6px;
+  transform: translateX(-50%);
+}
+.coach-key {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #4a3726;
+  background: linear-gradient(#fff7e6, #ffe6b0);
+  border: 2px solid #3b2b1d;
+  border-radius: 7px;
+  box-shadow: 0 3px 0 #caa25e;
+  animation: coach-key-bob 0.9s ease-in-out infinite;
+}
+.coach-key.is-wide {
+  min-width: 34px;
+  font-size: 17px;
+}
+.coach-key:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+@keyframes coach-key-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* ── G4 边缘方向箭头（外层已按方向 scaleX，内层脉冲） ── */
+.coach-arrow {
+  font-size: 34px;
+  line-height: 1;
+  color: #ffb020;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+  animation: coach-arrow-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes coach-arrow-pulse {
+  0%,
+  100% {
+    transform: translateX(-6px);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(4px);
+    opacity: 1;
+  }
+}
+
+/* 屏内走位箭头：目标上方下指「去这里」（#5，不用手指以免误读成点击） */
+.coach-arrow-down {
+  margin-left: -11px;
+  font-size: 26px;
+  line-height: 1;
+  color: #ffb020;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+  animation: coach-down-bob 0.75s ease-in-out infinite;
+}
+
+@keyframes coach-down-bob {
+  0%,
+  100% {
+    transform: translateY(-4px);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateY(4px);
+    opacity: 1;
+  }
+}
+
+/* 跳过教程入口（唯一可点元素；教练首帧起常驻角落） */
+.coach-skip {
+  position: fixed;
+  right: 10px;
+  bottom: 8px;
+  z-index: 9001;
+  pointer-events: auto;
+  font-size: 11px;
+  color: #7a6a55;
+  background: rgba(255, 250, 240, 0.82);
+  border: 1px solid #d9c9a8;
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+.coach-skip:hover {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-hand,
+  .coach-hand.is-down,
+  .coach-key,
+  .coach-arrow,
+  .coach-arrow-down,
+  .coach-ring {
+    animation: none;
+  }
+  .coach-hand.is-down {
+    transform: scaleY(-1);
+  }
+}

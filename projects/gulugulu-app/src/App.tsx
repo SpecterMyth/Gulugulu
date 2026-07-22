@@ -19,10 +19,14 @@ import type {
   PetEventType,
   PetInstance,
   PetState,
+  TokenBreakdown,
 } from "./types";
+import { breakdownTotal, EMPTY_BREAKDOWN } from "./types";
 import { isTauri } from "./tauri";
-import { type Language, t } from "./i18n";
-import { useGame } from "./game/useGame";
+import { elementName, fmt, type Language, localizeGameMessage, speciesDisplayName, t } from "./i18n";
+import { LanguageContext } from "./useT";
+import { previewFx, previewPetState, previewUiMode } from "./preview/shotParams";
+import { useGame, useNowSeconds } from "./game/useGame";
 import {
   MenuBar,
   PanelShell,
@@ -30,12 +34,15 @@ import {
   type UiMode,
 } from "./game/GamePanels";
 import { BackyardScene } from "./game/BackyardScene";
+import type { CelebrationPayload, CelebrationPulse, HatchBranch } from "./game/CelebrationCinematic";
+import { celebrationDurationFor } from "./game/CelebrationCinematic";
+import { rememberFusionEgg, shouldPromptAutostart, takeFusionEgg } from "./app/autostartNudge";
 import { DebugPanel } from "./game/DebugPanel";
 import { eggPriceFor, isMaxLevel } from "./game/config";
 import { formatCount } from "./game/format";
 import { foodFlightFor, keycapFlightsFor, useFlights } from "./game/FlightLayer";
 import { foodLevelForTokens } from "./sprites/parts/glyphs";
-import { fusionReady } from "./game/tutorial";
+import { activePetCanFuse, hatcheryFull } from "./game/tutorial";
 import {
   type Bounds,
   type Direction,
@@ -62,11 +69,15 @@ import { useCodexStatus } from "./app/hooks/useCodexStatus";
 import { useDynamicQuotes } from "./app/hooks/useDynamicQuotes";
 import { useEggCountdown } from "./app/hooks/useEggCountdown";
 import { useFusionProgress } from "./app/hooks/useFusionProgress";
+import { useAchievementUnlocks } from "./app/hooks/useAchievementUnlocks";
 import { useFxOverlay } from "./app/hooks/useFxOverlay";
 import { usePetStateMachine } from "./app/hooks/usePetStateMachine";
 import { useSpeechDrop } from "./app/hooks/useSpeechDrop";
 import { useSteamStatus } from "./app/hooks/useSteamStatus";
+import { useSpeciesPreviews } from "./app/hooks/useSpeciesPreviews";
 import { useTutorialHints } from "./app/hooks/useTutorialHints";
+import { useOnboardingCoach } from "./app/coach/useOnboardingCoach";
+import { CoachFx } from "./app/coach/CoachFx";
 import { useWelcomeBack } from "./app/hooks/useWelcomeBack";
 
 const DRAG_THRESHOLD_PX = 4;
@@ -74,6 +85,14 @@ const AUTONOMOUS_MOVE_DELAY_MS = 18_000;
 const TOAST_VISIBLE_MS = 2600;
 /** 菜单（后院/调试按钮）无操作自动收起，回到纯角色状态 */
 const MENU_IDLE_HIDE_MS = 8000;
+/** 后院连续无用户操作（点击/按键）自动返回主界面的静置时长（用户要求 5 分钟）。 */
+const BACKYARD_IDLE_RETURN_MS = 5 * 60_000;
+/** 欢迎卡打开时，窗口在卡片实测内容高度上再留的上下总余白（3px 边框×2 + 呼吸间距），
+ *  让卡片不贴窗口边缘。见下方 window sizing effect。 */
+const WELCOME_WINDOW_PAD = 34;
+/** 欢迎卡窗口高度上限（逻辑 px）：极端长文案兜底——超出仍由卡片内部滚动
+ *  （styles.css `.welcome-card:has(.welcome-report)`），不至于把窗口撑出屏幕。 */
+const WELCOME_WINDOW_MAX_H = 680;
 /** 记住用户上次把后院窗口拉到多高（逻辑 px），下次进入按此高度停靠。
  *  由 BackyardScene 仅在卸载时落盘最终高度——绝不逐帧写入进入瞬间的过渡值，
  *  否则该过渡值（= 上一面板的窗口高，调试 560 / 菜单 428）会被下面的 dock
@@ -105,15 +124,23 @@ const COMBO_WINDOW_MS = 1100;
 /** 能量饭团飞到嘴边、宠物开吃的时机（略早于 foodFlightFor 的 1.9s 落点，
  *  让夸张咀嚼与食物"缩小消失"衔接；配 fed 状态 1.7s 咀嚼 ≈ 总 3s）。 */
 const FOOD_ARRIVE_MS = 1650;
+/** 播餐看门狗：飞行 1650ms + fed 1700ms + 富余。fed 是可被打断的一次性态
+ * （点击/拖拽会抢状态），被抢后 "fed 播完 → 清 playingFedRef" 永远不来，
+ * 进食队列会从此卡死（本会话再也不播进食）——超时强制收尾。 */
+const FOOD_MEAL_FAILSAFE_MS = 6000;
 
-/** 待播的进食演出：v1.1 起 Token 只回精力（InteractionEconomy §3.3）。
- *  tokens 用于按量给食物分级（越多的 token = 越大的一餐）。 */
+/** 待播的进食演出：2026-07-21 起 Token → **经验**，只喂陪伴宠
+ *  （InteractionEconomy §3.3）。breakdown 是本次吃进的四分明细（v1.3 四分
+ *  喂养）——总量给食物分级，分项供气泡报「吃到 N 输入 / M 产出 Token」。 */
 type PendingFed = {
   id: number;
-  stamina: number;
-  tokens: number;
+  /** 本餐给陪伴宠的经验点数（0 = 满级/缺席浪费，照吃不冒字）。 */
+  exp: number;
+  breakdown: TokenBreakdown;
   /** 产出这些 token 的 Agent（"codex" | "claudeCode"；调试投喂为 ""）——气泡报来源用。 */
   source: string;
+  /** 本餐是否触发陪伴宠升级（气泡改口"升级啦"用）。 */
+  leveledUp: boolean;
 };
 
 export default function App() {
@@ -129,23 +156,43 @@ export default function App() {
   const popIdRef = useRef(0);
   const pendingFedIdRef = useRef(0);
   const playingFedRef = useRef(false);
+  const fedFailsafeRef = useRef<number | null>(null);
   const autonomousMovePlayedRef = useRef(false);
   const quoteDecksRef = useRef(createQuoteDecks());
+  // 催蛋：每颗蛋一条串行请求链（杜绝乱序回包把倒计时顶回去 → 卡在剩 2–3s）+ 已触发收取去重集。
+  const pokeChainRef = useRef<Map<string, Promise<unknown>>>(new Map());
+  const autoCollectedRef = useRef<Set<string>>(new Set());
 
   // --- game state ---
   const { bridge, config: gameConfig, save, setSave } = useGame();
-  const [uiMode, setUiMode] = useState<UiMode>("pet");
-  const uiModeRef = useRef<UiMode>("pet");
+  // 预览截图 rig:?ui= 指定初始面板(仅 !isTauri 生效,见 preview/shotParams)。
+  const initialUiMode = (previewUiMode() as UiMode | null) ?? "pet";
+  const [uiMode, setUiMode] = useState<UiMode>(initialUiMode);
+  const uiModeRef = useRef<UiMode>(initialUiMode);
   const [gameBusy, setGameBusy] = useState(false);
-  const [fusionFlash, setFusionFlash] = useState(false);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const toastIdRef = useRef(0);
   const [welcomeOffline, setWelcomeOffline] = useWelcomeBack();
+  // 欢迎卡实测内容高度（由卡片报上来），用于把窗口临时增高到不截断昨日战报。
+  const [welcomeCardHeight, setWelcomeCardHeight] = useState<number | null>(null);
   // 后院场景状态回传：主角行走中则暂缓进食动画；fedPulse 交给场景播放。
   const [sceneWalking, setSceneWalking] = useState(false);
   const sceneWalkingRef = useRef(false);
-  // 后院进食演出：stamina 决定 +N 精力飘字，level 决定食物体型。
-  const [sceneFed, setSceneFed] = useState<{ id: number; stamina: number; level: number } | null>(null);
+  // 后院进食演出：exp 决定 +N 经验飘字，level 决定食物体型。
+  const [sceneFed, setSceneFed] = useState<{ id: number; exp: number; level: number } | null>(null);
+  // 后院庆典演出（孵化揭晓 / 融合达成）：一次性脉冲，交给 BackyardScene 播放电影化揭晓。
+  const [celebration, setCelebration] = useState<CelebrationPulse | null>(null);
+  const celebrationIdRef = useRef(0);
+  const fireCelebration = useCallback((payload: CelebrationPayload) => {
+    celebrationIdRef.current += 1;
+    setCelebration({ ...payload, id: celebrationIdRef.current, at: Date.now() });
+  }, []);
+  // 「开机自启」引导弹窗（融合领新宠后弹出，最多三次；加入自启即不再弹）。
+  const [autostartPromptOpen, setAutostartPromptOpen] = useState(false);
+  const autostartPromptOpenRef = useRef(false);
+  useEffect(() => {
+    autostartPromptOpenRef.current = autostartPromptOpen;
+  }, [autostartPromptOpen]);
 
   useEffect(() => {
     uiModeRef.current = uiMode;
@@ -193,6 +240,43 @@ export default function App() {
   const stageNow = useEggCountdown(stageEgg);
   const stageEggReady =
     stageEgg?.slot != null && stageEgg.hatchAt != null && stageNow >= stageEgg.hatchAt;
+
+  // —— 新手强引导教练（docs/gdd/OnboardingCoach.md）。放在游戏动作回调之前，
+  //    以便回调里调用 markSwitched/markDone 等（稳定 useCallback）。——
+  // hatcheryReady 需要一个**独立于 stageEgg 的实时秒针**：stageNow 只在 stageEgg 非空
+  // （即无在养宠）时才跑 1s interval，有在养宠时冻结在挂载值 → 有宠期间后院孵化红点与
+  // 教练「蛋好了，去收」提示整局都不再触发（后端已孵好，主窗口 UI 却不知道）。对任何
+  // 已入槽计时的蛋开一个独立秒针即可（1Hz 重渲染，与蛋在台时同等开销）。
+  const yardNow = useNowSeconds(
+    save != null && save.eggs.some((egg) => egg.slot != null && egg.hatchAt != null),
+  );
+  const hatcheryReady =
+    save != null &&
+    save.eggs.some((egg) => egg.slot != null && egg.hatchAt != null && yardNow >= egg.hatchAt);
+  const [yardCoach, setYardCoach] = useState<{ nearShop: boolean; nearPetId: string | null }>({
+    nearShop: false,
+    nearPetId: null,
+  });
+  // 融合确认弹窗（fusePets 打开）—— 提前声明供教练 resolver 判「弹窗已开 → 指向开始融合」（#8）。
+  const [fusionPair, setFusionPair] = useState<{ a: PetInstance; b: PetInstance } | null>(null);
+  const coach = useOnboardingCoach({
+    save,
+    config: gameConfig,
+    uiMode,
+    hatcheryReady,
+    nearShop: yardCoach.nearShop,
+    nearPetId: yardCoach.nearPetId,
+    exhausted: activePet?.exhausted ?? false,
+    fusionModalOpen: fusionPair != null,
+    lang: language,
+  });
+  const { markMoved, markSwitched, markCeDone, markDone } = coach;
+  // 首次拥有二阶宠（收下融合结果）→ 永久退休教练：C8「回主界面看融出了啥」只在第一次融合后出现一次，
+  // 后续融合不再提示（即使把二阶宠放生也不复活，markDone 幂等地锁死）。
+  useEffect(() => {
+    if (save?.pets.some((pet) => pet.tier >= 2)) markDone();
+  }, [save, markDone]);
+
   // SVG rig 是唯一舞台：有主宠即渲染 SVG 精灵（PNG 自定义头像方案已下线）。
   const isSvgStage = activePet != null;
   // 点击反馈爆发粒子的颜色跟随主属性元素色
@@ -203,20 +287,28 @@ export default function App() {
     "#F5917B";
 
   // 气泡左上角装饰位：当前角色的属性（元素）图标，有几个显示几个。无主宠（蛋）时为空。
+  // nameZh 字段名是 SpeechBubble 的历史接口；值随当前语言本地化（tooltip 用）。
   const stageElements = useMemo<Array<{ id: string; badge: string; color: string; nameZh: string }>>(() => {
     if (!gameConfig || !activePet) return [];
     const species = gameConfig.species[activePet.species];
     if (!species) return [];
     return species.elements.flatMap((id) => {
       const info = gameConfig.elements[id];
-      return info ? [{ id, badge: info.badge, color: info.color, nameZh: info.nameZh }] : [];
+      if (!info) return [];
+      const name = language === "zh" ? info.nameZh : elementName(id, language);
+      return [{ id, badge: info.badge, color: info.color, nameZh: name }];
     });
-  }, [gameConfig, activePet]);
+  }, [gameConfig, activePet, language]);
 
+  // 稳定回调里取当前语言的壳层词条（languageRef 恒新，callback 无需吃 language 依赖）。
+  const shOf = useCallback(() => t(languageRef.current).sh, []);
+
+  // 展示前统一过 localizeGameMessage：Rust/mock 的 "#key|a=b" 协议消息渲染为当前
+  // 语言；已本地化的普通字符串原样透传（幂等）。
   const showToastMsg = useCallback((text: string) => {
     const id = toastIdRef.current + 1;
     toastIdRef.current = id;
-    setToast({ id, text });
+    setToast({ id, text: localizeGameMessage(text, languageRef.current) });
   }, []);
 
   useEffect(() => {
@@ -236,6 +328,16 @@ export default function App() {
     },
     [],
   );
+
+  // 截图特效(?fx=pops,仅预览截图模式):周期洒金币/经验飘字,拍"打工收益满屏"镜头。
+  useEffect(() => {
+    if (previewFx() !== "pops") return;
+    const timer = window.setInterval(() => {
+      const id = popIdRef.current;
+      pushPop(`+${12 + (id % 5) * 7}`, id % 3 === 0 ? "exp" : "coin", undefined, id % 4 === 0);
+    }, 300);
+    return () => window.clearInterval(timer);
+  }, [pushPop]);
 
   // 对话气泡被引导/状态提示占用时（见下方 bubble 多路复用），随机台词让位（§2）。
   const bubbleBusyRef = useRef(false);
@@ -270,7 +372,7 @@ export default function App() {
   const reactionIdRef = useRef(0);
   // 点击手感 L3：清空一管精力时的"管末大跳"演出（纯表现，无数值）。
   const [finisherFlip, setFinisherFlip] = useState(-1);
-  // 汇聚飞行（键帽雨 / Token 餐）与精力条获得脉冲（InteractionEconomy §6.1/§6.3）。
+  // 汇聚飞行（键帽雨=精力 / Token 餐=经验）与精力条获得脉冲（InteractionEconomy §6.1/§6.3）。
   const { flights, spawnFlights, removeFlight } = useFlights();
   const [energyPulse, setEnergyPulse] = useState(0);
   // 10% 唤醒瞬间的 CSS 伸懒腰（§6.4）。
@@ -295,7 +397,7 @@ export default function App() {
       autonomousMovePlayedRef.current = false;
       // 精力恢复期：点击不出随机台词，改在对话气泡里演驳回（§6.4）。
       if (activePet?.exhausted) {
-        showToastMsg(staminaRecoveryText(activePet.stamina, gameConfig?.wakeThreshold));
+        showToastMsg(staminaRecoveryText(activePet.stamina, gameConfig?.wakeThreshold, languageRef.current));
         return;
       }
       if (speak) showSpeechForState("clicked");
@@ -314,11 +416,19 @@ export default function App() {
     null,
   );
   const comboHideTimerRef = useRef<number | null>(null);
-  const { duckFacingRef, ensureFxOverlay, hideFxOverlay, spawnWorkBurst, workBursts } = useFxOverlay(
-    uiMode,
-    activePetSpecies,
-  );
-  const { speechDrop, speechRef } = useSpeechDrop(uiMode, activePetSpecies, duckFacingRef);
+  const {
+    duckFacingRef,
+    stageRef,
+    ensureFxOverlay,
+    hideFxOverlay,
+    spawnWorkBurst,
+    emitWorkBurstAtRect,
+    emitFoodFlight,
+    emitCelebration,
+    emitYardFx,
+    workBursts,
+  } = useFxOverlay(uiMode, activePetSpecies);
+  const { speechDrop, speechRef } = useSpeechDrop(uiMode, activePetSpecies, petState, duckFacingRef);
 
   const registerWorkJuice = useCallback(
     (coinsGained: number, expGained: number) => {
@@ -370,16 +480,38 @@ export default function App() {
     [applyLanguage, bridge],
   );
 
-  const { appSettings, handleAlwaysOnTop, handleKeyboardCapture, handleRandomMovement } = useAppSettings(
-    bridge,
-    applyLanguage,
-    languageRef,
-  );
+  const { appSettings, handleAlwaysOnTop, handleKeyboardCapture, handleRandomMovement, handleAutostart } =
+    useAppSettings(bridge, applyLanguage, languageRef);
+  // 引导弹窗的判定读最新设置（自启态 + 已展示次数），避免把 appSettings 塞进 collectEgg 依赖。
+  const appSettingsRef = useRef(appSettings);
+  useEffect(() => {
+    appSettingsRef.current = appSettings;
+  }, [appSettings]);
 
-  const enqueueFed = useCallback((stamina: number, tokens: number, source: string) => {
+  // 融合领新宠且庆典演出结束后调用：未加入自启且未到展示上限时弹一次引导，并记一次展示。
+  // 计数真源在 Rust（note_autostart_prompt_shown 广播 settings://changed 回填），这里只做门槛判断。
+  const maybePromptAutostart = useCallback(() => {
+    if (!shouldPromptAutostart(appSettingsRef.current)) return;
+    if (autostartPromptOpenRef.current) return; // 已有弹窗打开，不叠加
+    setAutostartPromptOpen(true);
+    void bridge.noteAutostartPromptShown().catch(() => undefined);
+  }, [bridge]);
+
+  const acceptAutostart = useCallback(() => {
+    setAutostartPromptOpen(false);
+    handleAutostart(true);
+  }, [handleAutostart]);
+
+  const declineAutostart = useCallback(() => {
+    setAutostartPromptOpen(false);
+  }, []);
+
+  const enqueueFed = useCallback((exp: number, breakdown: TokenBreakdown, source: string, leveledUp: boolean) => {
     const id = pendingFedIdRef.current + 1;
     pendingFedIdRef.current = id;
-    setPendingFedQueue((items) => [...items, { id, stamina, tokens, source }]);
+    setPendingFedQueue((items) => [...items, { id, exp, breakdown, source, leveledUp }]);
+    // 数值入账不在这里做：Token 喂养的 `game://exp` 补丁（onExpPatch）已即时
+    // 改写陪伴宠的 exp/level，这里只排进食演出（合餐可能晚几拍才播）。
   }, []);
 
   const startNextFedIfReady = useCallback(() => {
@@ -388,39 +520,71 @@ export default function App() {
     // 后院里保持原地播放进食：主角行走中先攒着，停下再吃。
     const inBackyardIdle = mode === "backyard" && !sceneWalkingRef.current;
     if (mode !== "pet" && mode !== "menu" && !inBackyardIdle) return;
+    // working/thinking 也放行：Token 餐只在 agent 活跃时产生，而活跃锁存恰好把
+    // 宠物钉在这两个循环态——若只许 idle，进食演出会整段会话饿死在队列里，
+    // 用户只看到精力条"凭空回满"（eat 是一次性态，播完自动落回锁存基线）。
     if (
       stateRef.current !== "idle" &&
       stateRef.current !== "sleeping" &&
-      stateRef.current !== "exhausted"
+      stateRef.current !== "exhausted" &&
+      stateRef.current !== "working" &&
+      stateRef.current !== "thinking"
     ) {
       return;
     }
 
     // 合餐（InteractionEconomy §6.3）：把队列里全部待播项合成一餐播放。
-    const merged = pendingFedQueue.reduce((sum, item) => sum + item.stamina, 0);
-    const mergedTokens = pendingFedQueue.reduce((sum, item) => sum + item.tokens, 0);
+    const merged = pendingFedQueue.reduce((sum, item) => sum + item.exp, 0);
+    const mergedBreakdown = pendingFedQueue.reduce<TokenBreakdown>(
+      (acc, item) => ({
+        input: acc.input + item.breakdown.input,
+        cacheCreate: acc.cacheCreate + item.breakdown.cacheCreate,
+        cacheRead: acc.cacheRead + item.breakdown.cacheRead,
+        output: acc.output + item.breakdown.output,
+      }),
+      { ...EMPTY_BREAKDOWN },
+    );
+    const mergedTokens = breakdownTotal(mergedBreakdown);
+    // 合餐里只要有一次触发升级，气泡就报"升级啦"。
+    const mergedLeveledUp = pendingFedQueue.some((item) => item.leveledUp);
     const mealId = pendingFedQueue[pendingFedQueue.length - 1].id;
     // 合餐的来源报最近一次 token 事件的 Agent（连续投喂几乎总是同源）。
     const mealSource = pendingFedQueue[pendingFedQueue.length - 1].source;
     const foodLevel = foodLevelForTokens(mergedTokens);
     playingFedRef.current = true;
     setPendingFedQueue([]);
+    // 看门狗：fed 被点击/拖拽抢断时正常收尾不会来，超时强制解锁并触发
+    // 播放器复核（poke 队列引用；空队列不 poke，等下一次入账自然触发）。
+    if (fedFailsafeRef.current !== null) window.clearTimeout(fedFailsafeRef.current);
+    fedFailsafeRef.current = window.setTimeout(() => {
+      fedFailsafeRef.current = null;
+      if (!playingFedRef.current) return;
+      playingFedRef.current = false;
+      setSceneFed(null);
+      setPendingFedQueue((items) => (items.length > 0 ? [...items] : items));
+    }, FOOD_MEAL_FAILSAFE_MS);
 
     // 能量饭团从远处慢慢飘来（~1.9s）：主窗口直接放飞行层，后院把 level
-    // 交给场景层放飞行（BackyardScene 自订阅）。
+    // 交给场景层放飞行（BackyardScene 自订阅）。只要吃进了 token 就飞食物——
+    // 陪伴宠满级/缺席（浪费）时 merged=0 也照飞照吃，只是不冒 +经验 飘字。
     if (mode === "backyard") {
-      setSceneFed({ id: mealId, stamina: merged, level: foodLevel });
-    } else if (merged > 0) {
-      spawnFlights([foodFlightFor(foodLevel)]);
+      setSceneFed({ id: mealId, exp: merged, level: foodLevel });
+    } else if (mergedTokens > 0) {
+      // 能量饭团优先走全屏覆盖层（穿桌面飘来、不被 280×320 小窗上沿硬裁），
+      // 覆盖层未就绪 / 预览模式回退窗口内飞行层（同一枚 flight，轨迹一致）。
+      const flight = foodFlightFor(foodLevel);
+      void emitFoodFlight([flight]).then((sent) => {
+        if (!sent) spawnFlights([flight]);
+      });
     }
 
-    // 精力真的回了一点才冒气泡（fedStamina>0 已在事件层保证）：首餐给一次性
-    // 玩法发现提示，之后每餐报「吃到 <Agent> 的 X Token，精力恢复！」。
+    // 经验真的涨了才冒气泡：首餐给一次性玩法发现提示，之后每餐报
+    // 「吃到 <Agent> 的 X Token，经验涨了！」。满级浪费（merged=0）时静默吃。
     if (merged > 0) {
       let firstMeal = false;
       try {
-        if (!window.localStorage.getItem("gulugulu.tokenEnergySeen")) {
-          window.localStorage.setItem("gulugulu.tokenEnergySeen", "1");
+        if (!window.localStorage.getItem("gulugulu.tokenExpSeen")) {
+          window.localStorage.setItem("gulugulu.tokenExpSeen", "1");
           firstMeal = true;
         }
       } catch {
@@ -428,21 +592,21 @@ export default function App() {
       }
       showToastMsg(
         firstMeal
-          ? "Agent 干活的 Token 现在是我的能量饭团🍙 精力回满就能继续点我打工"
-          : tokenMealText(mealSource, mergedTokens, languageRef.current),
+          ? shOf().toast.firstTokenMeal
+          : tokenMealText(mealSource, mergedTokens, merged, mergedLeveledUp, languageRef.current),
       );
     }
 
-    // 食物飞到嘴边（~1.65s）才开吃：夸张咀嚼 + 精力飘字 + 条脉冲，与食物
-    // "缩小消失"衔接。让整段 Token 回复动画慢下来、看得清（总时长 ~3s）。
+    // 食物飞到嘴边（~1.65s）才开吃：夸张咀嚼 + 经验飘字，与食物"缩小消失"
+    // 衔接。让整段 Token 进食动画慢下来、看得清（总时长 ~3s）。数值已随
+    // 入账（game://exp 补丁）即时改写，这里只做演出。
     const chew = () => {
-      if (mode !== "backyard" && merged > 0) pushPop(`+${formatNumber(merged)}`, "stamina");
-      if (merged > 0) setEnergyPulse((tick) => tick + 1);
+      if (mode !== "backyard" && merged > 0) pushPop(`+${formatNumber(merged)}`, "exp");
       dispatchPetEvent(makePetEvent("agent_token_gain"));
     };
-    if (merged > 0) window.setTimeout(chew, FOOD_ARRIVE_MS);
+    if (mergedTokens > 0) window.setTimeout(chew, FOOD_ARRIVE_MS);
     else chew();
-  }, [dispatchPetEvent, pendingFedQueue, pushPop, showToastMsg, spawnFlights]);
+  }, [dispatchPetEvent, emitFoodFlight, pendingFedQueue, pushPop, shOf, showToastMsg, spawnFlights]);
 
   const finishDrag = useCallback(() => {
     const drag = dragRef.current;
@@ -473,21 +637,36 @@ export default function App() {
     setUiMode("menu");
     // 预热特效覆盖层（创建/显示 fx 子窗口），首次连击即可满屏飘散。
     void ensureFxOverlay();
-    if (save && save.tutorialStep === 0) advanceTutorial(1);
-  }, [advanceTutorial, ensureFxOverlay, save]);
+  }, [ensureFxOverlay]);
 
   const goBack = useCallback(() => {
     setUiMode((mode) => (mode === "pet" || mode === "menu" ? "pet" : "menu"));
   }, []);
 
-  const selectPanel = useCallback(
-    (mode: Exclude<UiMode, "pet" | "menu">) => {
-      setUiMode(mode);
-      // 孵化区并入后院场景：进入后院即视为看过孵化教程。
-      if (mode === "backyard" && save?.tutorialStep === 1) advanceTutorial(2);
-    },
-    [advanceTutorial, save],
-  );
+  // 后院无操作自动返回主界面：连续 5 分钟没有任何用户操作（点击/按键）就执行一次
+  // "返回"（等同左下角返回牌 → 回到菜单态主界面，再由菜单闲置逻辑收回纯角色）。
+  // 只有用户输入才重置计时——宠物自动漫步 / Agent 活动 / 喂食演出都不算"操作"。
+  // 捕获阶段监听 window：后院内各面板会对 click 调 stopPropagation，用捕获可确保
+  // 每次真实交互都能重置计时，不被子层吞掉。
+  useEffect(() => {
+    if (uiMode !== "backyard") return;
+    let timer = window.setTimeout(goBack, BACKYARD_IDLE_RETURN_MS);
+    const reset = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(goBack, BACKYARD_IDLE_RETURN_MS);
+    };
+    window.addEventListener("pointerdown", reset, { capture: true });
+    window.addEventListener("keydown", reset, { capture: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointerdown", reset, { capture: true });
+      window.removeEventListener("keydown", reset, { capture: true });
+    };
+  }, [uiMode, goBack]);
+
+  const selectPanel = useCallback((mode: Exclude<UiMode, "pet" | "menu">) => {
+    setUiMode(mode);
+  }, []);
 
   // 纯抚摸模式（日额度用尽）提示只说一次/会话，避免连点刷屏。
   const capNoticedRef = useRef(false);
@@ -513,7 +692,7 @@ export default function App() {
             }
             if (!capNoticedRef.current) {
               capNoticedRef.current = true;
-              showToastMsg("今天的爱已点满💛 现在点我都是纯摸摸");
+              showToastMsg(shOf().toast.capPetting);
             }
             return;
           }
@@ -530,7 +709,6 @@ export default function App() {
             // 后院：主角播打工动画；粒子特效由场景就地渲染（不扩张窗口）。
             dispatchLocalEvent("user_work_click");
           }
-          if (save.tutorialStep === 2) advanceTutorial(3);
 
           // —— 200 击长管节奏（InteractionEconomy §6.5）——
           const petAfter = result.save.pets.find((item) => item.id === petId);
@@ -550,17 +728,20 @@ export default function App() {
             if (!result.becameExhausted && clicksIntoBar > 0 && clicksIntoBar % milestone === 0) {
               const label =
                 clicksIntoBar === milestone * 2
-                  ? "过半啦！"
+                  ? shOf().pop.milestoneHalf
                   : clicksIntoBar === milestone * 3
-                    ? "最后冲刺！"
-                    : `${clicksIntoBar} 击！`;
+                    ? shOf().pop.milestoneSprint
+                    : fmt(shOf().pop.milestoneHits, { n: clicksIntoBar });
               pushPop(label, "levelup", at);
               if (isActive) spawnWorkBurst(14, true);
             }
             if (result.becameExhausted) {
               // 大终结技 + 收工结算横幅：「满工收工！本管 🪙+N ✨+N」。
               showToastMsg(
-                `满工收工！本管 🪙+${formatNumber(totals.coins)} ✨+${formatNumber(totals.exp)}`,
+                fmt(shOf().toast.barDone, {
+                  coins: formatNumber(totals.coins),
+                  exp: formatNumber(totals.exp),
+                }),
               );
               barTotalsRef.current.delete(petId);
             }
@@ -574,7 +755,7 @@ export default function App() {
             } else if (!capCelebratedRef.current) {
               capCelebratedRef.current = true;
               spawnReactionBurst();
-              showToastMsg("今天的爱点满啦！剩下的明天继续💛");
+              showToastMsg(shOf().toast.capCelebrate);
             }
           }
 
@@ -591,14 +772,13 @@ export default function App() {
           if (message.includes("exhausted")) {
             if (isActive) dispatchLocalEvent("pet_exhausted");
             const pet = save.pets.find((item) => item.id === petId);
-            showToastMsg(staminaRecoveryText(pet?.stamina, gameConfig?.wakeThreshold));
+            showToastMsg(staminaRecoveryText(pet?.stamina, gameConfig?.wakeThreshold, languageRef.current));
           } else {
             showToastMsg(message);
           }
         });
     },
     [
-      advanceTutorial,
       bridge,
       dispatchLocalEvent,
       gameConfig,
@@ -606,6 +786,7 @@ export default function App() {
       registerWorkJuice,
       save,
       setSave,
+      shOf,
       showToastMsg,
       spawnReactionBurst,
       spawnWorkBurst,
@@ -622,29 +803,63 @@ export default function App() {
         .collectHatched(eggId)
         .then((next) => {
           setSave(next);
-          const name = egg ? gameConfig.species[egg.species]?.nameZh ?? egg.species : "精灵";
-          if (egg?.pendingFusion && egg.pendingFusion.status === "resolved") {
-            // AI 融合揭晓时刻：全新物种诞生
-            setFusionFlash(true);
-            window.setTimeout(() => setFusionFlash(false), 900);
-            showToastMsg(`🎉 全新物种「${name}」诞生了！`);
-          } else if (egg?.pendingFusion) {
-            showToastMsg("融合能量不稳定，孵出了一只咕噜鸭…");
-          } else {
-            showToastMsg(`${name} 破壳而出！`);
+          // 揭晓物种以**实际孵出的宠**为准（收取前后 pets 差集）：Steam 流的实发物种
+          // 由后端 collect_species_for 决定（商店蛋掷骰 / AI 未完成孵配方经典形象），
+          // 可能不同于蛋上的占位物种；找不到新宠（异常）才退回蛋面。
+          const prevPetIds = new Set(save.pets.map((pet) => pet.id));
+          const hatched = next.pets.find((pet) => !prevPetIds.has(pet.id));
+          const species = hatched?.species ?? egg?.species ?? "";
+          // 名称优先取 AI 自定义物种的中文名，其次预设表，最后 codename；
+          // EN 经 speciesDisplayName（目录物种 TitleCase，AI 用生成器给的英文专名 nameEn）。
+          const nameZh =
+            (species && next.customSpecies[species]?.info.nameZh) ||
+            gameConfig.species[species]?.nameZh ||
+            undefined;
+          const nameEn =
+            (species && next.customSpecies[species]?.info.nameEn) ||
+            gameConfig.species[species]?.nameEn ||
+            undefined;
+          const name = species
+            ? speciesDisplayName(species, languageRef.current, nameZh, nameEn)
+            : shOf().fallbackPetName;
+          const tier = egg?.tier ?? 1;
+          const slot = egg?.slot ?? null;
+          const f = egg?.pendingFusion;
+          let branch: HatchBranch;
+          if (f && f.status === "resolved") branch = "aiNew"; // 本次孵化诞生的全新 AI 物种（最强）
+          else if (f) branch = "fallback"; // 生成失败/未完成 → 孵该配方经典（0 号固有）形象
+          else if (species && next.customSpecies[species]) branch = "aiReuse"; // AI 形象复用
+          else branch = "standard"; // 普通/经典孵化（统一中等强度）
+          const payload: CelebrationPayload = { phase: "hatch", branch, tier, name, species, slot };
+          fireCelebration(payload);
+          // 融合领新宠：收取核销登记过的融合蛋 id → 判定来源；等庆典演出走完再引导开机自启。
+          if (takeFusionEgg(eggId)) {
+            const delayMs = celebrationDurationFor({ ...payload, id: 0, at: Date.now() }) + 400;
+            window.setTimeout(maybePromptAutostart, delayMs);
           }
+          showToastMsg(
+            branch === "aiNew"
+              ? fmt(shOf().toast.hatchAiNew, { name })
+              : branch === "fallback"
+                ? fmt(shOf().toast.hatchFallback, { name })
+                : fmt(shOf().toast.hatchStandard, { name }),
+          );
           dispatchLocalEvent("agent_work_finish");
-          if (next.tutorialStep < 2) {
-            bridge
-              .advanceTutorial(2)
-              .then(setSave)
-              .catch(() => undefined);
-          }
         })
         .catch((error) => showToastMsg(errorMessage(error)))
         .finally(() => setGameBusy(false));
     },
-    [bridge, dispatchLocalEvent, gameConfig, save, setSave, showToastMsg],
+    [
+      bridge,
+      dispatchLocalEvent,
+      fireCelebration,
+      gameConfig,
+      maybePromptAutostart,
+      save,
+      setSave,
+      shOf,
+      showToastMsg,
+    ],
   );
 
   const buyEgg = useCallback(
@@ -656,14 +871,13 @@ export default function App() {
         .then((next) => {
           setSave(next);
           const latest = next.eggs[next.eggs.length - 1];
-          showToastMsg(latest?.slot != null ? "蛋已放进孵化槽" : "孵化槽已满，蛋放进了库存");
+          showToastMsg(latest?.slot != null ? shOf().toast.eggToSlot : shOf().toast.eggToInventory);
           pushPop(`-${formatNumber(gameConfig ? eggPriceFor(gameConfig, element, tier) : 0)}`, "coin-dim");
-          if (save.tutorialStep === 3) advanceTutorial(4);
         })
         .catch((error) => showToastMsg(errorMessage(error)))
         .finally(() => setGameBusy(false));
     },
-    [advanceTutorial, bridge, gameConfig, pushPop, save, setSave, showToastMsg],
+    [bridge, gameConfig, pushPop, save, setSave, shOf, showToastMsg],
   );
 
   const placeEgg = useCallback(
@@ -673,17 +887,52 @@ export default function App() {
         .placeEgg(eggId, slot)
         .then((next) => {
           setSave(next);
-          showToastMsg("开始孵化！");
+          showToastMsg(shOf().toast.hatchStart);
         })
         .catch((error) => showToastMsg(errorMessage(error)))
         .finally(() => setGameBusy(false));
     },
-    [bridge, setSave, showToastMsg],
+    [bridge, setSave, shOf, showToastMsg],
   );
 
-  // 场景内点融合 → 打开融合仪式弹窗（CLI 预检 + 确认 + 掷骰配方/AI 生成）。
-  const [fusionPair, setFusionPair] = useState<{ a: PetInstance; b: PetInstance } | null>(null);
+  // #2 催蛋：点击孵化中的蛋 → 孵化时间 −1s。不设 busy（要能连点）。
+  // 疯狂连点原本会卡在剩 2–3s：多个催蛋请求并发往返、回包乱序到达，旧回包把倒计时又顶回去。
+  // 修法①：每颗蛋串行化催蛋请求（前一条 resolve 后再发下一条）→ 回包必然单调递减、绝不回弹。
+  // 修法②：后端权威回包显示已到点（hatchAt ≤ now，同机同源时钟）时，直接收取 → 连点一路点到孵化。
+  const pokeEgg = useCallback(
+    (eggId: string) => {
+      const prev = pokeChainRef.current.get(eggId) ?? Promise.resolve();
+      const chain = prev
+        .catch(() => undefined)
+        .then(() => bridge.pokeEgg(eggId))
+        .then((fresh) => {
+          const freshEgg = fresh.eggs.find((e) => e.id === eggId);
+          // 已被收取 → 不要用回包复活这颗蛋（乱序回包仍可能带着旧的它）。
+          if (!freshEgg) return;
+          // 仅同步这颗蛋的孵化时刻，其余字段以当前存档为准，避免连点抖动。
+          setSave((cur) =>
+            cur
+              ? { ...cur, eggs: cur.eggs.map((e) => (e.id === eggId ? { ...e, hatchAt: freshEgg.hatchAt } : e)) }
+              : fresh,
+          );
+          const now = Math.floor(Date.now() / 1000);
+          if (
+            freshEgg.slot != null &&
+            freshEgg.hatchAt != null &&
+            freshEgg.hatchAt <= now &&
+            !autoCollectedRef.current.has(eggId)
+          ) {
+            autoCollectedRef.current.add(eggId); // 串行链里多条回包都会到点，只收一次。
+            collectEgg(eggId);
+          }
+        })
+        .catch(() => undefined);
+      pokeChainRef.current.set(eggId, chain);
+    },
+    [bridge, collectEgg, setSave],
+  );
 
+  // 场景内点融合 → 打开融合仪式弹窗（CLI 预检 + 确认 + 掷骰配方/AI 生成）。fusionPair 状态已上移（#8）。
   const fusePets = useCallback(
     (idA: string, idB: string) => {
       if (!save) return;
@@ -697,21 +946,41 @@ export default function App() {
 
   const handleFusionCommitted = useCallback(
     (result: FusionStartResult) => {
-      setFusionFlash(true);
-      window.setTimeout(() => setFusionFlash(false), 900);
       setSave(result.save);
-      showToastMsg(
-        result.mode === "recipe" ? "触发经典配方！高阶蛋已放进孵化区" : "✨ AI 开始设计新物种，神秘蛋已入孵化区",
-      );
+      // 登记融合结果蛋 id：收取到它时即「融合领新宠」，据此引导开机自启（见 collectEgg）。
+      rememberFusionEgg(result.eggId);
+      const egg = result.save.eggs.find((item) => item.id === result.eggId) ?? null;
+      const name =
+        result.mode === "recipe"
+          ? result.species
+            ? speciesDisplayName(result.species, languageRef.current, gameConfig?.species[result.species]?.nameZh, gameConfig?.species[result.species]?.nameEn)
+            : shOf().newSpeciesName
+          : shOf().mysterySpeciesName;
+      fireCelebration({
+        phase: "fusionCommit",
+        mode: result.mode,
+        tier: egg?.tier ?? 1,
+        name,
+        species: result.species ?? null,
+        slot: egg?.slot ?? null,
+        parentTier: fusionPair?.a.tier ?? 1,
+        parentA: fusionPair?.a.species ?? "",
+        parentB: fusionPair?.b.species ?? "",
+      });
+      showToastMsg(result.mode === "recipe" ? shOf().toast.fusionRecipe : shOf().toast.fusionAi);
+      setFusionPair(null); // 关闭确认弹窗，让场景庆典接手
     },
-    [setSave, showToastMsg],
+    [fireCelebration, fusionPair, gameConfig, setSave, shOf, showToastMsg],
   );
 
   useFusionProgress(bridge, showToastMsg);
+  useAchievementUnlocks(bridge, showToastMsg, dispatchPetEvent);
 
   useDynamicQuotes(bridge);
 
   const steamStatus = useSteamStatus(bridge, setSave, showToastMsg);
+  // 自定义物种设定图离屏渲染缓存（创意工坊缩略图；Tauri 专属 best-effort）。
+  useSpeciesPreviews(bridge, gameConfig, save);
 
   const releasePet = useCallback(
     (petId: string) => {
@@ -721,12 +990,12 @@ export default function App() {
         .then((result) => {
           setSave(result.save);
           pushPop(`+${formatCount(result.refund)}`, "coin");
-          showToastMsg(`已放生，返还 ${formatCount(result.refund)} 金币`);
+          showToastMsg(fmt(shOf().toast.released, { refund: formatCount(result.refund) }));
         })
         .catch((error) => showToastMsg(errorMessage(error)))
         .finally(() => setGameBusy(false));
     },
-    [bridge, pushPop, setSave, showToastMsg],
+    [bridge, pushPop, setSave, shOf, showToastMsg],
   );
 
   const followPet = useCallback(
@@ -736,12 +1005,13 @@ export default function App() {
         .setActivePet(petId)
         .then((next) => {
           setSave(next);
-          showToastMsg("它现在跟着你啦");
+          markSwitched(); // 教练 C5：切换过陪伴
+          showToastMsg(shOf().toast.following);
         })
         .catch((error) => showToastMsg(errorMessage(error)))
         .finally(() => setGameBusy(false));
     },
-    [bridge, setSave, showToastMsg],
+    [bridge, markSwitched, setSave, shOf, showToastMsg],
   );
 
   const upgradeHatchery = useCallback(() => {
@@ -750,11 +1020,11 @@ export default function App() {
       .upgradeHatchery()
       .then((next) => {
         setSave(next);
-        showToastMsg("孵化屋升级成功！");
+        showToastMsg(shOf().toast.hatcheryUpgraded);
       })
       .catch((error) => showToastMsg(errorMessage(error)))
       .finally(() => setGameBusy(false));
-  }, [bridge, setSave, showToastMsg]);
+  }, [bridge, setSave, shOf, showToastMsg]);
 
   const upgradeYard = useCallback(() => {
     setGameBusy(true);
@@ -762,11 +1032,11 @@ export default function App() {
       .upgradeYard()
       .then((next) => {
         setSave(next);
-        showToastMsg("后院升级成功！");
+        showToastMsg(shOf().toast.yardUpgraded);
       })
       .catch((error) => showToastMsg(errorMessage(error)))
       .finally(() => setGameBusy(false));
-  }, [bridge, setSave, showToastMsg]);
+  }, [bridge, setSave, shOf, showToastMsg]);
 
   const upgradeShop = useCallback(() => {
     setGameBusy(true);
@@ -774,20 +1044,41 @@ export default function App() {
       .upgradeShop()
       .then((next) => {
         setSave(next);
-        showToastMsg("商店升级成功！解锁了更高阶的蛋");
+        showToastMsg(shOf().toast.shopUpgraded);
       })
       .catch((error) => showToastMsg(errorMessage(error)))
       .finally(() => setGameBusy(false));
-  }, [bridge, setSave, showToastMsg]);
+  }, [bridge, setSave, shOf, showToastMsg]);
 
   // 后院交易所建筑入口：打开 Steam 交易市场（后续接入具体物品页）。
   const openSteamMarket = useCallback(() => {
     if (isTauri()) {
-      void invoke("open_steam_market").catch(() => showToastMsg("打不开 Steam 市场，稍后再试"));
+      void invoke("open_steam_market").catch(() => showToastMsg(shOf().toast.steamMarketFail));
       return;
     }
-    window.open("https://steamcommunity.com/market/", "_blank", "noopener");
-  }, [showToastMsg]);
+    window.open("https://steamcommunity.com/market/search?appid=4956830", "_blank", "noopener");
+  }, [shOf, showToastMsg]);
+
+  // 导入我的宠物：读整份 Steam 库存，未绑定宠物物品填后院空位（高阶优先）。
+  // 存档更新经 game://state 回推；这里只负责即时提示 + 结果文案。
+  const importSteamPets = useCallback(() => {
+    const toast = shOf().toast;
+    showToastMsg(toast.steamImporting);
+    bridge
+      .steamImportPets()
+      .then(({ imported, skippedCapacity }) => {
+        if (imported > 0 && skippedCapacity > 0) {
+          showToastMsg(fmt(toast.steamImportDonePartial, { imported, skipped: skippedCapacity }));
+        } else if (imported > 0) {
+          showToastMsg(fmt(toast.steamImportDone, { imported }));
+        } else if (skippedCapacity > 0) {
+          showToastMsg(fmt(toast.steamImportFull, { skipped: skippedCapacity }));
+        } else {
+          showToastMsg(toast.steamImportNone);
+        }
+      })
+      .catch((error) => showToastMsg(errorMessage(error)));
+  }, [bridge, shOf, showToastMsg]);
 
   const debugFeed = useCallback(
     (amount: number) => {
@@ -796,19 +1087,25 @@ export default function App() {
         .debugFeedTokens(amount)
         .then((result) => {
           setSave(result.save);
-          if (result.outcome.staminaFed > 0) {
+          if (result.outcome.expGained > 0) {
             // 调试投喂无真实 Agent：借 Claude 之名走完气泡的来源分支，便于预览验证。
-            enqueueFed(result.outcome.staminaFed, amount, "claudeCode");
+            // 调试量按纯产出 token 记（四分里最有意义的一类）。
+            enqueueFed(
+              result.outcome.expGained,
+              { ...EMPTY_BREAKDOWN, output: amount },
+              "claudeCode",
+              result.outcome.leveledUp,
+            );
           } else {
-            showToastMsg("精力已经满满的啦");
+            showToastMsg(shOf().toast.tokenMaxed);
           }
         })
         .catch(() => undefined);
     },
-    [bridge, enqueueFed, setSave, showToastMsg],
+    [bridge, enqueueFed, setSave, shOf, showToastMsg],
   );
 
-  const { projectTokens, statusText } = useCodexStatus(
+  const { tokenStats, statusText } = useCodexStatus(
     bridge,
     language,
     dispatchPetEvent,
@@ -817,16 +1114,18 @@ export default function App() {
     setSave,
   );
 
-  // --- 键盘充能表现层（InteractionEconomy §6.3）---
+  // --- 键盘充能 / Token 经验表现层（InteractionEconomy §6.3）---
   // game://keys → 键帽雨（主窗口舞台；后院由场景层自播）；
-  // game://stamina → 精力轻量补丁（免拉全量存档）+ 条脉冲 + 合并飘字。
+  // game://stamina → 精力轻量补丁（键盘入账，只喂陪伴宠）+ 条脉冲 + 合并飘字；
+  // game://exp → 经验轻量补丁（Token 喂养入账，改写陪伴宠 exp/level）。
   useEffect(() => {
     const disposeKeys = bridge.onKeyFx((event) => {
+      markCeDone(); // 教练 CE：敲过键盘即视为学会键盘回精力（稳定 callback，无需入依赖）
       // 键盘玩法发现提示（一次性）：首批键帽到达时点破"打字=喂它"。
       try {
         if (!window.localStorage.getItem("gulugulu.keyDiscoverySeen")) {
           window.localStorage.setItem("gulugulu.keyDiscoverySeen", "1");
-          showToastMsg("发现了吗？你敲的每个键我都接住吃掉啦——打字就是在喂我⚡");
+          showToastMsg(shOf().toast.keyDiscovery);
         }
       } catch {
         // localStorage 不可用时跳过提示
@@ -854,16 +1153,31 @@ export default function App() {
       const total = patch.perPet.reduce((sum, item) => sum + item.staminaGained, 0);
       if (total > 0) {
         setEnergyPulse((tick) => tick + 1);
-        if (!document.hidden && patch.source === "keys") {
+        if (!document.hidden) {
           pushPop(`+${formatNumber(total)}`, "stamina");
         }
       }
     });
+    // Token 喂养的经验入账：即时改写陪伴宠 exp/level（免拉全量存档；
+    // 升级庆祝由 save 变化的 watchedLevel 管线自然触发）。
+    const disposeExp = bridge.onExpPatch((patch) => {
+      if (!patch.petId || patch.expGained <= 0) return;
+      setSave((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          pets: prev.pets.map((pet) =>
+            pet.id === patch.petId ? { ...pet, level: patch.levelAfter, exp: patch.expAfter } : pet,
+          ),
+        };
+      });
+    });
     return () => {
       disposeKeys();
       disposePatch();
+      disposeExp();
     };
-  }, [bridge, pushPop, setSave, spawnFlights]);
+  }, [bridge, pushPop, setSave, shOf, spawnFlights]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -931,9 +1245,20 @@ export default function App() {
       void invoke("dock_backyard_window", { height: storedBackyardHeight() }).catch(() => undefined);
       return;
     }
+    // 欢迎卡打开时，把窗口临时增高到能完整容纳整张卡——否则 280×320 小窗会把昨日战报
+    // 拦腰截断成内部滚动条（还挤窄右列）。卡片是 position:fixed 覆盖层、铺满整窗，所以只需
+    // 放大 OS 窗口即可显示全部内容；<main>/windowSize 不动，宠物不位移。关闭后 welcomeOffline→
+    // null，依赖变化让本 effect 重跑、自动恢复到当前模式尺寸。未测得高度前先保持模式高（只涨不缩）。
+    let height = windowSize.h;
+    if (welcomeOffline != null && welcomeCardHeight != null) {
+      height = Math.min(
+        Math.max(windowSize.h, welcomeCardHeight + WELCOME_WINDOW_PAD),
+        WELCOME_WINDOW_MAX_H,
+      );
+    }
     // 恢复置顶 + 固定尺寸在 resize_game_window（Rust）内完成。
-    void bridge.resizeWindow(windowSize.w, windowSize.h).catch(() => undefined);
-  }, [bridge, uiMode, windowSize.h, windowSize.w]);
+    void bridge.resizeWindow(windowSize.w, height).catch(() => undefined);
+  }, [bridge, uiMode, windowSize.h, windowSize.w, welcomeOffline, welcomeCardHeight]);
 
   // 一次性状态到期归位。working/thinking 是 Agent 活跃期基线，不在此表——它们由
   // 下方专用锁存超时收束；其余瞬时态演完走 settleAfterOneShot（活跃→基线，否则 idle）。
@@ -994,9 +1319,9 @@ export default function App() {
       dispatchLocalEvent("pet_wake");
       setWaking(true);
       window.setTimeout(() => setWaking(false), 950);
-      showToastMsg("睡饱啦！精力回上来了⚡");
+      showToastMsg(shOf().toast.wokeUp);
     }
-  }, [activePet, dispatchLocalEvent, petState, showToastMsg]);
+  }, [activePet, dispatchLocalEvent, petState, shOf, showToastMsg]);
 
   // Celebrate every active-pet level-up on the stage (clicks, idle ticks and
   // token feeds all funnel through save changes). Reaching a tier's max level is
@@ -1019,8 +1344,13 @@ export default function App() {
       if (max && !known.has(pet.id)) {
         known.add(pet.id);
         if (pet.id !== save.activePetId) {
-          const name = gameConfig.species[pet.species]?.nameZh ?? pet.species;
-          showToastMsg(`🌟 ${name} 满级啦！可以去融合了`);
+          const name = speciesDisplayName(
+            pet.species,
+            languageRef.current,
+            gameConfig.species[pet.species]?.nameZh,
+            gameConfig.species[pet.species]?.nameEn,
+          );
+          showToastMsg(fmt(shOf().toast.yardPetMaxed, { name }));
         }
       } else if (!max && known.has(pet.id)) {
         known.delete(pet.id);
@@ -1035,19 +1365,20 @@ export default function App() {
     const watched = watchedLevelRef.current;
     if (watched && watched.id === active.id && active.level > watched.level) {
       if (isMaxLevel(gameConfig, active)) {
-        pushPop("★满级！", "levelmax");
+        pushPop(shOf().pop.maxLevel, "levelmax");
         spawnReactionBurst();
         triggerFinisher();
-        setSpeechLine("⭐ 满级啦！凑一对同阶就能融合");
+        setSpeechLine(shOf().speech.maxLevelFuse);
         setSpeechVisible(true);
       } else {
         pushPop("Lv UP!", "levelup");
       }
     }
     watchedLevelRef.current = { id: active.id, level: active.level };
-  }, [save, gameConfig, pushPop, showToastMsg, spawnReactionBurst, triggerFinisher]);
+  }, [save, gameConfig, pushPop, shOf, showToastMsg, spawnReactionBurst, triggerFinisher]);
 
-  // Autonomous wandering (only while the plain pet is showing) + coin pickup.
+  // Autonomous wandering (only while the plain pet is showing)。纯散步——
+  // 2026-07-21 机制修订：漫游不再有任何拾取/回复（原漫游零食已移除）。
   // 孵化中的蛋（没有主宠）钉在原地，不做随机漫游（§3）。
   // 随机移动可在设置/托盘里关闭（默认开）；关闭时角色不再在桌面上自主走动。
   const randomMovementEnabled = appSettings?.randomMovement ?? true;
@@ -1068,23 +1399,9 @@ export default function App() {
       dispatchLocalEvent("pet_move_start");
       dispatchLocalEvent("pet_move");
 
-      const pickup = () => {
-        // 漫游零食（v1.1）：捡到的是能量零食，回精力不给金币。
-        bridge
-          .wanderSnack()
-          .then((result) => {
-            setSave(result.save);
-            if (result.staminaGained > 0) {
-              pushPop(`+${result.staminaGained}`, "stamina");
-            }
-          })
-          .catch(() => undefined);
-      };
-
       if (!isTauri()) {
         window.setTimeout(() => {
           dispatchLocalEvent("pet_move_stop");
-          pickup();
         }, AUTONOMOUS_MOVE_DURATION_MS);
         return;
       }
@@ -1122,7 +1439,6 @@ export default function App() {
         .catch(() => undefined)
         .finally(() => {
           dispatchLocalEvent("pet_move_stop");
-          pickup();
         });
     }, AUTONOMOUS_MOVE_DELAY_MS);
 
@@ -1141,6 +1457,10 @@ export default function App() {
 
   const handleAnimationComplete = useCallback(() => {
     if (stateRef.current === "fed") {
+      if (fedFailsafeRef.current !== null) {
+        window.clearTimeout(fedFailsafeRef.current);
+        fedFailsafeRef.current = null;
+      }
       playingFedRef.current = false;
       setSceneFed(null);
       settleAfterOneShot();
@@ -1243,10 +1563,9 @@ export default function App() {
         collectEgg(stageEgg.id);
         return;
       }
-      if (uiMode === "pet") {
-        dispatchLocalEvent("user_click");
-        openMenu();
-      }
+      // #2 点击孵化中的蛋 → 每点 −1s（催蛋）；播一次点击反馈。不再借此开菜单。
+      dispatchLocalEvent("user_click");
+      pokeEgg(stageEgg.id);
       return;
     }
 
@@ -1281,18 +1600,37 @@ export default function App() {
 
   const copy = t(language);
 
-  const visibleTutorialHint = useTutorialHints(save, gameConfig, uiMode, advanceTutorial);
+  const visibleTutorialHint = useTutorialHints(save, gameConfig, uiMode, advanceTutorial, {
+    hatcheryReady,
+    steamEnabled: steamStatus != null,
+    suppressed: coach.active, // 强引导期间轻引导气泡让位（复用同一气泡）
+    lang: language,
+  });
 
   // 后院红点：能买第二颗蛋 / 有蛋可收取 / 可融合（两只同阶满级凑齐）。
+  // 孵化屋已满时不为"买蛋"亮红点——蛋只能进库存孵不了（收蛋/融合红点另算）。
   const shopBadge =
     save != null &&
     gameConfig != null &&
     save.pets.length < 2 &&
-    save.coins >= Math.min(...Object.values(gameConfig.eggPrices));
-  const hatcheryBadge =
-    save != null && save.eggs.some((egg) => egg.slot != null && egg.hatchAt != null && stageNow >= egg.hatchAt);
-  const fusionBadge = save != null && gameConfig != null && fusionReady(gameConfig, save);
+    save.coins >= Math.min(...Object.values(gameConfig.eggPrices)) &&
+    !hatcheryFull(gameConfig, save);
+  const hatcheryBadge = hatcheryReady;
+  // 融合红点：只看当前陪伴宠能否**立刻**融合（同阶满级搭档 + 金币够费），见 activePetCanFuse。
+  const fusionBadge = save != null && gameConfig != null && activePetCanFuse(gameConfig, save);
   const backyardBadge = shopBadge || hatcheryBadge || fusionBadge;
+
+  // 进后院时主角用一句幽默话点题「该干嘛」（含去找谁融合）。优先级低于新手引导：
+  // 引导激活时交由 coachLabel 代言，这里给 null（BackyardScene 只在进场评估一次）。
+  const entryGuideKind: "fuse" | "collectEgg" | "buyEgg" | null = coach.active
+    ? null
+    : fusionBadge
+      ? "fuse"
+      : hatcheryBadge
+        ? "collectEgg"
+        : shopBadge
+          ? "buyEgg"
+          : null;
 
   const showStage = uiMode === "pet" || uiMode === "menu";
   const gameReady = save != null && gameConfig != null;
@@ -1302,15 +1640,17 @@ export default function App() {
   // 气泡区，互不叠加；浮动 pill 只保留给没有气泡区的界面（后院/调试）。
   const stageToast = showStage ? toast : null;
   const stageHint = showStage ? visibleTutorialHint : null;
-  const bubbleText = stageToast?.text ?? stageHint?.text ?? (speechVisible ? speechLine : null);
-  const bubbleIsHint = stageToast == null && stageHint != null;
+  // 教练引导文字复用同一气泡（OnboardingCoach.md §5）：toast > 教练 > 轻引导 > 台词。
+  const stageCoach = showStage ? coach.directive?.label ?? null : null;
+  const bubbleText = stageToast?.text ?? stageCoach ?? stageHint?.text ?? (speechVisible ? speechLine : null);
+  const bubbleIsHint = stageToast == null && (stageCoach != null || stageHint != null);
   if (bubbleText != null) lastBubbleTextRef.current = bubbleText;
 
   useEffect(() => {
-    bubbleBusyRef.current = stageToast != null || stageHint != null;
+    bubbleBusyRef.current = stageToast != null || stageHint != null || stageCoach != null;
     // 引导/状态提示接管气泡时丢弃待播的随机台词，避免提示结束后旧台词突然冒出。
     if (bubbleBusyRef.current) setSpeechVisible(false);
-  }, [stageToast, stageHint]);
+  }, [stageToast, stageHint, stageCoach]);
 
   const handleShellPointerDown = (event: PointerEvent<HTMLElement>) => {
     if (event.target === event.currentTarget && uiMode !== "pet") {
@@ -1319,6 +1659,9 @@ export default function App() {
   };
 
   return (
+    // 语言上下文根：App 持有 language 状态，全部 uiMode 渲染路径（舞台/菜单/后院/
+    // 设置/调试/浮层）都在 Provider 内，任意深度组件可用 useT() 取词。
+    <LanguageContext.Provider value={language}>
     <main
       className={`pet-shell state-${petState} facing-${movementDirection} ui-${uiMode} ${isTauri() ? "" : "is-preview"}`}
       style={
@@ -1341,12 +1684,38 @@ export default function App() {
         />
       )}
 
+      {/* 新手强引导手势层（全窗口固定覆盖、非阻塞）+ 跳过入口 */}
+      <CoachFx directive={coach.directive} />
+      {coach.active && (
+        <button type="button" className="coach-skip" onClick={markDone}>
+          {copy.sh.coach.skip}
+        </button>
+      )}
+
+      {/* 连击累计读数（点击游戏爽快感）：置于对话气泡上方的窗口顶部，
+          避开宠物身上的打工粒子/飞金特效，不再与它们叠加。 */}
+      {showStage && comboView && (
+        <div
+          className={`combo-pop ${comboView.flip % 2 === 0 ? "combo-pop-a" : "combo-pop-b"}`}
+          style={{ "--combo-scale": `${1 + Math.min(comboView.count, 20) * 0.025}` } as CSSProperties}
+          aria-hidden="true"
+        >
+          {comboView.count > 1 && (
+            <span className="combo-count">{fmt(copy.sh.pop.combo, { n: comboView.count })}</span>
+          )}
+          <span className="combo-line">🪙 +{formatCount(comboView.coins)}</span>
+          {comboView.exp > 0 && (
+            <span className="combo-line combo-exp">✨ +{formatCount(comboView.exp)}</span>
+          )}
+        </div>
+      )}
+
       {showStage ? (
         <PetStage
           flights={flights}
           removeFlight={removeFlight}
           pops={pops}
-          comboView={comboView}
+          stageRef={stageRef}
           duckFacingRef={duckFacingRef}
           finisherClass={finisherClass}
           handlePointerCancel={handlePointerCancel}
@@ -1361,7 +1730,7 @@ export default function App() {
           isSvgStage={isSvgStage}
           reactionPulseClass={reactionPulseClass}
           waking={waking}
-          petState={petState}
+          petState={(previewPetState() as PetState | null) ?? petState}
           reactionBursts={reactionBursts}
           reactionColor={reactionColor}
           workBursts={workBursts}
@@ -1373,9 +1742,10 @@ export default function App() {
             config={gameConfig}
             busy={gameBusy}
             statusText={statusText}
-            projectTokens={projectTokens}
+            tokenStats={tokenStats}
             petState={petState}
             fedPulse={sceneFed}
+            celebration={celebration}
             speechLine={speechLine}
             speechVisible={speechVisible}
             toast={toast}
@@ -1383,12 +1753,17 @@ export default function App() {
             onOpenMarket={openSteamMarket}
             onSteamSync={() => {
               bridge.steamSyncNow().catch((error) => showToastMsg(errorMessage(error)));
-              showToastMsg("正在与 Steam 同步…");
+              showToastMsg(copy.sh.toast.steamSyncing);
             }}
+            onImportPets={importSteamPets}
             onWalkingChange={handleSceneWalking}
             onBack={goBack}
             onWorkPet={workOn}
+            emitWorkBurst={emitWorkBurstAtRect}
+            emitCelebration={emitCelebration}
+            emitYardFx={emitYardFx}
             onCollectEgg={collectEgg}
+            onPokeEgg={pokeEgg}
             onPlaceEgg={placeEgg}
             onBuyEgg={buyEgg}
             onUpgradeHatchery={upgradeHatchery}
@@ -1398,6 +1773,10 @@ export default function App() {
             onFollow={followPet}
             onRelease={releasePet}
             onToast={showToastMsg}
+            coachLabel={coach.directive?.label ?? null}
+            entryGuideKind={entryGuideKind}
+            onCoachMoved={markMoved}
+            onCoachYard={setYardCoach}
           />
         )
       ) : uiMode === "settings" ? (
@@ -1411,6 +1790,7 @@ export default function App() {
             handleAlwaysOnTop={handleAlwaysOnTop}
             handleKeyboardCapture={handleKeyboardCapture}
             handleRandomMovement={handleRandomMovement}
+            handleAutostart={handleAutostart}
             selectPanel={selectPanel}
             closePet={closePet}
           />
@@ -1465,7 +1845,6 @@ export default function App() {
         toast={toast}
         uiMode={uiMode}
         activePet={activePet}
-        fusionFlash={fusionFlash}
         fusionPair={fusionPair}
         gameConfig={gameConfig}
         bridge={bridge}
@@ -1474,8 +1853,13 @@ export default function App() {
         welcomeOffline={welcomeOffline}
         save={save}
         setWelcomeOffline={setWelcomeOffline}
+        onWelcomeMeasure={setWelcomeCardHeight}
+        autostartPromptOpen={autostartPromptOpen}
+        onAutostartAccept={acceptAutostart}
+        onAutostartDecline={declineAutostart}
       />
 
     </main>
+    </LanguageContext.Provider>
   );
 }

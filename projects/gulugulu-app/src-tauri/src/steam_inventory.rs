@@ -39,12 +39,12 @@ fn issue(
 ) -> Result<steamworks_sys::SteamInventoryResult_t, String> {
     let inv = inventory();
     if inv.is_null() {
-        return Err("Steam 库存接口不可用".to_string());
+        return Err("#steamInventoryUnavailable".to_string());
     }
     let mut handle: steamworks_sys::SteamInventoryResult_t = INVALID_RESULT;
     let ok = call(inv, &mut handle);
     if !ok || handle == INVALID_RESULT {
-        return Err("库存调用发起失败".to_string());
+        return Err("#steamInventoryStartFailed".to_string());
     }
     Ok(handle)
 }
@@ -89,6 +89,21 @@ pub fn start_exchange(
 pub fn start_consume(item_id: u64) -> Result<steamworks_sys::SteamInventoryResult_t, String> {
     issue(|inv, handle| unsafe {
         steamworks_sys::SteamAPI_ISteamInventory_ConsumeItem(inv, handle, item_id, 1)
+    })
+}
+
+/// 从堆叠里拆 1 个到新实例（dest = k_SteamItemInstanceIDInvalid）。
+/// 掉落/兑换发放同 def 物品会自动堆叠（A5 实证：同 item_id quantity++），
+/// 而「一宠一物品 id」绑定模型要求独立实例 → 绑定前拆栈。
+pub fn start_split_one(source_item_id: u64) -> Result<steamworks_sys::SteamInventoryResult_t, String> {
+    issue(|inv, handle| unsafe {
+        steamworks_sys::SteamAPI_ISteamInventory_TransferItemQuantity(
+            inv,
+            handle,
+            source_item_id,
+            1,
+            u64::MAX, // k_SteamItemInstanceIDInvalid → 新建堆叠
+        )
     })
 }
 
@@ -167,7 +182,7 @@ pub fn wait_result(
     let inv = inventory();
     if inv.is_null() {
         destroy_result(handle);
-        return OpOutcome::Failed("Steam 库存接口不可用".to_string());
+        return OpOutcome::Failed("#steamInventoryUnavailable".to_string());
     }
     let started = Instant::now();
     loop {
@@ -180,7 +195,7 @@ pub fn wait_result(
         }
         if status != steamworks_sys::EResult::k_EResultPending {
             destroy_result(handle);
-            return OpOutcome::Failed(format!("库存操作失败（EResult={status:?}）"));
+            return OpOutcome::Failed(format!("#steamInventoryOpFailed|err={status:?}"));
         }
         if started.elapsed() > timeout {
             destroy_result(handle);

@@ -1,11 +1,23 @@
 import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 import type { UiMode } from "../../game/GamePanels";
+import type { PetState } from "../../types";
 import { clamp } from "../geometry";
 
 type UseSpeechDropResult = {
   speechDrop: number;
   speechRef: RefObject<HTMLElement | null>;
 };
+
+/** 会在头顶上方飘浮、且画在 body 之外（getBBox 量不到）的状态提示：睡觉 ZZZ、
+ *  思考 …。这些状态下气泡要额外抬到这些提示的上方，别压住它们。 */
+const HEAD_VFX_STATES: ReadonlySet<PetState> = new Set<PetState>([
+  "sleeping",
+  "exhausted",
+  "thinking",
+]);
+/** ZZZ/思考点画在固定 viewBox 坐标：最高点约 y≈46，再叠加向上飘的动画峰值，
+ *  取 32 作参考顶（含余量），换算到屏幕后当作气泡要让开的「头顶」。 */
+const HEAD_VFX_TOP_VB = 32;
 
 /** —— 对话气泡贴头顶 ——
  *  舞台角色底部对齐、头顶高度随物种/体型变化（矮个头顶离窗口顶更远）。量出角色
@@ -15,6 +27,7 @@ type UseSpeechDropResult = {
 export function useSpeechDrop(
   uiMode: UiMode,
   activePetSpecies: string | null,
+  petState: PetState,
   duckFacingRef: RefObject<HTMLDivElement | null>,
 ): UseSpeechDropResult {
   const [speechDrop, setSpeechDrop] = useState(0);
@@ -53,7 +66,12 @@ export function useSpeechDrop(
       // 从 viewBox 单位换算到屏幕坐标。
       const unit = Math.min(svgBox.width, svgBox.height) / 256;
       const padY = (svgBox.height - 256 * unit) / 2;
-      const headTop = svgBox.top + padY + bbox.y * unit;
+      // 头顶=身体包围盒顶缘换算到屏幕；睡觉/思考时还有飘在 body 之外的 ZZZ/思考点，
+      // 用固定 viewBox 参考顶一并换算，取更高者，气泡才不会压住这些提示。
+      const bodyTop = svgBox.top + padY + bbox.y * unit;
+      const headTop = HEAD_VFX_STATES.has(petState)
+        ? Math.min(bodyTop, svgBox.top + padY + HEAD_VFX_TOP_VB * unit)
+        : bodyTop;
       const speechBox = speech.getBoundingClientRect();
       // speechBox.bottom 含当前 translateY，而这个位移正被弹出/呼吸/过渡动画实时改动。
       // 旧算法拿它和「目标 applied」做增量收敛：若某帧测量撞上动画中途（底缘还没下移到位，
@@ -79,7 +97,7 @@ export function useSpeechDrop(
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [showStage, activePetSpecies, uiMode]);
+  }, [showStage, activePetSpecies, petState, uiMode]);
 
   return { speechDrop, speechRef };
 }

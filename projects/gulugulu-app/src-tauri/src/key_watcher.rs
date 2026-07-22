@@ -37,6 +37,8 @@ pub struct KeyFxEvent {
 }
 
 /// `game://stamina`：≤1/s 的精力轻量补丁（不推全量存档——customSpecies 太大）。
+/// 2026-07-21 起精力只来自键盘（source 恒 "keys"）与自然恢复；Token 入账走
+/// `game://exp`（见 codex_adapter::enrich_with_game_feed）。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StaminaPatchEvent {
@@ -308,7 +310,7 @@ fn apply_capture(enabled: bool) {
 fn apply_capture(_enabled: bool) {}
 
 /// 启动键盘充能子系统：读取偏好、装钩（若开启）、常驻双节拍泵。
-/// 非 Windows：整体 no-op（恢复途径退化为挂机 + Token + 零食）。
+/// 非 Windows：整体 no-op（精力恢复途径退化为仅挂机自然恢复）。
 #[cfg(windows)]
 pub fn spawn_key_watcher(app: AppHandle, state: crate::game::SharedGameState) {
     let rate_cap = state.config.key_rate_cap_per_sec.max(1);

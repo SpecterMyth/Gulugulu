@@ -29,6 +29,10 @@ const QUOTES_FILE: &str = "gulugulu-quotes.json";
 const GEN_TIMEOUT_SECS: u64 = 180;
 /// 未连接时的重探间隔。
 const RETRY_INTERVAL: Duration = Duration::from_secs(30);
+/// 生成失败（多为「CLI 已装但未登录」——`--version` 探测能过、`-p` 报鉴权错）后的
+/// 重试间隔：足够长以免反复烧额度，又能在用户随后从公告板完成登录后自愈。
+/// 原实现在此永久等待（None），登录成功也不会触发，动态语录整个进程生命周期不再生成。
+const FAILED_RETRY_INTERVAL: Duration = Duration::from_secs(1800);
 /// 少于该条数视为生成失败（模型跑偏 / 输出被截断）。
 const MIN_QUOTES: usize = 6;
 /// 单条文本上限（中文按字符、英文按字符都够用；防跑题长文塞进气泡）。
@@ -289,8 +293,9 @@ pub fn spawn_quote_worker(app: AppHandle, state: QuoteGenState) {
                     wait_for_signal(&state, Some(RETRY_INTERVAL));
                 }
                 GenOutcome::Failed => {
-                    // 已连接但生成失败：不反复烧额度，等手动 regenerate。
-                    wait_for_signal(&state, None);
+                    // 已连接但生成失败：不反复烧额度，但给一个较长的重试窗口，
+                    // 让用户随后完成登录后能自愈（而非永久等手动 regenerate）。
+                    wait_for_signal(&state, Some(FAILED_RETRY_INTERVAL));
                 }
             }
         }
