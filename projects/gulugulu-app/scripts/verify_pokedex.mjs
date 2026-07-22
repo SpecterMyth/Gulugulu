@@ -45,9 +45,15 @@ ok(model.fixedCollected === 2, `固定已收集=2 guluduck+steamalotl（实得 $
 ok(model.aiCollected === 1, `AI 变种已收集=1 aiffw1（实得 ${model.aiCollected}）`);
 ok(model.collected.has("guluduck") && model.collected.has("steamalotl"), "曾获集合含 guluduck/steamalotl");
 
-// 高阶在上：第一行应是 6 元素 prismkirin。
-ok(model.recipes[0].elementCount === 6, `首行元素数 6（实得 ${model.recipes[0].elementCount}）`);
-ok(model.recipes[0].fixed === "prismkirin", `首行固定=prismkirin（实得 ${model.recipes[0].fixed}）`);
+// 低阶在上（图鉴文案「低阶在上」同口径；旧断言"高阶在上"已过时）：
+// 首行 2 元素、按配方键字典序 = electric+fire；末行 6 元素 prismkirin。
+ok(model.recipes[0].elementCount === 2, `首行元素数 2（实得 ${model.recipes[0].elementCount}）`);
+ok(
+  model.recipes[0].fixed === config.speciesByRecipe[model.recipes[0].key],
+  `首行固定物种与 speciesByRecipe 一致（实得 ${model.recipes[0].fixed}）`,
+);
+ok(model.recipes[56].elementCount === 6, `末行元素数 6（实得 ${model.recipes[56].elementCount}）`);
+ok(model.recipes[56].fixed === "prismkirin", `末行固定=prismkirin（实得 ${model.recipes[56].fixed}）`);
 
 // fire+water 行：slot0=steamalotl 已收集(曾获1)，slot1=aiffw1 已收集，slot2=神秘且概率 30%，slot3+ 锁定。
 const fw = model.recipes.find((r) => r.key === "fire+water");
@@ -70,6 +76,36 @@ ok(ef.slots[2].locked === true, "electric+fire 2 号锁定（需先集齐 0/1）
 const mus = M.museumThumbs(model, config, 2);
 ok(mus.shown.length === 1 && mus.overflow === 2, `速览 maxCells=2 → 显 1 + 溢出 2（实得 ${mus.shown.length}/${mus.overflow}）`);
 ok((config.species[mus.shown[0]]?.elements.length ?? 1) >= 1, "速览首格按元素数降序");
+
+// —— 皮肤系统新字段（SkinWorkshop.md）——
+// 每槽的全局确定性 codename：0 号 = 固定物种自身；AI 槽 = aif{配方序2位}{槽2位}
+//（神秘槽也有，先入库皮肤的徽章/定位依据）。
+ok(fw.slots[0].deterministicCodename === "steamalotl", "fire+water 0 号确定性名=固定物种");
+ok(
+  /^aif\d{2}01$/.test(fw.slots[1].deterministicCodename ?? ""),
+  `fire+water 1 号确定性名形如 aif??01（实得 ${fw.slots[1].deterministicCodename}）`,
+);
+ok(
+  /^aif\d{2}02$/.test(fw.slots[2].deterministicCodename ?? ""),
+  `fire+water 2 号（神秘槽）也有确定性名（实得 ${fw.slots[2].deterministicCodename}）`,
+);
+
+// 图鉴定位：实际 codename / 确定性名 / 基础物种都能定位到正确槽。
+const locA = M.dexLocatorForCodename("aiffw1", model);
+ok(locA?.recipeKey === "fire+water" && locA?.slotIndex === 1, "定位 aiffw1 → fire+water 1 号");
+const efDet = ef.slots[1].deterministicCodename;
+const locB = M.dexLocatorForCodename(efDet, model);
+ok(locB?.recipeKey === "electric+fire" && locB?.slotIndex === 1, "定位神秘槽确定性名 → electric+fire 1 号");
+const locC = M.dexLocatorForCodename("guluduck", model);
+ok(locC?.recipeKey === null && locC?.slotIndex >= 0, "定位 guluduck → 基础行");
+
+// 默认皮肤解析：旧式 hex 名走 customSpecies 元素兜底 → 配方固定物种。
+const defaultOf = M.resolveDefaultCodename(
+  "aiffw1",
+  config,
+  { aiffw1: { info: { elements: ["fire", "water"] } } },
+);
+ok(defaultOf === "steamalotl", `默认皮肤本体=steamalotl（实得 ${defaultOf}）`);
 
 if (failures > 0) {
   console.error(`\n✗ pokedex model: ${failures} assertion(s) failed`);

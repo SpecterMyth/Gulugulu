@@ -31,6 +31,9 @@ const base: ChimeraForm = {
 
 // 每种体型挑一组能凸显剪影的参数（配合真实会用到的耳/手/腿变体）。
 const FORMS: Record<string, ChimeraForm> = {
+  // 兼容用旧体型 stack（旧存档/未重建时的样子：扁头团 / 三段圆塔）。
+  stackflat: { ...base, bodyPlan: "stack", segments: 1, bodyW: 1.3, bodyH: 0.78, headStyle: "merged", earStyle: "none" },
+  stack3: { ...base, bodyPlan: "stack", segments: 3, bodyW: 1.0, bodyH: 1.1, headStyle: "merged", earStyle: "none" },
   round: { ...base, bodyPlan: "round", earStyle: "round", armStyle: "nub" },
   upright: { ...base, bodyPlan: "upright", earStyle: "none", armStyle: "flipper", bodyH: 1.1 },
   quadruped: { ...base, bodyPlan: "quadruped", legStyle: "tall", legCount: 4, earStyle: "point" },

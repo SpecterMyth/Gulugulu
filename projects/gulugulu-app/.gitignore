@@ -4,3 +4,7 @@ dist-ssr
 src-tauri/target
 src-tauri/gen
 *.log
+
+# SteamPipe staged depot build artifacts
+scripts/steam/content/
+scripts/steam/output/

@@ -34,16 +34,17 @@ const eq = (a, b, msg) => {
   }
 };
 
-// ---- 分阶蛋价 base × 15^(阶−1)（EconomyScaling.md §6.2） ----
-eq(M.eggPriceFor(config, "normal", 1), 80, "1 阶一般蛋 = 基价");
-eq(M.eggPriceFor(config, "normal", 3), 80 * 15 * 15, "3 阶一般蛋 = 80×15²");
-eq(M.eggPriceFor(config, "fire", 4), 405000, "4 阶火蛋 = 120×15³");
-eq(M.eggPriceFor(config, "ice", 4), 506250, "4 阶冰蛋 = 150×15³");
+// ---- 分阶蛋价 base × 85^(阶−1)（EconomyScaling.md v1.3 §6.2：乘数 20→85，2 阶蛋 ~2 万） ----
+eq(M.eggPriceFor(config, "normal", 1), 160, "1 阶一般蛋 = 基价");
+eq(M.eggPriceFor(config, "fire", 2), 240 * 85, "2 阶火蛋 = 240×85 ≈ 2 万");
+eq(M.eggPriceFor(config, "normal", 3), 160 * 85 * 85, "3 阶一般蛋 = 160×85²");
+eq(M.eggPriceFor(config, "fire", 4), 147390000, "4 阶火蛋 = 240×85³");
+eq(M.eggPriceFor(config, "ice", 4), 184237500, "4 阶冰蛋 = 300×85³");
 
 // ---- 放生等效蛋价（乘法、按实例阶；§8） ----
-eq(M.equivalentEggPrice(config, "frostpeng", 1), 150, "1 阶冰基础种等效价 = 150");
-eq(M.equivalentEggPrice(config, "guluswan", 2), 1200, "2 阶 guluswan([normal]) = 80×15");
-eq(M.equivalentEggPrice(config, "steamalotl", 3), (120 + 120) * 225, "3 阶 fire+water = (120+120)×15²");
+eq(M.equivalentEggPrice(config, "frostpeng", 1), 300, "1 阶冰基础种等效价 = 300");
+eq(M.equivalentEggPrice(config, "guluswan", 2), 160 * 85, "2 阶 guluswan([normal]) = 160×85");
+eq(M.equivalentEggPrice(config, "steamalotl", 3), (240 + 240) * 85 * 85, "3 阶 fire+water = (240+240)×85²");
 
 // ---- 商店升级 / 封顶（§6.1） ----
 eq(M.shopMaxLevel(config), 4, "商店封顶 4 阶");
@@ -54,32 +55,29 @@ eq(M.shopUpgradeCost(config, 4), null, "已满级无升级费");
 // ---- 蛋池整数权重 w(c)=3^(6−c)（§7.2） ----
 eq([1, 2, 3, 4, 5, 6].map((c) => M.eggRarityWeight(config, c)), [243, 81, 27, 9, 3, 1], "蛋池权重表");
 
-// ---- 蛋池过滤 + 掷点（§7.1；对齐 Rust egg_pool_filters 单测） ----
-const empty = { dexObtained: {}, customSpecies: {} };
-eq(M.eggPoolCandidates(config, empty, "fire", 1), [["emberfox", 243]], "1 阶火蛋 = 基础种恒可售");
-eq(M.eggPoolCandidates(config, empty, "fire", 2), [["emberfox", 243]], "2 阶火蛋未解锁 → 仅保底");
-const withSteam = { dexObtained: { steamalotl: 1 }, customSpecies: {} };
-const t2 = M.eggPoolCandidates(config, withSteam, "fire", 2).map(([c]) => c);
-eq(t2.includes("emberfox") && t2.includes("steamalotl"), true, "解锁 fire+water → 进 2 阶火蛋池");
+// ---- 蛋池（全局固定池，2026-07-15）+ 掷点（§7.1；对齐 Rust egg_pool_is_global_fixed_only） ----
+eq(M.eggPoolCandidates(config, "fire", 1), [["emberfox", 243]], "1 阶火蛋 = 唯一含火 1 元素固定种");
+// 2 阶火蛋 = 全局池：含火的 1~2 元素固定种全在（无需解锁），含 steamalotl(fire+water)。
+const t2 = M.eggPoolCandidates(config, "fire", 2).map(([c]) => c);
+eq(t2.includes("emberfox") && t2.includes("steamalotl"), true, "全局池：未解锁 fire+water 也入 2 阶火蛋池");
 eq(
-  M.eggPoolCandidates(config, withSteam, "electric", 2).some(([c]) => c === "steamalotl"),
+  M.eggPoolCandidates(config, "electric", 2).some(([c]) => c === "steamalotl"),
   false,
   "steamalotl 不在 electric 蛋池",
 );
-// 元素数 > 蛋阶：3 元素种即便解锁也不进 2 阶池，但进 3 阶池。
-const with3 = { dexObtained: { pyrepeacock: 1 }, customSpecies: {} };
+// 元素数 > 蛋阶：3 元素种不进 2 阶池，但进 3 阶池。
 eq(
-  M.eggPoolCandidates(config, with3, "fire", 2).some(([c]) => c === "pyrepeacock"),
+  M.eggPoolCandidates(config, "fire", 2).some(([c]) => c === "pyrepeacock"),
   false,
   "3 元素种不进 2 阶池",
 );
 eq(
-  M.eggPoolCandidates(config, with3, "fire", 3).some(([c]) => c === "pyrepeacock"),
+  M.eggPoolCandidates(config, "fire", 3).some(([c]) => c === "pyrepeacock"),
   true,
   "3 元素种进 3 阶池",
 );
 // roll=0 → 池首元素（与 Rust roll_egg_species 一致）。
-eq(M.rollEggSpecies(config, empty, "fire", 1, 0), "emberfox", "roll=0 → 池首 emberfox");
+eq(M.rollEggSpecies(config, "fire", 1, 0), "emberfox", "roll=0 → 池首 emberfox");
 
 if (failures === 0) {
   console.log("✓ 经济纵深对拍全部通过（config.ts ↔ Rust）");

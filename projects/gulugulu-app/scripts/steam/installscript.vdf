@@ -1,0 +1,21 @@
+// R2 — WebView2 runtime install script (OPTIONAL fallback).
+// Enable by (1) placing MicrosoftEdgeWebview2Setup.exe into content\ and
+// (2) uncommenting "InstallScript" in depot_build_4956831.vdf.
+//
+// The evergreen bootstrapper (~2 MB) is a free Microsoft redistributable:
+//   https://developer.microsoft.com/microsoft-edge/webview2/  (Evergreen Bootstrapper)
+//   direct: https://go.microsoft.com/fwlink/p/?LinkId=2124703
+// It is a no-op on machines that already have the runtime.
+"InstallScript"
+{
+	"Run Process"
+	{
+		"WebView2Runtime"
+		{
+			"HasRunKey"   "HKEY_LOCAL_MACHINE\\SOFTWARE\\Gulugulu\\WebView2Installed"
+			"process 1"   "MicrosoftEdgeWebview2Setup.exe"
+			"command 1"   "/silent /install"
+			"NoCleanUp"   "1"
+		}
+	}
+}

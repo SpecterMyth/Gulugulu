@@ -1,0 +1,20 @@
+// Steam SteamPipe build manifest for Gulugulu (App 4956830).
+// Uploaded with: steamcmd +login <user> +run_app_build "<abs>\app_build_4956830.vdf" +quit
+// Paths (ContentRoot / BuildOutput) resolve relative to THIS file's location.
+"AppBuild"
+{
+	"AppID"       "4956830"
+	"Desc"        "Gulugulu release build"   // shown in the Builds list; safe to edit per upload
+
+	"ContentRoot" "content\\"                 // staged by stage_and_build.ps1 (Gulugulu.exe + steam_api64.dll)
+	"BuildOutput" "output\\"                   // steamcmd scratch/log dir (gitignored)
+
+	// Leave SetLive empty: uploading does NOT publish to a public branch.
+	// Set the build live on a branch later from the partner site (Builds page), or add e.g. "SetLive" "default".
+	"SetLive"     ""
+
+	"Depots"
+	{
+		"4956831" "depot_build_4956831.vdf"
+	}
+}

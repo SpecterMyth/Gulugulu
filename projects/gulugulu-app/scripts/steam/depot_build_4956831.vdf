@@ -1,0 +1,25 @@
+// Depot 4956831 (Windows 64-bit) content manifest for Gulugulu.
+// ContentRoot is inherited from app_build_4956830.vdf ("content\").
+"DepotBuild"
+{
+	"DepotID" "4956831"
+
+	// Ship everything staged into content\ (Gulugulu.exe + steam_api64.dll).
+	// The Tauri release exe embeds the frontend, so no separate dist folder is needed.
+	"FileMapping"
+	{
+		"LocalPath" "*"
+		"DepotPath" "."
+		"Recursive" "1"
+	}
+
+	// Never ship debug symbols.
+	"FileExclusion" "*.pdb"
+
+	// --- R2 (WebView2 runtime fallback) -------------------------------------
+	// Most Win10/11 machines already have the Edge WebView2 runtime, so the
+	// first reviewable build ships without it. To add the fallback later:
+	//   1) place MicrosoftEdgeWebview2Setup.exe into content\
+	//   2) uncomment the next line
+	// "InstallScript" "installscript.vdf"
+}

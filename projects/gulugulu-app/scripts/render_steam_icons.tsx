@@ -15,6 +15,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Resvg } from "@resvg/resvg-js";
 import { SvgSprite } from "../src/sprites/SvgSprite";
+import { BADGE_PATHS, OUTLINE } from "../src/game/ElementIcon";
 import rawConfig from "../src/game/config.json";
 import type { GameConfig } from "../src/types";
 
@@ -58,7 +59,11 @@ function stripGroups(svg: string, className: string): string {
 }
 
 mkdirSync(outDir, { recursive: true });
-const speciesList = speciesArg === "all" ? Object.keys(config.species) : speciesArg.split(",");
+// "all" = 63 个上架固定物种（speciesByRecipe 的值：6 一阶 + 57 新多元素）。旧 21 只
+// 二阶兼容物种（tier 2，仅供老存档迁移）**不再产 Steam 图标**——它们不进新目录图标层。
+// 显式传 codename 仍可单独渲染任意物种（含 legacy，用于排查）。
+const canonicalSpecies = [...new Set(Object.values(config.speciesByRecipe as Record<string, string>))];
+const speciesList = speciesArg === "all" ? canonicalSpecies : speciesArg.split(",");
 const ok: Array<{ species: string; bytes: number }> = [];
 const failures: Array<{ species: string; error: string }> = [];
 
@@ -85,37 +90,107 @@ for (const species of speciesList) {
   }
 }
 
-// --- AI 融合变种占位图标（5 张，按元素数 2..6）---------------------------
-// 真形象/名字由首个生成者经创意工坊上传认领；此处只出通用"待认领空槽"占位。
-// 纯图形（虚线环 + N 颗元素色点 + 图形拼的 "?"），不依赖字体，避免 resvg 缺字。
+// --- AI 融合变种占位图标（每配方一张）------------------------------------
+// 设计：底色按品质（元素数 2→6 = 绿蓝紫橙红 稀有度渐变）；正中一只"未知宠物"黑影
+// （圆身+圆耳+脚）表示待认领；该配方的元素徽记做成象牙白勋章、以花环排布压在宠物之上
+// （向内收，不压边线框，中心留空露出宠物"脸"）。徽记路径/元素色复用 ElementIcon。
+// 文件名 `_aislot_<配方键 + 换 ->`，与 generate_itemdefs.mjs 的 icon_url 逐字对齐。
 if (speciesArg === "all") {
-  const ELEMENT_COLORS = ["#6E6E78", "#E85D3A", "#FFD93B", "#2E7BD6", "#57B84C", "#8FD8E8"];
-  const aiSlotSvg = (ec: number): string => {
-    const gap = 34;
-    const startX = 128 - ((ec - 1) * gap) / 2;
-    const dots = Array.from({ length: ec }, (_, i) =>
-      `<circle cx="${startX + i * gap}" cy="198" r="12" fill="${ELEMENT_COLORS[i]}" stroke="#3B2B1D" stroke-width="4"/>`,
-    ).join("");
+  const elements = config.elements as unknown as Record<string, { color: string; badge: string }>;
+  const elementCount = (r: string) => r.split("+").length;
+  const recipes = Object.keys(config.speciesByRecipe).filter((r) => elementCount(r) >= 2);
+  // 品质底色（2..6 元素 = 绿蓝紫橙红）。
+  const QUALITY_BG: Record<number, string> = {
+    2: "#57A863",
+    3: "#4589CC",
+    4: "#8C63C4",
+    5: "#E28A3C",
+    6: "#D45656",
+  };
+  const SILHOUETTE = "#201E28"; // 未知宠物黑影
+  const MEDALLION = "#F3EFE7"; // 元素勋章底盘（象牙白，保证各元素色都醒目）
+  // 花环参数（元素越多，环越大、勋章越小；R+mr≤82 保证向内收、不压边线框）。
+  const ROSETTE: Record<number, { ring: number; mr: number }> = {
+    2: { ring: 42, mr: 38 },
+    3: { ring: 46, mr: 34 },
+    4: { ring: 50, mr: 31 },
+    5: { ring: 53, mr: 28 },
+    6: { ring: 56, mr: 26 },
+  };
+  const CX = 128;
+  const CY = 134; // 花环 / 宠物脸 中心
+  const aiSlotSvg = (recipe: string): string => {
+    const els = recipe.split("+");
+    const n = els.length;
+    const bg = QUALITY_BG[n] ?? "#6E6E78";
+    const { ring, mr } = ROSETTE[n] ?? { ring: 50, mr: 30 };
+    // 角度：2 元素水平并列；≥3 从正上方(-90°)均分成花环。
+    const angles = n === 2 ? [180, 0] : Array.from({ length: n }, (_, i) => -90 + (360 / n) * i);
+    const medallions = els
+      .map((el, i) => {
+        const a = (angles[i] * Math.PI) / 180;
+        const mx = CX + ring * Math.cos(a);
+        const my = CY + ring * Math.sin(a);
+        const meta = elements[el];
+        const d = meta ? BADGE_PATHS[meta.badge] : undefined;
+        const box = mr * 1.5; // 徽记字形外框（居中于勋章）
+        const disc = `<circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="${mr}" fill="${MEDALLION}" stroke="${OUTLINE}" stroke-width="3"/>`;
+        const glyph = d
+          ? `<g transform="translate(${(mx - box / 2).toFixed(2)} ${(my - box / 2).toFixed(2)}) scale(${(box / 16).toFixed(4)})"><path d="${d}" fill="${meta.color}" stroke="${OUTLINE}" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"/></g>`
+          : `<circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="${(mr * 0.5).toFixed(1)}" fill="${meta?.color ?? "#888"}"/>`;
+        return disc + glyph;
+      })
+      .join("");
     return [
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">`,
-      `<rect x="10" y="10" width="236" height="236" rx="44" fill="#2A2A32" stroke="#3B2B1D" stroke-width="6"/>`,
-      `<circle cx="128" cy="110" r="60" fill="none" stroke="#9AA0AA" stroke-width="10" stroke-dasharray="16 12" stroke-linecap="round"/>`,
-      `<path d="M108 94 a20 20 0 1 1 26 19 q-6 4 -6 14" fill="none" stroke="#EDEDF2" stroke-width="11" stroke-linecap="round"/>`,
-      `<circle cx="128" cy="144" r="7" fill="#EDEDF2"/>`,
-      dots,
+      `<rect x="8" y="8" width="240" height="240" rx="44" fill="${bg}" stroke="${OUTLINE}" stroke-width="6"/>`,
+      // 未知宠物黑影（同色圆身 + 两圆耳 + 两脚，叠加成剪影）。
+      `<circle cx="84" cy="78" r="25" fill="${SILHOUETTE}"/>`,
+      `<circle cx="172" cy="78" r="25" fill="${SILHOUETTE}"/>`,
+      `<ellipse cx="104" cy="223" rx="18" ry="11" fill="${SILHOUETTE}"/>`,
+      `<ellipse cx="152" cy="223" rx="18" ry="11" fill="${SILHOUETTE}"/>`,
+      `<circle cx="128" cy="150" r="78" fill="${SILHOUETTE}"/>`,
+      medallions,
       `</svg>`,
     ].join("");
   };
-  for (let ec = 2; ec <= 6; ec += 1) {
-    const name = `_aislot_e${ec}`;
+  // --- 槽位序号徽标(1..10):嵌进左上圆角的象牙白圆盘 + 深墨粗体数字 --------
+  // Steam 库存里同一配方的 10 个 AI 变种槽此前共用一张占位图、肉眼无从区分;把
+  // itemdef 名里已有的「第 N 号」槽位序号也画到图上,10 张与 570 个 AI 槽一一对应。
+  // resvg 用系统字体渲染 <text>(已实测可用);产物 PNG 落库后与生成机字体无关。
+  const MAX_AI_SLOTS = 10; // 与 fusionSlots.ts / build_itemdefs_core.mjs 镜像
+  const slotBadge = (slot: number): string => {
+    const cx = 58;
+    const cy = 58;
+    const r = 34; // 左上角,嵌进 rx=44 圆角内,避开中央元素花环
+    const fs = slot >= 10 ? 38 : 48; // 两位数收字号
+    return (
+      `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${MEDALLION}" stroke="${OUTLINE}" stroke-width="5"/>` +
+      `<text x="${cx}" y="${cy}" font-family="Arial, Helvetica, sans-serif" font-size="${fs}" font-weight="700"` +
+      ` fill="${SILHOUETTE}" text-anchor="middle" dominant-baseline="central">${slot}</text>`
+    );
+  };
+  const renderAiPng = (name: string, svg: string) => {
     try {
-      const rendered = new Resvg(aiSlotSvg(ec), { fitTo: { mode: "width", value: ICON_SIZE } }).render();
-      const png = rendered.asPng();
+      const png = new Resvg(svg, {
+        fitTo: { mode: "width", value: ICON_SIZE },
+        font: { loadSystemFonts: true, defaultFontFamily: "Arial" },
+      })
+        .render()
+        .asPng();
       if (png.length < 512) throw new Error(`suspiciously small png (${png.length} bytes)`);
       writeFileSync(join(outDir, `${name}.png`), png);
       ok.push({ species: name, bytes: png.length });
     } catch (error) {
       failures.push({ species: name, error: error instanceof Error ? error.message : String(error) });
+    }
+  };
+  for (const recipe of recipes) {
+    const stem = `_aislot_${recipe.replaceAll("+", "-")}`;
+    const base = aiSlotSvg(recipe);
+    renderAiPng(stem, base); // 无编号原图(向后兼容,既有 57 张保持不变)
+    for (let slot = 1; slot <= MAX_AI_SLOTS; slot += 1) {
+      renderAiPng(`${stem}_${slot}`, base.replace("</svg>", slotBadge(slot) + "</svg>"));
     }
   }
 }
