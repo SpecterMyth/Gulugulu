@@ -18,6 +18,8 @@ const CREAM = "#F2E7C8";
 const GRILL = "#3E4356";
 const FLAME = "#FFB03A";
 const VOLT = "#FFD93B";
+const CORN = "#F5C542";
+const SAUSAGE = "#B5623C";
 
 function Front({ palette, slots = {}, eyes = "round", expression = "normal" }: RigProps) {
   return (
@@ -319,13 +321,20 @@ const skewerBit: ParticleRenderer = () => (
     <circle cx={0} cy={6} r={3} fill="#8CD97B" stroke={OUTLINE} strokeWidth={1.8} />
   </g>
 );
-const flameBit: ParticleRenderer = () => (
-  <path d="M0 5 q-4 -3.5 -2.5 -8.5 q1.8 -4.5 5.5 -7.5 q-1.2 4.5 1.8 7 q3.4 3 2.6 6.8 a5 5 0 0 1 -7.4 2.2 z" fill={FLAME} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const grilledCorn: ParticleRenderer = () => (
+  <g transform="rotate(-20)">
+    <rect x={-4.5} y={-8} width={9} height={16} rx={4.5} fill={CORN} stroke={OUTLINE} strokeWidth={2} />
+    <g stroke="#C99A2E" strokeWidth={1} opacity={0.9}>
+      <path d="M-4.5 -3.5 H4.5 M-4.5 0 H4.5 M-4.5 3.5 H4.5 M-1.5 -7.5 V7.5 M1.5 -7.5 V7.5" />
+    </g>
+    <path d="M-4.5 6 Q-8 8 -8.5 10.5 M4.5 6 Q8 8 8.5 10.5" fill="none" stroke={DEEP} strokeWidth={2.4} strokeLinecap="round" />
+  </g>
 );
-const shineBit: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={4.5} fill="#FFE9AD" stroke={OUTLINE} strokeWidth={1.8} />
-    <circle cx={-1.2} cy={-1.4} r={1.4} fill="#FFFFFF" />
+const sausage: ParticleRenderer = () => (
+  <g transform="rotate(-18)">
+    <rect x={-8} y={-4.5} width={16} height={9} rx={4.5} fill={SAUSAGE} stroke={OUTLINE} strokeWidth={2} />
+    <path d="M-8 -4.5 q-3 4.5 0 9 M8 -4.5 q3 4.5 0 9" fill="none" stroke={OUTLINE} strokeWidth={1.6} strokeLinecap="round" />
+    <path d="M-5 -1 q5 -2 10 0 M-5 2 q5 -2 10 0" fill="none" stroke="#8A4526" strokeWidth={1.1} opacity={0.7} />
   </g>
 );
 
@@ -357,7 +366,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 200 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [skewerBit, flameBit, shineBit],
+    shapes: [skewerBit, grilledCorn, sausage],
   },
   meta: {
     nameZh: "烧烤鳄",

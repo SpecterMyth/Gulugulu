@@ -252,22 +252,25 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const beanBit: ParticleRenderer = () => (
+// 咖啡吧台产物：咖啡豆 + 拿铁拉花心 + 外带杯
+const coffeeBean: ParticleRenderer = () => (
   <g>
-    <ellipse cx={0} cy={0} rx={4} ry={5.5} fill={COFFEE} stroke={OUTLINE} strokeWidth={2} />
-    <path d="M0 -4 Q1.4 0 0 4" fill="none" stroke={CREMA} strokeWidth={1.4} strokeLinecap="round" />
+    <ellipse cx={0} cy={0} rx={5} ry={7} fill={COFFEE} stroke={OUTLINE} strokeWidth={2.2} transform="rotate(18)" />
+    <path d="M0 -5 Q2 0 0 5" fill="none" stroke={CREMA} strokeWidth={1.6} strokeLinecap="round" transform="rotate(18)" />
   </g>
 );
-const foamPuff: ParticleRenderer = () => (
-  <g>
-    <circle cx={-3} cy={1} r={4.2} fill="#FFF4E4" stroke={OUTLINE} strokeWidth={1.8} />
-    <circle cx={3.5} cy={-2} r={3.2} fill="#FFFFFF" stroke={OUTLINE} strokeWidth={1.8} />
+const latteHeart: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <circle cx={0} cy={0} r={8} fill={COFFEE} strokeWidth={2.2} />
+    <path d="M0 4 Q-5 -1 -3 -4 Q-1 -6 0 -3 Q1 -6 3 -4 Q5 -1 0 4 Z" fill="#FFF4E4" stroke="none" />
   </g>
 );
-const snowBit: ParticleRenderer = () => (
-  <g stroke="#B0E5F0" strokeWidth={2.2} strokeLinecap="round">
-    <path d="M0 -6 V6 M-5 -3 L5 3 M-5 3 L5 -3" />
-    <circle cx={0} cy={0} r={1.5} fill={SNOW} stroke="none" />
+const toGoCup: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-6 -3 L6 -3 L4.5 10 L-4.5 10 Z" fill={SNOW} strokeWidth={2.2} />
+    <path d="M-7 -3 Q0 -9 7 -3 Z" fill="#FFFFFF" strokeWidth={2.2} />
+    <circle cx={0} cy={-7} r={1.4} fill={SNOW_DEEP} stroke={OUTLINE} strokeWidth={1.2} />
+    <rect x={-6} y={1} width={12} height={4.5} fill={CREMA} stroke={OUTLINE} strokeWidth={1.8} />
   </g>
 );
 
@@ -294,7 +297,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 192, y: 200 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.55,
-    shapes: [beanBit, foamPuff, snowBit],
+    shapes: [coffeeBean, latteHeart, toGoCup],
   },
   meta: {
     nameZh: "拿铁雪人",

@@ -252,14 +252,33 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const paintFlame: ParticleRenderer = () => (
-  <path d="M0 -6 q5 5.5 5 9 a5 5 0 0 1 -10 0 q0 -3.5 5 -9 z" fill={FLAME} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 室内粉刷产物：滚筒刷 + 油漆桶 + 色卡扇（47 种白）
+const paintRoller: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <rect x={-8} y={-9} width={16} height={7} rx={3} fill={ICE} strokeWidth={2.2} />
+    <path d="M0 -2 V2 M-6 2 H6" fill="none" strokeWidth={2} stroke="#8E93A6" />
+    <path d="M6 2 V9" fill="none" strokeWidth={2} stroke="#8E93A6" />
+    <path d="M-4 -2 q-1 5 0 9 q1 -4 0 -9 z" fill={ICE} strokeWidth={1.6} />
+  </g>
 );
-const paintLeaf: ParticleRenderer = () => (
-  <path d="M0 -6 q5 5.5 5 9 a5 5 0 0 1 -10 0 q0 -3.5 5 -9 z" fill={GREEN} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const paintBucket: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-7 -6 L7 -6 L5 8 L-5 8 Z" fill="#E3E7F0" strokeWidth={2.2} />
+    <path d="M-7 -6 Q0 -3 7 -6" fill="none" strokeWidth={1.6} />
+    <path d="M-6 -6 Q0 -14 6 -6" fill="none" strokeWidth={2} stroke="#8E93A6" />
+    <path d="M-5 8 q-1 4 1 5 q2 -2 1 -5 z" fill="#FFFFFF" strokeWidth={1.6} />
+  </g>
 );
-const paintIce: ParticleRenderer = () => (
-  <path d="M0 -6 q5 5.5 5 9 a5 5 0 0 1 -10 0 q0 -3.5 5 -9 z" fill={ICE} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const colorSwatch: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round">
+    <rect x={-6} y={-9} width={12} height={18} rx={2} fill="#FFFFFF" />
+    <g stroke="none">
+      <rect x={-4} y={-7} width={8} height={3.4} fill={FLAME} />
+      <rect x={-4} y={-3.2} width={8} height={3.4} fill={GREEN} />
+      <rect x={-4} y={0.6} width={8} height={3.4} fill={ICE} />
+      <rect x={-4} y={4.4} width={8} height={3.4} fill="#B99BE8" />
+    </g>
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -290,7 +309,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 202 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.6,
-    shapes: [paintFlame, paintLeaf, paintIce],
+    shapes: [paintRoller, paintBucket, colorSwatch],
   },
   meta: {
     nameZh: "四季龙",

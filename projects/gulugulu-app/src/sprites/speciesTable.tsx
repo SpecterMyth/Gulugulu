@@ -22,7 +22,7 @@ import {
   WaveCrest,
 } from "./kits/specials";
 import { FluffTuft } from "./kits/duckKit";
-import { getCustomVisual } from "./customSpecies";
+import { getCustomVisual, getSkinOverride } from "./customSpecies";
 import { VISUALS2 } from "./species2";
 
 // -----------------------------------------------------------------------------
@@ -441,9 +441,19 @@ export const SPECIES_VISUALS: Record<string, SpeciesVisual> = {
   },
 };
 
-/** 查找链：本表（6 一阶+旧二阶）→ species2 包（融合 2.0 新物种）→
- *  AI 自定义注册表 → config 数据兜底。 */
+/** 查找链：**皮肤选择覆盖**（SkinWorkshop.md，仅 AI 物种会命中）→ 本表（6 一阶+
+ *  旧二阶）→ species2 包（融合 2.0 新物种）→ AI 自定义注册表 → config 数据兜底。 */
 export function getSpeciesVisual(species: string, info: SpeciesInfo | undefined): SpeciesVisual {
+  const skin = getSkinOverride(species);
+  if (skin) {
+    if (skin.visual) return skin.visual;
+    if (skin.redirectTo) {
+      // 默认皮肤 = 配方固定物种形态（固定物种只在这两张表里，且自身永无覆盖）。
+      const redirected = SPECIES_VISUALS[skin.redirectTo] ?? VISUALS2[skin.redirectTo];
+      if (redirected) return redirected;
+    }
+    // 覆盖失效（目标缺失）→ 走本体链，等效回落 "local"。
+  }
   const known = SPECIES_VISUALS[species];
   if (known) return known;
   const pack = VISUALS2[species];

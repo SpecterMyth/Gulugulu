@@ -7,7 +7,7 @@ set "PID_FILE=%ROOT%.gulugulu.pid"
 call :stop_saved_pid "%PID_FILE%" "Gulugulu"
 
 echo Releasing Vite/Tauri ports if they are still in use...
-for %%A in (1420) do (
+for %%A in (5173) do (
   for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%%A" ^| findstr "LISTENING"') do (
     taskkill /PID %%P /T /F >nul 2>nul
   )

@@ -311,13 +311,35 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const ribbonBit: ParticleRenderer = () => (
-  <path d="M-6 -3 Q-2 -6 0 -2 Q2 2 6 0 L5 3 Q1 5 -1 1 Q-3 -2 -5 0 Z" fill={RED} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+// 舞狮打工的产物：迷你狮头 + 红鞭炮串 + 五彩纸屑
+const lionHead: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 金绒球独角 */}
+    <circle cx={0} cy={-8} r={2.4} fill={GOLD} strokeWidth={1.6} />
+    {/* 圆脸狮头 */}
+    <path d="M-7 -1 Q-8 -7 -3 -8 Q0 -10 3 -8 Q8 -7 7 -1 Q7 6 0 8 Q-7 6 -7 -1 Z" fill={RED} strokeWidth={2} />
+    {/* 金流苏眉 */}
+    <path d="M-6 -2 q3 3 6 0 q3 3 6 0" fill="none" stroke={GOLD} strokeWidth={1.8} strokeLinecap="round" />
+    <g fill={OUTLINE} stroke="none">
+      <circle cx={-3} cy={1.5} r={1.3} />
+      <circle cx={3} cy={1.5} r={1.3} />
+    </g>
+  </g>
 );
-const sparkStar: ParticleRenderer = () => (
-  <g>
-    <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill={GOLD} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-    <circle cx={0} cy={0} r={1.4} fill={CREAM} />
+const firecrackerString: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 引线 */}
+    <path d="M10 -9 q-6 1 -10 4 q-4 2 -8 2" fill="none" strokeWidth={1.6} strokeLinecap="round" />
+    {/* 三节红鞭炮 */}
+    <rect x={-10} y={-3} width={5} height={9} rx={1.6} fill={RED} strokeWidth={1.8} />
+    <rect x={-2.5} y={-4} width={5} height={10} rx={1.6} fill={RED} strokeWidth={1.8} />
+    <rect x={5} y={-2} width={5} height={8} rx={1.6} fill={RED} strokeWidth={1.8} />
+    {/* 金封纸带 */}
+    <g stroke={GOLD} strokeWidth={1.3} strokeLinecap="round">
+      <path d="M-9.5 1 h4 M-2 0 h4 M5.5 1.5 h4" />
+    </g>
+    {/* 引线火花 */}
+    <circle cx={10} cy={-9} r={1.5} fill={GOLD} strokeWidth={1.2} />
   </g>
 );
 const confettiBit: ParticleRenderer = () => (
@@ -346,7 +368,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 198, y: 200 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.7,
-    shapes: [ribbonBit, sparkStar, confettiBit],
+    shapes: [lionHead, firecrackerString, confettiBit],
   },
   meta: {
     nameZh: "醒狮",

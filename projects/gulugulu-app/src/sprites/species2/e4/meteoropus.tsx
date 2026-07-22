@@ -19,6 +19,7 @@ const VOLT = "#FFD93B";
 const SEA = "#9BDCFF";
 const FLAME = "#FFB03A";
 const SNOW = "#F7FCFD";
+const COFFEE = "#7A4A2B";
 
 function Front({ palette, slots = {}, eyes = "round", expression = "normal" }: RigProps) {
   return (
@@ -306,15 +307,26 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-// 风速仪的产物：测风的风旋 + 旋转风杯 + 云团（气象读数）
-const windSwirl: ParticleRenderer = () => (
-  <path d="M-7 -2 q8 -5 12 1 q2 4 -3 5 q-3 0 -3 -3" fill="none" stroke={SEA} strokeWidth={2.4} strokeLinecap="round" />
+// 咖啡师的产物：外带咖啡杯 + 拉花爱心 + 咖啡豆
+const coffeeCup: ParticleRenderer = () => (
+  <g>
+    <path d="M-6 -2 L6 -2 L4.6 8 Q0 10 -4.6 8 Z" fill={SNOW} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-5.6 2 H5" stroke={DEEP} strokeWidth={2.2} opacity={0.5} />
+    <path d="M-7 -2 L7 -2 L5.6 -5.5 L-5.6 -5.5 Z" fill="#C9895B" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <rect x={-2} y={-8.5} width={4} height={3.2} rx={1} fill="#C9895B" stroke={OUTLINE} strokeWidth={1.8} />
+  </g>
 );
-const cupBit: ParticleRenderer = () => (
-  <path d="M-5 -3 a5 5 0 0 0 0 8 q5 1 6 -3 Z" fill="#C8CCD8" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+const latteHeart: ParticleRenderer = () => (
+  <g>
+    <circle cx={0} cy={0} r={7.5} fill="#E8D3B0" stroke={OUTLINE} strokeWidth={2} />
+    <path d="M0 5 Q-5 0.4 -5 -2.4 Q-5 -5 -2.5 -5 Q-0.8 -5 0 -3 Q0.8 -5 2.5 -5 Q5 -5 5 -2.4 Q5 0.4 0 5 Z" fill={COFFEE} stroke={OUTLINE} strokeWidth={1.6} strokeLinejoin="round" />
+  </g>
 );
-const cloudBit: ParticleRenderer = () => (
-  <path d="M-8 3 a4 4 0 0 1 2 -7 a5 5 0 0 1 9 1 a4 4 0 0 1 -1 6 q-6 1 -10 0 z" fill="#EAF7FF" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+const coffeeBean: ParticleRenderer = () => (
+  <g transform="rotate(-24)">
+    <ellipse cx={0} cy={0} rx={4.6} ry={7} fill={COFFEE} stroke={OUTLINE} strokeWidth={2} />
+    <path d="M0 -6 Q-2 0 0 6" fill="none" stroke="#3B2B1D" strokeWidth={1.6} strokeLinecap="round" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -344,7 +356,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 194, y: 192 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.65,
-    shapes: [windSwirl, cupBit, cloudBit],
+    shapes: [coffeeCup, latteHeart, coffeeBean],
   },
   meta: {
     nameZh: "云章鱼",

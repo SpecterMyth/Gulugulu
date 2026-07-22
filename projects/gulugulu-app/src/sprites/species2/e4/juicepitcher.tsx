@@ -279,19 +279,27 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const juiceDrop: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill={JUICE} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-);
-const fizzBit: ParticleRenderer = () => (
+const citrusSlice: ParticleRenderer = () => (
   <g>
-    <circle cx={0} cy={0} r={5} fill="#FFF1C9" opacity={0.75} stroke={VOLT} strokeWidth={2} />
-    <circle cx={-1.6} cy={-1.6} r={1.4} fill="#FFFFFF" />
+    <circle cx={0} cy={0} r={7} fill={JUICE} stroke={OUTLINE} strokeWidth={2} />
+    <circle cx={0} cy={0} r={4.4} fill="#FFC66E" />
+    <g stroke="#FFF1C9" strokeWidth={1.3} strokeLinecap="round">
+      <path d="M0 0 V-6 M0 0 V6 M0 0 H-6 M0 0 H6 M0 0 L4.2 -4.2 M0 0 L-4.2 -4.2 M0 0 L4.2 4.2 M0 0 L-4.2 4.2" />
+    </g>
   </g>
 );
-const sliceBit: ParticleRenderer = () => (
+const bendyStraw: ParticleRenderer = () => (
   <g>
-    <path d="M-6 2 A6.5 6.5 0 0 1 6 2 Z" fill={JUICE} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-    <path d="M-3 0.5 L3 0.5 M0 0.5 L0 -3.4" stroke="#FFF1C9" strokeWidth={1.4} strokeLinecap="round" />
+    <path d="M-6 9 L-6 -2 Q-6 -7 -1 -7 L7 -7 L7 -3 L-2 -3 L-2 9 Z" fill="#E2432E" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-4.8 6 h1.6 M-4.8 2 h1.6 M-4.8 -1.4 h1.6 M0 -5.2 h5" stroke="#FFFFFF" strokeWidth={1.4} strokeLinecap="round" />
+  </g>
+);
+const blenderJar: ParticleRenderer = () => (
+  <g>
+    <rect x={-7} y={-9} width={14} height={3.2} rx={1.2} fill="#8E93A6" stroke={OUTLINE} strokeWidth={1.8} />
+    <path d="M-6 -5.6 L6 -5.6 L5 8 Q0 10 -5 8 Z" fill={SEA} opacity={0.85} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-5 1.5 Q0 3.4 5 1.5 L4.2 7.6 Q0 9.4 -4.2 7.6 Z" fill={JUICE} opacity={0.9} />
+    <path d="M-2.6 5 L2.6 5 M0 3.4 L0 6.6" stroke="#5C6172" strokeWidth={1.6} strokeLinecap="round" />
   </g>
 );
 
@@ -319,7 +327,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 200 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [juiceDrop, fizzBit, sliceBit],
+    shapes: [citrusSlice, bendyStraw, blenderJar],
   },
   meta: {
     nameZh: "蜜壶草",

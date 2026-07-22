@@ -302,22 +302,40 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-// 导游小旗的产物：三角小旗 + 哨音波 + "这边走"方向箭（用团里的元素色）
-const pennantBit: ParticleRenderer = () => (
-  <g>
-    <path d="M-2 -7 L-2 8" stroke="#B98A4E" strokeWidth={2} strokeLinecap="round" />
-    <path d="M-2 -7 L8 -3 L-2 1 Z" fill={FIRE} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 裁判打工的产物：口哨 + 红黄牌 + 格子旗
+const whistle: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 哨体 */}
+    <path d="M-8 -3 Q-11 -3 -11 1 Q-11 7 -4 7 L3 7 Q9 7 9 1 Q9 -3 3 -3 Z" fill={PALE} strokeWidth={2} />
+    {/* 吹口 */}
+    <rect x={7} y={-3.5} width={6} height={4} rx={1.4} fill={PALE} strokeWidth={1.8} />
+    {/* 出音孔 */}
+    <circle cx={-2} cy={2} r={2.4} fill={STONE_DEEP} stroke={OUTLINE} strokeWidth={1.4} />
+    {/* 挂绳环 */}
+    <circle cx={-9} cy={-5.5} r={2.6} fill="none" stroke={STONE_DEEP} strokeWidth={1.8} />
   </g>
 );
-const tootPuff: ParticleRenderer = () => (
-  <g fill="none" stroke={VOLT} strokeWidth={2.2} strokeLinecap="round">
-    <path d="M-3 -5 a6 6 0 0 1 0 10" />
-    <path d="M1 -8 a9 9 0 0 1 0 16" />
+const cardPair: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 黄牌 */}
+    <rect x={-8} y={-8} width={9} height={13} rx={1.6} fill={VOLT} strokeWidth={2} transform="rotate(-13)" />
+    {/* 红牌 */}
+    <rect x={-1} y={-5} width={9} height={13} rx={1.6} fill={FIRE} strokeWidth={2} transform="rotate(11)" />
   </g>
 );
-const arrowBit: ParticleRenderer = () => (
-  <g stroke={ICE} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" fill="none">
-    <path d="M-6 0 H6 M2 -4 L6 0 L2 4" />
+const linesmanFlag: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 旗杆 */}
+    <path d="M-6 10 L2 -9" stroke="#B98A4E" strokeWidth={2.2} strokeLinecap="round" />
+    {/* 格子旗 */}
+    <rect x={2} y={-9} width={11} height={9} fill="#FFFFFF" strokeWidth={1.8} />
+    <g fill={OUTLINE} stroke="none">
+      <rect x={2} y={-9} width={3.7} height={3} />
+      <rect x={9.3} y={-9} width={3.7} height={3} />
+      <rect x={5.65} y={-6} width={3.65} height={3} />
+      <rect x={2} y={-3} width={3.7} height={3} />
+      <rect x={9.3} y={-3} width={3.7} height={3} />
+    </g>
   </g>
 );
 
@@ -343,7 +361,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 194 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [pennantBit, tootPuff, arrowBit],
+    shapes: [whistle, cardPair, linesmanFlag],
   },
   meta: {
     nameZh: "石像咕",

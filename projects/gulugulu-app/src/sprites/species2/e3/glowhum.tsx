@@ -221,11 +221,20 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-// 显微镜下的产物：观察到的细胞 + 微生物 + 镜片反光
-const cellBit: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={5.5} fill={AURORA} opacity={0.55} stroke={OUTLINE} strokeWidth={2} />
-    <circle cx={0} cy={0} r={1.8} fill={VOLT} stroke={OUTLINE} strokeWidth={1.2} />
+// 显微镜下的产物：培养皿 + DNA 双螺旋 + 微生物
+const petriDish: ParticleRenderer = () => (
+  <g stroke={OUTLINE} fill="none">
+    <circle cx={0} cy={0} r={8} fill="#EAF7FF" strokeWidth={2.2} />
+    <circle cx={0} cy={0} r={5.5} strokeWidth={1.4} stroke="#9BDCFF" />
+    <circle cx={-2} cy={1} r={1.8} fill={DEEP} stroke="none" />
+    <circle cx={2.5} cy={-2} r={1.3} fill={AURORA} stroke="none" />
+  </g>
+);
+const dnaHelix: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinecap="round" fill="none">
+    <path d="M-4 -9 Q6 -4 -4 0 Q6 4 -4 9" strokeWidth={2.2} stroke={AURORA} />
+    <path d="M4 -9 Q-6 -4 4 0 Q-6 4 4 9" strokeWidth={2.2} stroke={ICE} />
+    <path d="M-3.5 -6 H3.5 M-4 0 H4 M-3.5 6 H3.5" strokeWidth={1.6} />
   </g>
 );
 const microbeBit: ParticleRenderer = () => (
@@ -233,9 +242,6 @@ const microbeBit: ParticleRenderer = () => (
     <ellipse cx={0} cy={0} rx={6} ry={3.4} fill="#B7E88C" opacity={0.85} stroke={OUTLINE} strokeWidth={2} />
     <path d="M6 -1 l4 -1 M-6 1 l-4 1" stroke={OUTLINE} strokeWidth={1.4} strokeLinecap="round" />
   </g>
-);
-const lensGlint: ParticleRenderer = () => (
-  <path d="M0 -6 Q1 -1 6 0 Q1 1 0 6 Q-1 1 -6 0 Q-1 -1 0 -6 Z" fill="#FFFFFF" stroke={ICE} strokeWidth={1.8} strokeLinejoin="round" />
 );
 
 export const PACK: SpeciesPack = {
@@ -264,7 +270,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 192, y: 198 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.55,
-    shapes: [cellBit, microbeBit, lensGlint],
+    shapes: [petriDish, dnaHelix, microbeBit],
   },
   meta: {
     nameZh: "光蜂鸟",

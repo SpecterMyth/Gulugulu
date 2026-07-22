@@ -21,6 +21,7 @@ const E_E = "#FFD93B";
 const E_W = "#2E7BD6";
 const E_G = "#57B84C";
 const E_I = "#8FD8E8";
+const GOLD = "#F5C542";
 
 function Front({ palette, slots = {}, eyes = "happy", expression = "normal" }: RigProps) {
   return (
@@ -402,22 +403,44 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const prismShard: ParticleRenderer = (rand) => {
-  const colors = [E_F, E_E, E_G, E_I, E_W, PRISM];
-  const c = colors[Math.floor(rand() * colors.length)];
-  return <path d="M0 -7 L4.5 0 L0 7 L-4.5 0 Z" fill={c} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />;
-};
-const stardust: ParticleRenderer = () => (
-  <g>
-    <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill="#FFF7DD" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-    <circle cx={0} cy={0} r={1.4} fill="#FFFFFF" />
+// 旗舰打工的产物（超顶配，非元素）：金奖杯 + 切工钻石 + S 级徽章
+const trophy: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 杯身 */}
+    <path d="M-6 -9 L6 -9 L5 -3 Q3 2 0 2 Q-3 2 -5 -3 Z" fill={GOLD} strokeWidth={2} />
+    {/* 双耳 */}
+    <path d="M-6 -8 Q-11 -7 -9 -2 Q-8 0 -5 -1" fill="none" strokeWidth={1.8} />
+    <path d="M6 -8 Q11 -7 9 -2 Q8 0 5 -1" fill="none" strokeWidth={1.8} />
+    {/* 杯柄 */}
+    <path d="M0 2 V6" strokeWidth={2.4} strokeLinecap="round" />
+    {/* 底座 */}
+    <path d="M-5 10 L5 10 L4 6 L-4 6 Z" fill={GOLD} strokeWidth={2} />
+    {/* 杯面星 */}
+    <path d="M0 -7 l1 2.1 l2.3 0.3 l-1.7 1.6 l0.4 2.3 l-2 -1.1 l-2 1.1 l0.4 -2.3 l-1.7 -1.6 l2.3 -0.3 z" fill="#FFF3C4" stroke="none" />
   </g>
 );
-const rainbowArc: ParticleRenderer = () => (
-  <g fill="none" strokeLinecap="round">
-    <path d="M-7 3 A8 8 0 0 1 7 3" stroke={E_F} strokeWidth={2.2} />
-    <path d="M-5 4 A6 6 0 0 1 5 4" stroke={E_E} strokeWidth={2.2} />
-    <path d="M-3 5 A4 4 0 0 1 3 5" stroke={E_I} strokeWidth={2.2} />
+const diamond: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 亭部 */}
+    <path d="M-4 -8 L4 -8 L8 -4 L0 10 L-8 -4 Z" fill={E_I} strokeWidth={2} />
+    {/* 冠部台面 */}
+    <path d="M-4 -8 L-8 -4 L8 -4 L4 -8 Z" fill="#CFEFF6" strokeWidth={2} />
+    {/* 刻面线 */}
+    <g stroke={OUTLINE} strokeWidth={1.2} fill="none">
+      <path d="M-4 -8 L-2 -4 L0 10 M4 -8 L2 -4 L0 10 M-8 -4 L-2 -4 M8 -4 L2 -4 M-2 -4 L2 -4" />
+    </g>
+    <path d="M-3 -6.4 h3.4" stroke="#FFFFFF" strokeWidth={1.4} strokeLinecap="round" />
+  </g>
+);
+const rankBadge: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 绶带 */}
+    <path d="M-3 6 L-5 13 L-1 11 Z" fill={E_F} strokeWidth={1.6} />
+    <path d="M3 6 L5 13 L1 11 Z" fill={E_F} strokeWidth={1.6} />
+    {/* 花瓣勋章 */}
+    <path d="M0 -9 L2 -6.2 L5.4 -7 L5.2 -3.4 L8.6 -1.6 L6.4 1.4 L8 4.8 L4.3 5.2 L2.8 8.8 L0 6.6 L-2.8 8.8 L-4.3 5.2 L-8 4.8 L-6.4 1.4 L-8.6 -1.6 L-5.2 -3.4 L-5.4 -7 L-2 -6.2 Z" fill={GOLD} strokeWidth={1.8} />
+    <circle cx={0} cy={-1} r={4.8} fill="#FFF3C4" strokeWidth={1.6} />
+    <text x={0} y={2.2} fontSize={9} fontWeight={900} textAnchor="middle" fill={E_F} stroke="none" fontFamily="inherit">S</text>
   </g>
 );
 
@@ -448,7 +471,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 198, y: 190 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.7,
-    shapes: [prismShard, stardust, rainbowArc],
+    shapes: [trophy, diamond, rankBadge],
   },
   meta: {
     nameZh: "晶麒麟",

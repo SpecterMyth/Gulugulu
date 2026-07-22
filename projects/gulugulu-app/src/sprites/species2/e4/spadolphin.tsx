@@ -247,21 +247,35 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const bellWave: ParticleRenderer = () => (
-  <g fill="none" stroke="#D9A514" strokeWidth={2.2} strokeLinecap="round">
-    <path d="M-2 -4 a6 6 0 0 1 0 8 M2 -7 a10 10 0 0 1 0 14" />
-  </g>
-);
-const splashBit: ParticleRenderer = () => (
-  <g fill={SEA} stroke={OUTLINE} strokeWidth={1.8}>
-    <circle cx={-3} cy={2} r={2.6} />
-    <circle cx={3} cy={-2} r={3.4} />
-  </g>
-);
-const steamPuff: ParticleRenderer = () => (
+// 黄瓜切片（敷眼）：绿盘 + 皮缘
+const cucumberSlice: ParticleRenderer = () => (
   <g>
-    <circle cx={-3} cy={1} r={4.2} fill="#FFFFFF" opacity={0.92} stroke={FROST} strokeWidth={2} />
-    <circle cx={3.5} cy={-2} r={3.2} fill="#FFFFFF" opacity={0.92} stroke={FROST} strokeWidth={2} />
+    <circle cx={0} cy={0} r={7.5} fill="#CBE39A" stroke={OUTLINE} strokeWidth={2} />
+    <circle cx={0} cy={0} r={5.6} fill="#A7CE6B" />
+    <circle cx={0} cy={0} r={2.4} fill="#E7F2CE" />
+    <g fill="#7FA24A">
+      <ellipse cx={0} cy={-3.4} rx={0.7} ry={1.1} />
+      <ellipse cx={3} cy={1.7} rx={0.7} ry={1.1} transform="rotate(120 3 1.7)" />
+      <ellipse cx={-3} cy={1.7} rx={0.7} ry={1.1} transform="rotate(-120 -3 1.7)" />
+    </g>
+  </g>
+);
+// 叠放的禅意石堆
+const spaStones: ParticleRenderer = () => (
+  <g fill="#9A9186" stroke={OUTLINE} strokeWidth={2}>
+    <ellipse cx={0} cy={7} rx={8} ry={3.4} />
+    <ellipse cx={0.5} cy={0.5} rx={6} ry={3} />
+    <ellipse cx={-0.5} cy={-5.4} rx={4.2} ry={2.6} />
+  </g>
+);
+// 卷起的浴巾
+const rolledTowel: ParticleRenderer = () => (
+  <g>
+    <rect x={-9} y={-5} width={18} height={10} rx={5} fill={BELLY} stroke={OUTLINE} strokeWidth={2} />
+    <ellipse cx={-9} cy={0} rx={2.4} ry={5} fill={BODY} stroke={OUTLINE} strokeWidth={2} />
+    <path d="M-9.4 0 a2 3.4 0 0 0 0.8 0" fill="none" stroke={OUTLINE} strokeWidth={1.3} />
+    <path d="M4 -5 v10" stroke={WARM} strokeWidth={1.8} strokeLinecap="round" />
+    <path d="M7 -4.4 v8.8" stroke={FROST} strokeWidth={1.6} strokeLinecap="round" />
   </g>
 );
 
@@ -289,7 +303,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 190, y: 208 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.6,
-    shapes: [bellWave, splashBit, steamPuff],
+    shapes: [cucumberSlice, spaStones, rolledTowel],
   },
   meta: {
     nameZh: "泡汤豚",

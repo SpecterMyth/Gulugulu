@@ -296,13 +296,23 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const noteBit: ParticleRenderer = () => (
-  <g stroke={OUTLINE} strokeLinecap="round">
-    <path d="M-2 6 a3.5 3.5 0 1 0 0.1 0 M1.5 5 V-6 Q1.5 -8 4 -7.5 L7 -6.5" fill={BELL_DEEP} strokeWidth={2.2} />
+const windChime: ParticleRenderer = () => (
+  <g>
+    <path d="M-4 -8 h8" stroke={OUTLINE} strokeWidth={1.8} strokeLinecap="round" />
+    <rect x={-3.2} y={-8} width={6.4} height={10.5} rx={2.2} fill={BELL} stroke={OUTLINE} strokeWidth={2} />
+    <path d="M-1.2 -6 v6.5" stroke={BELL_DEEP} strokeWidth={1.4} opacity={0.7} />
+    <path d="M0 2.5 v3" stroke={OUTLINE} strokeWidth={1.2} strokeLinecap="round" />
+    <circle cx={0} cy={7} r={2.2} fill="#C79A5B" stroke={OUTLINE} strokeWidth={1.6} />
+    <rect x={-2} y={9.4} width={4} height={3.8} rx={1} fill={CREAM} stroke={OUTLINE} strokeWidth={1.6} />
   </g>
 );
-const iceBit: ParticleRenderer = () => (
-  <path d="M0 -7 L4.5 0 L0 7 L-4.5 0 Z" fill="#F7FCFD" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const ribbonBow: ParticleRenderer = () => (
+  <g fill={BELL} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round">
+    <path d="M-1 0 L-8 -5 Q-11 -6 -10 -2 Q-11 3 -8 4 L-1 1 Z" />
+    <path d="M1 0 L8 -5 Q11 -6 10 -2 Q11 3 8 4 L1 1 Z" />
+    <path d="M-1 1 L-4 9 L0 6 L4 9 L1 1 Z" fill={BELL_DEEP} />
+    <circle cx={0} cy={0} r={2.4} fill={CREAM} />
+  </g>
 );
 const petalBit: ParticleRenderer = () => (
   <path d="M0 -7 Q6 -3 4 4 Q0 8 -4 4 Q-6 -3 0 -7 Z" fill={BELL} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
@@ -331,7 +341,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 200 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [noteBit, iceBit, petalBit],
+    shapes: [windChime, ribbonBow, petalBit],
   },
   meta: {
     nameZh: "风铃草",

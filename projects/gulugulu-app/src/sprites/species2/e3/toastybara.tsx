@@ -271,21 +271,24 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const toastBit: ParticleRenderer = () => (
-  <g>
-    <path d="M-6 -5 Q-6 -8 -3 -8 Q-1 -10 1 -9 Q4 -10 5 -7 Q7 -6 7 -4 L7 5 L-6 5 Z" fill={TOAST} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-    <path d="M-3 -3 L4 -3 L4 2 L-3 2 Z" fill="#FFF1C9" opacity={0.9} />
+// 烘焙房产物：吐司片 + 牛角包 + 圆面包
+const toastSlice: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-7 -4 Q-7 -9 -3 -9 Q-1 -11 1 -9 Q5 -10 6 -6 Q8 -5 8 -2 L8 7 Q8 9 6 9 L-5 9 Q-7 9 -7 7 Z" fill={TOAST} strokeWidth={2.2} />
+    <rect x={-3} y={-3} width={8} height={7} rx={1.5} fill="#C77A44" stroke="none" opacity={0.55} />
   </g>
 );
-const wheatBit: ParticleRenderer = () => (
-  <g fill={WHEAT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round">
-    <ellipse cx={0} cy={-3} rx={2.6} ry={4.5} />
-    <ellipse cx={-3} cy={2} rx={2.4} ry={4} transform="rotate(20 -3 2)" />
-    <ellipse cx={3} cy={2} rx={2.4} ry={4} transform="rotate(-20 3 2)" />
+const croissant: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-8 5 Q-10 -6 -1 -8 Q9 -9 9 0 Q9 6 3 6 Q6 1 2 -2 Q0 3 -2 0 Q-3 4 -6 2 Q-6 6 -8 5 Z" fill={TOAST} strokeWidth={2.2} />
+    <path d="M-3 -5 Q-2 -1 -3 3 M1 -6 Q2 -1 0 4 M5 -5 Q6 -1 4 3" fill="none" strokeWidth={1.4} stroke={TOAST_EDGE} />
   </g>
 );
-const emberBit: ParticleRenderer = () => (
-  <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill="#FFB03A" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+const breadLoaf: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-9 3 Q-9 -7 0 -7 Q9 -7 9 3 Q9 6 6 6 L-6 6 Q-9 6 -9 3 Z" fill={FUR} strokeWidth={2.2} />
+    <path d="M-4 -4 L2 2 M2 -4 L-4 2" fill="none" strokeWidth={1.6} stroke={DEEP} strokeLinecap="round" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -311,7 +314,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 192 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.55,
-    shapes: [toastBit, wheatBit, emberBit],
+    shapes: [toastSlice, croissant, breadLoaf],
   },
   meta: {
     nameZh: "暖包豚",

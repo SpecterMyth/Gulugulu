@@ -313,19 +313,33 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const pineBit: ParticleRenderer = () => (
+// 盆栽：花盆 + 弯干 + 树冠
+const bonsaiTree: ParticleRenderer = () => (
+  <g>
+    <path d="M0 4 L0 -3" stroke={TRUNK} strokeWidth={2.6} strokeLinecap="round" />
+    <path d="M0 -1 Q-1 -5 -3 -7 M0 -2 Q1 -5 3 -6" fill="none" stroke={TRUNK} strokeWidth={2.2} strokeLinecap="round" />
+    <ellipse cx={-3.5} cy={-7} rx={4} ry={2.8} fill={PINE} stroke={OUTLINE} strokeWidth={1.8} />
+    <ellipse cx={4} cy={-7.5} rx={3.6} ry={2.6} fill={PINE} stroke={OUTLINE} strokeWidth={1.8} />
+    <ellipse cx={0} cy={-9.5} rx={3.6} ry={2.6} fill={PINE_DEEP} stroke={OUTLINE} strokeWidth={1.8} />
+    <path d="M-6 4 L6 4 L4.5 8.5 Q0 9.5 -4.5 8.5 Z" fill={COBALT} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-6 4 h12" stroke={OUTLINE} strokeWidth={1.6} />
+  </g>
+);
+// 修枝剪
+const pruningShears: ParticleRenderer = () => (
+  <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M-5 -8 L1 0 L-4 8 M5 -8 L-1 0 L4 8" stroke={OUTLINE} strokeWidth={3.6} />
+    <path d="M-5 -8 L1 0 L-4 8 M5 -8 L-1 0 L4 8" stroke="#C8CCD8" strokeWidth={1.8} />
+    <circle cx={-4.4} cy={9} r={2} stroke={TRUNK} strokeWidth={2} />
+    <circle cx={4.4} cy={9} r={2} stroke={TRUNK} strokeWidth={2} />
+    <circle cx={0} cy={0} r={1.5} fill={COBALT} stroke={OUTLINE} strokeWidth={1.4} />
+  </g>
+);
+// 松枝剪叶（沿用既有松叶粒）
+const pineClipping: ParticleRenderer = () => (
   <g stroke={PINE_DEEP} strokeWidth={2.2} strokeLinecap="round">
     <path d="M0 -6 V6 M0 -3 L-4 -6 M0 -3 L4 -6 M0 1 L-4.5 -2 M0 1 L4.5 -2" />
   </g>
-);
-const snowBit: ParticleRenderer = () => (
-  <g stroke="#B0E5F0" strokeWidth={2.2} strokeLinecap="round">
-    <path d="M0 -6 V6 M-5 -3 L5 3 M-5 3 L5 -3" />
-    <circle cx={0} cy={0} r={1.5} fill={SNOW} stroke="none" />
-  </g>
-);
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill="#9BDCFF" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
 );
 
 export const PACK: SpeciesPack = {
@@ -357,7 +371,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 202 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.55,
-    shapes: [pineBit, snowBit, dropBit],
+    shapes: [bonsaiTree, pruningShears, pineClipping],
   },
   meta: {
     nameZh: "雪盆栽",

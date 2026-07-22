@@ -304,16 +304,25 @@ const tarotBit: ParticleRenderer = () => (
     <path d="M0 -3 l1 2 l2 1 l-2 1 l-1 2 l-1 -2 l-2 -1 l2 -1 z" fill="#FFF7DD" />
   </g>
 );
-const stardust: ParticleRenderer = () => (
-  <g>
-    <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill="#FFD93B" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-    <circle cx={4} cy={-5} r={1.4} fill="#FFFFFF" />
+// 水晶球（占卜台上的招牌道具）
+const crystalBallStand: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 金座 */}
+    <path d="M-6 9 L6 9 L4 5 L-4 5 Z" fill={MANE_1} strokeWidth={1.8} />
+    <path d="M-3.5 5 L3.5 5 L2.5 2 L-2.5 2 Z" fill={MANE_1} strokeWidth={1.6} />
+    {/* 水晶球 */}
+    <circle cx={0} cy={-4} r={7} fill={HORN} strokeWidth={2} />
+    <path d="M-3.5 -6 q2.5 -2 5 -0.5" fill="none" stroke="#FFFFFF" strokeWidth={1.6} strokeLinecap="round" opacity={0.9} />
   </g>
 );
-const manaOrb: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={5} fill="#7FE3C8" opacity={0.9} stroke={OUTLINE} strokeWidth={2} />
-    <circle cx={-1.4} cy={-1.4} r={1.4} fill="#FFFFFF" />
+// 神奇 8 号球（"Ask Again Later"）
+const magic8Ball: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <circle cx={0} cy={0} r={8.5} fill="#2A2A32" strokeWidth={2} />
+    <circle cx={0} cy={-3.5} r={3.6} fill="#FFFFFF" strokeWidth={1.4} />
+    <text x={0} y={-1.4} fontSize={6} fontWeight={900} textAnchor="middle" fill="#1A1A20" stroke="none" fontFamily="inherit">8</text>
+    {/* 蓝色答案三角窗 */}
+    <path d="M0 2 L5 8.5 L-5 8.5 Z" fill="#2E7BD6" strokeWidth={1.4} />
   </g>
 );
 
@@ -343,7 +352,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 208 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.65,
-    shapes: [tarotBit, stardust, manaOrb],
+    shapes: [tarotBit, crystalBallStand, magic8Ball],
   },
   meta: {
     nameZh: "灵角兽",

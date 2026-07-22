@@ -286,21 +286,32 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const pinBit: ParticleRenderer = () => (
+// 保龄产物：球瓶 + 保龄球 + STRIKE 计分牌
+const bowlingPin: ParticleRenderer = () => (
   <g>
     <path d="M-3 6 Q-5 0 -2.5 -3 Q-4 -6 -1.5 -7.5 Q0 -8.5 1.5 -7.5 Q4 -6 2.5 -3 Q5 0 3 6 Q0 8 -3 6 Z" fill="#FFFFFF" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-    <path d="M-2 -3.5 q2 1 4 0" stroke="#E2432E" strokeWidth={1.6} fill="none" strokeLinecap="round" />
+    <path d="M-2.2 -4 q2.2 1 4.4 0" stroke="#E2432E" strokeWidth={1.6} fill="none" strokeLinecap="round" />
+    <path d="M-2.6 -1.5 q2.6 1.2 5.2 0" stroke="#E2432E" strokeWidth={1.6} fill="none" strokeLinecap="round" />
   </g>
 );
-const iceBit: ParticleRenderer = () => (
-  <path d="M0 -7 L4.5 0 L0 7 L-4.5 0 Z" fill="#F7FCFD" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-);
-const splashBit: ParticleRenderer = () => (
-  <g fill="#9BDCFF" stroke={OUTLINE} strokeWidth={1.8}>
-    <circle cx={-3} cy={2} r={2.6} />
-    <circle cx={3} cy={-2} r={3.4} />
+const bowlingBall: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <circle cx={0} cy={0} r={8} fill="#2E3A6E" strokeWidth={2.2} />
+    <g fill="#1B2450" stroke="none">
+      <circle cx={-2} cy={-2} r={1.4} /><circle cx={2} cy={-2.5} r={1.4} /><circle cx={0.5} cy={1} r={1.4} />
+    </g>
+    <path d="M-5 -3 Q-3 -6 1 -6" fill="none" stroke="#8FA3D9" strokeWidth={1.6} strokeLinecap="round" />
   </g>
 );
+const strikeText: ParticleRenderer = (rand) => {
+  const g = ["STRIKE!", "X", "SPARE"][Math.floor(rand() * 3)];
+  return (
+    <g>
+      <rect x={-15} y={-8} width={30} height={16} rx={4} fill="#E2432E" stroke={OUTLINE} strokeWidth={2.4} />
+      <text x={0} y={4} fontSize={g.length > 3 ? 7 : 11} fontWeight={900} textAnchor="middle" fill="#FFFFFF" fontFamily="inherit">{g}</text>
+    </g>
+  );
+};
 
 export const PACK: SpeciesPack = {
   rig: Rig,
@@ -331,7 +342,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 208 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [pinBit, iceBit, splashBit],
+    shapes: [bowlingPin, bowlingBall, strikeText],
   },
   meta: {
     nameZh: "冰海象",

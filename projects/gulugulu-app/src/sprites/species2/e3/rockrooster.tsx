@@ -302,17 +302,20 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const noteBit: ParticleRenderer = () => (
-  <g stroke={OUTLINE} strokeLinecap="round">
-    <path d="M-2 6 a3.5 3.5 0 1 0 0.1 0 M1.5 5 V-6 Q1.5 -8 4 -7.5 L7 -6.5" fill="#3E4356" strokeWidth={2.2} />
+// 摇滚现场产物：弹片 + 金属礼手势 + 崩断的琴弦
+const guitarPick: ParticleRenderer = () => (
+  <path d="M0 -6 Q7 -6 6 2 Q4.5 8 0 8 Q-4.5 8 -6 2 Q-7 -6 0 -6 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+);
+const hornsHand: ParticleRenderer = () => (
+  <g fill={CREAM} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round">
+    <rect x={-6} y={-2} width={12} height={10} rx={3} />
+    <rect x={-6} y={-10} width={3.6} height={9} rx={1.6} />
+    <rect x={2.4} y={-10} width={3.6} height={9} rx={1.6} />
+    <path d="M6 2 q3 -1 3 2 q0 2 -3 2" fill="none" />
   </g>
 );
-// 电吉他弹奏的第二产物：飞出的拨片（配 1 道电花）
-const pickBit: ParticleRenderer = () => (
-  <path d="M0 -6 Q6 -5 5 2 Q3 7 0 7 Q-3 7 -5 2 Q-6 -5 0 -6 Z" fill={FLAME} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-);
-const boltBit: ParticleRenderer = () => (
-  <path d="M1.5 -8 L-4 1 h3.5 L-1.5 8 L4.5 -1 h-3.5 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+const brokenString: ParticleRenderer = () => (
+  <path d="M-9 -6 Q-4 -4 -2 0 Q0 4 3 2 Q1 0 3 -1 M4 4 q3 2 6 1" fill="none" stroke="#C8CCD8" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
 );
 
 export const PACK: SpeciesPack = {
@@ -338,7 +341,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 196 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.65,
-    shapes: [noteBit, pickBit, boltBit],
+    shapes: [guitarPick, hornsHand, brokenString],
   },
   meta: {
     nameZh: "摇滚鸡",

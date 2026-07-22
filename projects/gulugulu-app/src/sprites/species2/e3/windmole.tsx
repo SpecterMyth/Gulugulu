@@ -238,17 +238,25 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const gearBit: ParticleRenderer = () => (
-  <g>
-    <path d="M0 -7 L2 -5 L5 -5.5 L5.5 -2 L7 0 L5.5 2 L5 5.5 L2 5 L0 7 L-2 5 L-5 5.5 L-5.5 2 L-7 0 L-5.5 -2 L-5 -5.5 L-2 -5 Z" fill="#C8CCD8" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-    <circle cx={0} cy={0} r={2.2} fill="#8E93A6" />
+// 挖矿产物：镐子 + 钻石矿 + 泥块（Minecraft 挖到钻石）
+const pickaxe: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-7 8 L5 -6" stroke="#B98A4E" strokeWidth={3} />
+    <path d="M-2 -9 Q5 -8 10 -3 M-2 -9 Q-8 -6 -11 0" fill="none" stroke="#8E93A6" strokeWidth={3} />
   </g>
 );
-const leafBit: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill={LEAF} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+const gemOre: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeWidth={2}>
+    <path d="M0 -8 L7 -2 L0 9 L-7 -2 Z" fill="#5CE1E6" />
+    <path d="M-7 -2 H7 M0 -8 L-3 -2 M0 -8 L3 -2" fill="none" strokeWidth={1.4} stroke="#2E9BA0" />
+  </g>
 );
-const sparkBit: ParticleRenderer = () => (
-  <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+const dirtClod: ParticleRenderer = () => (
+  <g>
+    <path d="M-6 -3 Q-2 -8 3 -6 Q8 -5 7 1 Q6 7 0 7 Q-7 6 -6 -3 Z" fill="#8A5A3B" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <circle cx={-1} cy={0} r={1.1} fill="#6B4529" />
+    <circle cx={3} cy={2} r={1} fill="#6B4529" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -275,7 +283,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 192, y: 200 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.55,
-    shapes: [gearBit, leafBit, sparkBit],
+    shapes: [pickaxe, gemOre, dirtClod],
   },
   meta: {
     nameZh: "风车鼹",

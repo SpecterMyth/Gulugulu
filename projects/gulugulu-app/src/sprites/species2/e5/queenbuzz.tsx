@@ -18,6 +18,8 @@ const CREAM = "#FFF6CE";
 const FIRE = "#E85D3A";
 const LEAF = "#8CD97B";
 const SEA = "#9BDCFF";
+const HONEY = "#E2A52C";
+const WOOD = "#C89B5A";
 
 function Front({ palette, slots = {}, eyes = "happy", expression = "normal" }: RigProps) {
   return (
@@ -309,16 +311,46 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const noteBit: ParticleRenderer = () => (
-  <g stroke={OUTLINE} strokeLinecap="round">
-    <path d="M-2 6 a3.5 3.5 0 1 0 0.1 0 M1.5 5 V-6 Q1.5 -8 4 -7.5 L7 -6.5" fill={DARK} strokeWidth={2.2} />
+// 养蜂人打工的产物：蜂蜜棒 + 蜂巢块 + 工蜂
+const honeyDipper: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 木柄 */}
+    <path d="M6 -9 L-2 2" stroke={WOOD} strokeWidth={2.6} strokeLinecap="round" />
+    {/* 蜜球头 */}
+    <ellipse cx={-4} cy={4} rx={4.6} ry={5} fill={HONEY} strokeWidth={2} />
+    <g stroke="#B97F1F" strokeWidth={1.2} fill="none" strokeLinecap="round">
+      <path d="M-8 2 h8 M-8.6 4.4 h9 M-7.5 6.8 h7" />
+    </g>
+    {/* 滴落的蜜 */}
+    <path d="M-4 8.5 q-1.4 3 -0.2 4.6 q1.6 -1.4 0.2 -4.6 z" fill={HONEY} strokeWidth={1.4} />
   </g>
 );
-const honeyDrop: ParticleRenderer = () => (
-  <path d="M0 -6 q5 5.5 5 9 a5 5 0 0 1 -10 0 q0 -3.5 5 -9 z" fill="#E2A52C" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const honeycomb: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M0 -8.5 L7.4 -4.25 L7.4 4.25 L0 8.5 L-7.4 4.25 L-7.4 -4.25 Z" fill={BEE} strokeWidth={2} />
+    {/* 蜂室壁 */}
+    <g stroke="#B97F1F" strokeWidth={1.4} strokeLinecap="round" fill="none">
+      <path d="M0 0 L0 -8.5 M0 0 L7.4 4.25 M0 0 L-7.4 4.25" />
+    </g>
+    <circle cx={0} cy={0} r={1.8} fill={HONEY} stroke="none" />
+  </g>
 );
-const petalBit: ParticleRenderer = () => (
-  <path d="M0 -7 Q6 -3 4 4 Q0 8 -4 4 Q-6 -3 0 -7 Z" fill="#F5A8C6" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const workerBee: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 翅膀 */}
+    <g fill="#EAF7FF" strokeWidth={1.4} opacity={0.9}>
+      <ellipse cx={-1} cy={-5.5} rx={3.6} ry={2.4} transform="rotate(-22 -1 -5.5)" />
+      <ellipse cx={4} cy={-5.5} rx={3.6} ry={2.4} transform="rotate(22 4 -5.5)" />
+    </g>
+    {/* 条纹身 */}
+    <ellipse cx={0} cy={1.5} rx={6.5} ry={4.6} fill={BEE} strokeWidth={2} />
+    <g stroke={DARK} strokeWidth={1.9} strokeLinecap="round">
+      <path d="M-2 -2.2 V5.2 M2 -2.2 V5.2" />
+    </g>
+    {/* 尾刺 + 眼 */}
+    <path d="M6.4 1.5 l3.4 0.4 l-3.4 1.4 z" fill={DARK} strokeWidth={1} strokeLinejoin="round" />
+    <circle cx={-4.6} cy={-0.4} r={0.9} fill={OUTLINE} stroke="none" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -343,7 +375,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 194 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.65,
-    shapes: [noteBit, honeyDrop, petalBit],
+    shapes: [honeyDipper, honeycomb, workerBee],
   },
   meta: {
     nameZh: "女王蜂",

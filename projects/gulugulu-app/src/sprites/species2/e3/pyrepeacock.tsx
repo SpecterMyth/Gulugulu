@@ -277,20 +277,34 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const burstStar: ParticleRenderer = () => (
-  <g>
-    <path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z" fill={FLAME} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-    <circle cx={0} cy={0} r={1.6} fill="#FFF1C9" />
+// 烟花点火产物：升空的瓶装小烟花 + 仙女棒 + 五彩纸屑
+const launchRocket: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round">
+    <path d="M0 -12 L4.5 -4 L-4.5 -4 Z" fill={FLAME} />
+    <rect x={-4.5} y={-4} width={9} height={11} rx={1.6} fill="#E2432E" />
+    <path d="M-4.5 3 L-9 8 L-4.5 6.5 Z" fill={DEEP} />
+    <path d="M4.5 3 L9 8 L4.5 6.5 Z" fill={DEEP} />
+    <path d="M0 7 q-3 3 -2 6" fill="none" strokeWidth={1.8} strokeLinecap="round" />
   </g>
 );
-const sparkTrail: ParticleRenderer = () => (
-  <g stroke={VOLT} strokeWidth={2.2} strokeLinecap="round">
-    <path d="M0 -6 V-2 M0 2 V6 M-4 -4 l2 2 M4 -4 l-2 2" />
-  </g>
-);
-const petalBit: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill={LEAF} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
-);
+const sparkler: ParticleRenderer = (rand) => {
+  const tip = [VOLT, FLAME, "#FF5CA8"][Math.floor(rand() * 3)];
+  return (
+    <g>
+      <line x1={-7} y1={9} x2={1} y2={-2} stroke="#B98A4E" strokeWidth={2.4} strokeLinecap="round" />
+      <g stroke={tip} strokeWidth={2} strokeLinecap="round">
+        <path d="M2 -2 L2 -10 M2 -2 L-4 -6 M2 -2 L8 -6 M2 -2 L-3 3 M2 -2 L7 3" />
+      </g>
+      <circle cx={2} cy={-2} r={2} fill={tip} stroke={OUTLINE} strokeWidth={1.4} />
+    </g>
+  );
+};
+const confetti: ParticleRenderer = (rand) => {
+  const cols = [FLAME, VOLT, LEAF, "#5C7FB5", "#FF5CA8"];
+  const c = cols[Math.floor(rand() * cols.length)];
+  const rot = Math.floor(rand() * 90);
+  return <rect x={-4} y={-4} width={8} height={8} rx={1.5} fill={c} stroke={OUTLINE} strokeWidth={2} transform={`rotate(${rot})`} />;
+};
 
 export const PACK: SpeciesPack = {
   rig: Rig,
@@ -316,7 +330,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 220, y: 196 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.7,
-    shapes: [burstStar, sparkTrail, petalBit],
+    shapes: [launchRocket, sparkler, confetti],
   },
   meta: {
     nameZh: "烟花雀",

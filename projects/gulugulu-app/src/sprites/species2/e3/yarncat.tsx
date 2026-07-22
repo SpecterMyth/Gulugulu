@@ -251,17 +251,29 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const loopBit: ParticleRenderer = () => (
-  <path d="M-5 3 Q-7 -4 -1 -5 Q5 -6 5 0 Q5 4 1 4 Q-2 4 -2 1" fill="none" stroke={YARN_DEEP} strokeWidth={2.6} strokeLinecap="round" />
-);
-const snowBit: ParticleRenderer = () => (
-  <g stroke="#B0E5F0" strokeWidth={2.2} strokeLinecap="round">
-    <path d="M0 -6 V6 M-5 -3 L5 3 M-5 3 L5 -3" />
-    <circle cx={0} cy={0} r={1.5} fill="#F7FCFD" stroke="none" />
+// 编织产物：毛线球 + 交叉织针 + 织好的袜子
+const yarnBall: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <circle cx={0} cy={0} r={7} fill={YARN} strokeWidth={2.2} />
+    <path d="M-6 -2 Q-1 -6 4 -4 M-5 3 Q1 5 6 1 M-2 -6 Q3 0 1 6" fill="none" strokeWidth={1.4} stroke={YARN_DEEP} />
+    <path d="M6 3 Q11 5 9 9" fill="none" strokeWidth={2} stroke={YARN_DEEP} strokeLinecap="round" />
   </g>
 );
-const leafTip: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill={LEAF} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+const knitNeedles: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-9 7 L8 -8" strokeWidth={2.6} stroke={NEEDLE} />
+    <path d="M9 7 L-8 -8" strokeWidth={2.6} stroke={NEEDLE} />
+    <circle cx={8} cy={-8} r={2} fill="#E2432E" strokeWidth={1.6} />
+    <circle cx={-8} cy={-8} r={2} fill="#5C7FB5" strokeWidth={1.6} />
+    <path d="M-3 2 q-4 1 -2 4 q3 2 4 -2" fill="none" strokeWidth={1.8} stroke={LEAF} />
+  </g>
+);
+const knitSock: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-3 -9 L4 -9 L4 2 Q4 5 7 6 L9 9 Q10 11 6 11 L-1 9 Q-3 8 -3 5 Z" fill={YARN} strokeWidth={2.2} />
+    <path d="M-3 -6 L4 -6" fill="none" strokeWidth={1.8} stroke={YARN_DEEP} />
+    <path d="M-1 9 Q3 10 6 11" fill="none" strokeWidth={1.4} stroke="#FFFFFF" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -290,7 +302,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 200 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.55,
-    shapes: [loopBit, snowBit, leafTip],
+    shapes: [yarnBall, knitNeedles, knitSock],
   },
   meta: {
     nameZh: "毛线猫",

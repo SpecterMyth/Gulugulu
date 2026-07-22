@@ -278,24 +278,27 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const snowBit: ParticleRenderer = () => (
-  <g stroke="#B0E5F0" strokeWidth={2.2} strokeLinecap="round">
-    <path d="M0 -6 V6 M-5 -3 L5 3 M-5 3 L5 -3" />
-    <circle cx={0} cy={0} r={1.5} fill={SNOW} stroke="none" />
+// 微景观园艺产物：玻璃罐（土＋苗）+ 苔藓团 + 鹅卵石
+const glassJar: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-6 -8 L6 -8 L6 6 Q6 9 3 9 L-3 9 Q-6 9 -6 6 Z" fill={GLASS} strokeWidth={2.2} opacity={0.9} />
+    <rect x={-5} y={-10} width={10} height={2.6} rx={1} fill={GLASS_EDGE} strokeWidth={1.8} />
+    <path d="M-5 4 Q0 2 5 4 L5 6 Q5 9 3 9 L-3 9 Q-5 9 -5 6 Z" fill="#8A5A3B" stroke="none" />
+    <path d="M0 4 V-2 M0 0 q-3 -1 -3 -4 q3 0 3 4 M0 -1 q3 -1 3 -4 q-3 0 -3 4" fill="none" strokeWidth={1.6} stroke={LEAF} />
   </g>
 );
-// 园艺小铲挖出的产物：泥土块 + 破土嫩芽（配壳里飘的 1 片雪＝冰元素点缀）
-const soilClump: ParticleRenderer = () => (
-  <g>
-    <path d="M-6 3 q-3 -7 4 -7 q3 -3 6 1 q5 0 3 6 q-6 3 -13 0 z" fill="#8A5A3B" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-    <circle cx={-1} cy={-1} r={1.1} fill="#6B4529" />
+const mossTuft: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-8 4 Q-9 -2 -4 -3 Q-3 -8 2 -6 Q8 -8 8 -1 Q10 3 5 5 Q0 8 -8 4 Z" fill={LEAF} strokeWidth={2.2} />
+    <g fill="#3E8A34" stroke="none">
+      <circle cx={-3} cy={-1} r={1} /><circle cx={2} cy={-2} r={1} /><circle cx={4} cy={2} r={1} />
+    </g>
   </g>
 );
-const sproutBit: ParticleRenderer = () => (
+const pebble: ParticleRenderer = () => (
   <g>
-    <path d="M0 7 V-1" stroke="#5E8A3A" strokeWidth={2.2} strokeLinecap="round" />
-    <path d="M0 0 q-6 -1 -6 -6 q6 0 6 6 z" fill={LEAF} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-    <path d="M0 2 q6 -1 6 -6 q-6 0 -6 6 z" fill="#8CD97B" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+    <ellipse cx={0} cy={1} rx={8} ry={6} fill="#A7ADB8" stroke={OUTLINE} strokeWidth={2.2} />
+    <path d="M-4 -2 Q0 -4 4 -2" fill="none" stroke="#D2D6DE" strokeWidth={1.8} strokeLinecap="round" />
   </g>
 );
 
@@ -322,7 +325,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 40, y: 208 },
     baseAngle: (-Math.PI * 2) / 3,
     cone: 0.55,
-    shapes: [soilClump, sproutBit, snowBit],
+    shapes: [glassJar, mossTuft, pebble],
   },
   meta: {
     nameZh: "苔壳蜗",

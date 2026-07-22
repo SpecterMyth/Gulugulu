@@ -299,23 +299,40 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const lanternDot: ParticleRenderer = () => (
+const paperLantern: ParticleRenderer = () => (
   <g>
-    <circle cx={0} cy={-1} r={5} fill={GOLD} stroke={OUTLINE} strokeWidth={2} />
-    <path d="M-2 4 v3 M2 4 v3" stroke={PAPER} strokeWidth={1.8} strokeLinecap="round" />
+    <rect x={-5} y={-9} width={10} height={2.6} rx={1} fill={GOLD} stroke={OUTLINE} strokeWidth={1.6} />
+    <ellipse cx={0} cy={-0.4} rx={6.4} ry={7} fill={PAPER} stroke={OUTLINE} strokeWidth={2} />
+    <path d="M-3 -6.4 Q-4.2 -0.4 -3 5.6 M0 -7.4 V6.6 M3 -6.4 Q4.2 -0.4 3 5.6" fill="none" stroke={PAPER_DEEP} strokeWidth={1.4} opacity={0.7} />
+    <rect x={-5} y={6} width={10} height={2.6} rx={1} fill={GOLD} stroke={OUTLINE} strokeWidth={1.6} />
+    <path d="M-1.6 8.6 v3 M0 8.6 v3.6 M1.6 8.6 v3" stroke={PAPER_DEEP} strokeWidth={1.6} strokeLinecap="round" />
   </g>
 );
-const fireworkBit: ParticleRenderer = () => (
+const festivalDrum: ParticleRenderer = () => (
   <g>
-    <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill="#FFB03A" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-    <circle cx={0} cy={0} r={1.4} fill="#FFF1C9" />
+    <path d="M-8 -6 Q-10.5 0 -8 6 L8 6 Q10.5 0 8 -6 Z" fill={PAPER} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <ellipse cx={-8} cy={0} rx={2.4} ry={6.2} fill={GLOW} stroke={OUTLINE} strokeWidth={1.8} />
+    <ellipse cx={8} cy={0} rx={2.4} ry={6.2} fill={GLOW} stroke={OUTLINE} strokeWidth={1.8} />
+    <path d="M-6 -4.5 L6 4.5 M-6 4.5 L6 -4.5" stroke={GOLD} strokeWidth={1.6} strokeLinecap="round" />
   </g>
 );
-const confettiLeaf: ParticleRenderer = () => (
-  <g>
-    <rect x={-4} y={-2.5} width={8} height={5} rx={1} fill={LEAF} stroke={OUTLINE} strokeWidth={1.6} transform="rotate(24)" />
-  </g>
-);
+const confetti: ParticleRenderer = (rand) => {
+  const cols = [GOLD, ICE, LEAF, PAPER];
+  const c = cols[Math.floor(rand() * cols.length)];
+  return (
+    <rect
+      x={-3.4}
+      y={-3.4}
+      width={6.8}
+      height={6.8}
+      rx={1.4}
+      fill={c}
+      stroke={OUTLINE}
+      strokeWidth={1.8}
+      transform={`rotate(${Math.floor(rand() * 80 - 40)})`}
+    />
+  );
+};
 
 export const PACK: SpeciesPack = {
   rig: Rig,
@@ -339,7 +356,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 184 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.7,
-    shapes: [lanternDot, fireworkBit, confettiLeaf],
+    shapes: [paperLantern, festivalDrum, confetti],
   },
   meta: {
     nameZh: "舞龙灯",

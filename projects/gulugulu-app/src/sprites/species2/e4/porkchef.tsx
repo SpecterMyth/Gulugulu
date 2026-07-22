@@ -279,20 +279,28 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const soupBubble: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={5.5} fill="#FFE8D6" opacity={0.9} stroke={OUTLINE} strokeWidth={2} />
-    <circle cx={-1.6} cy={-1.6} r={1.5} fill="#FFFFFF" />
-  </g>
-);
 const carrotBit: ParticleRenderer = () => (
   <g>
     <path d="M-2.5 -6 L2.5 -6 L1.4 5 Q0 7 -1.4 5 Z" fill="#F5A83B" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
     <path d="M-1.4 -8 q1.4 -2.4 2.8 0" stroke={LEAF} strokeWidth={1.8} fill="none" strokeLinecap="round" />
   </g>
 );
-const flameBit: ParticleRenderer = () => (
-  <path d="M0 5 q-4 -3.5 -2.5 -8.5 q1.8 -4.5 5.5 -7.5 q-1.2 4.5 1.8 7 q3.4 3 2.6 6.8 a5 5 0 0 1 -7.4 2.2 z" fill="#FFB03A" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 高汤飞溅：主液滴 + 甩出的两小滴
+const brothSplash: ParticleRenderer = () => (
+  <g>
+    <path d="M0 -7 q4.5 6 4.5 9.5 a4.5 4.5 0 0 1 -9 0 q0 -3.5 4.5 -9.5 z" fill="#F0C067" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <circle cx={-1.4} cy={2} r={1.2} fill="#FFF1C9" />
+    <circle cx={6} cy={-2} r={1.8} fill="#F0C067" stroke={OUTLINE} strokeWidth={1.6} />
+    <circle cx={-6} cy={-1} r={1.4} fill="#F0C067" stroke={OUTLINE} strokeWidth={1.6} />
+  </g>
+);
+// 小木勺
+const woodenLadle: ParticleRenderer = () => (
+  <g transform="rotate(-24)">
+    <path d="M0 -9 L0 3" stroke="#B98A4E" strokeWidth={3} strokeLinecap="round" />
+    <path d="M-6 3 Q-6 10 0 10 Q6 10 6 3 Z" fill="#C79A5B" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-5 3 Q0 6 5 3" fill="none" stroke={OUTLINE} strokeWidth={1.4} opacity={0.5} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -319,7 +327,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 194, y: 192 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [soupBubble, carrotBit, flameBit],
+    shapes: [carrotBit, brothSplash, woodenLadle],
   },
   meta: {
     nameZh: "掌勺猪",

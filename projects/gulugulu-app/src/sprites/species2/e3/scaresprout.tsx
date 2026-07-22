@@ -281,18 +281,34 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const grainBit: ParticleRenderer = () => (
-  <g fill={STRAW} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round">
-    <ellipse cx={0} cy={-3} rx={2.6} ry={4.5} />
-    <ellipse cx={-3} cy={2.5} rx={2.4} ry={4} transform="rotate(22 -3 2.5)" />
-    <ellipse cx={3} cy={2.5} rx={2.4} ry={4} transform="rotate(-22 3 2.5)" />
+// 稻草人农活产物：麦穗 + 乌鸦 + 扎束的稻草
+const wheatEar: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M0 10 V-2" fill="none" strokeWidth={2} stroke={STRAW_DEEP} strokeLinecap="round" />
+    <g fill={STRAW} strokeWidth={1.6}>
+      <ellipse cx={0} cy={-6} rx={2.4} ry={4} />
+      <ellipse cx={-3} cy={-1} rx={2.2} ry={3.6} transform="rotate(24 -3 -1)" />
+      <ellipse cx={3} cy={-1} rx={2.2} ry={3.6} transform="rotate(-24 3 -1)" />
+      <ellipse cx={-3} cy={4} rx={2.2} ry={3.4} transform="rotate(28 -3 4)" />
+      <ellipse cx={3} cy={4} rx={2.2} ry={3.4} transform="rotate(-28 3 4)" />
+    </g>
   </g>
 );
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill={SEA} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const crowBit: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeWidth={2}>
+    <path d="M-8 2 Q-9 -4 -3 -5 Q3 -6 8 -1 Q4 2 -2 3 Q-6 4 -8 2 Z" fill="#3E4356" />
+    <path d="M8 -1 L13 -2 L9 2 Z" fill="#F0A828" strokeWidth={1.6} />
+    <path d="M-3 -4 Q0 2 -5 3" fill="none" strokeWidth={1.4} stroke="#2A2E3A" />
+    <circle cx={4} cy={-2} r={0.9} fill="#FFFFFF" stroke="none" />
+  </g>
 );
-const starBit: ParticleRenderer = () => (
-  <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill="#FFEC8F" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+const strawTuft: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <g strokeWidth={2} stroke={STRAW}>
+      <path d="M0 6 L-8 -6 M0 6 L-3 -9 M0 6 L3 -9 M0 6 L8 -6" fill="none" />
+    </g>
+    <path d="M-4 4 Q0 6 4 4" fill="none" strokeWidth={2.2} stroke={STRAW_DEEP} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -320,7 +336,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 194, y: 214 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.6,
-    shapes: [grainBit, dropBit, starBit],
+    shapes: [wheatEar, crowBit, strawTuft],
   },
   meta: {
     nameZh: "稻草人",

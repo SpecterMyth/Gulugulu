@@ -17,6 +17,7 @@ const CREAM = "#FFF4DC";
 const PETAL_A = "#FFB03A";
 const PETAL_B = "#FFD93B";
 const VINYL = "#4A4034";
+const MIRROR = "#AEB8CC";
 
 /** 一圈花瓣（交替双色，count 片） */
 function PetalRing({ r = 40, count = 12 }: { r?: number; count?: number }) {
@@ -275,16 +276,27 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const noteBit: ParticleRenderer = () => (
+const discoBall: ParticleRenderer = () => (
+  <g>
+    <circle cx={0} cy={0} r={7.5} fill={MIRROR} stroke={OUTLINE} strokeWidth={2} />
+    <g stroke="#8892A6" strokeWidth={1.1} opacity={0.85}>
+      <path d="M-7 -2.6 H7 M-7 2.6 H7 M-2.6 -7 V7 M2.6 -7 V7" />
+    </g>
+    <path d="M-4.4 -4 l2 2 M3 -3.2 l1.6 1.6" stroke="#FFFFFF" strokeWidth={1.6} strokeLinecap="round" />
+  </g>
+);
+const vinylRecord: ParticleRenderer = () => (
+  <g>
+    <circle cx={0} cy={0} r={7.5} fill={VINYL} stroke={OUTLINE} strokeWidth={2} />
+    <circle cx={0} cy={0} r={5} fill="none" stroke="#6B5F4E" strokeWidth={1.2} />
+    <circle cx={0} cy={0} r={2.6} fill={PETAL_A} stroke={OUTLINE} strokeWidth={1.6} />
+    <circle cx={0} cy={0} r={0.8} fill={VINYL} />
+  </g>
+);
+const grooveNote: ParticleRenderer = () => (
   <g stroke={OUTLINE} strokeLinecap="round">
     <path d="M-2 6 a3.5 3.5 0 1 0 0.1 0 M1.5 5 V-6 Q1.5 -8 4 -7.5 L7 -6.5" fill={VINYL} strokeWidth={2.2} />
   </g>
-);
-const petalBit: ParticleRenderer = () => (
-  <path d="M0 6 Q-6 -2 -4 -9 Q0 -14 4 -9 Q6 -2 0 6 Z" fill={PETAL_A} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-);
-const sparkBit: ParticleRenderer = () => (
-  <path d="M1.5 -8 L-4 1 h3.5 L-1.5 8 L4.5 -1 h-3.5 Z" fill={PETAL_B} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
 );
 
 export const PACK: SpeciesPack = {
@@ -312,7 +324,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 192, y: 186 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.65,
-    shapes: [noteBit, petalBit, sparkBit],
+    shapes: [discoBall, vinylRecord, grooveNote],
   },
   meta: {
     nameZh: "摇摆葵",

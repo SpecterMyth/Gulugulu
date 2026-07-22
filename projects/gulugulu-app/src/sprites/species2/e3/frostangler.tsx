@@ -227,20 +227,27 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const beamStar: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={5} fill="#FFF6CE" stroke={OUTLINE} strokeWidth={1.8} />
-    <path d="M-8 0 h3 M8 0 h-3 M0 -8 v3" stroke={VOLT} strokeWidth={2} strokeLinecap="round" />
+// 深海鮟鱇产物：诱饵灯球 + 鱼骨 + 尖牙下颚
+const lureBulb: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-6 9 Q-9 -2 -2 -6" fill="none" strokeWidth={2.2} stroke={DEEPER} />
+    <circle cx={0} cy={-8} r={4.5} fill={VOLT} strokeWidth={2.2} />
+    <circle cx={-1.4} cy={-9.4} r={1.4} fill="#FFF6CE" stroke="none" />
   </g>
 );
-// 头灯的第二产物：投出的光束条（配 1 颗深海气泡）
-const rayBit: ParticleRenderer = () => (
-  <path d="M-3 8 L-1 -8 L3 -8 L1 8 Z" fill="#FFF6CE" opacity={0.7} stroke={VOLT} strokeWidth={1.8} strokeLinejoin="round" />
+const fishBones: ParticleRenderer = () => (
+  <g stroke="#DCE8F0" strokeWidth={2} strokeLinecap="round" fill="none">
+    <path d="M-8 0 H7" />
+    <path d="M-4 0 L-6 -4 M-4 0 L-6 4 M0 0 L-2 -4 M0 0 L-2 4 M4 0 L2 -4 M4 0 L2 4" strokeWidth={1.6} />
+    <path d="M7 0 L11 -4 L11 4 Z" fill="#DCE8F0" stroke={OUTLINE} strokeWidth={1.6} />
+    <circle cx={-8} cy={0} r={2.6} fill="#DCE8F0" stroke={OUTLINE} strokeWidth={1.6} />
+    <circle cx={-8.5} cy={-0.5} r={0.7} fill={OUTLINE} stroke="none" />
+  </g>
 );
-const bubbleBit: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={6} fill="#EAF7FF" opacity={0.6} stroke="#9BDCFF" strokeWidth={2.2} />
-    <circle cx={-2} cy={-2} r={1.6} fill="#FFFFFF" />
+const teethGrin: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeWidth={1.8}>
+    <path d="M-9 -3 Q0 -6 9 -3 L9 0 Q0 2 -9 0 Z" fill={DEEPER} />
+    <path d="M-8 -1 L-6 4 L-4 -1 L-2 4 L0 -1 L2 4 L4 -1 L6 4 L8 -1 Z" fill="#FFFFFF" strokeWidth={1.4} />
   </g>
 );
 
@@ -267,7 +274,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 198, y: 204 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.6,
-    shapes: [beamStar, rayBit, bubbleBit],
+    shapes: [lureBulb, fishBones, teethGrin],
   },
   meta: {
     nameZh: "霜灯鱼",

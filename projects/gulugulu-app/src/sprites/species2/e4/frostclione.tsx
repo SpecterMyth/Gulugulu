@@ -264,8 +264,16 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const auroraRibbon: ParticleRenderer = () => (
-  <path d="M-6 4 Q-2 -6 4 -4 Q8 -3 6 2 Q2 8 -4 7 Q-7 6 -6 4 Z" fill={AURORA} opacity={0.9} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+const jellyfish: ParticleRenderer = () => (
+  <g>
+    <path d="M-7 1 Q-7 -8 0 -8 Q7 -8 7 1 Q3 3 3 1 Q0 3 -3 1 Q-3 3 -7 1 Z" fill={AURORA} opacity={0.9} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <g stroke={DEEP} strokeWidth={1.6} strokeLinecap="round" fill="none">
+      <path d="M-3.5 2 q-1 4 0.5 8" />
+      <path d="M0 2.5 q1 4 -0.5 8" />
+      <path d="M3.5 2 q1 4 -0.5 7.5" />
+    </g>
+    <ellipse cx={-2.5} cy={-4} rx={2} ry={2.6} fill="#FFFFFF" opacity={0.5} />
+  </g>
 );
 // 采样瓶的第二产物：采到的微光浮游生物（配 1 颗气泡）
 const planktonBit: ParticleRenderer = () => (
@@ -274,7 +282,7 @@ const planktonBit: ParticleRenderer = () => (
     <path d="M0 -3.4 v-4 M-3 2 l-3 3 M3 2 l3 3" strokeWidth={1.6} strokeLinecap="round" fill="none" />
   </g>
 );
-const bubbleBit: ParticleRenderer = () => (
+const airBubble: ParticleRenderer = () => (
   <g>
     <circle cx={0} cy={0} r={6} fill="#EAF7FF" opacity={0.6} stroke="#9BDCFF" strokeWidth={2.2} />
     <circle cx={-2} cy={-2} r={1.6} fill="#FFFFFF" />
@@ -305,7 +313,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 192, y: 200 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.6,
-    shapes: [auroraRibbon, planktonBit, bubbleBit],
+    shapes: [jellyfish, planktonBit, airBubble],
   },
   meta: {
     nameZh: "海天使",

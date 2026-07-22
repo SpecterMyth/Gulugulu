@@ -286,22 +286,26 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const sonarBit: ParticleRenderer = () => (
+// 潜望镜：L 形镜筒 + 镜头
+const periscope: ParticleRenderer = () => (
+  <g fill={SUB} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round">
+    <path d="M-3 9 L-3 -6 Q-3 -9 0 -9 L8 -9 L8 -4 L3 -4 L3 9 Z" />
+    <rect x={6} y={-9.5} width={5} height={5} rx={1.2} fill={SUB_DEEP} />
+    <path d="M-3 4 h6" stroke={OUTLINE} strokeWidth={1.4} opacity={0.6} />
+  </g>
+);
+// 声呐扫掠弧（沿用既有雷达扫掠）
+const sonarPing: ParticleRenderer = () => (
   <g fill="none" stroke={SEA} strokeWidth={2.2} strokeLinecap="round">
     <path d="M-2 -5 a7 7 0 0 1 0 10 M2 -8 a12 12 0 0 1 0 16" />
   </g>
 );
-const bubbleBit: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={6} fill="#EAF7FF" opacity={0.6} stroke="#9BDCFF" strokeWidth={2.2} />
-    <circle cx={-2} cy={-2} r={1.6} fill="#FFFFFF" />
-  </g>
-);
-// 潜望镜的第二产物：声呐锁定的光点（配 1 颗气泡）
-const blipBit: ParticleRenderer = () => (
-  <g stroke={SEA} strokeWidth={1.8} fill="none" strokeLinecap="round">
-    <circle cx={0} cy={0} r={4} fill={SEA} opacity={0.4} stroke={OUTLINE} />
-    <path d="M0 -7 v3 M0 7 v-3 M-7 0 h3 M7 0 h-3" />
+// 鱼雷：带尾翼的鱼雷
+const torpedo: ParticleRenderer = () => (
+  <g transform="rotate(-12)">
+    <path d="M-9 0 L-6 -3.5 L7 -3.5 Q11 -3.5 11 0 Q11 3.5 7 3.5 L-6 3.5 Z" fill="#8E93A6" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-9 0 L-6 -3.5 M-9 0 L-6 3.5 M-6 -3.5 L-6 3.5" fill="none" stroke={OUTLINE} strokeWidth={1.6} strokeLinejoin="round" />
+    <circle cx={5} cy={0} r={1.6} fill={SUB_DEEP} />
   </g>
 );
 
@@ -327,7 +331,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 196 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [sonarBit, blipBit, bubbleBit],
+    shapes: [periscope, sonarPing, torpedo],
   },
   meta: {
     nameZh: "潜艇蟹",

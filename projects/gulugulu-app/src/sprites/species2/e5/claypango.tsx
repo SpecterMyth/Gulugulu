@@ -302,17 +302,38 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const clayBit: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={5} fill={CLAY} stroke={OUTLINE} strokeWidth={2} />
-    <path d="M-2 -1 q2 -2 4 0" fill="none" stroke={CLAY_DEEP} strokeWidth={1.6} strokeLinecap="round" />
+// 陶艺打工的产物：拉坯陶瓶 + 湿泥飞溅 + 成品马克杯
+const clayVase: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 瓶身 */}
+    <path d="M-4 -8 Q0 -9 4 -8 Q5 -4 6 1 Q6 7 0 8 Q-6 7 -6 1 Q-5 -4 -4 -8 Z" fill={CLAY} strokeWidth={2} />
+    {/* 瓶口 */}
+    <path d="M-4 -8 Q0 -10 4 -8" fill="none" stroke={OUTLINE} strokeWidth={1.8} strokeLinecap="round" />
+    {/* 拉坯纹 */}
+    <g stroke={CLAY_DEEP} strokeWidth={1.1} fill="none" opacity={0.65} strokeLinecap="round">
+      <path d="M-5.5 -1 Q0 0.5 5.5 -1 M-6 3 Q0 4.5 5.5 3" />
+    </g>
+    {/* 转盘暗示 */}
+    <ellipse cx={0} cy={11} rx={9} ry={2.4} fill="none" stroke={CLAY_DEEP} strokeWidth={1.6} opacity={0.7} />
   </g>
 );
-const emberBit: ParticleRenderer = () => (
-  <path d="M0 5 q-4 -3.5 -2.5 -8.5 q1.8 -4.5 5.5 -7.5 q-1.2 4.5 1.8 7 q3.4 3 2.6 6.8 a5 5 0 0 1 -7.4 2.2 z" fill="#FFB03A" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const claySplat: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-6 -3 Q-8 -7 -4 -7 Q-2 -9 1 -6 Q6 -8 6 -3 Q10 -1 6 3 Q8 7 3 6 Q1 9 -2 6 Q-7 8 -6 2 Q-9 0 -6 -3 Z" fill={CLAY} strokeWidth={2} />
+    <path d="M-2 -1 q2 -2 4 0" fill="none" stroke={CLAY_DEEP} strokeWidth={1.5} strokeLinecap="round" />
+    <circle cx={2.5} cy={2.5} r={1.2} fill={CLAY_DEEP} stroke="none" />
+  </g>
 );
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill="#9BDCFF" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const finishedMug: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 杯身（上釉成品） */}
+    <path d="M-6 -6 L5 -6 L4 7 Q-0.5 9 -5 7 Z" fill={GLAZE_I} strokeWidth={2} />
+    <path d="M-6 -6 Q-0.5 -4 5 -6" fill="none" stroke={OUTLINE} strokeWidth={1.6} />
+    {/* 把手 */}
+    <path d="M5 -3 Q11 -3 10 2 Q9 5 4 4" fill="none" strokeWidth={2.2} />
+    {/* 釉光 */}
+    <path d="M-4.5 -1 Q-0.5 1 3.5 -1" fill="none" stroke="#FFFFFF" strokeWidth={1.4} opacity={0.8} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -339,7 +360,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 204 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.55,
-    shapes: [clayBit, emberBit, dropBit],
+    shapes: [clayVase, claySplat, finishedMug],
   },
   meta: {
     nameZh: "赤陶甲",

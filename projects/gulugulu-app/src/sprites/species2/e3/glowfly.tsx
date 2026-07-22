@@ -237,17 +237,30 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const lightDot: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={5.5} fill={GLOW} stroke={OUTLINE} strokeWidth={1.8} />
-    <circle cx={0} cy={0} r={2} fill="#FFFFFF" />
+// 夜市灯摊产物：纸灯笼 + 扑灯的蛾 + 灯串暖泡
+const paperLantern: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-4} y={-10} width={8} height={2.5} rx={1} fill="#C8952E" strokeWidth={1.6} />
+    <ellipse cx={0} cy={0} rx={7} ry={8} fill="#E2432E" strokeWidth={2.2} />
+    <path d="M-3.5 -7.4 Q-5 0 -3.5 7.4 M0 -8 V8 M3.5 -7.4 Q5 0 3.5 7.4" fill="none" strokeWidth={1.4} stroke="#B32E17" />
+    <rect x={-4} y={7.5} width={8} height={2.5} rx={1} fill="#C8952E" strokeWidth={1.6} />
+    <path d="M0 10 v3" strokeWidth={1.8} stroke="#F5C542" strokeLinecap="round" />
   </g>
 );
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill={DEW} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const mothBit: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round">
+    <ellipse cx={-5} cy={0} rx={5} ry={6} fill="#C9B08A" transform="rotate(-20 -5 0)" />
+    <ellipse cx={5} cy={0} rx={5} ry={6} fill="#C9B08A" transform="rotate(20 5 0)" />
+    <ellipse cx={0} cy={0} rx={2} ry={5.5} fill={DEEP} />
+    <path d="M-1 -6 q-2 -3 -3 -4 M1 -6 q2 -3 3 -4" fill="none" strokeWidth={1.4} strokeLinecap="round" />
+  </g>
 );
-const leafBit: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill="#8CD97B" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+const festivalBulb: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-5 -2 Q-5 -9 0 -9 Q5 -9 5 -2 Q5 3 0 6 Q-5 3 -5 -2 Z" fill={GLOW} strokeWidth={2.2} />
+    <rect x={-3} y={5} width={6} height={4} rx={1} fill="#8E93A6" strokeWidth={1.6} />
+    <path d="M-2 -3 Q0 0 2 -3" fill="none" strokeWidth={1.4} stroke="#E0902E" strokeLinecap="round" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -273,7 +286,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 202, y: 206 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.55,
-    shapes: [lightDot, dropBit, leafBit],
+    shapes: [paperLantern, mothBit, festivalBulb],
   },
   meta: {
     nameZh: "流萤虫",

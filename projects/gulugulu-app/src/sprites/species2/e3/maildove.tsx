@@ -284,21 +284,24 @@ const envelopeBit: ParticleRenderer = () => (
     <path d="M-8 -6 L0 1 L8 -6" fill="none" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
   </g>
 );
-// 无人机遥控的产物：投递信封 + 遥控信号波 + 被操控的小无人机
-const signalArc: ParticleRenderer = () => (
-  <g fill="none" stroke={VOLT} strokeWidth={2.2} strokeLinecap="round">
-    <path d="M-2 -6 a7 7 0 0 1 0 12" />
-    <path d="M2 -9 a11 11 0 0 1 0 18" />
-  </g>
-);
-const miniDrone: ParticleRenderer = () => (
+// 快递投递产物：信封 + 纸箱包裹 + 签收标（"放在安全的地方"＝淋雨）
+const parcelBox: ParticleRenderer = () => (
   <g stroke={OUTLINE} strokeLinejoin="round">
-    <rect x={-3} y={-2} width={6} height={5} rx={1.5} fill="#5C6172" strokeWidth={1.8} />
-    <path d="M-9 -3 h6 M3 -3 h6" strokeWidth={2.2} strokeLinecap="round" />
-    <circle cx={-9} cy={-3} r={2} fill={CLOUD} strokeWidth={1.6} />
-    <circle cx={9} cy={-3} r={2} fill={CLOUD} strokeWidth={1.6} />
+    <rect x={-8} y={-8} width={16} height={16} rx={2} fill="#C9A86A" strokeWidth={2.2} />
+    <path d="M0 -8 V8" fill="none" strokeWidth={2} stroke="#B98A4E" />
+    <path d="M-8 -1 H8" fill="none" strokeWidth={2} stroke="#E3E7F0" />
+    <rect x={-5} y={-6} width={6} height={4} rx={1} fill="#FFFFFF" strokeWidth={1.4} />
   </g>
 );
+const deliveredTag: ParticleRenderer = (rand) => {
+  const g = rand() < 0.7 ? "✓" : "?";
+  return (
+    <g>
+      <rect x={-9} y={-9} width={18} height={18} rx={5} fill="#57B84C" stroke={OUTLINE} strokeWidth={2.4} />
+      <text x={0} y={5} fontSize={13} fontWeight={900} textAnchor="middle" fill="#FFFFFF" fontFamily="inherit">{g}</text>
+    </g>
+  );
+};
 
 export const PACK: SpeciesPack = {
   rig: Rig,
@@ -325,7 +328,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 206, y: 194 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.6,
-    shapes: [envelopeBit, signalArc, miniDrone],
+    shapes: [envelopeBit, parcelBox, deliveredTag],
   },
   meta: {
     nameZh: "信使鸽",

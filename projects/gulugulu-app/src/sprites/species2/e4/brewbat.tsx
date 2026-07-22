@@ -270,19 +270,35 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const potionDrop: ParticleRenderer = () => (
+// 药水瓶：软木塞 + 液面
+const potionVial: ParticleRenderer = () => (
   <g>
-    <circle cx={0} cy={0} r={5.5} fill={LEAF} opacity={0.9} stroke={OUTLINE} strokeWidth={2} />
-    <circle cx={-1.6} cy={-1.6} r={1.5} fill="#FFFFFF" />
+    <rect x={-3.4} y={-9} width={6.8} height={3.4} rx={1} fill="#B98A4E" stroke={OUTLINE} strokeWidth={1.8} />
+    <path d="M-3.4 -6 L3.4 -6 L3.4 5 Q3.4 9 0 9 Q-3.4 9 -3.4 5 Z" fill="#E4EEF5" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-3.4 1 L3.4 1 L3.4 5 Q3.4 9 0 9 Q-3.4 9 -3.4 5 Z" fill={LEAF} opacity={0.9} />
+    <circle cx={-1.4} cy={4} r={1} fill="#FFFFFF" opacity={0.7} />
   </g>
 );
-const leafBit: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill={LEAF} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+// 锥形瓶：冒泡的烧瓶
+const flask: ParticleRenderer = () => (
+  <g>
+    <path d="M-2 -8 L2 -8 L2 -3 L7 7 Q8 9 5 9 L-5 9 Q-8 9 -7 7 L-2 -3 Z" fill="#E4EEF5" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-5.4 3 L5.4 3 L7 7 Q8 9 5 9 L-5 9 Q-8 9 -7 7 Z" fill={SEA} opacity={0.9} />
+    <path d="M-2.6 -8 h5.2" stroke={OUTLINE} strokeWidth={1.6} strokeLinecap="round" />
+    <g fill="#FFFFFF" opacity={0.85} stroke={OUTLINE} strokeWidth={0.9}>
+      <circle cx={-1.5} cy={5.5} r={1.1} />
+      <circle cx={2} cy={6.6} r={0.9} />
+    </g>
+  </g>
 );
-const snowBit: ParticleRenderer = () => (
-  <g stroke="#B0E5F0" strokeWidth={2.2} strokeLinecap="round">
-    <path d="M0 -6 V6 M-5 -3 L5 3 M-5 3 L5 -3" />
-    <circle cx={0} cy={0} r={1.5} fill="#F7FCFD" stroke="none" />
+// 魔法书：翻开的书 + 符文
+const spellbook: ParticleRenderer = () => (
+  <g>
+    <path d="M0 -5 Q-5 -7 -9 -5 L-9 6 Q-5 4 0 6 Q5 4 9 6 L9 -5 Q5 -7 0 -5 Z" fill={BAT} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-7.6 -4 Q-4 -5.5 -0.7 -4 L-0.7 4.6 Q-4 3.2 -7.6 4.6 Z" fill={BELLY} />
+    <path d="M7.6 -4 Q4 -5.5 0.7 -4 L0.7 4.6 Q4 3.2 7.6 4.6 Z" fill={BELLY} />
+    <path d="M0 -5 V6" stroke={OUTLINE} strokeWidth={1.6} />
+    <path d="M-5.2 -1 L-3.6 1 L-5.2 3 M4.4 -1 L2.8 1 L4.4 3" fill="none" stroke={FIRE} strokeWidth={1.4} strokeLinecap="round" />
   </g>
 );
 
@@ -310,7 +326,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 194 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [potionDrop, leafBit, snowBit],
+    shapes: [potionVial, flask, spellbook],
   },
   meta: {
     nameZh: "炼药蝠",

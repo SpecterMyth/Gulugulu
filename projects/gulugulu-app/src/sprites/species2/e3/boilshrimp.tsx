@@ -250,19 +250,28 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const oilBubble: ParticleRenderer = () => (
+// 火锅涮煮产物：红油辣泡 + 玉米段 + 柠檬角
+const chiliOilBubble: ParticleRenderer = () => (
   <g>
-    <circle cx={0} cy={0} r={5.5} fill={SOUP} opacity={0.9} stroke={OUTLINE} strokeWidth={2} />
-    <circle cx={-1.6} cy={-1.6} r={1.6} fill="#FFB03A" />
+    <circle cx={0} cy={1} r={6} fill={SOUP} stroke={OUTLINE} strokeWidth={2} />
+    <circle cx={-2} cy={-1} r={1.6} fill="#FFD9A8" />
+    <path d="M2 -6 Q7 -7 8 -3 Q5 -4 2 -3 Z" fill={DEEP} stroke={OUTLINE} strokeWidth={1.6} strokeLinejoin="round" />
   </g>
 );
-const boltBit: ParticleRenderer = () => (
-  <path d="M1.5 -8 L-4 1 h3.5 L-1.5 8 L4.5 -1 h-3.5 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-);
-const steamPuff: ParticleRenderer = () => (
+const cornCob: ParticleRenderer = () => (
   <g>
-    <circle cx={-3} cy={1} r={4.2} fill="#FFFFFF" opacity={0.9} stroke="#9BDCFF" strokeWidth={2} />
-    <circle cx={3.5} cy={-2} r={3.2} fill="#FFFFFF" opacity={0.9} stroke="#9BDCFF" strokeWidth={2} />
+    <rect x={-4} y={-8} width={8} height={16} rx={4} fill={VOLT} stroke={OUTLINE} strokeWidth={2} />
+    <g fill="#E0A81E">
+      <circle cx={-1.5} cy={-5} r={1} /><circle cx={1.5} cy={-5} r={1} />
+      <circle cx={-1.5} cy={-1} r={1} /><circle cx={1.5} cy={-1} r={1} />
+      <circle cx={-1.5} cy={3} r={1} /><circle cx={1.5} cy={3} r={1} />
+    </g>
+  </g>
+);
+const lemonWedge: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-8 3 A8 8 0 0 1 8 3 Z" fill="#FFE066" strokeWidth={2} />
+    <path d="M0 3 V-4 M0 3 L-5 0 M0 3 L5 0" fill="none" strokeWidth={1.4} stroke="#E0A81E" />
   </g>
 );
 
@@ -291,7 +300,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 204 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.6,
-    shapes: [oilBubble, boltBit, steamPuff],
+    shapes: [chiliOilBubble, cornCob, lemonWedge],
   },
   meta: {
     nameZh: "沸腾虾",

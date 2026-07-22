@@ -18,6 +18,8 @@ const CREAM = "#FFF4DC";
 const COPPER = "#D9A514";
 const LEAF = "#8CD97B";
 const FROST = "#B0E5F0";
+const BAMBOO = "#D8C48A";
+const MATCHA = "#8FB93E";
 
 function Front({ palette, slots = {}, eyes = "sleepy", expression = "normal" }: RigProps) {
   return (
@@ -288,17 +290,40 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
+// 茶叶（沿用既有茶叶粒，保留备用）
 const teaLeaf: ParticleRenderer = () => (
   <path d="M0 -7 q6.5 2 1.5 11 q-7.5 -1.5 -1.5 -11 z" fill={LEAF} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
 );
-const steamPuff: ParticleRenderer = () => (
+// 茶筅：竹柄 + 扇开的穗
+const bambooWhisk: ParticleRenderer = () => (
   <g>
-    <circle cx={-3} cy={1} r={4.5} fill="#FFFFFF" opacity={0.9} stroke={FROST} strokeWidth={2} />
-    <circle cx={3.5} cy={-2} r={3.4} fill="#FFFFFF" opacity={0.9} stroke={FROST} strokeWidth={2} />
+    <rect x={-2.4} y={1} width={4.8} height={8} rx={2} fill={BAMBOO} stroke={OUTLINE} strokeWidth={2} />
+    <g stroke={BAMBOO} strokeWidth={1.6} strokeLinecap="round" fill="none">
+      <path d="M-2 1 Q-7 -4 -7 -9 M-0.6 1 Q-3 -5 -3 -10 M0.6 1 Q0.6 -5 0.6 -10.5 M2 1 Q7 -4 7 -9 M-0.2 1 Q3.4 -5 3.4 -10" />
+    </g>
+    <path d="M-2.4 4 h4.8" stroke={OUTLINE} strokeWidth={1.2} opacity={0.5} />
   </g>
 );
-const emberBit: ParticleRenderer = () => (
-  <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill="#E85D3A" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+// 抹茶粉堆
+const matchaMound: ParticleRenderer = () => (
+  <g>
+    <path d="M-8 6 Q-8 -5 0 -6 Q8 -5 8 6 Q0 8 -8 6 Z" fill={MATCHA} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-8 6 Q0 8 8 6" fill="none" stroke={OUTLINE} strokeWidth={1.6} opacity={0.5} />
+    <g fill="#7A9E32" opacity={0.8}>
+      <circle cx={-2.5} cy={-1} r={0.9} />
+      <circle cx={2} cy={0} r={0.8} />
+      <circle cx={0} cy={2.5} r={0.8} />
+    </g>
+  </g>
+);
+// 三色团子（和菓子）
+const wagashi: ParticleRenderer = () => (
+  <g>
+    <path d="M0 9 V-9" stroke={BAMBOO} strokeWidth={2} strokeLinecap="round" />
+    <circle cx={0} cy={-5} r={3.8} fill="#F3C6D2" stroke={OUTLINE} strokeWidth={2} />
+    <circle cx={0} cy={1} r={3.8} fill={CREAM} stroke={OUTLINE} strokeWidth={2} />
+    <circle cx={0} cy={7} r={3.8} fill={MATCHA} stroke={OUTLINE} strokeWidth={2} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -326,7 +351,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 222, y: 186 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.55,
-    shapes: [teaLeaf, steamPuff, emberBit],
+    shapes: [bambooWhisk, matchaMound, wagashi],
   },
   meta: {
     nameZh: "抹茶貘",

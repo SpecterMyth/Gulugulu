@@ -303,16 +303,25 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const miniBolt: ParticleRenderer = () => (
-  <path d="M1.5 -8 L-4 1 h3.5 L-1.5 8 L4.5 -1 h-3.5 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+// 天气主播的道具产物：地图冷锋箭头 + 折叠伞 + 预报卡（100% 加班概率）
+const mapArrow: ParticleRenderer = () => (
+  <path d="M-9 -7 L2 0 L-9 7 L-9 2 L-4 0 L-9 -2 Z" fill="#2E7BD6" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
 );
-// 气象云台仪读出的产物：预报天气符号——小云 + 雨滴（配 1 道闪电）
-const cloudBit: ParticleRenderer = () => (
-  <path d="M-8 3 a4 4 0 0 1 2 -7 a5 5 0 0 1 9 1 a4 4 0 0 1 -1 6 q-6 1 -10 0 z" fill="#C8CCD8" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+const umbrellaBit: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-9 0 Q-9 -9 0 -9 Q9 -9 9 0 Q5 -3 3 0 Q0 -3 -3 0 Q-5 -3 -9 0 Z" fill="#E2432E" strokeWidth={2.2} />
+    <path d="M0 0 V7 Q0 10 3 10" fill="none" strokeWidth={2.2} />
+  </g>
 );
-const rainDrop: ParticleRenderer = () => (
-  <path d="M0 -6 q4 5 4 8 a4 4 0 0 1 -8 0 q0 -3 4 -8 z" fill={ICE} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-);
+const forecastTag: ParticleRenderer = (rand) => {
+  const g = ["100%", "☀", "⛈"][Math.floor(rand() * 3)];
+  return (
+    <g>
+      <rect x={-13} y={-8} width={26} height={16} rx={4} fill={BELLY} stroke={OUTLINE} strokeWidth={2.4} />
+      <text x={0} y={4} fontSize={9} fontWeight={900} textAnchor="middle" fill={OUTLINE} fontFamily="inherit">{g}</text>
+    </g>
+  );
+};
 
 export const PACK: SpeciesPack = {
   rig: Rig,
@@ -337,7 +346,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 200 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.65,
-    shapes: [cloudBit, rainDrop, miniBolt],
+    shapes: [mapArrow, umbrellaBit, forecastTag],
   },
   meta: {
     nameZh: "风暴龙",

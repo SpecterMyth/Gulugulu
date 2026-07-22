@@ -297,21 +297,27 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const beadBit: ParticleRenderer = () => (
+// 一粒米（沿用稻米元素，收敛为单粒稻谷）
+const riceGrain: ParticleRenderer = () => (
+  <g transform="rotate(-18)">
+    <path d="M0 -7 Q4 -4 4 0 Q4 6 0 7 Q-4 6 -4 0 Q-4 -4 0 -7 Z" fill={CREAM} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M0 -4 V4" stroke={STRAW} strokeWidth={1.3} strokeLinecap="round" opacity={0.8} />
+  </g>
+);
+// 斗笠：锥顶草帽
+const strawHat: ParticleRenderer = () => (
   <g>
-    <circle cx={0} cy={0} r={4.5} fill="#E2432E" stroke={OUTLINE} strokeWidth={2} />
-    <path d="M-6 0 h12" stroke="#8A6410" strokeWidth={1.6} strokeLinecap="round" />
+    <path d="M0 -8 L11 6 Q0 9 -11 6 Z" fill={STRAW} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <path d="M-7 3 Q0 5 7 3 M-4 -1.5 Q0 -0.5 4 -1.5" fill="none" stroke="#B99A3E" strokeWidth={1.3} strokeLinecap="round" />
+    <ellipse cx={0} cy={6} rx={11} ry={2.6} fill="none" stroke={OUTLINE} strokeWidth={1.6} opacity={0.5} />
   </g>
 );
-const grainBit: ParticleRenderer = () => (
-  <g fill={STRAW} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round">
-    <ellipse cx={0} cy={-3} rx={2.6} ry={4.5} />
-    <ellipse cx={-3} cy={2.5} rx={2.4} ry={4} transform="rotate(22 -3 2.5)" />
-    <ellipse cx={3} cy={2.5} rx={2.4} ry={4} transform="rotate(-22 3 2.5)" />
+// 镰刀：弯刃 + 木柄
+const sickle: ParticleRenderer = () => (
+  <g>
+    <path d="M-6 8 L-3 -1" stroke="#8A6410" strokeWidth={3.4} strokeLinecap="round" />
+    <path d="M-3 -1 Q2 -9 10 -6 Q4 -8 -1 -2 Q-2 0 -3 -1 Z" fill="#C8CCD8" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
   </g>
-);
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill={RAIN} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
 );
 
 export const PACK: SpeciesPack = {
@@ -345,7 +351,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 194, y: 204 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.55,
-    shapes: [beadBit, grainBit, dropBit],
+    shapes: [riceGrain, strawHat, sickle],
   },
   meta: {
     nameZh: "谷雨牛",

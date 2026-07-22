@@ -17,6 +17,7 @@ const MOCHI_DEEP = "#F0DFC8";
 const FLAME = "#FFB03A";
 const VOLT = "#FFD93B";
 const ICE = "#8FD8E8";
+const WOOD = "#C79A5B";
 
 function Front({ palette, slots = {}, eyes = "round", expression = "normal" }: RigProps) {
   return (
@@ -266,20 +267,28 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-// 仙女棒的第二产物：拖尾火花（配 1 粒糖霜=年糕点缀）
-const sparkTrail: ParticleRenderer = () => (
-  <g stroke={OUTLINE} strokeLinejoin="round">
-    <path d="M0 -7 L1.4 -2 L6 0 L1.4 2 L0 7 L-1 2 L-6 0 L-1 -2 Z" fill={FLAME} strokeWidth={1.6} />
-    <path d="M2 2 l5 6" stroke={VOLT} strokeWidth={1.8} strokeLinecap="round" fill="none" />
-  </g>
-);
-const sparkBit: ParticleRenderer = () => (
+// 麻糬球：白团咬一口 + 黄豆粉薄撒（招牌产物）
+const mochiBall: ParticleRenderer = () => (
   <g>
-    <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+    <path d="M4 -6.4 A7.5 7.5 0 1 0 4 6.4 Q0.5 4.4 2.6 2.2 Q4.8 0 2.6 -2.2 Q0.5 -4.4 4 -6.4 Z" fill={MOCHI} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <g fill={MOCHI_DEEP} opacity={0.75}>
+      <circle cx={-3.6} cy={-2.6} r={0.9} />
+      <circle cx={-4} cy={1.4} r={0.8} />
+      <circle cx={-1.4} cy={3.6} r={0.8} />
+    </g>
   </g>
 );
+// 黄豆粉糖霜（沿用既有 kinako 撒糖粒）
 const sugarBit: ParticleRenderer = () => (
   <path d="M0 -5 L3.5 0 L0 5 L-3.5 0 Z" fill={ICE} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+);
+// 捣糬木杵：横杵头 + 立握把
+const mochiMallet: ParticleRenderer = () => (
+  <g>
+    <rect x={-2.4} y={-2} width={4.8} height={12} rx={2} fill={WOOD} stroke={OUTLINE} strokeWidth={2} />
+    <rect x={-8} y={-9} width={16} height={7} rx={3} fill={WOOD} stroke={OUTLINE} strokeWidth={2} />
+    <path d="M-8 -5.5 h16" stroke="#9A7038" strokeWidth={1.2} opacity={0.7} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -309,7 +318,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 198, y: 196 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.7,
-    shapes: [sparkBit, sparkTrail, sugarBit],
+    shapes: [mochiBall, sugarBit, mochiMallet],
   },
   meta: {
     nameZh: "爆浆糬",

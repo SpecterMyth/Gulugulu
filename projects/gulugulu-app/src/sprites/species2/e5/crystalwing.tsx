@@ -313,9 +313,25 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-// 放大镜下的产物：镜片反光 + 被放大的小瓢虫（配放大的玻璃叶脉）
-const lensGlint: ParticleRenderer = () => (
-  <path d="M0 -6 Q1 -1 6 0 Q1 1 0 6 Q-1 1 -6 0 Q-1 -1 0 -6 Z" fill="#FFFFFF" stroke={SEA} strokeWidth={1.8} strokeLinejoin="round" />
+// 吹玻璃/观察的产物：熔融玻璃珠 + 放大镜 + 小瓢虫
+const glassBead: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 吹管 */}
+    <path d="M8 10 L1 -1" stroke="#8E93A6" strokeWidth={2.4} strokeLinecap="round" />
+    {/* 熔融玻璃珠（灼热） */}
+    <circle cx={-2} cy={-4} r={6.5} fill="#FFC24D" strokeWidth={2} />
+    <circle cx={-2} cy={-4} r={3} fill="#FFE9AD" stroke="none" />
+    <path d="M-5 -6 q1.6 -1.6 3.4 -1" fill="none" stroke="#FFFFFF" strokeWidth={1.4} strokeLinecap="round" opacity={0.9} />
+  </g>
+);
+const magnifier: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    {/* 木柄 */}
+    <path d="M4 5 L10 11" stroke="#B98A4E" strokeWidth={2.6} strokeLinecap="round" />
+    {/* 镜片 */}
+    <circle cx={-1} cy={-1} r={7} fill="#DDF3FA" strokeWidth={2.4} />
+    <path d="M-4 -4 q2 -2 4 -1" fill="none" stroke="#FFFFFF" strokeWidth={1.6} strokeLinecap="round" />
+  </g>
 );
 const bugBit: ParticleRenderer = () => (
   <g>
@@ -324,9 +340,6 @@ const bugBit: ParticleRenderer = () => (
     <circle cx={-2} cy={-1} r={1} fill={OUTLINE} />
     <circle cx={2} cy={1.5} r={1} fill={OUTLINE} />
   </g>
-);
-const glassLeaf: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill={LEAF} opacity={0.85} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
 );
 
 export const PACK: SpeciesPack = {
@@ -354,7 +367,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 194, y: 202 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [lensGlint, bugBit, glassLeaf],
+    shapes: [glassBead, magnifier, bugBit],
   },
   meta: {
     nameZh: "琉璃蜓",

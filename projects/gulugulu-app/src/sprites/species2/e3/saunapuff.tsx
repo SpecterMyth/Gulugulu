@@ -209,17 +209,31 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const steamPuff: ParticleRenderer = () => (
-  <g>
-    <circle cx={-3} cy={1} r={4.5} fill={STEAM} opacity={0.92} stroke="#8FD8E8" strokeWidth={2} />
-    <circle cx={3.5} cy={-2} r={3.4} fill={STEAM} opacity={0.92} stroke="#8FD8E8" strokeWidth={2} />
+// 桑拿房产物：桑拿水勺 + 叠好的毛巾 + 白桦树枝束
+const saunaLadle: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-9 -2 A6 6 0 0 0 3 -2 Z" fill={WARM_DEEP} strokeWidth={2.2} />
+    <path d="M2 -2 L10 -10" fill="none" strokeWidth={3} stroke={PEG} />
   </g>
 );
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill="#9BDCFF" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const foldedTowel: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeWidth={2}>
+    <rect x={-9} y={2} width={18} height={5} rx={2.5} fill={CREAM} />
+    <rect x={-8} y={-3} width={16} height={5} rx={2.5} fill={FROST} />
+    <rect x={-7} y={-8} width={14} height={5} rx={2.5} fill={STEAM} />
+    <path d="M-3 -8 V-3 M-3 2 V7" fill="none" strokeWidth={1.2} stroke={WARM_DEEP} />
+  </g>
 );
-const icePellet: ParticleRenderer = () => (
-  <path d="M0 -6 L4 0 L0 6 L-4 0 Z" fill="#F7FCFD" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+const birchWhisk: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <g fill="#7CB342" strokeWidth={1.6}>
+      <path d="M0 4 Q-8 -2 -8 -9 Q-3 -6 0 4 Z" />
+      <path d="M0 4 Q-3 -6 0 -11 Q3 -6 0 4 Z" />
+      <path d="M0 4 Q8 -2 8 -9 Q3 -6 0 4 Z" />
+    </g>
+    <path d="M-2 4 L2 10" fill="none" strokeWidth={3} stroke={PEG} />
+    <path d="M-2 5 h5" fill="none" strokeWidth={1.6} stroke={WARM_DEEP} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -245,7 +259,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 196 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.6,
-    shapes: [steamPuff, dropBit, icePellet],
+    shapes: [saunaLadle, foldedTowel, birchWhisk],
   },
   meta: {
     nameZh: "桑拿豚",

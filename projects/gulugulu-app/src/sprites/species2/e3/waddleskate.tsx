@@ -271,18 +271,30 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const iceChip: ParticleRenderer = () => (
-  <path d="M0 -6 L5 -1 L2 6 L-4 4 L-5 -2 Z" fill="#F7FCFD" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-);
-// 冰壶刷扫出的第二产物：冰面霜痕（配 1 道电花）
-const frostStreak: ParticleRenderer = () => (
-  <g fill="none" stroke={ICE} strokeWidth={2.2} strokeLinecap="round">
-    <path d="M-7 3 q7 -4 13 -1" />
-    <path d="M-6 -3 q6 -3 11 -1" />
+// 花样滑冰产物：冰刀鞋 + 裁判评分牌 + 抛向冰面的玫瑰
+const skateBoot: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-5 -9 L2 -9 Q5 -9 5 -5 L6 3 L-5 3 Z" fill={BELLY} strokeWidth={2.2} />
+    <path d="M-6 3 L7 6 L3 6 L-6 6 Z" fill="#C0C4D0" strokeWidth={1.8} />
+    <path d="M7 6 l0 3 M4 6 l0 3" fill="none" strokeWidth={1.6} stroke="#C0C4D0" />
   </g>
 );
-const boltBit: ParticleRenderer = () => (
-  <path d="M1.5 -8 L-4 1 h3.5 L-1.5 8 L4.5 -1 h-3.5 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+const scoreCard: ParticleRenderer = (rand) => {
+  const s = ["6.0", "9.9", "10"][Math.floor(rand() * 3)];
+  return (
+    <g>
+      <rect x={-11} y={-8} width={22} height={16} rx={3} fill={BELLY} stroke={OUTLINE} strokeWidth={2.4} />
+      <text x={0} y={4} fontSize={10} fontWeight={900} textAnchor="middle" fill={TUX} fontFamily="inherit">{s}</text>
+    </g>
+  );
+};
+const roseToss: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-4 -6 Q-5 -10 0 -10 Q5 -10 4 -6 Q6 -2 0 0 Q-6 -2 -4 -6 Z" fill={SCARF} strokeWidth={2} />
+    <path d="M-2 -6 Q0 -8 2 -6 M-2 -3 Q0 -5 2 -3" fill="none" strokeWidth={1.2} stroke="#A81E12" />
+    <path d="M0 0 V8" fill="none" strokeWidth={2} stroke="#4CA36B" strokeLinecap="round" />
+    <path d="M0 4 q5 -1 6 -5 q-6 0 -6 5 z" fill="#4CA36B" strokeWidth={1.6} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -309,7 +321,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 198, y: 186 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.6,
-    shapes: [iceChip, frostStreak, boltBit],
+    shapes: [skateBoot, scoreCard, roseToss],
   },
   meta: {
     nameZh: "滑冰鹅",

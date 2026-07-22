@@ -239,13 +239,22 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const noodleBit: ParticleRenderer = () => (
-  <path d="M-6 -4 Q0 -8 3 -3 Q6 2 1 4 Q-4 6 -5 2" fill="none" stroke={NOODLE} strokeWidth={3.2} strokeLinecap="round" />
+// 拉面馆产物：溏心蛋 + 筷子挑面 + 鸣门鱼板
+const ajitamaEgg: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <ellipse cx={0} cy={0} rx={8} ry={6.5} fill="#FFF6E9" strokeWidth={2.2} />
+    <ellipse cx={0} cy={0} rx={3.6} ry={3.2} fill="#F5A83B" strokeWidth={1.8} />
+    <circle cx={-1} cy={-1} r={1} fill="#FFD98A" stroke="none" />
+  </g>
 );
-const soupDrop: ParticleRenderer = () => (
-  <path d="M0 -6 q5 5.5 5 9 a5 5 0 0 1 -10 0 q0 -3.5 5 -9 z" fill="#E2C08A" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const chopstickLift: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" strokeLinecap="round">
+    <path d="M-6 -10 L-2 6" strokeWidth={2.6} stroke="#B98A4E" />
+    <path d="M0 -10 L3 6" strokeWidth={2.6} stroke="#B98A4E" />
+    <path d="M-4 0 Q-9 6 -5 10 Q-1 13 0 8" fill="none" strokeWidth={2.4} stroke={NOODLE} />
+  </g>
 );
-const narutoBit: ParticleRenderer = () => (
+const narutoFishcake: ParticleRenderer = () => (
   <g>
     <circle cx={0} cy={0} r={5} fill="#FFFFFF" stroke={OUTLINE} strokeWidth={2} />
     <path d="M-2.6 -1 A2.8 2.8 0 0 1 2.2 0.6" fill="none" stroke="#F5A8C6" strokeWidth={1.8} strokeLinecap="round" />
@@ -275,7 +284,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 198, y: 198 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [noodleBit, soupDrop, narutoBit],
+    shapes: [ajitamaEgg, chopstickLift, narutoFishcake],
   },
   meta: {
     nameZh: "拉面熊",
