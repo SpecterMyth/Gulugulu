@@ -107,14 +107,16 @@ pet.tier ≥ 2 时，精灵脚底（影子层旁）渲染一圈**向外扩散的
 
 > ⚠️ 与并行工作流 **[InteractionEconomy.md](InteractionEconomy.md) v2.0（交互经济重构）** 对齐：`(阶数, 等级)` 的收益/恢复数值权威在该文档 §8——点击收益与精力恢复统一走 `tierFactor(tier) = tierGrowthFactor^(tier−1)`（默认 5），`clickCoinsPerTier` 与点击软上限已被其移除。本文只做"扩到 6 阶"的数组延长与融合自有参数。
 
+> ⚠️ **2026-07-21 机制修订**（交互经济）：**Token 不再回复精力**，改直接折算为**陪伴宠（主宠）经验**（`tokensPerExp`，全阶统一、不乘 `tierFactor`；权威见 [InteractionEconomy.md](InteractionEconomy.md)）。下表「精力恢复」行的 Token 腿已删，精力恢复仅剩**挂机 + 敲键盘**两途径；少一条恢复水龙头后，高阶（t4~t6）精力可行性警告随之**加剧**（详见该行）。
+
 | 项 | 值 | 说明 |
 |---|---|---|
-| `fusionFees` | `[100, 200, 300, 400, 500, 600]` | 索引 = 亲代阶数 T−1；1 阶融合 100 金与现状一致；`fusionFee` 字段废弃改名 |
+| `fusionFees` | **`[1500, 30000, 600000, 12000000, 120000000, 2400000000]`** | 索引 = 亲代阶数 T−1；`fusionFee` 字段废弃改名。本行原写线性 `[100..600]`，已被 **[EconomyScaling.md](EconomyScaling.md) §5** 的 ×20 指数阶梯取代（末档 5→6 于 v1.3 单独 ×10 降到 1.2 亿；索引 5 = 永不计费的单调守卫值） |
 | `hatchSeconds` | `tier2:1800 / tier3:3600 / tier4:7200 / tier5:14400 / tier6:28800` | 键 = 结果阶；`tier2` 与现状一致，兼容在途蛋 |
 | `maxLevel` | `[10, 20, 30, 40, 50, 60]` | 索引 = 阶数−1（前两项与 InteractionEconomy 一致，后四项为新增延长） |
-| `levelExpFactor` | `[10, 50, 250, 1250, 6250, 31250]` | 沿 InteractionEconomy 的 `[10, 50]` 按 ×5 阶梯延长（与 tierFactor 同速）；每击经验 = `2×5^(阶−1)` → 满级击数 ≈ t1 225 / t2 950 / t3 2,175 / t4 3,900 / t5 6,125 / t6 8,850 击，逐阶温和增长 |
+| `levelExpFactor` | **`[4, 10, 45, 250, 1600, 11250]`**（v1.3） | ⚠️ 本行原写 `[10,50,250,1250,6250,31250]`（"沿 ×5 阶梯延长"）——该口径把 1→2 阶的点击数拉出 8.3× 断层。**权威定义已移到 [EconomyScaling.md](EconomyScaling.md) §2.1**：设计输入是满级击数 ×2 阶梯 **45/95/196/390/784/1593**（每击经验 `4×5^(阶−1)`），factor 由它反解；`maxLevel` 不变 |
 | 点击收益 | `(1 + 等级) × 5^(阶数−1)` 金 / `2 × 5^(阶数−1)` exp | InteractionEconomy §4.1 公式自然外推；防刷闸门 = 每日 2000 击全局额度 |
-| 精力恢复 | 挂机/键盘/Token 换算 ×`tierFactor` | ⚠️ t4~t6 外推值极端（t6 挂机回满 ≈21.7 天、键盘 62.5 万键）——`tierGrowthFactor` 或改逐阶数组，**列为与交互经济工作流的联合调参项**，P1 不动该机制 |
+| 精力恢复 | 挂机/键盘 ×`tierFactor`（本行原含 Token 腿，2026-07-21 移出精力体系→改折算经验） | ⚠️ 恢复途径缩为两条后警告**加剧**：t4~t6 外推值极端（t6 挂机回满 ≈21.7 天、键盘 62.5 万键），且再无 Token 快充兜底——`tierGrowthFactor` 或改逐阶数组，**列为与交互经济工作流的联合调参项（Token 退出后优先级上调）**，P1 不动该机制 |
 | 等效蛋价 | `Σ(物种各元素蛋价) + fusionEggPriceBonus × (阶数−1)` | `tier2EggPriceBonus`(100) 改名 `fusionEggPriceBonus`，放生返还公式沿用 |
 | `aiFusionChance` | 0.5 | 仅作用于异物种配对；`aiFusionChanceByRecipe` 键改为并集物种键 |
 | config.test.json | 同结构小数值 | `fusionFees:[10,20,30,40,50,60]`、`hatchSeconds tier2..6: 20/25/30/35/40`、`maxLevel`/`levelExpFactor` 沿 InteractionEconomy 测试值（`[4,6]`/`[2,3]`）延长为 6 项；species/speciesByRecipe 两份 config **必须逐字节一致**（测试强制） |
@@ -193,7 +195,10 @@ pet.tier ≥ 2 时，精灵脚底（影子层旁）渲染一圈**向外扩散的
 - 新物种宠物 **601–657**：按（元素数升序，物种键字典序）编号——2 元素 601-615、3 元素 616-635、4 元素 636-650、5 元素 651-656、6 元素 657。
 - 新蛋 = 宠物 +100（**701–757**）；新孵化生成器 = 蛋 +200（**901–957**）；8xx 保留。与现有 4xx/5xx 无冲突。
 - **legacy 导入映射**：`LEGACY_TIER2_DEFS`（21 行常量表，含 §7 的映射 + tier 2）供 `steam_sync` 的 reconcile/collect 在 `species_for_steam_def` 未命中时转译（201-221 → 新物种宠物；301-321 → def−100 同表）。本期仅落常量与接缝注释，不改行为。
-- **P5 待决**：阶数如何上链（同物种多阶数 → 单 def + 动态属性，还是每阶独立 def）；`generate_itemdefs.mjs` 从 pair 键改为集合键后 `exchange` 串的表达（并集配方是多对多）。这两个问题在 P5 开工前于 `plans/steam_trade/00-decisions.md` 补充决策。
+- ~~**P5 待决**：阶数如何登记到 Steam；并集 exchange 多对多表达~~ → **已解（2026-07-15，见 [plans/steam_trade/00-decisions.md](../../plans/steam_trade/00-decisions.md)「用户拍板（2026-07-15）」）**：
+  - **待决①（阶数）**：**不登记到 Steam**——阶数/等级纯本地存档（承接待决 4），itemdef 不按阶翻倍；Steam 只认物种（集合），不校验同阶。
+  - **待决②（并集 exchange）**：每只宠一个 `set:<集合键>` **整体标签** + 每多元素配方一个 hidden generator，`exchange` 枚举该集合的**全部并集对** `{set:A,set:B ∣ A∪B=S}`、`bundle` 为加权 11 槽池 → **物种稀有度服务器精确强制**；同物种走宠 def 自带 `exchange:"sp:<codename>*2"` 确定升阶。
+  - **代价（用户已接受）**：per-user 阶梯（[FusionRecipeSlots.md](FusionRecipeSlots.md)）在 Steam 权威下降级为**全局加权池**（稀有度曲线保留、解锁门控丢失）；6 元素配方 364 条 exchange 实测 **20.4KB、真机上传已验 Steam 接受（2026-07-15）**，方案成立。新增 57 条并集 generator（提案 20000–20056，未上传未冻结）。
 
 ## 10. 引擎实施拆分（P1，详细进度见 plans/fusion_species/01-progress.md）
 

@@ -13,7 +13,7 @@
 | P2-Gate 用户确认 | ✅ 2026-07-14 | 用户拍板"形象设计没有问题了"，57 只全数通过（修订轮后） |
 | P3 动画 | ✅ 2026-07-15 | **57/57 全部完成**：每只 Side（右向侧视）+ Lie（专属睡姿）逐只定制；`check_species_assets --strict-anim` 全绿 + moving/sleeping 全谱渲染逐只人工复核 + `npm run build` 绿 |
 | P4 收尾 | ✅ 2026-07-15（终审+验证）· 删旧物种→**不执行**（引擎"加法式保留"，见下） | **全谱终审✅**（63 只 × idle/working/moving/sleeping 全渲染人工复核，零回归）+ **真机验证✅**（cargo test 84 passed/0 failed、npm build 绿、preview 冒烟无 console 错误、蛋→孵化→活体精灵经 SvgSprite 渲染 OK）+ **商店整合✅**（shop 走 speciesByRecipe 蛋 + eggPoolCandidates 跳过 legacy + 博物馆走我的 SvgSprite；build 已类型校验整合面）。**删 21 旧物种：不执行**——引擎 PR-1 已定"加法式而非删 21"，21 legacy 是设计保留的兼容层（① 旧存档不 remap 保留 legacy 精灵；② steam 201-221 冻结编号；③ fusion_gen `has_recipe` 门 + `game_config.rs` 3 个测试断言 `fusion_table.len()==21`）。删除会破坏 3 个绿测试 + 旧存档渲染/物种查找。资产删除清单封存，须待 PR-4 Steam（编号迁移 601-657 + `LEGACY_TIER2_DEFS`）+ 旧存档 remap 迁移落地后方可执行 → 归 P5/引擎域 |
-| P5 Steam（延后） | ☐ | itemdef 601-657、legacy 映射接线、阶数上链决策（见 FusionSystem.md §9） |
+| P5 Steam（延后） | ☐ | itemdef 601-657、legacy 映射接线；**阶数登记 Steam 决策已定（2026-07-15）：阶数不登记到 Steam + 并集 exchange 用「集合整体标签 + 每配方 generator 枚举全部并集对 + 加权 11 槽」→ 修订本文阶梯为 Steam 权威下全局加权池；见 [plans/steam_trade/00-decisions.md](../steam_trade/00-decisions.md)「用户拍板（2026-07-15）」+ FusionSystem.md §9** |
 
 ## 2. P1 引擎子任务（详规见 `docs/gdd/FusionSystem.md` §6/§7/§10）
 

@@ -2,9 +2,13 @@
 
 > 版本 v1.0 · 2026-07-15 · 引导层（guidance-layer）权威规范
 >
-> 本文按**当前已落地的数值结构与规则**重整引导系统：交互经济 v2.0（点击唯一成长 · 200 击/管 · 2000 日额度 · 键盘/Token 充能，见 [InteractionEconomy.md](InteractionEconomy.md)）、融合 2.0（63 物种 · 1~6 阶 · 同种升阶/异种并集，见 [FusionSystem.md](FusionSystem.md)）、指数经济（分阶商店 Lv1~4 · 8 槽孵化屋 · 3→50 后院 · 万/亿缩写，见 [EconomyScaling.md](EconomyScaling.md)）、图鉴（博物馆速览 + 配方详情，见 [PokedexSystem.md](PokedexSystem.md)）、Steam 交易（market POI，**默认关**，见 `plans/steam_trade/`）。
+> ⚠️ **2026-07-21 机制修订**：Token 不再回精力，改为直接折算**陪伴宠（主宠）经验**（满级或缺席即整段浪费，绝不溢给他宠）；精力恢复只剩挂机（全员）+ 敲键盘（仅陪伴宠）两途，漫游零食已移除。下文 A5 / B2 / G1 文案与 §4 覆盖表已按新机制改写，口径详见 [InteractionEconomy.md](InteractionEconomy.md)。
+>
+> 本文按**当前已落地的数值结构与规则**重整引导系统：交互经济 v2.0（点击打工赚金币涨经验 · 200 击/管 · 2000 日额度 · Token 喂陪伴宠涨经验 · 挂机/键盘回精力，见 [InteractionEconomy.md](InteractionEconomy.md)）、融合 2.0（63 物种 · 1~6 阶 · 同种升阶/异种并集，见 [FusionSystem.md](FusionSystem.md)）、指数经济（分阶商店 Lv1~4 · 8 槽孵化屋 · 3→50 后院 · 万/亿缩写，见 [EconomyScaling.md](EconomyScaling.md)）、图鉴（博物馆速览 + 配方详情，见 [PokedexSystem.md](PokedexSystem.md)）、Steam 交易（market POI，**默认关**，见 `plans/steam_trade/`）。
 >
 > **与 [OnboardingFlow.md](OnboardingFlow.md) 的分工**：OnboardingFlow 讲"前三天情感曲线"（叙事）；本文是"引导系统清单 + 触发 + 方式 + 展示预算"（规范），**取代** OnboardingFlow §二的节点清单与 §五的钩子表中"文本引导"部分。实现落点见 `src/game/tutorial.ts` 与 `App.tsx`。
+>
+> **与 [OnboardingCoach.md](OnboardingCoach.md)（强引导·动画教练层）的分层**：教练层用手指/按键**动画**手把手带过首个循环，**首次融合前**独占引导焦点并**抑制本文的气泡**；首次融合完成后教练退场，本文的展示预算气泡接管全生命周期。二者永不同屏。
 
 ---
 
@@ -42,7 +46,7 @@
 - **预算档位**：
   - **核心特性（budget 3）**：点击打工、精力恢复、收蛋、买蛋、临近满级、融合就绪——反复三次确保学会。
   - **温和提醒（budget 2）**：满级切主宠、额度将尽/用尽、升级扩容、放生——点到为止。
-  - **发现一次即退（budget 1）**：键盘充能首告、Token 首餐、金蛋诞生、图鉴首次、交易所首次、毕业总结。
+  - **发现一次即退（budget 1）**：键盘充能首告、Token 首餐、图鉴首次、交易所首次、毕业总结。
 
 ### 2.1 "引导期"的定义（全局兜底）
 
@@ -51,7 +55,7 @@
 - **基础族 basicCluster**（学会核心循环就该退场的）= {收蛋、点击打工、精力恢复、买第二颗蛋、临近满级、满级切主宠、融合就绪、额度将尽、额度用尽}。
 - **毕业里程碑** = 拥有第一只 2 阶精灵（`tier2Owned ≥ 1`，即现有 `GRADUATION_STEP`）。
 - **规则**：一条引导退休 ⇔ `shows[id] ≥ budget[id]` **或**（`id ∈ basicCluster` **且** 已毕业）。即毕业时把基础族**一律强制退休**（无论剩余预算）——因为此时玩家已完整跑过一遍循环，无需再教。
-- **发现/晚期族**（键盘充能、Token 首餐、金蛋、图鉴、升级扩容、放生、交易所）**不受毕业影响**，只看各自 budget——它们可能**毕业后才首次遇到**（如 Steam、图鉴、高阶扩容），毕业闸不能误杀。
+- **发现/晚期族**（键盘充能、Token 首餐、图鉴、升级扩容、放生、交易所）**不受毕业影响**，只看各自 budget——它们可能**毕业后才首次遇到**（如 Steam、图鉴、高阶扩容），毕业闸不能误杀。
 
 ### 2.2 持久化
 
@@ -71,8 +75,8 @@
 | A1 | 唤出菜单 | 无精灵 · `uiMode=pet` | ①+⑤指向自身 | 点我一下试试！ | 2 |
 | A2 | 去看孵化 | 无精灵 · `uiMode=menu` | ①+⑤指向🏡 | 第一颗蛋在🏡后院孵着，去看看 | 2 |
 | A3 | 收蛋 | 有蛋 `now ≥ hatchAt`（可收） | ①+②红点+⑤指向发光蛋 | 蛋发光啦，点它抱走新伙伴！ | 3 |
-| A4 | 点击打工 | 有精灵 · `uiMode∈{pet,menu}` | ① | 菜单开着时点我打工，金币经验一起涨 | 3 |
-| A5 | 精力恢复 | 主宠 `exhausted` | ①（配 💤 徽标④常驻充电条） | 我趴下充电啦～挂机 / 敲键盘 / 吃 Token 都在回精力⚡ | 3 |
+| A4 | 点击打工 | 有精灵 · `uiMode∈{pet,menu}` | ① | 点我打工，金币经验一起涨 | 3 |
+| A5 | 精力恢复 | 主宠 `exhausted` | ①（配 💤 徽标④常驻充电条） | 我趴下充电啦～挂机 / 敲键盘 都在回精力⚡ | 3 |
 | A6 | 商店买蛋 | 有精灵 · 精灵数<2 · 金币≥最便宜蛋 | ①+②红点 | 金币够啦！后院商店买颗蛋，凑一对好融合 | 3 |
 
 ### B. 编码共生（发现 · budget 1）
@@ -80,7 +84,7 @@
 | # | 系统/动作 | 触发条件 | 方式 | 文案 | budget |
 |---|---|---|---|---|---|
 | B1 | 键盘充能（含隐私+开关） | 首次键帽入账（键盘钩子首帧回精力） | ①（配键帽雨③飞行特效） | 你敲的每个键我都接住吃掉，回精力⚡（只数次数不记内容，设置里可关） | 1 |
-| B2 | Token 喂食 | 首次 Token 餐入账 | ①（配能量饭团🍙③飞行） | AI 干活产出的 Token，变成我的能量啦🍙 | 1 |
+| B2 | Token 喂经验 | 首次 Token 餐入账 | ①（配饭团🍙③飞行） | AI 干活产出的 Token，都喂给陪伴中的我涨经验啦🍙✨ 点我打工才有金币哦 | 1 |
 
 ### C. 成长与融合（basicCluster 收束 · 毕业即退）
 
@@ -95,7 +99,6 @@
 
 | # | 系统/动作 | 触发条件 | 方式 | 文案 | budget |
 |---|---|---|---|---|---|
-| D1 | 金蛋诞生（融合产物） | 新产生的 `tier≥2` 蛋（每颗一次） | ① | 金蛋孵化中✨ 关掉应用也照孵，回来见新伙伴 | 1/蛋 |
 | D2 | 图鉴 | 首次拥有 `tier≥2` 物种（或首次走近博物馆） | ①+③博物馆弹板 | 后院博物馆能看图鉴📖 收集越多、蛋池越丰富 | 1 |
 | D3 | 升级扩容 | 孵化槽/后院将满 · 且升得起下一级 | ①+②红点 | 后院/孵化屋能升级，腾更多位置给新伙伴 | 2 |
 | D4 | 放生腾位 | 后院已满 · 有蛋卡在孵化槽待收 | ① | 后院满了～放生一只或扩容，才能收下新蛋 | 2 |
@@ -120,7 +123,7 @@
 
 | # | 系统/动作 | 触发条件 | 方式 | 文案 | budget |
 |---|---|---|---|---|---|
-| G1 | 毕业总结 | 首只 `tier≥2` · `tutorialStep < GRADUATION_STEP` | ① | 🎉 第一只 2 阶诞生！图鉴 {c}/{total}——白天敲代码回精力、休息点我涨经验、晚上融合、早上收蛋，明天见 | 1 |
+| G1 | 毕业总结 | 首只 `tier≥2` · `tutorialStep < GRADUATION_STEP` | ① | 🎉 第一只 2 阶诞生！图鉴 {c}/{total}——敲键盘回精力、AI 的 Token 喂我涨经验、点我打工赚金币、晚上融合、早上收蛋，明天见 | 1 |
 
 > G1 收起时：写 `tutorialStep = GRADUATION_STEP`（现有）**并触发 basicCluster 强制退休**（§2.1）。这是"引导期正式结束"的开关。
 
@@ -131,8 +134,9 @@
 | 系统 | 引导条目 | 长期承接（退休后） |
 |---|---|---|
 | 点击打工 | A4、C1 | 精力条④ + 打工特效 |
-| 精力恢复（挂机/键盘/Token） | A5、B1、B2 | 💤 充电条④ + 键帽/饭团③ |
-| 孵化 / 收蛋 | A3、D1 | 孵化槽发光④ + 红点② |
+| 精力恢复（挂机/键盘） | A5、B1 | 💤 充电条④ + 键帽③ |
+| Token 涨经验（仅陪伴宠） | B2 | ✨经验/等级 UI + 饭团🍙③ |
+| 孵化 / 收蛋 | A3 | 孵化槽发光④ + 红点② |
 | 商店买蛋 / 分阶 / 升级 | A6、D5 | shop POI③ + 红点② |
 | 融合（1~6 阶） | C3 | 融合红点② + 后院直拖 |
 | 图鉴（63 种 + AI） | D2 | museum POI③ |
@@ -149,7 +153,7 @@
 多条同时命中时，`computeTutorialHint` 按下表**从上到下取第一条未退休命中项**。原则：**转瞬即逝的发现/当刻动作 > 里程碑 > 引流 > 温和提醒**（错过就没了的排前面）。
 
 1. **G1 毕业**（终局一次性）
-2. **B1/B2、D1 发现瞬间**（键帽/Token 首帧、金蛋刚产生——只在那一刻命中）
+2. **B1/B2 发现瞬间**（键帽/Token 首帧——只在那一刻命中）
 3. **A3 收蛋 / A5 精力耗尽 / E2 额度用尽**（当刻阻塞动作）
 4. **C3 融合就绪 / C1 临近满级**（里程碑就绪）
 5. **C2 切主宠 / A6 买蛋 / D5 商店升级 / D3 扩容 / D4 放生 / D2 图鉴 / F1 交易所**（引流）
@@ -160,20 +164,22 @@
 
 ---
 
-## 6. 落地映射（相对现有代码的增量）
+## 6. 落地映射（已实现，2026-07-15）
 
-现有骨架已到位（`tutorial.ts` 状态谓词表 + `App.tsx` 气泡 10s 收起 + `seenOnce` localStorage），本次为**增量改造**，非重写：
+> ✅ **已落地 + 验证**：`npm run build`（tsc 门禁）绿；`scripts` 外 node 冒烟 15 项全绿（优先级 / 预算退休 / 毕业闸 / Steam 门控 / expdiff 文案）。落地相对本文的取舍见"实现取舍"行。
 
-| 项 | 现状 | 改动 |
-|---|---|---|
-| **展示预算** | `once`（1 次）或无限复读 | `TutorialHint` 加 `budget?: number`（缺省=∞→按 basicCluster 归类）；`seenOnce: Set` → `shows: Record<id, count>`；`computeTutorialHint` 过滤 `shows[id] ≥ budget` |
-| **毕业闸** | 仅 `graduation` 用 `tutorialStep` | G1 收起时对 `basicCluster` 批量写 `shows[id]=budget`（强制退休） |
-| **新增节点** | 无 A3/B1/B2/D2/D3/D4/D5/F1 | A3 收蛋、B1 键盘首告、B2 Token 首餐、D2 图鉴、D3 扩容、D4 放生、D5 商店升级、F1 交易所 |
-| **发现信号** | 无 | B1/B2 需前端接"首次键盘入账 / 首次 Token 餐"事件（`game://keys`/`codex://activity` 的 `fedStamina` 首帧打标）；D2 接"首只 tier≥2 或首次近博物馆" |
-| **文案改写** | 部分偏长、含旧数值 | 按 §3 收紧；`pokedexTotal` 用 63（`PokedexSystem` §7 已定，`tutorial.ts:54` 待从旧 21 改 63）；大数走 `formatNumber` |
-| **i18n** | zh-only 硬编码 | 抽 i18n key，补 EN 镜像（`i18n.ts`） |
-| **指向高亮⑤** | 无 | A1/A2/A3 首现时描边脉冲指向自身/🏡/发光蛋（纯表现） |
-| **计数持久化** | `hintSeenOnce` 数组 | 同 key 升级为计数表 + 旧数组迁移（§2.2） |
+| 项 | 落地 |
+|---|---|
+| **展示预算** | `TutorialHint` 加 `key`+`budget`（必填）；`computeTutorialHint` 内 `make()` 集中判退休：`shows[key] ≥ budget` 或（`basic ∧ 已毕业`）→ 返回 null 让位下一条。`tutorial.ts` 全量重写为按 §5 优先级的 `make()` 链。 |
+| **毕业闸** | `graduated = save.tutorialStep ≥ GRADUATION_STEP`（派生，非批量写 shows——更稳健：换机后 localStorage 清空也仍抑制基础族）。`BASIC_CLUSTER` 常量集 9 项；G1 收起时照旧 `advanceTutorial(GRADUATION_STEP)`。 |
+| **新增状态节点** | A3 collect-egg、D2 pokedex、D4 release、D5 shop-upgrade、F1 steam 已进 `computeTutorialHint`（用 `shopUpgradeCost`/`yardCapacityFor` 等现有 config 助手 + `save.dexObtained`/`steamOutbox`）。 |
+| **B1/B2 保持事件内联** | 键盘/Token 首告仍在 `App.tsx` 事件回调里就地一次性弹（`gulugulu.keyDiscoverySeen`/`tokenExpSeen`），只**改写文案**——因为它们是"发现瞬间"触发，比状态谓词更准（§5 已如此归类）。 |
+| **收蛋/Steam 信号** | `App.tsx` 把 `hatcheryReady`（按 `stageNow` 结算，与孵化红点同源）、`steamEnabled = steamStatus != null` 作为 opts 传入 `useTutorialHints`。 |
+| **毕业文案计数** | 旧 `pokedexCount`/`pokedexTotal`（依赖 21 键 `fusionTable`）**已删**；改用 `FIXED_DEX_TOTAL`(63) + `dexObtained ∩ speciesByRecipe` 现算。 |
+| **计数持久化** | 新键 `gulugulu.hintShows`（`Record<key,count>`）；`loadHintShows` 从旧 `gulugulu.hintSeenOnce`（`string[]`）平滑迁移（每旧键记 1 轮）。落 localStorage（设备级）。 |
+| **老引导清除** | 删净线性 `advanceTutorial(1..4)` 五处调用点 + `tutorialStep===0/1/2/3`/`<3` 全部读取点；`useTutorialHints` 的 `seenOnce`/`markHintSeenOnce`/`.once` 退役。grep 校验零残留。 |
+
+**本次未做（留后续）**：D3 通用"扩容"节点（并入 D4 放生 + D5 商店 + 后院红点，不单列，避免催促叠加）；⑤ 指向高亮（气泡+红点已够，纯表现增量）；i18n（现状 zh-only 硬编码，发布前补 EN）。
 
 **不改**：气泡视觉与 10s 收起、单气泡独占、Rust 侧（`tutorialStep` 语义不变）、POI 弹板/红点/徽标既有实现。
 

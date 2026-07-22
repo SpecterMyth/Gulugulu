@@ -26,7 +26,7 @@ P0 设计定稿（GDD 四文档 + 本工作流落地）
        └─→ P2-Gate 用户逐只确认形象（评审图 assets/species_review/）
              └─→ P3 动画（按 B1~B9 分组补 Side/Lie/WORK_FX/联调）
                    └─→ P4 收尾（删 21 旧物种行+旧工具/图鉴计数/全谱终审/真机验证）
-                         └─→ P5 Steam（延后：itemdef 601-657 上传、legacy 映射、阶数上链决策）
+                         └─→ P5 Steam（延后：itemdef 601-657 上传、legacy 映射、阶数登记 Steam 决策）
 ```
 
 进入条件与每批 DoD：见 `SpeciesArtSpec.md` §9 与 `FusionSystem.md` §10；**P3 严禁在 P2-Gate 之前开工**（用户明确要求先确认形象）。

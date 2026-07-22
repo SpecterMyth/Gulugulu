@@ -55,7 +55,7 @@ GitHub Actions builds Windows, macOS, and Linux installers when a `v*` tag is pu
 
 ## Keyboard Charging & Privacy
 
-Typing anywhere on your desktop feeds the pet's stamina ("键盘充能", Windows only). The privacy contract, enforced in `src-tauri/src/key_watcher.rs`:
+Typing anywhere on your desktop feeds your current companion pet's stamina ("键盘充能", Windows only; only the active companion pet is charged). The privacy contract, enforced in `src-tauri/src/key_watcher.rs`:
 
 - Game logic only ever receives a per-second **count** of key presses.
 - Key characters exist solely as transient glyphs (≤250ms) to render the flying-keycap effect — they are **never logged, saved to disk, or transmitted**, and no text-reconstruction APIs (e.g. `ToUnicode`) are used.

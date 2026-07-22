@@ -10,7 +10,7 @@
 | `src-tauri/src/steam_inventory.rs`(新) | 唯一 unsafe:steamworks-sys ISteamInventory 薄封装 + 结果句柄轮询(15s 超时,必 DestroyResult;`Uncertain ≠ Failed`) |
 | `src-tauri/src/steam.rs`(新) | `Client::init_app(4956830)`(失败→unavailable 降级,不调 RestartAppIfNecessary);泵线程全串行:命令请求→60s outbox 巡检(意图探测→认领→单飞 mint 重试,退避 1/2/5/10min)→5min 对账;宽限集 30s;命令 `get_steam_status`/`steam_sync_now`/`steam_confirm_rebind`/`debug_steam_generate_items` |
 | `src-tauri/src/steam_sync.rs`(新) | 纯逻辑:`attach_mints`(认领优先于导入)/`resolve_intents`(崩溃回放;融合回放走配方路径)/`reconcile`(按 def 分组计数收敛+墓碑+容量溢出待认领)/`migration_sweep`/`strip_steam_bindings`/`apply_fusion_local`;全部单测覆盖 |
-| `src-tauri/src/game.rs` | schema v2(`steam_item_id: Option<String>` **字符串防 JS 精度**、`steam_item_def`、`steam_owner_id`、`steam_outbox`、`steam_tombstones`,serde default 兼容 v1);原子写(temp+rename);`collect_hatched`/`release_pet` 三段式(一阶本地先行+MintTier1 入队;二阶/绑定 Steam 先行);`fuse_pets` 拒绝已上链素材;debug 命令 `ensure_debug_build()` 闸门 |
+| `src-tauri/src/game.rs` | schema v2(`steam_item_id: Option<String>` **字符串防 JS 精度**、`steam_item_def`、`steam_owner_id`、`steam_outbox`、`steam_tombstones`,serde default 兼容 v1);原子写(temp+rename);`collect_hatched`/`release_pet` 三段式(一阶本地先行+MintTier1 入队;二阶/绑定 Steam 先行);`fuse_pets` 拒绝已同步 Steam 素材;debug 命令 `ensure_debug_build()` 闸门 |
 | `src-tauri/src/fusion_gen.rs` | `fuse_pets_ai` 三段式:CLI 预检→写 Fuse 意图→ExchangeItems(蛋 def←双材料)→成功后掷骰(AI/配方)并 `apply_fusion_local`;**掷骰在兑换成功之后** |
 | `src-tauri/src/game_config.rs` | `SpeciesInfo.steam_item_def` + `steam_def_for_species`/`species_for_steam_def` + 偏移常量 + 编号冻结测试 |
 | `src-tauri/Cargo.toml` | `steamworks = "0.13"` + `steamworks-sys = "0.13"`(高层 crate 的 sys 是私有 re-export,必须显式依赖) |
@@ -29,6 +29,8 @@
 
 - [ ] G3(真机部分):Steam 客户端 + 拥有 4956830 的账号登录后 `npm run tauri:dev` 验证 init/泵/快照 → WS4-A
 - [ ] 遗留:`bundle.resources` 未配置(GitHub 安装包不含 steam_api64.dll,装完启动会缺 dll)→ 05-release R7 前置,**下次发 GitHub Release 前必须处理**
+- [x] 2026-07-16 **修复 mint 靶向 bug**:outbox 巡检曾直拿 `MintTier1.def`(宠物 def 101-106)打 `TriggerItemDrop`——目标必须是 playtimegenerator def,该调用必空手(从未真机跑过故未暴露)。现改为 `fusion_slots::shop_gen_def(1, def)` → tier1 商店 gen 21011-21016(interval:1/cap10/窗口 1440,bundle 单条目=掉出的就是 op.def 宠物);401-406 被动掉落 faucet 保留为独立水龙头(应用级参数)
+- [x] 2026-07-16 **铸造/collect 重接线**(融合 2.0 上架语义,详见 00-decisions「铸造/collect 重接线已实装」):fuse→同种自 def/异种并集 gen、物种取实发 def、未注册 AI 槽 forced_codename 锁槽;商店蛋 2 阶+ Steam-first NeedDrop;拆栈守卫;乱序槽注册;apply_fusion_local 按亲代阶。旧 3XX/5XX 流保留兼容。cargo 99 绿
 
 ## 笔记
 

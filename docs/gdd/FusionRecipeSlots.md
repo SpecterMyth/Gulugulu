@@ -3,6 +3,10 @@
 > 状态：P0 设计定稿（待实施，属 P1 引擎范畴）。定稿日期 2026-07-14。
 > 关联：[FusionSystem.md](FusionSystem.md)（融合 2.0 双轴模型/经济/迁移，本文是其 §3.2/§8 掷骰规则的**替换与细化**）· [SpeciesMatrix.md](SpeciesMatrix.md)（63 固定物种全谱）· [SpeciesArtSpec.md](SpeciesArtSpec.md)（美术规范，本文 §6 AI 生成契约在其上追加约束）· [PokedexSystem.md](PokedexSystem.md)（图鉴展示，与本文槽位模型同源）。
 > 本文取代 FusionSystem.md 中"单次 `aiFusionChance` 掷骰 + 无上限唯一 AI 物种"的旧模型。
+>
+> 🔶 **2026-07-15 修订（Steam 权威层）**：本文的 **per-user 阶梯（前沿 m / 0 号钥匙 / 逐槽解锁）在 Steam 集成开启时被全局加权池取代**——静态 generator 读不到每用户收集状态，故 11 槽从第一天全开、按 §3.2 的稀有度曲线（`A(e)` + 几何衰减）加权掷，**保留稀有度、丢失解锁门控**；配方并集用「每宠一个 `set:<集合键>` 整体标签 + 每配方一个 generator 枚举全部并集对」在 Steam 侧精确强制。见 [plans/steam_trade/00-decisions.md](../../plans/steam_trade/00-decisions.md)「用户拍板（2026-07-15）」。§3 阶梯规则仍是 **Steam-off 本地模型**（已在 `fusion_slots.rs` 落地）；两模型收敛关系（本地阶梯降为展示预测 vs 统一为全局池）在 P5 实现期定，推荐前者。
+>
+> 🔶 **2026-07-18 修订（皮肤系统，[SkinWorkshop.md](SkinWorkshop.md)）**：创意工坊的「最早发布者胜 = 全局唯一形象」松弛为「**首发只是一款皮肤**」——CLI 可用时一律本地生成自己的形象并发布（always-publish），工坊复用降级为 CLI 不可用/失败的兜底；同 petId 的多条工坊物品都是合法皮肤，图鉴详情弹窗可换肤/安装/分享导入。槽位身份、阶梯与图鉴口径不受影响。
 
 ## 1. 设计目标与一句话
 

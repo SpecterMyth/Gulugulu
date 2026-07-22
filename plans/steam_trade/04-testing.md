@@ -6,6 +6,11 @@
 ## A. 铺场与冒烟
 
 - [ ] A1. dev 构建跑 `debug_steam_generate_items` 铺测试库存 → steamcommunity.com/my/inventory 网页可见物品(名称/图标/绑定旗标正确)
+- [x] A5. **窗口掉落冒烟·部分通过**(2026-07-16,`steam_smoke::a5_window_cap` + `a5_tail_check`):①**首会话 13 轮零掉落** → ②新会话尾测第 2/3/4 轮连掉 3 个 101 = **⚠️ Steam 游玩时长短会话滞后入账、会话结束才上报**(known behavior:同会话内挂时长不解锁掉落,重启会话即好;WS4 后续与生产都要按此理解)③`drop_interval:1` 每分钟一发节奏实证 ✓ ④**掉落同 def 自动堆叠**(同 item_id,quantity 1→2→3)——**"一宠一物品 id"绑定模型需拆栈**(TransferItemQuantity),列入铸造重接线设计输入 ⑤ConsumeItem 每次只消耗 q=1 → 残留 101×2(并入 A8 清理)。**满 10 封顶拒绝 + 次日重置**为长时/隔天观察项,机制面(掉落+计数+per-def interval 覆盖)已实证
+- [x] A6. **set: 标签 ExchangeItems 冒烟(⛔ Rust 铸造重接线的前置)**(2026-07-16,`steam_smoke::a6_a7_exchange_primitives` 一次通过:GenerateItems 铺 90003+90004 → ExchangeItems(90006) 开出 90005 ✓;两只 101 → ExchangeItems(101,`sp:guluduck*2`)铸新 101 净−1 ✓ —— **set: 标签匹配与 item 型 def 自带 exchange 两个原语真机成立,重接线解锁**)
+- [x] A7. **并集 generator 开池**(2026-07-16,同测试:101+104 打 20014(normal+water)→ 开出 **615 泡澡獭**(加权 bundle 掷中 0 号)✓;负例 101+104 打 20000(electric+fire)→ `k_EResultFail` 服务器拒绝 ✓ —— **物种稀有度服务器强制实证**;测试自带 Consume 清理,库存无残留)
+- [ ] A8. **冒烟残留清理**:A5-A7 验完处理 90001-90007 冒烟 defs(merge 语义不会自动清;partner 站若无删除入口则重传为 hidden+不可交易+去 exchange 的中和态)
+- [x] A9. **创意工坊双路真机验证**(2026-07-16,前置=partner 站开工坊「非公开」+ ISteamUGC 文件传输,用户已发行):①**上传路**:`spawn_workshop_backfill` 存量 9 个 AI 物种 9/9 上传成功(publishedFileId 3765893901~3765896102,`legalPending=false`;开工坊前 CreateItem 一致 `Busy`,开后即通;个别首批失败由"下次启动重扫"两轮收敛——含 Steam 侧偶发,重试设计实证有效)。②**查询/下载路**:`steam_smoke::workshop_resolve_roundtrip`(只读,~9s)——unlisted 曝光下 `query_all`+petId 标签正命中 aif0401、DownloadItem 回读 12KB 合法 CustomSpeciesEntry JSON(nameZh=汐跃侯),未认领槽 `aif9901` 返回 None ✓。跑法:`PATH="$PWD/target/debug:$PATH" cargo test --lib steam_smoke::workshop_resolve_roundtrip -- --ignored --nocapture`。网页端 filedetails 匿名访问"隐藏/无权限"=unlisted 预期(机器层 UGC 无公开网页)。
 - [ ] A2. **generator 首验**(00 号文件遗留项):ExchangeItems 打 5XX 生成器,确认烧蛋→开出宠物、结果句柄返回的 def 正确
 - [ ] A3. 泵稳定性:挂机 30 分钟无句柄泄漏(追踪器计数回零)、无 UI 卡顿
 
