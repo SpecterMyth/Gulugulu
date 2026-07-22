@@ -255,8 +255,19 @@ const musicNote: ParticleRenderer = () => (
     <path d="M-2 6 a3.5 3.5 0 1 0 0.1 0 M1.5 5 V-6 Q1.5 -8 4 -7.5 L7 -6.5" fill={SEA} strokeWidth={2.2} />
   </g>
 );
-const boltBit: ParticleRenderer = () => (
-  <path d="M1.5 -8 L-4 1 h3.5 L-1.5 8 L4.5 -1 h-3.5 Z" fill="#FFD93B" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+// 重低音音箱：音箱柜 + 大低音盆 + 2 道声波 + 向下的「DROP」箭头
+const subwoofer: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-10} y={-9} width={13} height={18} rx={2.4} fill="#3E4356" strokeWidth={2.4} />
+    <circle cx={-3.5} cy={2} r={4.6} fill="#5C6172" strokeWidth={2} />
+    <circle cx={-3.5} cy={2} r={1.7} fill={DEEP} stroke="none" />
+    <circle cx={-3.5} cy={-5.5} r={1.5} fill="#8E93A6" strokeWidth={1.3} />
+    <path d="M8 -8 L8 -1 M5.5 -3.5 L8 -1 L10.5 -3.5" fill="none" stroke={SEA} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <g fill="none" stroke={SEA} strokeWidth={1.8} strokeLinecap="round">
+      <path d="M6 3 a4 4 0 0 1 0 6" />
+      <path d="M9 1 a7 7 0 0 1 0 10" />
+    </g>
+  </g>
 );
 // 打碟机的第二产物：飞出的黑胶唱片（配 1 道电花）
 const vinylBit: ParticleRenderer = () => (
@@ -292,7 +303,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 186, y: 208 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.62,
-    shapes: [musicNote, vinylBit, boltBit],
+    shapes: [musicNote, vinylBit, subwoofer],
   },
   meta: {
     nameZh: "雷海马",

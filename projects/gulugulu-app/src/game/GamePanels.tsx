@@ -1,8 +1,9 @@
 import type { EggInstance, GameConfig, GameSave } from "../types";
-import { type Language, t } from "../i18n";
+import { fmt, speciesDisplayName, type Language, t } from "../i18n";
+import { useT } from "../useT";
 import { EggSvg, SvgSprite } from "../sprites/SvgSprite";
-import { eggHatchInfo } from "./config";
-import { DailyLoveMeter, EnergyBar } from "./EnergyBar";
+import { eggHatchInfo, expToNext, isMaxLevel } from "./config";
+import { DailyLoveMeter, EnergyBar, ExpBar } from "./EnergyBar";
 import { formatCount } from "./format";
 import { formatCountdown } from "./useGame";
 
@@ -10,7 +11,7 @@ export type UiMode = "pet" | "menu" | "backyard" | "settings" | "debug";
 
 /** 菜单栏固定高度（styles.css .game-menubar 同值）：菜单模式窗口高度 =
  *  pet 高度 + shell 间隙 8 + 菜单栏高度，保证开菜单时角色在屏幕上纹丝不动。 */
-export const MENUBAR_HEIGHT = 100;
+export const MENUBAR_HEIGHT = 124;
 
 /** Window size table (GDD §10.1, logical px). */
 export const WINDOW_SIZES: Record<UiMode, { w: number; h: number }> = {
@@ -52,7 +53,7 @@ export function MenuBar({
   onSelect: (mode: Exclude<UiMode, "pet" | "menu">) => void;
   onPetAvatarClick: () => void;
   backyardBadge?: boolean;
-  /** 键盘/Token/零食入账计数：变化时精力条播一次获得脉冲。 */
+  /** 键盘入账计数：变化时精力条播一次获得脉冲（Token 经验另走进食演出）。 */
   energyPulse?: number;
 }) {
   const activePet = save.pets.find((pet) => pet.id === save.activePetId) ?? null;
@@ -75,6 +76,7 @@ export function MenuBar({
             key={item.mode}
             type="button"
             className={`menu-item ${uiMode === item.mode ? "is-active" : ""}`}
+            data-coach={item.mode === "backyard" ? "menuBackyard" : undefined}
             onClick={() => onSelect(item.mode)}
           >
             <span className="menu-item-icon">
@@ -86,22 +88,54 @@ export function MenuBar({
         ))}
       </div>
       <div className="game-hud">
-        {activePet && (
-          <span className="hud-level" title={`${config.species[activePet.species]?.nameZh ?? ""} 等级`}>
-            Lv{activePet.level}
-          </span>
-        )}
-        <div className="hud-stamina" title={activePet ? `精力 ${activePet.stamina}/${config.staminaMax}` : "还没有精灵"}>
+        {/* col1·row1：精力标签（⚡ + 当前精力值），对齐右侧精力条 */}
+        <div
+          className="hud-stamina-value"
+          title={
+            activePet
+              ? fmt(copy.bk.energyTitle, { value: activePet.stamina, max: config.staminaMax })
+              : copy.bk.panels.noPet
+          }
+        >
           <span className="hud-icon">⚡</span>
-          <EnergyBar
-            value={activePet?.stamina ?? 0}
-            max={config.staminaMax}
-            wakeThreshold={config.wakeThreshold}
-            variant="hud"
-            pulseKey={energyPulse}
-          />
+          <span className="hud-num">{activePet?.stamina ?? 0}</span>
         </div>
-        <DailyLoveMeter clicks={save.daily.clicks} cap={config.dailyClickCap} />
+        {/* col2·row1：精力条（纯条） */}
+        <EnergyBar
+          value={activePet?.stamina ?? 0}
+          max={config.staminaMax}
+          wakeThreshold={config.wakeThreshold}
+          variant="hud"
+          pulseKey={energyPulse}
+        />
+        {/* col3·row1：爱心 + 今日剩余点击数 */}
+        <DailyLoveMeter clicks={save.daily.clicks} cap={config.dailyClickCap} showCount />
+
+        {/* col1·row2：经验标签（等级药丸 = 经验里程碑），对齐右侧经验条 */}
+        <span
+          className="hud-level"
+          title={
+            activePet
+              ? fmt(copy.bk.panels.levelTitle, {
+                  name:
+                    language === "zh"
+                      ? config.species[activePet.species]?.nameZh ?? ""
+                      : speciesDisplayName(activePet.species, language, config.species[activePet.species]?.nameZh, config.species[activePet.species]?.nameEn),
+                })
+              : copy.bk.panels.noPet
+          }
+        >
+          Lv{activePet?.level ?? 0}
+        </span>
+        {/* col2·row2：经验条（纯条；满级 → 满格金条，不隐藏） */}
+        {activePet && !isMaxLevel(config, activePet) ? (
+          <ExpBar value={activePet.exp} max={expToNext(config, activePet.tier, activePet.level)} />
+        ) : (
+          <div className="exp-bar exp-bar-full" aria-hidden="true">
+            <div className="exp-bar-fill" style={{ width: "100%" }} />
+          </div>
+        )}
+        {/* col3·row2：金币 */}
         <div className="hud-coins">
           <span className="hud-icon">🪙</span>
           <span className="hud-coins-value">{formatCount(save.coins)}</span>
@@ -124,15 +158,16 @@ export function PanelShell({
 }: {
   title: string;
   subtitle?: string;
-  /** 返回按钮的无障碍标签（双语）。缺省回退中文。 */
+  /** 返回按钮的无障碍标签（双语）。缺省回退当前语言词条。 */
   backLabel?: string;
   onBack: () => void;
   children: React.ReactNode;
 }) {
+  const { T } = useT();
   return (
     <div className="game-panel">
       <header className="panel-header" data-tauri-drag-region>
-        <button type="button" className="panel-back" onClick={onBack} aria-label={backLabel ?? "返回"}>
+        <button type="button" className="panel-back" onClick={onBack} aria-label={backLabel ?? T.back}>
           ←
         </button>
         <span className="panel-title">{title}</span>
@@ -187,6 +222,7 @@ export function SettingToggle({
 // ---------------------------------------------------------------------------
 
 export function StageEgg({ egg, config, now }: { egg: EggInstance; config: GameConfig; now: number }) {
+  const { T } = useT();
   const ready = egg.hatchAt != null && now >= egg.hatchAt;
   const { remaining, progress } = eggHatchInfo(config, egg, now);
   return (
@@ -201,7 +237,9 @@ export function StageEgg({ egg, config, now }: { egg: EggInstance; config: GameC
         className="stage-egg-svg"
       />
       <span className="stage-egg-label">
-        {ready ? "孵化完成！点我收取" : `孵化中 ${formatCountdown((egg.hatchAt ?? 0) - now)}`}
+        {ready
+          ? T.bk.panels.eggReady
+          : fmt(T.bk.panels.eggHatching, { countdown: formatCountdown((egg.hatchAt ?? 0) - now) })}
       </span>
     </div>
   );

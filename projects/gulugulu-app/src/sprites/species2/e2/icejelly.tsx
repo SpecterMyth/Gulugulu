@@ -16,6 +16,7 @@ const DOME_DEEP = "#8FD8E8";
 const CREAM = "#FFF8EE";
 const SWIRL = "#F5A8C6";
 const SEA = "#9BDCFF";
+const CHERRY = "#E2432E";
 
 /** 一根奶油卷触手（pivot=根部，向下卷） */
 function CreamTentacle({ h = 34, sway = 0 }: { h?: number; sway?: number }) {
@@ -254,14 +255,24 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const iceCrystal: ParticleRenderer = () => (
-  <path d="M0 -7 L4.5 0 L0 7 L-4.5 0 Z" fill="#F7FCFD" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-);
 const creamSwirl: ParticleRenderer = () => (
   <path d="M-5 4 Q-7 -3 -1 -5 Q5 -7 6 -1 Q6 3 2 4 Q-1 5 -1 2" fill={CREAM} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
 );
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill={SEA} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 樱桃：红果 + 梗 + 叶 + 高光
+const cherry: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M2 -10 Q-1 -5 -2 -1" fill="none" strokeWidth={2} strokeLinecap="round" />
+    <path d="M2 -10 q6 -2 7 3 q-6 1 -7 -3 z" fill="#57B84C" strokeWidth={1.8} />
+    <circle cx={-2} cy={3} r={6} fill={CHERRY} strokeWidth={2.4} />
+    <circle cx={-4} cy={1} r={1.4} fill="#FFFFFF" stroke="none" />
+  </g>
+);
+// 淋酱：红/琥珀色波浪糖浆
+const syrupDrizzle: ParticleRenderer = () => (
+  <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M-11 -6 Q-6 -1 -2 -5 Q2 -9 6 -4 Q9 0 11 -4" stroke="#E29A2C" strokeWidth={2.8} />
+    <path d="M-10 3 Q-5 8 -1 4 Q3 0 7 5 Q9 7 11 4" stroke={CHERRY} strokeWidth={2.6} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -287,7 +298,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 192, y: 186 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.6,
-    shapes: [iceCrystal, creamSwirl, dropBit],
+    shapes: [creamSwirl, cherry, syrupDrizzle],
   },
   meta: {
     nameZh: "冰晶水母",

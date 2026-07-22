@@ -2,11 +2,11 @@ import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { FoodGlyph, KeycapGlyph, StackedKeycapGlyph } from "../sprites/parts/glyphs";
 
 // -----------------------------------------------------------------------------
-// 汇聚飞行系统（InteractionEconomy.md §6.3）——新视觉语法：向内=获得精力。
-// 键帽（键盘充能，快而近以便看清字符）与能量饭团（吃 Token，从远处慢慢飘来、
-// 体型随 token 量放大）从容器边缘飞抛物线汇聚到宠物嘴部：外层做水平线性位移、
-// 内层做"先扬后坠"的垂直位移，落点缩小淡出成"被吸收"。全部动画只用
-// transform/opacity；样式见 styles.css .flight-*。
+// 汇聚飞行系统（InteractionEconomy.md §6.3）——新视觉语法：向内=获得滋养。
+// 键帽（键盘充能→精力，快而近以便看清字符）与能量饭团（吃 Token→陪伴宠经验，
+// 从远处慢慢飘来、体型随 token 量放大）从容器边缘飞抛物线汇聚到宠物嘴部：
+// 外层做水平线性位移、内层做"先扬后坠"的垂直位移，落点缩小淡出成"被吸收"。
+// 全部动画只用 transform/opacity；样式见 styles.css .flight-*。
 // -----------------------------------------------------------------------------
 
 export type Flight = {
@@ -79,7 +79,7 @@ export function keycapFlightsFor(labels: string[], spreadX = 48, fromY = 76): Ar
   return items;
 }
 
-/** 把一餐 Token 变成能量饭团飞行项（合餐后单枚；level 决定体型）。
+/** 把一餐 Token 变成经验饭团飞行项（合餐后单枚；level 决定体型）。
  *  从远处慢慢飘来（~1.9s）到嘴部，明显、看得清。 */
 export function foodFlightFor(level: number, fromX = -74, fromY = -152): Omit<Flight, "id"> {
   return {

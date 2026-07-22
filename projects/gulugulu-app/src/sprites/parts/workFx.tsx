@@ -28,12 +28,12 @@ export type WorkFxSpec = {
 // ---- 粒子造型 ----
 
 const codeChip: ParticleRenderer = (rand) => {
-  const glyphs = ["</>", "{ }", "()=>", "0101", ";", "fn"];
+  const glyphs = ["</>", "{ }", "// TODO", "git -f", ";", "fn"];
   const text = glyphs[Math.floor(rand() * glyphs.length)];
   return (
     <g>
       <rect x={-15} y={-9} width={30} height={18} rx={5} fill="#3E4356" stroke={OUTLINE} strokeWidth={2.4} />
-      <text x={0} y={4.5} fontSize={10} fontWeight={900} textAnchor="middle" fill="#7FD1FF" fontFamily="ui-monospace, monospace">
+      <text x={0} y={4} fontSize={9} fontWeight={900} textAnchor="middle" fill="#7FD1FF" fontFamily="ui-monospace, monospace">
         {text}
       </text>
     </g>
@@ -302,6 +302,186 @@ const colorDot: ParticleRenderer = (rand) => {
   return <circle cx={0} cy={0} r={4} fill={c} stroke={OUTLINE} strokeWidth={1.8} />;
 };
 
+// ---- 一阶 6 件的新粒子造型（tangible/meme 重做；替换旧的元素点缀粒子） ----
+
+/** 🐞 笔电：红瓢虫 bug（椭圆身+中缝+两斑点+触角）。 */
+const bugBit: ParticleRenderer = () => (
+  <g>
+    <path d="M-3 -6 q-2 -3 -4.5 -4 M3 -6 q2 -3 4.5 -4" fill="none" stroke={OUTLINE} strokeWidth={1.8} strokeLinecap="round" />
+    <circle cx={-7.5} cy={-10.5} r={1.3} fill={OUTLINE} />
+    <circle cx={7.5} cy={-10.5} r={1.3} fill={OUTLINE} />
+    <ellipse cx={0} cy={0.5} rx={8} ry={6.5} fill="#E2432E" stroke={OUTLINE} strokeWidth={2.2} />
+    <path d="M-4.5 -4.2 a4.6 4.6 0 0 1 9 0 z" fill={OUTLINE} />
+    <line x1={0} y1={-4} x2={0} y2={6.5} stroke={OUTLINE} strokeWidth={1.6} />
+    <circle cx={-3.6} cy={1.6} r={1.5} fill={OUTLINE} />
+    <circle cx={3.6} cy={1.6} r={1.5} fill={OUTLINE} />
+  </g>
+);
+
+/** 💙 笔电：蓝屏死机 BSOD（蓝窗+白色 ":(" + 两行细白线）。 */
+const bsodBit: ParticleRenderer = () => (
+  <g>
+    <rect x={-9} y={-8} width={18} height={16} rx={2} fill="#2E7BD6" stroke={OUTLINE} strokeWidth={2.2} />
+    <text x={-3.5} y={0.5} fontSize={8.5} fontWeight={900} textAnchor="middle" fill="#FFFFFF" fontFamily="ui-monospace, monospace">
+      :(
+    </text>
+    <path d="M-6 4 h11 M-6 6 h7" stroke="#FFFFFF" strokeWidth={1.4} strokeLinecap="round" />
+  </g>
+);
+
+/** 🍮 喷枪厨师：焦糖布丁盅（奶油盅体+焦糖脆顶弧）。 */
+const bruleeCup: ParticleRenderer = () => (
+  <g>
+    <path d="M-8 -2 h16 l-2 8 q-6 3 -12 0 z" fill="#FBE9C8" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+    <path d="M-8.5 -2.5 q8.5 -4.5 17 0 q-8.5 3 -17 0 z" fill="#C77A44" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+    <path d="M-4 -3.2 q4 -1.5 8 0" fill="none" stroke="#FFE8D6" strokeWidth={1.4} strokeLinecap="round" />
+  </g>
+);
+
+/** 🍬 喷枪厨师：焦糖脆片（琥珀裂盘+裂纹）。 */
+const sugarShard: ParticleRenderer = () => (
+  <g>
+    <circle cx={0} cy={0} r={7} fill="#E0A046" stroke={OUTLINE} strokeWidth={2.2} />
+    <path d="M-5 -3 L0.5 0 L-1 5 M0.5 0 L5.5 -1.5" fill="none" stroke={OUTLINE} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx={-2.4} cy={-2.4} r={1.4} fill="#FFE8D6" opacity={0.85} />
+  </g>
+);
+
+/** 🧯 喷枪厨师：灭火器（红瓶身+黑喷嘴——火太大了）。 */
+const extinguisher: ParticleRenderer = () => (
+  <g>
+    <rect x={-4} y={-4} width={8} height={12} rx={3} fill="#E2432E" stroke={OUTLINE} strokeWidth={2.2} />
+    <rect x={-3} y={-8} width={6} height={4} rx={1.5} fill="#3E4356" stroke={OUTLINE} strokeWidth={1.8} />
+    <path d="M2 -6 q6 -1.5 5 5" fill="none" stroke={OUTLINE} strokeWidth={2} strokeLinecap="round" />
+    <rect x={-2.6} y={0.5} width={5.2} height={4} rx={0.8} fill="#FFF6CE" opacity={0.9} />
+  </g>
+);
+
+/** 🗨️ 键盘玩家：GG 对话气泡。 */
+const ggBubble: ParticleRenderer = () => (
+  <g>
+    <path
+      d="M-9 -8 h18 a3 3 0 0 1 3 3 v6 a3 3 0 0 1 -3 3 h-6 l-4 4 v-4 h-8 a3 3 0 0 1 -3 -3 v-6 a3 3 0 0 1 3 -3 z"
+      fill="#FFF6CE"
+      stroke={OUTLINE}
+      strokeWidth={2.2}
+      strokeLinejoin="round"
+    />
+    <text x={0} y={1.5} fontSize={9.5} fontWeight={900} textAnchor="middle" fill="#E2432E" fontFamily="inherit">
+      GG
+    </text>
+  </g>
+);
+
+/** ⌨️ 键盘玩家：暴走碎键帽（翻滚的裂键帽+崩掉的碎角）。 */
+const rageKeycap: ParticleRenderer = () => (
+  <g transform="rotate(-18)">
+    <rect x={-9} y={-9} width={18} height={18} rx={4} fill="#FFF6CE" stroke={OUTLINE} strokeWidth={2.6} />
+    <path d="M-2 -9 L1 -2 L-3 2 L0 9" fill="none" stroke={OUTLINE} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M11 -11 l5 -1.5 -1 5 z" fill="#FFF6CE" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+  </g>
+);
+
+/** 🫧 拖把清洁工：肥皂泡簇（三泡+高光；亦见 soapBubble）。 */
+const soapSuds: ParticleRenderer = () => (
+  <g>
+    <circle cx={-4} cy={2.5} r={5} fill="#EAF7FF" opacity={0.6} stroke="#9BDCFF" strokeWidth={2} />
+    <circle cx={4.5} cy={3.5} r={4} fill="#EAF7FF" opacity={0.6} stroke="#9BDCFF" strokeWidth={2} />
+    <circle cx={0} cy={-4} r={5.5} fill="#EAF7FF" opacity={0.6} stroke="#9BDCFF" strokeWidth={2} />
+    <circle cx={-2} cy={-6} r={1.6} fill="#FFFFFF" opacity={0.95} />
+    <circle cx={2.4} cy={1} r={1.2} fill="#FFFFFF" opacity={0.9} />
+  </g>
+);
+
+/** 🟤 拖把清洁工：污垢块（褐色不规则团+黑斑）。 */
+const grimeClod: ParticleRenderer = () => (
+  <g>
+    <path
+      d="M-6 -2 q-2 -5 4 -5 q4 -2 6 3 q4 2 1 6 q1 5 -5 4 q-6 1 -6 -4 q-2 -2 0 -4 z"
+      fill="#8B6A45"
+      stroke={OUTLINE}
+      strokeWidth={2.2}
+      strokeLinejoin="round"
+    />
+    <circle cx={-2} cy={-0.5} r={1.2} fill="#5E4630" />
+    <circle cx={2.2} cy={2.4} r={1} fill="#5E4630" />
+    <circle cx={3} cy={-2} r={0.9} fill="#5E4630" />
+  </g>
+);
+
+/** ⚠️ 拖把清洁工：小心地滑黄牌（A 字架+感叹号）。 */
+const wetFloorSign: ParticleRenderer = () => (
+  <g>
+    <path d="M0 -8 L6.5 8 H-6.5 Z" fill="#FFD93B" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+    <path d="M0 -8 L2.5 8" fill="none" stroke={OUTLINE} strokeWidth={1.3} opacity={0.45} />
+    <line x1={-0.6} y1={-2} x2={-0.6} y2={3} stroke={OUTLINE} strokeWidth={2} strokeLinecap="round" />
+    <circle cx={-0.6} cy={5.6} r={1.3} fill={OUTLINE} />
+  </g>
+);
+
+/** 🌱 花匠：种子袋（纸袋+锯齿撕口+小花图）。 */
+const seedPacket: ParticleRenderer = () => (
+  <g>
+    <rect x={-7} y={-5.5} width={14} height={14.5} rx={1.5} fill="#F3E3C0" stroke={OUTLINE} strokeWidth={2.2} />
+    <path d="M-7 -5.5 l2.3 -2.6 2.3 2.6 2.4 -2.6 2.3 2.6 2.4 -2.6 2.2 2.6" fill="#F3E3C0" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <g fill="#F7B7D0" stroke={OUTLINE} strokeWidth={0.8}>
+      <circle cx={0} cy={-0.2} r={1.7} />
+      <circle cx={2.5} cy={2.2} r={1.7} />
+      <circle cx={0} cy={4.6} r={1.7} />
+      <circle cx={-2.5} cy={2.2} r={1.7} />
+    </g>
+    <circle cx={0} cy={2.2} r={1.7} fill="#FFD93B" stroke={OUTLINE} strokeWidth={0.8} />
+  </g>
+);
+
+/** 🌿 花匠：破土幼苗（土堆+两片子叶）。 */
+const seedling: ParticleRenderer = () => (
+  <g>
+    <path d="M-8 6 q8 -6 16 0 z" fill="#8B6A45" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+    <path d="M0 5 v-6" fill="none" stroke="#3B8F33" strokeWidth={2} strokeLinecap="round" />
+    <path d="M0 -1 q-6 -2 -7 -6 q6 -1 7 5 z" fill="#8CD97B" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+    <path d="M0 -1 q6 -2 7 -6 q-6 -1 -7 5 z" fill="#8CD97B" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+  </g>
+);
+
+/** 🏷️ 花匠：植物标牌（木桩+白标签）。 */
+const plantTag: ParticleRenderer = () => (
+  <g transform="rotate(8)">
+    <path d="M0 -1 v10" stroke="#C9A16B" strokeWidth={2.4} strokeLinecap="round" />
+    <rect x={-7} y={-8} width={14} height={8} rx={1.5} fill="#FFFFFF" stroke={OUTLINE} strokeWidth={2.2} />
+    <path d="M-4 -5 h8 M-4 -2.5 h5" stroke="#8CD97B" strokeWidth={1.4} strokeLinecap="round" />
+  </g>
+);
+
+/** 🍧 雪球雪花冰小贩：刨冰甜筒（白纸筒+彩虹冰顶）。 */
+const snowCone: ParticleRenderer = () => (
+  <g>
+    <path d="M-7 0 h14 l-7 11 z" fill="#FFFFFF" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+    <path d="M-2 1 l2 8 M3 1 l-1 5" fill="none" stroke="#C4D3DE" strokeWidth={1} strokeLinecap="round" />
+    <path d="M-7.5 0.5 a7.5 7.5 0 0 1 15 0 z" fill="#FF9BC2" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+    <path d="M-6 -2.4 a7.5 7.5 0 0 1 12 0" fill="none" stroke="#7FD1FF" strokeWidth={2.4} strokeLinecap="round" />
+    <path d="M-3.4 -4.6 a7.5 7.5 0 0 1 6.8 0" fill="none" stroke="#FFE06B" strokeWidth={2.4} strokeLinecap="round" />
+  </g>
+);
+
+/** 🩸 雪球雪花冰小贩：糖浆挤滴（红色泪滴+高光；亦可用 drop("#E2432E")）。 */
+const syrupSquirt: ParticleRenderer = () => (
+  <g>
+    <path d="M0 -7 q5 6 5 9 a5 5 0 0 1 -10 0 q0 -3 5 -9 z" fill="#E2432E" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+    <circle cx={-1.4} cy={2.6} r={1.4} fill="#FFC4B4" opacity={0.9} />
+  </g>
+);
+
+/** 🥶 雪球雪花冰小贩：脑冻脸（淡蓝脸+咬牙表情）。 */
+const brainFreeze: ParticleRenderer = () => (
+  <g>
+    <circle cx={0} cy={0} r={8} fill="#CFEFF6" stroke={OUTLINE} strokeWidth={2.2} />
+    <path d="M-6 -3.5 l3 2 -3 2 M6 -3.5 l-3 2 3 2" fill="none" stroke={OUTLINE} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    <rect x={-4} y={2} width={8} height={4} rx={1} fill="#FFFFFF" stroke={OUTLINE} strokeWidth={1.6} />
+    <path d="M-1.4 2 v4 M1.4 2 v4 M-4 4 h8" stroke={OUTLINE} strokeWidth={0.9} />
+  </g>
+);
+
 // ---- 27 件目录工具的产物粒子目录（AI 融合/一阶/legacy 都从这里取） ----
 
 /** 一件工具「喷出什么」的规格：粒子=工具产物、固有色、从工具尖端喷出。
@@ -309,12 +489,12 @@ const colorDot: ParticleRenderer = (rand) => {
  *  AI 自定义物种在 getCustomWorkFx 用 chimera 锚点覆盖 emitter。 */
 export const TOOL_FX: Record<string, WorkFxSpec> = {
   // —— 一阶 6 件（emitter 沿用既有实测值，一阶直接引用本表） ——
-  laptop: { emitter: { x: 188, y: 198 }, baseAngle: -Math.PI / 3, cone: 0.5, shapes: [codeChip, cursorBlink, codeChip] },
-  torch: { emitter: { x: 202, y: 192 }, baseAngle: -Math.PI / 4.5, cone: 0.42, shapes: [flameSpark, emberStar, flameSpark] },
-  keyboard: { emitter: { x: 166, y: 213 }, baseAngle: -Math.PI / 2, cone: 0.6, shapes: [keycap, boltSpark, keycap] },
-  mop: { emitter: { x: 188, y: 210 }, baseAngle: (-Math.PI * 2) / 3, cone: 0.55, shapes: [waterDrop, soapBubble, waterDrop] },
-  sproutWand: { emitter: { x: 196, y: 178 }, baseAngle: -Math.PI / 2.6, cone: 0.55, shapes: [leafBit, sproutStar, leafBit] },
-  snowGlobe: { emitter: { x: 200, y: 198 }, baseAngle: -Math.PI / 2, cone: 0.8, shapes: [snowflakeBit, iceShard, snowflakeBit] },
+  laptop: { emitter: { x: 188, y: 198 }, baseAngle: -Math.PI / 3, cone: 0.5, shapes: [codeChip, bugBit, bsodBit] },
+  torch: { emitter: { x: 202, y: 192 }, baseAngle: -Math.PI / 4.5, cone: 0.42, shapes: [bruleeCup, sugarShard, extinguisher] },
+  keyboard: { emitter: { x: 166, y: 213 }, baseAngle: -Math.PI / 2, cone: 0.6, shapes: [keycap, ggBubble, rageKeycap] },
+  mop: { emitter: { x: 188, y: 210 }, baseAngle: (-Math.PI * 2) / 3, cone: 0.55, shapes: [soapSuds, grimeClod, wetFloorSign] },
+  sproutWand: { emitter: { x: 196, y: 178 }, baseAngle: -Math.PI / 2.6, cone: 0.55, shapes: [seedPacket, seedling, plantTag] },
+  snowGlobe: { emitter: { x: 200, y: 198 }, baseAngle: -Math.PI / 2, cone: 0.8, shapes: [snowCone, syrupSquirt, brainFreeze] },
   // —— legacy 21 件（emitter 用近似值：这些物种仅兼容旧档/Steam，位置无需像素级） ——
   fountainPen: { emitter: { x: 196, y: 196 }, baseAngle: -Math.PI / 2.6, cone: 0.5, shapes: [drop("#2E3A6E"), signSwirl, inkDot] },
   wok: { emitter: { x: 200, y: 198 }, baseAngle: -Math.PI / 2.4, cone: 0.6, shapes: [flameSpark, cube("#8CD97B"), oilDrop] },
@@ -337,6 +517,266 @@ export const TOOL_FX: Record<string, WorkFxSpec> = {
   pondNet: { emitter: { x: 200, y: 190 }, baseAngle: -Math.PI / 2.6, cone: 0.6, shapes: [waterDrop, fishBit, leafBit] },
   crystalBall: { emitter: { x: 196, y: 192 }, baseAngle: -Math.PI / 2, cone: 0.75, shapes: [sparkle("#FFE9AD"), mysticSwirl, sparkle("#FFE9AD")] },
   yarnBall: { emitter: { x: 196, y: 194 }, baseAngle: -Math.PI / 2.6, cone: 0.6, shapes: [yarnLoop, yarnClew, yarnLoop] },
+};
+
+// ---- 打工粒子目录（36 件 tangible/meme 造型；ref 引用的单一事实源） ----
+
+/** AI 融合物种的 workFx 可用 `{ ref }` 引用本目录里的现成造型（无需自绘 nodes）。
+ *  id 集合必须与 fusionParts.json 的 `workParticles` 键一致（Rust 侧同源写入，
+ *  校验 ref 用）。每件 ~16px、原点居中、主形描边用 OUTLINE；文字类走 <rect>+<text>。
+ *  主窗口与 fx 子窗口都从本文件导入本表，跨窗口渲染一致。 */
+export const WORK_PARTICLE_CATALOG: Record<string, ParticleRenderer> = {
+  // —— 食物/饮品 12 —— //
+  "coffee-cup": () => (
+    <g>
+      <path d="M-6 -5 h11 v6 a5.5 5.5 0 0 1 -11 0 z" fill="#FFFFFF" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <ellipse cx={-0.5} cy={-5} rx={5.5} ry={1.8} fill="#6B4A2E" stroke={OUTLINE} strokeWidth={1.4} />
+      <path d="M5 -3 a3.5 3.5 0 0 1 0 6" fill="none" stroke={OUTLINE} strokeWidth={2.2} />
+      <path d="M-3 -8 q2 -2 0 -4 M1 -8 q2 -2 0 -4" fill="none" stroke="#C4D3DE" strokeWidth={1.4} strokeLinecap="round" />
+    </g>
+  ),
+  "coffee-bean": () => (
+    <g transform="rotate(24)">
+      <ellipse cx={0} cy={0} rx={5} ry={7} fill="#6B4A2E" stroke={OUTLINE} strokeWidth={2.2} />
+      <path d="M0 -6 q-2.4 6 0 12" fill="none" stroke={OUTLINE} strokeWidth={1.8} strokeLinecap="round" />
+    </g>
+  ),
+  "boba-pearl": () => (
+    <g>
+      <circle cx={0} cy={0} r={6} fill="#3E2C22" stroke={OUTLINE} strokeWidth={2.2} />
+      <circle cx={-2} cy={-2.2} r={1.6} fill="#8B6A45" opacity={0.9} />
+    </g>
+  ),
+  "tea-cup": () => (
+    <g>
+      <path d="M-8 6 q8 3 16 0" fill="none" stroke={OUTLINE} strokeWidth={2.2} strokeLinecap="round" />
+      <path d="M-6 -3 h12 l-1.5 6 q-4.5 3 -9 0 z" fill="#FFFFFF" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <ellipse cx={0} cy={-3} rx={6} ry={1.8} fill="#8CC96B" stroke={OUTLINE} strokeWidth={1.4} />
+      <path d="M6 -1 a3 3 0 0 1 0 5" fill="none" stroke={OUTLINE} strokeWidth={2} />
+    </g>
+  ),
+  toast: () => (
+    <g>
+      <path d="M-7 -2 q0 -7 7 -7 q7 0 7 7 v7 a2 2 0 0 1 -2 2 h-10 a2 2 0 0 1 -2 -2 z" fill="#F0C066" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <rect x={-3} y={-3} width={6} height={4} rx={1} fill="#FFE06B" stroke={OUTLINE} strokeWidth={1.4} transform="rotate(-6)" />
+    </g>
+  ),
+  "rice-ball": () => (
+    <g>
+      <path d="M0 -8 q7 3 6 12 q-6 3 -12 0 q-1 -9 6 -12 z" fill="#FBFBF5" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <rect x={-6} y={3} width={12} height={6} rx={1} fill="#2E4A38" stroke={OUTLINE} strokeWidth={2} />
+    </g>
+  ),
+  "ramen-egg": () => (
+    <g>
+      <ellipse cx={0} cy={0} rx={8} ry={7} fill="#FFFFFF" stroke={OUTLINE} strokeWidth={2.2} />
+      <circle cx={0} cy={0} r={3.6} fill="#F5A83B" stroke={OUTLINE} strokeWidth={1.8} />
+    </g>
+  ),
+  cherry: () => (
+    <g>
+      <path d="M-3 3 q1 -8 5 -10 M3 4 q1 -7 2 -11" fill="none" stroke="#3B8F33" strokeWidth={1.8} strokeLinecap="round" />
+      <circle cx={-4} cy={4} r={4} fill="#E2432E" stroke={OUTLINE} strokeWidth={2.2} />
+      <circle cx={4} cy={5} r={4} fill="#C23B1F" stroke={OUTLINE} strokeWidth={2.2} />
+      <circle cx={-5} cy={2.6} r={1.1} fill="#FFC4B4" />
+    </g>
+  ),
+  "honey-drop": drop("#F0B84A"),
+  "corn-cob": () => (
+    <g transform="rotate(20)">
+      <ellipse cx={0} cy={0} rx={4.5} ry={8} fill="#FFE06B" stroke={OUTLINE} strokeWidth={2.2} />
+      <path d="M-4 -4 h8 M-4.3 0 h8.6 M-4 4 h8 M-1.5 -7 v14 M1.5 -7 v14" fill="none" stroke="#E0A046" strokeWidth={1} />
+      <path d="M-4 6 q-4 4 -2 8 q4 -2 4 -6 z" fill="#8CD97B" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+    </g>
+  ),
+  donut: () => (
+    <g>
+      <circle cx={0} cy={0} r={8} fill="#C77A44" stroke={OUTLINE} strokeWidth={2.2} />
+      <circle cx={0} cy={0} r={7} fill="none" stroke="#F7B7D0" strokeWidth={3.5} />
+      <circle cx={0} cy={0} r={3} fill="#FBE9C8" stroke={OUTLINE} strokeWidth={2} />
+      <circle cx={-4} cy={-3} r={0.9} fill="#57B84C" />
+      <circle cx={3} cy={-4} r={0.9} fill="#2E7BD6" />
+      <circle cx={4} cy={2} r={0.9} fill="#FFE06B" />
+      <circle cx={-3} cy={4} r={0.9} fill="#E2432E" />
+    </g>
+  ),
+  "lemon-wedge": () => (
+    <g transform="rotate(-20)">
+      <path d="M-8 5 a9 9 0 0 1 16 0 z" fill="#FFE06B" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <path d="M-8 5 a9 9 0 0 1 16 0" fill="none" stroke="#E0A046" strokeWidth={2.4} />
+      <path d="M0 5 L-4 -1 M0 5 L0 -3 M0 5 L4 -1" fill="none" stroke="#E0A046" strokeWidth={1.2} strokeLinecap="round" />
+    </g>
+  ),
+  // —— 工具/物件 12 —— //
+  gear: () => (
+    <g>
+      {Array.from({ length: 8 }, (_, i) => (
+        <rect key={i} x={-2} y={-9} width={4} height={5} rx={1} fill="#8E93A6" stroke={OUTLINE} strokeWidth={1.6} transform={`rotate(${i * 45})`} />
+      ))}
+      <circle cx={0} cy={0} r={6} fill="#B7BBC7" stroke={OUTLINE} strokeWidth={2.2} />
+      <circle cx={0} cy={0} r={2.4} fill="#6E7383" stroke={OUTLINE} strokeWidth={1.8} />
+    </g>
+  ),
+  wrench: () => (
+    <g transform="rotate(-40)">
+      <rect x={-2} y={-3} width={4} height={12} rx={2} fill="#8E93A6" stroke={OUTLINE} strokeWidth={2.2} />
+      <path d="M-4 -8 a5 5 0 1 0 8 0 l-2 3 a2.5 2.5 0 1 1 -4 0 z" fill="#B7BBC7" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+    </g>
+  ),
+  "screw-nut": () => (
+    <g>
+      <polygon points="0,-8 7,-4 7,4 0,8 -7,4 -7,-4" fill="#B7BBC7" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <circle cx={0} cy={0} r={3.2} fill="#6E7383" stroke={OUTLINE} strokeWidth={1.8} />
+    </g>
+  ),
+  "paint-roller": () => (
+    <g transform="rotate(12)">
+      <rect x={-8} y={-8} width={16} height={7} rx={2.5} fill="#7FD1FF" stroke={OUTLINE} strokeWidth={2.2} />
+      <path d="M0 -4.5 v4 h4" fill="none" stroke={OUTLINE} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+      <rect x={2.5} y={-0.5} width={3.5} height={10} rx={1.7} fill="#C9A16B" stroke={OUTLINE} strokeWidth={2} />
+      <path d="M-6 -1 v4" stroke="#7FD1FF" strokeWidth={2} strokeLinecap="round" />
+    </g>
+  ),
+  trowel: () => (
+    <g transform="rotate(-20)">
+      <path d="M0 9 q-6 -2 -6 -8 q0 -3 6 -3 q6 0 6 3 q0 6 -6 8 z" fill="#B7BBC7" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <path d="M0 -2 v-4" stroke={OUTLINE} strokeWidth={2} strokeLinecap="round" />
+      <rect x={-2.5} y={-11} width={5} height={6} rx={2} fill="#C9A16B" stroke={OUTLINE} strokeWidth={2} />
+    </g>
+  ),
+  sponge: () => (
+    <g>
+      <rect x={-8} y={-6} width={16} height={12} rx={2.5} fill="#FFE06B" stroke={OUTLINE} strokeWidth={2.2} />
+      <path d="M-8 -2 q8 -3 16 0 v-2 a2 2 0 0 0 -2 -2 h-12 a2 2 0 0 0 -2 2 z" fill="#57B84C" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+      <circle cx={-3} cy={3} r={1} fill="#E0A046" />
+      <circle cx={2} cy={1.5} r={1} fill="#E0A046" />
+      <circle cx={4.5} cy={4} r={0.9} fill="#E0A046" />
+    </g>
+  ),
+  envelope: () => (
+    <g>
+      <rect x={-8} y={-6} width={16} height={12} rx={1.5} fill="#FFFFFF" stroke={OUTLINE} strokeWidth={2.2} />
+      <path d="M-8 -5 L0 1 L8 -5" fill="none" stroke={OUTLINE} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  ),
+  "parcel-box": () => (
+    <g>
+      <rect x={-8} y={-6} width={16} height={13} rx={1.5} fill="#C9A16B" stroke={OUTLINE} strokeWidth={2.2} />
+      <path d="M0 -6 v13 M-8 -1 h16" stroke={OUTLINE} strokeWidth={1.8} />
+      <path d="M-8 -1 q8 3 16 0" fill="none" stroke="#8B6A45" strokeWidth={1.4} />
+    </g>
+  ),
+  "potion-vial": () => (
+    <g>
+      <rect x={-2.5} y={-9} width={5} height={3} rx={1} fill="#C9A16B" stroke={OUTLINE} strokeWidth={1.8} />
+      <rect x={-2} y={-6.2} width={4} height={3.2} fill="#EAF7FF" stroke={OUTLINE} strokeWidth={2} />
+      <path d="M-2 -3 q-5 2 -5 6 a5.5 5.5 0 0 0 11 0 q0 -4 -5 -6 z" fill="#B084F0" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <circle cx={-2} cy={6} r={1.3} fill="#EAF7FF" opacity={0.85} />
+    </g>
+  ),
+  "light-bulb": () => (
+    <g>
+      <circle cx={0} cy={-2} r={6.5} fill="#FFE9AD" stroke={OUTLINE} strokeWidth={2.2} />
+      <rect x={-3} y={3.5} width={6} height={4} rx={1} fill="#B7BBC7" stroke={OUTLINE} strokeWidth={2} />
+      <path d="M-2.5 5.5 h5 M-2 7.5 h4" stroke={OUTLINE} strokeWidth={1.1} />
+      <path d="M-2 -1 l2 -2 2 2" fill="none" stroke={OUTLINE} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M-3.5 -5 a4 4 0 0 1 3 -2" fill="none" stroke="#FFFFFF" strokeWidth={1.6} strokeLinecap="round" />
+    </g>
+  ),
+  "color-swatch": () => (
+    <g>
+      <rect x={-7} y={-5} width={9} height={12} rx={1.5} fill="#E2432E" stroke={OUTLINE} strokeWidth={2} transform="rotate(-10)" />
+      <rect x={-3} y={-6} width={9} height={12} rx={1.5} fill="#2E7BD6" stroke={OUTLINE} strokeWidth={2} transform="rotate(4)" />
+      <rect x={1} y={-4} width={9} height={12} rx={1.5} fill="#FFD93B" stroke={OUTLINE} strokeWidth={2} transform="rotate(16)" />
+    </g>
+  ),
+  "music-note": () => (
+    <g>
+      <path d="M4 -8 v11" fill="none" stroke={OUTLINE} strokeWidth={2.4} strokeLinecap="round" />
+      <path d="M4 -8 q5 0 5 4 q-5 -1 -5 1 z" fill="#B084F0" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+      <ellipse cx={0.5} cy={3.5} rx={4.5} ry={3.5} fill="#B084F0" stroke={OUTLINE} strokeWidth={2.2} transform="rotate(-18 0.5 3.5)" />
+    </g>
+  ),
+  // —— 自然 6 —— //
+  "seed-packet": seedPacket,
+  pinecone: () => (
+    <g>
+      <path d="M0 -8 q6 3 5 9 q-5 4 -10 0 q-1 -6 5 -9 z" fill="#8B6A45" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <path d="M-4 -4 q4 2 8 0 M-5 -0.5 q5 2.5 9 0 M-4 3 q4 2 7 0" fill="none" stroke="#5E4630" strokeWidth={1.3} strokeLinecap="round" />
+      <path d="M0 -8 v14" stroke="#5E4630" strokeWidth={1} opacity={0.5} />
+    </g>
+  ),
+  mushroom: () => (
+    <g>
+      <path d="M-3 1 q0 6 0 7 q3 2 6 0 q0 -1 0 -7 z" fill="#FBE9C8" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <path d="M-8 1 a8 6 0 0 1 16 0 z" fill="#E2432E" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+      <circle cx={-3} cy={-2} r={1.4} fill="#FFF6CE" />
+      <circle cx={3} cy={-1.5} r={1.2} fill="#FFF6CE" />
+      <circle cx={0} cy={-3.5} r={1} fill="#FFF6CE" />
+    </g>
+  ),
+  petal: petalBit,
+  clover: () => (
+    <g>
+      <g fill="#57B84C" stroke={OUTLINE} strokeWidth={2}>
+        <ellipse cx={0} cy={-5} rx={3.2} ry={4} />
+        <ellipse cx={-4.5} cy={2} rx={3.2} ry={4} transform="rotate(-120 -4.5 2)" />
+        <ellipse cx={4.5} cy={2} rx={3.2} ry={4} transform="rotate(120 4.5 2)" />
+      </g>
+      <path d="M0 1 q1 5 3 8" fill="none" stroke="#3B8F33" strokeWidth={1.8} strokeLinecap="round" />
+    </g>
+  ),
+  confetti: (rand) => {
+    const cols = ["#E2432E", "#FFD93B", "#57B84C", "#2E7BD6", "#F7B7D0"];
+    const pick = (i: number) => cols[(Math.floor(rand() * cols.length) + i) % cols.length];
+    return (
+      <g>
+        <rect x={-7} y={-6} width={4} height={4} rx={0.8} fill={pick(0)} stroke={OUTLINE} strokeWidth={1.4} transform="rotate(20)" />
+        <rect x={3} y={-7} width={4} height={4} rx={0.8} fill={pick(1)} stroke={OUTLINE} strokeWidth={1.4} transform="rotate(-15)" />
+        <circle cx={-3} cy={5} r={2} fill={pick(2)} stroke={OUTLINE} strokeWidth={1.4} />
+        <rect x={2} y={3} width={4} height={4} rx={0.8} fill={pick(3)} stroke={OUTLINE} strokeWidth={1.4} transform="rotate(35)" />
+        <path d="M-6 0 l2 2" stroke={pick(4)} strokeWidth={2} strokeLinecap="round" />
+      </g>
+    );
+  },
+  // —— 梗/文字 6 —— //
+  "code-glyph": codeChip,
+  bug: bugBit,
+  "game-over": () => (
+    <g>
+      <rect x={-11} y={-9} width={22} height={18} rx={3} fill="#1B1B22" stroke={OUTLINE} strokeWidth={2.4} />
+      <text x={0} y={-1} fontSize={7.5} fontWeight={900} textAnchor="middle" fill="#E2432E" fontFamily="ui-monospace, monospace">
+        GAME
+      </text>
+      <text x={0} y={7} fontSize={7.5} fontWeight={900} textAnchor="middle" fill="#E2432E" fontFamily="ui-monospace, monospace">
+        OVER
+      </text>
+    </g>
+  ),
+  "strike-text": () => (
+    <g>
+      <rect x={-13} y={-7} width={26} height={14} rx={3} fill="#3E4356" stroke={OUTLINE} strokeWidth={2.2} />
+      <text x={0} y={3.5} fontSize={8.5} fontWeight={900} textAnchor="middle" fill="#9BA0B0" fontFamily="ui-monospace, monospace">
+        TODO
+      </text>
+      <line x1={-9} y1={0} x2={9} y2={0} stroke="#E2432E" strokeWidth={2} strokeLinecap="round" />
+    </g>
+  ),
+  "hundred-tag": () => (
+    <g>
+      <rect x={-12} y={-8} width={24} height={16} rx={3} fill="#FFFFFF" stroke={OUTLINE} strokeWidth={2.2} />
+      <text x={0} y={1.5} fontSize={9.5} fontWeight={900} textAnchor="middle" fill="#E2432E" fontFamily="ui-monospace, monospace">
+        100
+      </text>
+      <path d="M-8 5 h16 M-8 7 h16" stroke="#E2432E" strokeWidth={1.5} strokeLinecap="round" />
+    </g>
+  ),
+  "check-tag": () => (
+    <g>
+      <rect x={-9} y={-9} width={18} height={18} rx={5} fill="#57B84C" stroke={OUTLINE} strokeWidth={2.4} />
+      <path d="M-4.5 0 l3 4 6 -7" fill="none" stroke="#FFFFFF" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  ),
 };
 
 // ---- 六个一阶角色的粒子规格（直接引用工具产物目录，单一事实源） ----
@@ -401,10 +841,14 @@ export function resolveWorkFx(
   const fx = customFx ?? getCustomWorkFx(species);
   if (fx) {
     const tool = toolId ? TOOL_FX[toolId] : null;
-    const shapes =
-      fx.particles.length > 0
-        ? fx.particles.map((nodes) => () => renderWorkFxParticle(nodes, fx.palette))
-        : tool?.shapes;
+    // 粒子是纯数据的联合：`{ ref }` 引用目录造型、`{ nodes }` 自绘；未知 ref 丢弃。
+    const mapped: ParticleRenderer[] = fx.particles
+      .map((p): ParticleRenderer | null => {
+        if ("ref" in p) return WORK_PARTICLE_CATALOG[p.ref] ?? null;
+        return () => renderWorkFxParticle(p.nodes, fx.palette);
+      })
+      .filter((r): r is ParticleRenderer => r != null);
+    const shapes = fx.particles.length > 0 ? mapped : tool?.shapes;
     if (shapes && shapes.length > 0) {
       return { emitter: fx.emitter, baseAngle: tool?.baseAngle ?? -Math.PI / 2.2, cone: tool?.cone ?? 0.75, shapes };
     }

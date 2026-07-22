@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FusionStartResult, GameConfig, PetInstance } from "../types";
 import type { GameBridge } from "./bridge";
+import { fmt, localizeGameMessage, speciesDisplayName } from "../i18n";
+import { useT } from "../useT";
 import { SvgSprite } from "../sprites/SvgSprite";
 import { fusionFeeFor } from "./config";
 import { formatCount } from "./format";
@@ -18,7 +20,6 @@ type Stage =
   | { kind: "unavailable"; error?: string | null }
   | { kind: "confirm"; provider: string }
   | { kind: "starting"; provider: string }
-  | { kind: "result"; result: FusionStartResult }
   | { kind: "error"; message: string };
 
 function errorText(error: unknown): string {
@@ -43,6 +44,8 @@ export function FusionModal({
   onClose: () => void;
   onCommitted: (result: FusionStartResult) => void;
 }) {
+  const { lang, T } = useT();
+  const bk = T.bk.fusion;
   const [stage, setStage] = useState<Stage>({ kind: "checking" });
   const disposedRef = useRef(false);
   useEffect(() => {
@@ -83,9 +86,16 @@ export function FusionModal({
       bridge
         .fuseGenerate(pair.a.id, pair.b.id)
         .then((result) => {
-          if (disposedRef.current) return;
+          // 融合已是后端既成事实（金币已扣、蛋已生成，不可逆）：无论本弹窗此刻是否仍挂载，
+          // 都必须把结果交给常驻的 App —— 由它同步存档、播放后院庆祝演出（顶部横幅 / 坑口光效 /
+          // 就地融合仪式）、登记入账并关闭本弹窗（setFusionPair(null)）。onCommitted 作用于 App，
+          // 与本组件生命周期无关，故这里绝不能用 disposedRef 拦截。
+          // ⚠️ 此处曾有一道 `if (disposedRef.current) return`，是给「弹窗内结果卡」的 setStage 服务的；
+          // 那张 result 卡在「就地仪式」重构中已删除，结果交付独剩 onCommitted 这一条路。若沿用守卫，
+          // 一旦弹窗在 fuseGenerate 返回前被 StrictMode 重挂 / 存档推送重渲染等时机判为 disposed，就会
+          // 把整场演出连同 toast、入账一起吞掉——蛋照常由 useGame 轮询兜底出现，但庆祝与提示全无
+          // （正是「融合动画没有了」的症状）。
           onCommitted(result);
-          setStage({ kind: "result", result });
         })
         .catch((error) => {
           if (!disposedRef.current) setStage({ kind: "error", message: errorText(error) });
@@ -95,20 +105,21 @@ export function FusionModal({
   );
 
   const busy = stage.kind === "starting";
-  const nameOf = (pet: PetInstance) => config.species[pet.species]?.nameZh ?? pet.species;
+  const nameOf = (pet: PetInstance) =>
+    speciesDisplayName(pet.species, lang, config.species[pet.species]?.nameZh, config.species[pet.species]?.nameEn);
 
   return (
     <div className="welcome-overlay" onClick={busy ? undefined : onClose}>
       <div
         className="welcome-card fusion-modal"
         role="dialog"
-        aria-label="融合仪式"
+        aria-label={bk.ritual}
         onClick={(event) => event.stopPropagation()}
       >
         {stage.kind === "checking" && (
           <>
-            <div className="welcome-title">🔮 融合仪式</div>
-            <div className="welcome-sub">正在检测本地 Claude Code / Codex…</div>
+            <div className="welcome-title">🔮 {bk.ritual}</div>
+            <div className="welcome-sub">{bk.checking}</div>
             <div className="fusion-modal-spinner" aria-hidden="true">
               ✨
             </div>
@@ -117,18 +128,18 @@ export function FusionModal({
 
         {stage.kind === "unavailable" && (
           <>
-            <div className="welcome-title">⛔ 无法融合</div>
-            <div className="welcome-sub">融合仪式需要连接本地 Claude Code 或 Codex CLI</div>
-            <p className="fusion-modal-note">
-              没有检测到可用的 CLI。请安装并在终端登录 Claude Code（优先）或 Codex 后再试。
-            </p>
-            {stage.error && <div className="fusion-modal-detail">{stage.error}</div>}
+            <div className="welcome-title">{bk.unavailableTitle}</div>
+            <div className="welcome-sub">{bk.unavailableSub}</div>
+            <p className="fusion-modal-note">{bk.unavailableNote}</p>
+            {stage.error && (
+              <div className="fusion-modal-detail">{localizeGameMessage(stage.error, lang)}</div>
+            )}
             <div className="fusion-modal-actions">
               <button type="button" className="welcome-cta is-secondary" onClick={onClose}>
-                关闭
+                {bk.close}
               </button>
               <button type="button" className="welcome-cta" onClick={() => runCheck(true)}>
-                重新检测
+                {bk.recheck}
               </button>
             </div>
           </>
@@ -136,8 +147,8 @@ export function FusionModal({
 
         {(stage.kind === "confirm" || stage.kind === "starting") && (
           <>
-            <div className="welcome-title">🔮 融合仪式</div>
-            <div className="welcome-sub">由本地 {providerLabel(stage.provider)} 现场生成</div>
+            <div className="welcome-title">🔮 {bk.ritual}</div>
+            <div className="welcome-sub">{fmt(bk.bySub, { provider: providerLabel(stage.provider) })}</div>
             <div className="fusion-modal-parents">
               <div className="fusion-modal-parent">
                 <SvgSprite species={pair.a.species} config={config} petState="idle" />
@@ -150,48 +161,24 @@ export function FusionModal({
               </div>
             </div>
             <p className="fusion-modal-note">
-              两只精灵将被<b>消耗</b>，花费 {formatCount(fusionFeeFor(config, pair.a.tier))} 🪙。
+              {bk.consumePrefix}
+              <b>{bk.consumeBold}</b>
+              {fmt(bk.consumeSuffix, { fee: formatCount(fusionFeeFor(config, pair.a.tier)) })}
               <br />
-              结果可能触发经典配方，也可能由 AI 创造一只独一无二的新物种！
+              {bk.resultNote}
             </p>
             <div className="fusion-modal-actions">
               <button type="button" className="welcome-cta is-secondary" disabled={busy} onClick={onClose}>
-                取消
+                {bk.cancel}
               </button>
               <button
                 type="button"
                 className="welcome-cta"
+                data-coach="fuseConfirm"
                 disabled={busy}
                 onClick={() => startFusion(stage.provider)}
               >
-                {busy ? "仪式进行中…" : "✨ 开始融合"}
-              </button>
-            </div>
-          </>
-        )}
-
-        {stage.kind === "result" && (
-          <>
-            <div className="welcome-title">
-              {stage.result.mode === "recipe" ? "📜 触发经典配方！" : "✨ 新生命正在酝酿"}
-            </div>
-            <div className="welcome-sub">
-              {stage.result.mode === "recipe"
-                ? `「${
-                    (stage.result.species && config.species[stage.result.species]?.nameZh) ??
-                    stage.result.species ??
-                    "？？？"
-                  }」的蛋已进入孵化区`
-                : "AI 正在设计全新物种，神秘蛋已进入孵化区"}
-            </div>
-            <p className="fusion-modal-note">
-              {stage.result.mode === "recipe"
-                ? "30 分钟后回来收蛋吧！"
-                : "设计完成会立刻通知你；即使关掉应用，孵化和生成也会在下次启动时继续。"}
-            </p>
-            <div className="fusion-modal-actions">
-              <button type="button" className="welcome-cta" onClick={onClose}>
-                好耶！
+                {busy ? bk.starting : bk.start}
               </button>
             </div>
           </>
@@ -199,12 +186,12 @@ export function FusionModal({
 
         {stage.kind === "error" && (
           <>
-            <div className="welcome-title">😥 融合没有开始</div>
-            <div className="fusion-modal-detail">{stage.message}</div>
-            <p className="fusion-modal-note">两只精灵和金币都没有被消耗。</p>
+            <div className="welcome-title">{bk.errorTitle}</div>
+            <div className="fusion-modal-detail">{localizeGameMessage(stage.message, lang)}</div>
+            <p className="fusion-modal-note">{bk.errorNote}</p>
             <div className="fusion-modal-actions">
               <button type="button" className="welcome-cta" onClick={onClose}>
-                知道了
+                {bk.gotIt}
               </button>
             </div>
           </>

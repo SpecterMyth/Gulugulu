@@ -273,17 +273,29 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const pearlBit: ParticleRenderer = () => (
+// 珍奶产物：珍珠 + 粗吸管 + 封膜杯
+const tapiocaPearl: ParticleRenderer = () => (
   <g>
     <circle cx={0} cy={0} r={5} fill={BOBA} stroke={OUTLINE} strokeWidth={2} />
     <circle cx={-1.4} cy={-1.4} r={1.4} fill="#C9A86A" />
   </g>
 );
-const teaDrop: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill="#E2C08A" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+const fatStraw: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-5 9 L-1 -8 L5 -9 L1 8 Z" fill="#FFFFFF" strokeWidth={2.2} />
+    <path d="M-1 -8 L5 -9 L4 -5 L-2 -4 Z" fill={PINK} strokeWidth={1.8} />
+    <path d="M-2 3 L4 2" fill="none" strokeWidth={1.6} stroke={PINK} />
+  </g>
 );
-const leafBit: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill={LEAF} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+const sealedCup: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-6 -6 L6 -6 L4 9 L-4 9 Z" fill={CREAM} strokeWidth={2.2} />
+    <rect x={-7} y={-8} width={14} height={3} rx={1} fill={PINK} strokeWidth={2} />
+    <path d="M1 -7 L4 -13" fill="none" strokeWidth={2.4} stroke={PINK_DEEP} strokeLinecap="round" />
+    <g fill={BOBA} stroke="none">
+      <circle cx={-2} cy={5} r={1.6} /><circle cx={2} cy={6} r={1.6} />
+    </g>
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -314,7 +326,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 194, y: 194 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [pearlBit, teaDrop, leafBit],
+    shapes: [tapiocaPearl, fatStraw, sealedCup],
   },
   meta: {
     nameZh: "啵茶鸟",

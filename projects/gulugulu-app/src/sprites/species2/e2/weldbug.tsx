@@ -234,19 +234,33 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const weldStar: ParticleRenderer = () => (
-  <path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z" fill="#FFF1C9" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-);
 const hexNut: ParticleRenderer = () => (
   <g>
     <path d="M-6 -3.5 L0 -7 L6 -3.5 L6 3.5 L0 7 L-6 3.5 Z" fill="#8E93A6" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
     <circle cx={0} cy={0} r={2.4} fill="#5C6172" />
   </g>
 );
-const emberFleck: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={4.5} fill="#E85D3A" stroke={OUTLINE} strokeWidth={2} />
-    <circle cx={-1} cy={-1.2} r={1.4} fill="#FFF1C9" />
+// 拧出来的螺栓：六角头 + 带螺纹的杆（斜纹）
+const boltScrew: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-5 -8 L0 -11 L5 -8 L5 -3 L0 0 L-5 -3 Z" fill="#8E93A6" strokeWidth={2} />
+    <rect x={-3.5} y={-1} width={7} height={11} rx={0.6} fill="#C8CCD8" strokeWidth={2} />
+    <g stroke="#5C6172" strokeWidth={1.2} strokeLinecap="round">
+      <path d="M-3.5 1.4 l7 2 M-3.5 4.4 l7 2 M-3.5 7.4 l7 2" />
+    </g>
+  </g>
+);
+// 焊工护目镜：两片深色镜片 + 头带
+const weldGoggles: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeWidth={2}>
+    <path d="M-11 -2 Q0 -6 11 -2" fill="none" strokeWidth={2.4} strokeLinecap="round" />
+    <circle cx={-5} cy={2} r={4.6} fill={GLASS} />
+    <circle cx={5} cy={2} r={4.6} fill={GLASS} />
+    <path d="M-0.6 2 h1.2" fill="none" />
+    <g fill="#7FD1FF" stroke="none">
+      <circle cx={-6.2} cy={0.6} r={1.3} />
+      <circle cx={3.8} cy={0.6} r={1.3} />
+    </g>
   </g>
 );
 
@@ -274,7 +288,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 214, y: 192 },
     baseAngle: -Math.PI / 3,
     cone: 0.5,
-    shapes: [weldStar, hexNut, emberFleck],
+    shapes: [hexNut, boltScrew, weldGoggles],
   },
   meta: {
     nameZh: "焊花虫",

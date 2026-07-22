@@ -18,6 +18,9 @@ const FACE = "#F5C9A5";
 const WARM = "#F5917B";
 const COLD = "#8FD8E8";
 const STEAM = "#FFFFFF";
+const DUCK = "#FFD93B";
+const BEAK = "#F5A83B";
+const WOOD = "#B98A4E";
 
 function Front({ palette, slots = {}, eyes = "round", expression = "normal" }: RigProps) {
   return (
@@ -255,21 +258,36 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const steamPuff: ParticleRenderer = () => (
-  <g>
-    <circle cx={-3} cy={1} r={4.5} fill={STEAM} opacity={0.92} stroke={COLD} strokeWidth={2} />
-    <circle cx={3.5} cy={-2} r={3.4} fill={STEAM} opacity={0.92} stroke={COLD} strokeWidth={2} />
+// 小黄鸭：黄身 + 橙喙 + 圆眼
+const rubberDucky: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-8 4 Q-8 -3 -1 -3 Q2 -3 4 0 Q9 0 9 4 Q9 8 2 8 Q-8 8 -8 4 Z" fill={DUCK} strokeWidth={2.2} />
+    <circle cx={-4} cy={-5} r={4.5} fill={DUCK} strokeWidth={2.2} />
+    <path d="M-8 -5 L-13 -4 L-8 -2 Z" fill={BEAK} strokeWidth={1.8} />
+    <circle cx={-3.5} cy={-6} r={1.1} fill={OUTLINE} stroke="none" />
   </g>
 );
-// 澡堂木桶刷刷洗的产物：肥皂泡沫 + 温泉水珠（配头顶蒸汽）
-const soapSud: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={6} fill={STEAM} opacity={0.6} stroke={COLD} strokeWidth={2.2} />
-    <circle cx={-2} cy={-2.2} r={1.6} fill="#FFFFFF" opacity={0.95} />
+// 泡澡木桶：木条梯形桶 + 提手弧
+const bathBucket: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-7 -6 Q0 -13 7 -6" fill="none" strokeWidth={2} strokeLinecap="round" />
+    <path d="M-8 -6 L8 -6 L6 8 L-6 8 Z" fill={WOOD} strokeWidth={2.4} />
+    <g stroke="#8A6410" strokeWidth={1.4}>
+      <path d="M-2.7 -6 L-2 8 M3 -6 L2.3 8 M-7 1 L7 1" />
+    </g>
   </g>
 );
-const bathDrop: ParticleRenderer = () => (
-  <path d="M0 -7 q5 6 5 9.5 a5 5 0 0 1 -10 0 q0 -3.5 5 -9.5 z" fill="#9BDCFF" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 舒服脸：眯眼笑 + 张嘴「啊～」+ 红晕
+const ahhFace: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <circle cx={0} cy={0} r={8} fill={FACE} strokeWidth={2.4} />
+    <path d="M-6 -2 q1.5 -2.5 3 0 M3 -2 q1.5 -2.5 3 0" fill="none" stroke={OUTLINE} strokeWidth={1.8} strokeLinecap="round" />
+    <path d="M-2.5 3 Q0 7 2.5 3 Q0 4.5 -2.5 3 Z" fill={WARM} strokeWidth={1.8} />
+    <g fill={WARM} stroke="none" opacity={0.7}>
+      <ellipse cx={-6} cy={2} rx={2} ry={1.3} />
+      <ellipse cx={6} cy={2} rx={2} ry={1.3} />
+    </g>
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -298,7 +316,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 196 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.6,
-    shapes: [steamPuff, soapSud, bathDrop],
+    shapes: [rubberDucky, bathBucket, ahhFace],
   },
   meta: {
     nameZh: "温泉猴",

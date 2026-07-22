@@ -16,6 +16,7 @@ const LEAF = "#57B84C";
 const LEAF_DEEP = "#3B8F33";
 const CREAM = "#FFF4DC";
 const VOLT = "#FFD93B";
+const INK = "#2B2E3B";
 
 /** 一片背刺叶（pivot=叶根，向上生长） */
 function SpikeLeaf({ s = 1, color = LEAF }: { s?: number; color?: string }) {
@@ -237,16 +238,29 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const leafBit: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill="#8CD97B" stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+// 墨点：黑色墨渍 + 2 颗飞溅小墨滴
+const inkBlot: ParticleRenderer = () => (
+  <g fill={INK} stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-5 -3 Q-7 -6 -3 -7 Q0 -8 3 -6 Q7 -5 6 -1 Q7 3 3 5 Q0 7 -3 5 Q-7 4 -6 0 Z" strokeWidth={2} />
+    <circle cx={7} cy={-6} r={1.8} strokeWidth={1.6} />
+    <circle cx={-6} cy={6} r={1.5} strokeWidth={1.6} />
+  </g>
 );
-const staticStar: ParticleRenderer = () => (
-  <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+// 揉皱的草稿：皱成一团的纸 + 折痕
+const crumpledDraft: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <polygon points="-6,-5 -1,-7 5,-5 7,1 3,6 -4,6 -7,1" fill={CREAM} strokeWidth={2.2} />
+    <g stroke="#B7A98A" strokeWidth={1.3} strokeLinecap="round" fill="none">
+      <path d="M-3 -4 L1 0 L-2 4 M4 -3 L1 1 L4 5" />
+    </g>
+  </g>
 );
-const dustPuff: ParticleRenderer = () => (
-  <g>
-    <circle cx={-2.5} cy={1} r={4} fill="#E8E0D2" stroke={OUTLINE} strokeWidth={1.8} />
-    <circle cx={3.5} cy={-1.5} r={3} fill="#F4EFE4" stroke={OUTLINE} strokeWidth={1.8} />
+// 钢笔尖：三角笔锋 + 中缝 + 出气孔
+const quillNib: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-5 -7 L5 -7 L0 8 Z" fill="#C8CCD8" strokeWidth={2.2} />
+    <path d="M0 -2 L0 6" stroke={OUTLINE} strokeWidth={1.6} strokeLinecap="round" />
+    <circle cx={0} cy={-3} r={1.4} fill={INK} stroke={OUTLINE} strokeWidth={1.4} />
   </g>
 );
 
@@ -273,7 +287,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 214, y: 190 },
     baseAngle: -Math.PI / 2.6,
     cone: 0.55,
-    shapes: [leafBit, staticStar, dustPuff],
+    shapes: [inkBlot, crumpledDraft, quillNib],
   },
   meta: {
     nameZh: "电叶猬",

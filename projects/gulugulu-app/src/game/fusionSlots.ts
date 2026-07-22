@@ -154,6 +154,42 @@ export function aiItemDef(ordinal: number, slot: number): number {
   return AI_ITEM_DEF_BASE + ordinal * 100 + slot;
 }
 
+/** 并集融合生成器 itemdef 号段基址（2026-07-16 上架定案，00-decisions）。 */
+export const UNION_GEN_BASE = 20000;
+
+/** 并集融合生成器 itemdefid = 20000 + 序号（每多元素配方一条，exchange 枚举全部并集对）。 */
+export function unionGenDef(ordinal: number): number {
+  return UNION_GEN_BASE + ordinal;
+}
+
+/** 商店蛋生成器 itemdef 号段基址（2026-07-16 上架定案）。 */
+export const SHOP_GEN_BASE = 21000;
+
+/** 商店蛋生成器 itemdefid = 21000 + 阶*10 + (一阶宠 def − 100)（21011..=21046）。 */
+export function shopGenDef(tier: number, tier1PetDef: number): number {
+  return SHOP_GEN_BASE + tier * 10 + (tier1PetDef - 100);
+}
+
+/** codename → AI 槽 itemdef 反解（仅新式 aif+4 位数字；旧随机 hex → null）。 */
+export function aiDefForCodename(codename: string): number | null {
+  const m = /^aif(\d{2})(\d{2})$/.exec(codename);
+  if (!m) return null;
+  const ordinal = Number(m[1]);
+  const slot = Number(m[2]);
+  if (ordinal > 56 || slot < 1 || slot > MAX_AI_SLOTS) return null;
+  return aiItemDef(ordinal, slot);
+}
+
+/** AI 槽 itemdef → codename 反解（10001..=15610 且槽号 1..=10；其余 null）。 */
+export function codenameForAiDef(def: number): string | null {
+  if (def <= AI_ITEM_DEF_BASE || def > AI_ITEM_DEF_BASE + 5610) return null;
+  const rest = def - AI_ITEM_DEF_BASE;
+  const ordinal = Math.floor(rest / 100);
+  const slot = rest % 100;
+  if (ordinal > 56 || slot < 1 || slot > MAX_AI_SLOTS) return null;
+  return slotCodename(ordinal, slot);
+}
+
 /** AI 变种槽全局确定性 codename = `aif` + 2 位序号 + 2 位 slot（如 aif0001/aif5610）。 */
 export function slotCodename(ordinal: number, slot: number): string {
   const pad = (n: number) => String(n).padStart(2, "0");

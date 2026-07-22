@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import type { ShapeNode } from "../types";
 
 // =============================================================================
 // Rig 系统契约（计划 §2.1/§2.2）
@@ -75,7 +76,21 @@ export type ChimeraForm = {
   floating: boolean;
 };
 
-export type EyeVariant = "round" | "happy" | "sleepy";
+export type EyeVariant =
+  | "round"
+  | "sparkle"
+  | "beady"
+  | "sharp"
+  | "droopy"
+  | "sleepy"
+  | "happy"
+  | "wink"
+  | "dot";
+
+/** 待机嘴型（normal 表情时用；动画表情各自有专属嘴，见 parts/faces.tsx）。
+ *  smile=温柔弧笑 · cat=猫嘴ω · fang=小虎牙 · smirk=坏笑歪嘴 · open=咧嘴 ·
+ *  pout=嘟嘟嘴 · flat=面瘫平线。默认 smile。硬喙/长吻走 face.mouth="beak" 自绘、不用这个。 */
+export type MouthStyle = "smile" | "cat" | "fang" | "smirk" | "open" | "pout" | "flat";
 
 /** 姿势：stand=站立；lie=睡眠趴地（rig 绘制专门的趴卧构图，
  *  不是把站姿旋转倒下）。仅正面视图使用。 */
@@ -118,12 +133,79 @@ export type RigSlots = {
   tool?: ReactNode;
 };
 
+/** AI 完全手绘的"专属 rig"里，**一个视图**的部件几何。各部件在自己的局部坐标系
+ *  作画（(0,0)=该部件锚点），renderer 负责摆放 + pivot + 包进标准 <Part> → 14 态
+ *  动画零成本继承。脸走表情库随 petState 变（front/lie=ExpFace 双眼；side=ExpSideFace
+ *  单眼、朝右）。所有几何走 ShapeNode 白名单渲染。 */
+export type RigViewParts = {
+  /** 躯干：局部(0,0) 摆到 (headX?…, bodyY)。建议画在 x∈[-72,72]、y∈[-74,48]。 */
+  body: ShapeNode[];
+  bodyY?: number;
+  /** 头：局部(0,0)=头心，摆到 (headX, headY)。务必饱满圆润、占比大。 */
+  head: ShapeNode[];
+  headY: number;
+  /** 头水平位置（side 头常偏前；缺省 128）。躯干也用它做水平基准。 */
+  headX?: number;
+  /** 脸：front/lie 用 eyeDx（双眼 headX±eyeDx）；side 用 eyeCx（单眼 headX+eyeCx）。 */
+  face: {
+    eyeR: number;
+    eyeDx?: number;
+    eyeCx?: number;
+    eyeDy?: number;
+    mouthDx?: number;
+    mouthDy?: number;
+    mouthW?: number;
+    /** 嘴的归属：默认/缺省 "engine"=引擎画会动的嘴；"beak"=生物自带硬喙/长吻，
+     *  muzzle 自绘嘴型、引擎不叠嘴（withMouth=false，仍画会动的眼），杜绝双嘴。 */
+    mouth?: "engine" | "beak";
+  };
+  /** 面部点缀层（鼻/颊/须/眉/獠牙 + 贴脸装饰如眉心/额头印记、脸颊纹样、腮红等
+   *  **眼嘴之外**的五官；喙/长吻仅在 face.mouth="beak" 时在此画当嘴）：局部(0,0)=脸中心
+   *  (headX,headY)，**渲染进 part-face 组、引擎眼嘴之下**——与眼嘴共享同一表情动画
+   *  transform（随脸眨眼/咀嚼/点头一起动 → 整脸一体，不会脱节）。绝不画眼珠、软脸不画嘴。 */
+  muzzle?: ShapeNode[];
+  belly?: ShapeNode[];
+  armL?: ShapeNode[];
+  armR?: ShapeNode[];
+  armY?: number;
+  armSpread?: number;
+  legL?: ShapeNode[];
+  legR?: ShapeNode[];
+  legY?: number;
+  legSpread?: number;
+  tail?: ShapeNode[];
+  tailAt?: { x?: number; y?: number; rot?: number };
+  headTop?: ShapeNode[];
+  headTopAt?: { x?: number; y?: number };
+  /** 高阶华丽装饰（冠冕/宝石/环绕件等），画在最上层；元素越多、装饰越多越高阶。 */
+  decor?: ShapeNode[];
+  /** 工具落点（缺省右脚边 190,233）。 */
+  toolAt?: { x?: number; y?: number };
+};
+
+/** AI 完全手绘的"专属 rig"（一物种一套，三视图各自作画）。 */
+export type CustomRig = {
+  /** 正面站立（idle 及大部分状态的主视图）。 */
+  front: RigViewParts;
+  /** 侧面朝右（moving 用；左移由外层 CSS scaleX(-1) 翻转）。缺省复用 front。 */
+  side?: RigViewParts;
+  /** 趴卧睡姿（sleeping/exhausted 用；是合理的蜷卧构图，不是压扁站姿）。缺省兜底。 */
+  lie?: RigViewParts;
+  /** 漂浮（离地浮动 + 小影子）。 */
+  floating?: boolean;
+};
+
 export type RigProps = {
   view: RigView;
   stage: RigStage;
   palette: RigPalette;
   slots?: RigSlots;
   eyes?: EyeVariant;
+  /** 眼睛虹膜色（palette token 或 #rrggbb）；给圆眼/闪亮眼/呆眼/锐眼上色，
+   *  告别纯黑豆眼。缺省=纯黑瞳。弯月笑眼/困眼等纯线条眼型忽略它。 */
+  iris?: string;
+  /** 待机嘴型（默认 smile）；仅 normal 表情用，动画表情各有专属嘴。 */
+  mouthStyle?: MouthStyle;
   /** 当前表情（默认 normal=物种默认脸）；rig 的脸部区域用
    *  parts/faces.tsx 的 ExpFace/ExpSideFace 按它渲染 */
   expression?: Expression;
@@ -131,6 +213,8 @@ export type RigProps = {
   pose?: RigPose;
   /** chimera rig 专用：参数化身体描述（其余 rig 忽略） */
   form?: ChimeraForm;
+  /** custom rig 专用：AI 完全手绘的部件几何（其余 rig 忽略） */
+  rigData?: CustomRig;
 };
 
 export type RigComponent = (props: RigProps) => ReactNode;
@@ -147,6 +231,10 @@ export type SpeciesVisual = {
   scale: number;
   palette: RigPalette;
   eyes?: EyeVariant;
+  /** 眼睛虹膜色（palette token 或 #rrggbb）；缺省纯黑瞳。 */
+  iris?: string;
+  /** 待机嘴型（默认 smile）。 */
+  mouthStyle?: MouthStyle;
   /** 工具 id（parts/tools.tsx 注册表键） */
   toolId?: string;
   /** 槽位覆盖（默认件在各 rig 内部）；接收调色板与当前视图
@@ -162,4 +250,6 @@ export type SpeciesVisual = {
   cssVars?: CSSProperties;
   /** chimera rig 专用：参数化身体描述 */
   form?: ChimeraForm;
+  /** custom rig 专用：AI 完全手绘的部件几何 */
+  rigData?: CustomRig;
 };

@@ -1,5 +1,7 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { GameConfig } from "../types";
+import { fmt, speciesDisplayName } from "../i18n";
+import { useT } from "../useT";
 import { SvgSprite } from "../sprites/SvgSprite";
 import { FIXED_DEX_TOTAL, type PokedexModel } from "./pokedexData";
 
@@ -27,32 +29,38 @@ export function BackyardMuseumPanel({
   config,
   setDexOpen,
 }: BackyardMuseumPanelProps) {
+  const { lang, T } = useT();
+  const bk = T.bk.museum;
   const stopClick = (event: ReactMouseEvent) => event.stopPropagation();
   return (
     <div
       className={`by-poi-pop ${museumOpen ? "is-open" : ""}`}
-      style={{ left: museumSide === "right" ? 4762 : 4138, bottom: 164 }}
+      style={{ left: museumSide === "right" ? 3462 : 2838, bottom: 164 }}
       onClick={stopClick}
     >
       <div className="by-poi-title">
-        📖 图鉴 {pokedexModel.fixedCollected}/{FIXED_DEX_TOTAL}
-        {pokedexModel.aiCollected > 0 ? ` · AI ×${pokedexModel.aiCollected}` : ""}
+        {fmt(T.bk.dexProgress, { collected: pokedexModel.fixedCollected, total: FIXED_DEX_TOTAL })}
+        {pokedexModel.aiCollected > 0 ? fmt(bk.aiSuffix, { count: pokedexModel.aiCollected }) : ""}
       </div>
       {collectedSpecies.size > 0 ? (
         <div className="by-dex-thumbs">
           {museum.shown.map((species) => (
-            <div key={species} className="by-dex-thumb" title={config.species[species]?.nameZh ?? species}>
+            <div
+              key={species}
+              className="by-dex-thumb"
+              title={speciesDisplayName(species, lang, config.species[species]?.nameZh, config.species[species]?.nameEn)}
+            >
               <SvgSprite species={species} config={config} petState="idle" />
             </div>
           ))}
           {museum.overflow > 0 && (
-            <div className="by-dex-thumb by-dex-thumb-more" title="打开图鉴查看全部">
+            <div className="by-dex-thumb by-dex-thumb-more" title={bk.moreTitle}>
               +{museum.overflow}
             </div>
           )}
         </div>
       ) : (
-        <div className="by-poi-empty">还没有收集到伙伴——孵化或融合精灵试试！</div>
+        <div className="by-poi-empty">{bk.empty}</div>
       )}
       <button
         type="button"
@@ -62,7 +70,7 @@ export function BackyardMuseumPanel({
           setDexOpen(true);
         }}
       >
-        📖 打开图鉴
+        {bk.openBtn}
       </button>
     </div>
   );

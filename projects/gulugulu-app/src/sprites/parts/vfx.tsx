@@ -175,3 +175,52 @@ export function ReactionBurst({ color = "#F5917B" }: { color?: string }) {
     </svg>
   );
 }
+
+/** 打工到账彩蛋（替换元素色爱心 ReactionBurst）：金币「+💰」上弹抛散。
+ *  金币与元素无关、全物种统一；boom（每 10 连击）加量放大。复用 .reaction-p /
+ *  reaction-fly 动画，零新 CSS。 */
+export function CoinBurst({ boom = false }: { boom?: boolean }) {
+  // [dx, dy, rot]：向上弹起 + 抛物线散开；boom 更多、更宽、更高
+  const dirs: Array<[number, number, number]> = boom
+    ? [
+        [-48, -60, -22],
+        [-16, -76, -8],
+        [16, -76, 8],
+        [48, -60, 22],
+        [-66, -30, -32],
+        [66, -30, 32],
+        [-30, -46, -14],
+        [30, -46, 14],
+        [0, -88, 0],
+      ]
+    : [
+        [-30, -50, -16],
+        [0, -64, 0],
+        [30, -50, 16],
+        [-50, -22, -30],
+        [50, -22, 30],
+      ];
+  const sc = boom ? 1.22 : 1;
+  return (
+    <svg viewBox="0 0 256 256" className="reaction-burst" aria-hidden="true">
+      {dirs.map(([dx, dy, rot], index) => (
+        <g key={index} transform="translate(128 150)">
+          <g
+            className="reaction-p"
+            style={{ "--bx": `${dx}px`, "--by": `${dy}px`, animationDelay: `${index * 0.03}s` } as CSSProperties}
+          >
+            <g transform={`rotate(${rot}) scale(${sc})`}>
+              {/* 金币：金边 + 金面 + 高光 + ¥ 面值（收工到账） */}
+              <ellipse cx={0} cy={0} rx={7.6} ry={8.6} fill="#E2A52C" stroke={OUTLINE} strokeWidth={2.4} />
+              <ellipse cx={0} cy={-0.6} rx={5.8} ry={6.6} fill="#FFD93B" stroke={OUTLINE} strokeWidth={1.4} />
+              <text x={0} y={3.2} fontSize={9} fontWeight={900} textAnchor="middle" fill="#B8791A" fontFamily="ui-monospace, monospace">
+                ¥
+              </text>
+              <circle cx={-2.3} cy={-3} r={1.3} fill="#FFF6D6" />
+            </g>
+          </g>
+        </g>
+      ))}
+    </svg>
+  );
+}

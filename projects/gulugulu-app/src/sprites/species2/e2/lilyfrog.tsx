@@ -245,16 +245,34 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const rainDrop: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill="#9BDCFF" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 茶杯：杯身 + 把手 + 茶托
+const teacup: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-7 -5 L7 -5 Q6 6 0 6 Q-6 6 -7 -5 Z" fill="#FFFFFF" strokeWidth={2.4} />
+    <ellipse cx={0} cy={-5} rx={7} ry={2.2} fill="#B5732E" strokeWidth={1.8} />
+    <path d="M7 -3 Q12 -2 10 3 Q9 5 6 4" fill="none" strokeWidth={2.2} />
+    <path d="M-9 8 L9 8" stroke={OUTLINE} strokeWidth={2.2} strokeLinecap="round" />
+    <path d="M-10 8 Q0 11.5 10 8" fill="none" strokeWidth={2.4} strokeLinecap="round" />
+  </g>
 );
-const petalBit: ParticleRenderer = () => (
-  <path d="M0 -7 Q6 -3 4 4 Q0 8 -4 4 Q-6 -3 0 -7 Z" fill={LOTUS} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 莲花：层叠粉色花瓣
+const lotusBloom: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round">
+    <path d="M0 4 Q-9 -2 -6 -8 Q-2 -4 0 4 Z" fill={LOTUS} />
+    <path d="M0 4 Q9 -2 6 -8 Q2 -4 0 4 Z" fill={LOTUS} />
+    <path d="M0 5 Q-6 -3 -3 -9 Q0 -4 0 5 Z" fill="#F7C0D6" />
+    <path d="M0 5 Q6 -3 3 -9 Q0 -4 0 5 Z" fill="#F7C0D6" />
+    <path d="M0 5 Q-3 -3 0 -10 Q3 -3 0 5 Z" fill="#FBD3E2" />
+  </g>
 );
-const bubbleBit: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={6} fill="#EAF7FF" opacity={0.6} stroke="#9BDCFF" strokeWidth={2.2} />
-    <circle cx={-2} cy={-2} r={1.6} fill="#FFFFFF" />
+// 粽子：绿色扎绳三角叶包
+const zongzi: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M0 -9 L9 6 Q10 8 7 8 L-7 8 Q-10 8 -9 6 Z" fill={DEEP} strokeWidth={2.4} />
+    <path d="M0 -9 L-3 8 M0 -9 L4 8" stroke="#3B7A38" strokeWidth={1.6} />
+    <g stroke={CREAM} strokeWidth={1.8} strokeLinecap="round">
+      <path d="M-8 -1 L8 -3 M-7 3 L7 2" />
+    </g>
   </g>
 );
 
@@ -285,7 +303,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 194, y: 188 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.6,
-    shapes: [rainDrop, petalBit, bubbleBit],
+    shapes: [teacup, lotusBloom, zongzi],
   },
   meta: {
     nameZh: "荷叶蛙",

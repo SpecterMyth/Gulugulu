@@ -237,14 +237,29 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill="#9BDCFF" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 陶土花盆：橙色梯形盆身 + 盆沿
+const terracottaPot: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-9} y={-8} width={18} height={5} rx={1.5} fill={POT} strokeWidth={2.4} />
+    <path d="M-8 -3 L8 -3 L5 9 L-5 9 Z" fill={POT} strokeWidth={2.4} />
+    <path d="M3 -2 L1.5 8" stroke={POT_DEEP} strokeWidth={1.6} strokeLinecap="round" />
+  </g>
 );
-const petalBit: ParticleRenderer = () => (
-  <path d="M0 -7 Q6 -3 4 4 Q0 8 -4 4 Q-6 -3 0 -7 Z" fill="#F5A8C6" stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 移植铲：铲斗 + 木柄
+const trowel: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-1.8} y={-11} width={3.6} height={9} rx={1.6} fill="#8A5A3B" strokeWidth={2} />
+    <rect x={-2.2} y={-3} width={4.4} height={2.6} rx={1} fill="#8E93A6" strokeWidth={1.6} />
+    <path d="M-5 -1 L5 -1 L3 8 Q0 12 -3 8 Z" fill="#C8CCD8" strokeWidth={2.4} />
+    <path d="M0 0 L0 9" stroke="#8E93A6" strokeWidth={1.4} strokeLinecap="round" />
+  </g>
 );
-const leafBit: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill={LEAF} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+// 种子：棕色水滴形 + 高光
+const seed: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" transform="rotate(12)">
+    <path d="M0 -8 Q6 -3 5 4 Q3 9 -1 8 Q-6 6 -5 -1 Q-4 -6 0 -8 Z" fill="#8A5A3B" strokeWidth={2.2} />
+    <path d="M-1.5 -3 q2 -1 3 1" fill="none" stroke="#D8B48A" strokeWidth={1.4} strokeLinecap="round" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -269,7 +284,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 218, y: 200 },
     baseAngle: -Math.PI / 2.6,
     cone: 0.5,
-    shapes: [dropBit, petalBit, leafBit],
+    shapes: [terracottaPot, trowel, seed],
   },
   meta: {
     nameZh: "花盆龟",

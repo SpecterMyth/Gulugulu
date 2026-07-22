@@ -17,6 +17,7 @@ const SNOW_DEEP = "#CFEFF6";
 const SCARF = "#F5C542";
 const SCARF_DEEP = "#E39B00";
 const ICE = "#8FD8E8";
+const CARROT = "#F5943B";
 
 function Front({ palette, slots = {}, eyes = "round", expression = "normal" }: RigProps) {
   return (
@@ -258,14 +259,22 @@ const snowball: ParticleRenderer = () => (
     <path d="M-2 -1 q2 -2 4 0" fill="none" stroke={SNOW_DEEP} strokeWidth={1.6} strokeLinecap="round" />
   </g>
 );
-const boxBit: ParticleRenderer = () => (
-  <g>
-    <rect x={-6} y={-5.5} width={12} height={11} rx={1.6} fill="#C9A86A" stroke={OUTLINE} strokeWidth={2} />
-    <path d="M-6 -1 h12 M0 -5.5 v11" stroke="#8A6410" strokeWidth={1.4} />
+// 胡萝卜鼻：橙色锥体 + 横纹
+const carrotNose: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" transform="rotate(-8)">
+    <path d="M-9 -4 L9 0 L-9 4 Z" fill={CARROT} strokeWidth={2.2} />
+    <g stroke="#C56A1E" strokeWidth={1.3} strokeLinecap="round">
+      <path d="M-4 -2.5 L-4.5 2.5 M0 -1.6 L-0.4 1.8 M4 -0.9 L3.8 1.2" />
+    </g>
   </g>
 );
-const starBit: ParticleRenderer = () => (
-  <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill={SCARF} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+// 礼帽：黑色筒身 + 帽檐 + 帽带
+const topHat: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-6} y={-10} width={12} height={13} rx={1.5} fill="#2E2E36" strokeWidth={2.4} />
+    <rect x={-6} y={-1} width={12} height={3} fill={SCARF} strokeWidth={1.6} />
+    <path d="M-11 3 Q0 6 11 3 Q11 5 9 5.6 Q0 8 -9 5.6 Q-11 5 -11 3 Z" fill="#2E2E36" strokeWidth={2.4} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -292,7 +301,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 190, y: 202 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.6,
-    shapes: [snowball, boxBit, starBit],
+    shapes: [snowball, carrotNose, topHat],
   },
   meta: {
     nameZh: "雪球熊",

@@ -1,4 +1,6 @@
 import type { GameConfig, GameSave, EggInstance } from "../types";
+import { fmt, speciesDisplayName } from "../i18n";
+import { useT } from "../useT";
 import { EggSvg } from "../sprites/SvgSprite";
 import { abs } from "./backyardShared";
 import { eggHatchInfo } from "./config";
@@ -25,6 +27,8 @@ export type BackyardHatcheryPitsProps = {
   onUpgradeHatchery: () => void;
   onPlaceEgg: (eggId: string, slot: number) => void;
   onCollectEgg: (eggId: string) => void;
+  /** #2 点孵化中的蛋 → 孵化时间 −1s（催蛋）。 */
+  onPokeEgg: (eggId: string) => void;
   onToast: (message: string) => void;
 };
 
@@ -40,8 +44,36 @@ export function BackyardHatcheryPits({
   onUpgradeHatchery,
   onPlaceEgg,
   onCollectEgg,
+  onPokeEgg,
   onToast,
 }: BackyardHatcheryPitsProps) {
+  const { lang, T } = useT();
+  const bk = T.bk.hatchery;
+  // 本地先行融合的二阶蛋：未绑定 Steam 物品 + 有 applied Fuse op（后台正在烧材料 + 铸造结果并同步 Steam）。
+  const syncingEggIds = new Set<string>();
+  for (const op of save.steamOutbox ?? []) {
+    if (op.kind === "fuse" && op.applied === true && op.eggId) {
+      syncingEggIds.add(op.eggId);
+    }
+  }
+  /** 物种显示名（zh 缺项兜底 "?"，与原文案一致）。 */
+  const eggSpeciesName = (code: string): string => {
+    const nameZh = config.species[code]?.nameZh;
+    const nameEn = config.species[code]?.nameEn;
+    return lang === "zh" ? nameZh ?? "?" : speciesDisplayName(code, lang, nameZh, nameEn);
+  };
+  // 教练锚点：后院里教练用 {kind:"egg"} 指向的那颗蛋（C5 收二号蛋 / C8 收首融蛋）。
+  // 优先已可收取的；否则最靠前坑里的一颗。只标这一颗，避免 CoachFx 锚到错误的蛋。
+  let coachEggId: string | null = null;
+  for (let i = 0; i < slotCount; i += 1) {
+    const pitEgg = save.eggs.find((item) => item.slot === i);
+    if (!pitEgg) continue;
+    if ((pitEgg.hatchAt ?? 0) - now <= 0) {
+      coachEggId = pitEgg.id;
+      break;
+    }
+    if (coachEggId == null) coachEggId = pitEgg.id;
+  }
   return (
     <>
       {/* ── 孵化区：蛋坑（真实存档驱动） ── */}
@@ -58,12 +90,12 @@ export function BackyardHatcheryPits({
               className={`by-pit is-locked ${isNext && affordable && !busy ? "is-actionable" : ""}`}
               style={{ left: pitX, bottom: 106 }}
               role="button"
-              title={isNext ? "解锁这个蛋坑" : "先解锁前一个蛋坑"}
+              title={isNext ? bk.unlockThisTitle : bk.unlockPrevTitle}
               onClick={(event) => {
                 event.stopPropagation();
                 if (!isNext || busy) return;
                 if (!affordable) {
-                  onToast(`金币不足，解锁需要 ${formatCount(cost)} 🪙`);
+                  onToast(fmt(bk.needCoinsUnlock, { cost: formatCount(cost) }));
                   return;
                 }
                 onUpgradeHatchery();
@@ -73,7 +105,7 @@ export function BackyardHatcheryPits({
               <div className="by-pit-hole" />
               <span className="by-pit-lock">🔒</span>
               <span className={`by-pill ${isNext ? "is-dark" : "is-dim"}`}>
-                {isNext ? `解锁 ${formatCount(cost)} 🪙` : "待解锁"}
+                {isNext ? fmt(bk.unlockPill, { cost: formatCount(cost) }) : bk.lockedPill}
               </span>
             </div>
           );
@@ -88,7 +120,7 @@ export function BackyardHatcheryPits({
               className={`by-pit ${canPlace ? "is-actionable" : ""}`}
               style={{ left: pitX, bottom: 106 }}
               role="button"
-              title={canPlace ? "放入一颗待孵化的蛋" : "空蛋坑"}
+              title={canPlace ? bk.placeEggTitle : bk.emptyPitTitle}
               onClick={(event) => {
                 event.stopPropagation();
                 if (!canPlace) return;
@@ -98,7 +130,7 @@ export function BackyardHatcheryPits({
               <div className="by-pit-mound" />
               <div className="by-pit-hole" />
               <span className={`by-pill ${canPlace ? "is-light" : "is-dim"}`}>
-                {canPlace ? "🥚 放蛋孵化" : "空位"}
+                {canPlace ? bk.placeEggPill : bk.emptyPill}
               </span>
             </div>
           );
@@ -110,18 +142,23 @@ export function BackyardHatcheryPits({
         const fusion = egg.pendingFusion ?? null;
         const eggTitle =
           fusion && fusion.status !== "resolved"
-            ? "神秘融合蛋：AI 正在设计新物种"
-            : `${config.species[egg.species]?.nameZh ?? "?"}的蛋`;
+            ? fmt(bk.mysteryEggTitle, {
+                provider: fusion.provider === "codex" ? "Codex" : fusion.provider ? "Claude" : "AI",
+              })
+            : fmt(bk.speciesEggTitle, { name: eggSpeciesName(egg.species) });
         return (
           <div
             key={`pit-${slotIndex}`}
             className={`by-pit ${ready && !busy ? "is-actionable" : ""}`}
             style={{ left: pitX, bottom: 106 }}
             role="button"
-            title={ready ? "点击收取" : eggTitle}
+            data-coach={egg.id === coachEggId ? "egg" : undefined}
+            title={ready ? bk.collectTitle : eggTitle}
             onClick={(event) => {
               event.stopPropagation();
-              if (ready && !busy) onCollectEgg(egg.id);
+              if (busy) return;
+              if (ready) onCollectEgg(egg.id);
+              else onPokeEgg(egg.id); // #2 点孵化中的蛋 → −1s 催蛋
             }}
           >
             {ready && <div className="by-pit-glow" />}
@@ -135,6 +172,7 @@ export function BackyardHatcheryPits({
                 phase={ready ? "ready" : "incubating"}
                 progress={progress}
                 secondsLeft={Math.max(0, remain)}
+                mystery={fusion != null && fusion.status !== "resolved"}
               />
             </div>
             {fusion && (
@@ -144,14 +182,21 @@ export function BackyardHatcheryPits({
                 }`}
               >
                 {fusion.status === "resolved"
-                  ? "✨ 设计完成"
+                  ? bk.designDone
                   : fusion.status === "failed"
-                    ? "💤 生成未完成"
-                    : "🤖 AI 设计中…"}
+                    ? bk.genFailed
+                    : fusion.provider
+                      ? fmt(bk.generating, { provider: fusion.provider === "codex" ? "Codex" : "Claude" })
+                      : bk.queued}
+              </span>
+            )}
+            {syncingEggIds.has(egg.id) && (
+              <span className="by-pit-fusion" title={bk.syncingTitle}>
+                {bk.syncing}
               </span>
             )}
             {ready ? (
-              <span className="by-pill is-gold">✨ 点击收取</span>
+              <span className="by-pill is-gold">{bk.collectPill}</span>
             ) : (
               <span className="by-pill is-light">⏳ {formatCountdown(remain)}</span>
             )}
@@ -167,11 +212,11 @@ export function BackyardHatcheryPits({
           className="by-egg-inv"
           style={{ left: 16 + index * 30, bottom: 148 }}
           disabled={busy}
-          title={freeSlot == null ? "没有空蛋坑" : "放入蛋坑孵化"}
+          title={freeSlot == null ? bk.noFreePitTitle : bk.placeToHatchTitle}
           onClick={(event) => {
             event.stopPropagation();
             if (freeSlot == null) {
-              onToast("蛋坑都满了，先收取或解锁新坑");
+              onToast(bk.pitsFull);
               return;
             }
             onPlaceEgg(egg.id, freeSlot);
@@ -182,7 +227,7 @@ export function BackyardHatcheryPits({
       ))}
       {inventoryEggs.length > 3 && (
         <span className="by-pill is-dark" style={abs({ left: 16, bottom: 190 })}>
-          待孵化 ×{inventoryEggs.length}
+          {fmt(bk.waitingCount, { count: inventoryEggs.length })}
         </span>
       )}
     </>

@@ -17,6 +17,7 @@ const DEEP = "#C7D3E0";
 const AURORA_T = "#7FE3C8";
 const AURORA_V = "#B99BE8";
 const VOLT = "#FFD93B";
+const BRASS = "#C99A3B";
 
 function Front({ palette, slots = {}, eyes = "round", expression = "normal" }: RigProps) {
   return (
@@ -228,17 +229,37 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const auroraRibbon: ParticleRenderer = () => (
-  <path d="M-6 4 Q-2 -6 4 -4 Q8 -3 6 2 Q2 8 -4 7 Q-7 6 -6 4 Z" fill={AURORA_T} opacity={0.9} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-);
-const snowStar: ParticleRenderer = () => (
-  <g stroke="#B0E5F0" strokeWidth={2.2} strokeLinecap="round">
-    <path d="M0 -6 V6 M-5 -3 L5 3 M-5 3 L5 -3" />
-    <circle cx={0} cy={0} r={1.5} fill="#F7FCFD" stroke="none" />
+// 天文望远镜：斜置铜镜筒 + 小三脚架
+const telescope: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <g transform="rotate(-32)">
+      <rect x={-7} y={-3.5} width={14} height={7} rx={2.5} fill={BRASS} strokeWidth={2.2} />
+      <rect x={6} y={-2.8} width={4} height={5.6} rx={1.5} fill="#8E7320" strokeWidth={1.8} />
+    </g>
+    <g stroke={OUTLINE} strokeWidth={2.2} strokeLinecap="round">
+      <path d="M0 1 L-4 9 M0 1 L4 9 M0 1 L0 8" />
+    </g>
   </g>
 );
-const starBit: ParticleRenderer = () => (
-  <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+// UFO 飞碟：碟身 + 舱罩 + 3 盏灯（它是外星人）
+const ufo: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-5 -2 Q-5 -8 0 -8 Q5 -8 5 -2 Z" fill={AURORA_T} strokeWidth={2.2} />
+    <ellipse cx={0} cy={-1} rx={11} ry={4} fill={DEEP} strokeWidth={2.2} />
+    <g fill={VOLT} stroke="none">
+      <circle cx={-6} cy={-1} r={1.4} />
+      <circle cx={0} cy={0} r={1.4} />
+      <circle cx={6} cy={-1} r={1.4} />
+    </g>
+  </g>
+);
+// 带环行星：星球 + 光环
+const ringedPlanet: ParticleRenderer = () => (
+  <g stroke={OUTLINE}>
+    <circle cx={0} cy={0} r={6} fill={AURORA_V} strokeWidth={2.2} />
+    <path d="M-5 -1.5 q5 2 9.5 0 M-4.5 2.5 q4 1.5 8 0" fill="none" stroke="#8E6FC9" strokeWidth={1.3} strokeLinecap="round" />
+    <ellipse cx={0} cy={0} rx={12} ry={4} fill="none" strokeWidth={2.2} transform="rotate(-18)" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -265,7 +286,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 208, y: 196 },
     baseAngle: -Math.PI / 2.5,
     cone: 0.55,
-    shapes: [auroraRibbon, snowStar, starBit],
+    shapes: [telescope, ufo, ringedPlanet],
   },
   meta: {
     nameZh: "极光鸮",

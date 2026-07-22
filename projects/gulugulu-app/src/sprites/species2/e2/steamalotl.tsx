@@ -16,6 +16,8 @@ const DEEP = "#E8919E";
 const CREAM = "#FFF0F0";
 const STEAM = "#FFFFFF";
 const SEA = "#9BDCFF";
+const COFFEE = "#6F4E37";
+const KRAFT = "#C79A6A";
 
 /** 一根外鳃蒸汽管（pivot=根部，向外上伸；蒸汽只画顶排，控节点数） */
 function GillPipe({ steam = false }: { steam?: boolean }) {
@@ -219,14 +221,30 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const steamPuff: ParticleRenderer = () => (
-  <g>
-    <circle cx={-3} cy={1} r={4.5} fill={STEAM} opacity={0.92} stroke={SEA} strokeWidth={2} />
-    <circle cx={3.5} cy={-2} r={3.4} fill={STEAM} opacity={0.92} stroke={SEA} strokeWidth={2} />
+// 外带咖啡杯：梯形杯身 + 杯盖 + 隔热套
+const takeawayCup: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-8 -8 L8 -8 L7 -11 L-7 -11 Z" fill="#D8DCE6" strokeWidth={2.2} />
+    <rect x={-2} y={-14} width={4} height={3} rx={1} fill="#D8DCE6" strokeWidth={1.8} />
+    <path d="M-7 -8 L7 -8 L5 11 L-5 11 Z" fill="#FFFFFF" strokeWidth={2.4} />
+    <path d="M-6.3 -2 L6.3 -2 L5.6 5 L-5.6 5 Z" fill={KRAFT} strokeWidth={2} />
   </g>
 );
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill={SEA} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 咖啡豆：棕色椭圆 + 中缝
+const coffeeBean: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" transform="rotate(-18)">
+    <ellipse cx={0} cy={0} rx={5.5} ry={8} fill={COFFEE} strokeWidth={2.2} />
+    <path d="M0 -7 Q-2 0 0 7" fill="none" stroke="#3D2A1C" strokeWidth={1.8} strokeLinecap="round" />
+  </g>
+);
+// 拿铁拉花：小杯 + 棕色液面上的白色心形（「是天鹅」其实是团子）
+const latteHeart: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-7 -5 L7 -5 L6 7 Q6 9 3 9 L-3 9 Q-6 9 -6 7 Z" fill="#FFFFFF" strokeWidth={2.4} />
+    <path d="M7 -3 Q12 -2 11 3 Q11 6 6 5" fill="none" strokeWidth={2.2} />
+    <ellipse cx={0} cy={-5} rx={7} ry={2.6} fill={COFFEE} strokeWidth={2} />
+    <path d="M0 -3.5 C-1.6 -6 -4 -4.5 -3 -2.8 C-2.4 -1.8 0 -0.6 0 -0.6 C0 -0.6 2.4 -1.8 3 -2.8 C4 -4.5 1.6 -6 0 -3.5 Z" fill="#FFFFFF" stroke="none" />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -252,7 +270,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 192, y: 214 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.55,
-    shapes: [steamPuff, dropBit, steamPuff],
+    shapes: [takeawayCup, coffeeBean, latteHeart],
   },
   meta: {
     nameZh: "汽雾螈",

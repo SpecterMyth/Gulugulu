@@ -55,7 +55,7 @@ export function StackedKeycapGlyph({ count }: { count: number }) {
   );
 }
 
-/** Token 能量饭团字形（吃 Token 时从远处飘来的食物）。像素尺寸随等级在
+/** Token 经验饭团字形（吃 Token 时从远处飘来的食物，喂陪伴宠经验）。像素尺寸随等级在
  *  FlightLayer 侧放大（这里画在固定 ±16 的局部坐标里，与 🍙 叙事呼应）。
  *  等级越高，海苔越宽、点缀越多，读作"更大的一餐"。 */
 export function FoodGlyph({ level }: { level: number }) {

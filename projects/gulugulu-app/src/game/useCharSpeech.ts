@@ -1,8 +1,10 @@
 import { useEffect, useState, type MutableRefObject } from "react";
 import type { PetInstance } from "../types";
+import { localizeGameMessage } from "../i18n";
+import { useT } from "../useT";
 
 // ---------------------------------------------------------------------------
-// 主角头顶气泡（提示 > 融合条件 > 台词）。
+// 主角头顶气泡（提示 > 融合条件 > 进场点题 > 台词）。
 // 从 BackyardScene 抽出的自定义 Hook：拥有 toastSay/hintSay 状态与两个副作用，
 // 计算最终 charSay。副作用体、依赖数组与 eslint-disable 均逐字保留。
 // ---------------------------------------------------------------------------
@@ -17,6 +19,8 @@ export type UseCharSpeechInput = {
   nearPetId: string | null;
   placedPetsRef: MutableRefObject<PlacedPet[]>;
   fusionHintFor: (pet: PetInstance) => string | null;
+  /** 进后院一次性红点点题；低于提示(toast)/融合条件，高于闲聊台词。null=无。 */
+  entryHint: string | null;
   speechVisible: boolean;
   speechLine: string;
 };
@@ -26,9 +30,11 @@ export function useCharSpeech({
   nearPetId,
   placedPetsRef,
   fusionHintFor,
+  entryHint,
   speechVisible,
   speechLine,
 }: UseCharSpeechInput): { charSay: string | null } {
+  const { lang } = useT();
   // 头顶气泡：提示 > 融合条件 > 台词
   const [toastSay, setToastSay] = useState<{ id: number; text: string } | null>(null);
   const [hintSay, setHintSay] = useState<string | null>(null);
@@ -62,7 +68,12 @@ export function useCharSpeech({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nearPetId]);
 
-  const charSay = toastSay?.text ?? hintSay ?? (speechVisible ? speechLine : null);
+  // 提示可能是桥/mock 透传的 "#key" 协议消息——展示前本地化（普通字符串原样穿透）。
+  const charSay =
+    (toastSay ? localizeGameMessage(toastSay.text, lang) : null) ??
+    hintSay ??
+    entryHint ??
+    (speechVisible ? speechLine : null);
 
   return { charSay };
 }

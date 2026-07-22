@@ -8,9 +8,9 @@ type Lang = "zh" | "en";
 
 function currentLang(): Lang {
   try {
-    return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === "en" ? "en" : "zh";
+    return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === "zh" ? "zh" : "en";
   } catch {
-    return "zh";
+    return "en";
   }
 }
 
@@ -24,7 +24,7 @@ function sig4(n: number): string {
 /**
  * 缩写一个非负计数值。
  * - 中文：`< 1万` 原样整数；`万`(1e4)、`亿`(1e8)。
- * - 其它：`< 1k` 原样整数；`k`(1e3)、`m`(1e6)、`b`(1e9)。
+ * - 其它（短刻度）：`< 1K` 原样整数；`K`(1e3)、`M`(1e6)、`B`(1e9)。
  * 负数保留前导 `-`。
  */
 export function formatCount(value: number, lang: Lang = currentLang()): string {
@@ -38,9 +38,9 @@ export function formatCount(value: number, lang: Lang = currentLang()): string {
     else body = `${sig4(v / 1e8)}亿`;
   } else {
     if (v < 1e3) body = String(Math.round(v));
-    else if (v < 1e6) body = `${sig4(v / 1e3)}k`;
-    else if (v < 1e9) body = `${sig4(v / 1e6)}m`;
-    else body = `${sig4(v / 1e9)}b`;
+    else if (v < 1e6) body = `${sig4(v / 1e3)}K`;
+    else if (v < 1e9) body = `${sig4(v / 1e6)}M`;
+    else body = `${sig4(v / 1e9)}B`;
   }
   return neg ? `-${body}` : body;
 }

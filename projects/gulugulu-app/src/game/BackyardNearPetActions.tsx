@@ -1,5 +1,7 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { GameConfig, GameSave, PetInstance } from "../types";
+import { fmt } from "../i18n";
+import { useT } from "../useT";
 import { fusionFeeFor } from "./config";
 import { formatCount } from "./format";
 
@@ -42,6 +44,8 @@ export function BackyardNearPetActions({
   onFollow,
   onRelease,
 }: BackyardNearPetActionsProps) {
+  const { T } = useT();
+  const bk = T.bk.nearPet;
   const stopClick = (event: ReactMouseEvent) => event.stopPropagation();
   const { pet, spot } = nearPlaced;
   const hint = fusionHintFor(pet);
@@ -54,26 +58,28 @@ export function BackyardNearPetActions({
         <button
           type="button"
           className={`by-bubble-fuse ${canFuse ? "" : "is-disabled"}`}
+          data-coach={`fuseBtn:${pet.id}`}
           onClick={(event) => {
             event.stopPropagation();
             if (!canFuse || !activePet) return;
             onFuse(activePet.id, pet.id);
           }}
         >
-          <b>✨ 融合</b>
-          <small>{canFuse ? `${formatCount(fusionFeeFor(config, pet.tier))} 🪙` : "条件未满足"}</small>
+          <b>{bk.fuse}</b>
+          <small>{canFuse ? `${formatCount(fusionFeeFor(config, pet.tier))} 🪙` : bk.notEligible}</small>
         </button>
         <div className="by-bubble-col">
           <button
             type="button"
             className="by-bubble-mini"
+            data-coach={`followBtn:${pet.id}`}
             disabled={busy}
             onClick={(event) => {
               event.stopPropagation();
               onFollow(pet.id);
             }}
           >
-            🤝 陪伴
+            {bk.follow}
           </button>
           {confirmRelease ? (
             <button
@@ -86,20 +92,20 @@ export function BackyardNearPetActions({
                 onRelease(pet.id);
               }}
             >
-              确认放生（返 {releaseRefund(pet)} 🪙）
+              {fmt(bk.confirmRelease, { refund: releaseRefund(pet) })}
             </button>
           ) : (
             <button
               type="button"
               className="by-bubble-mini is-danger"
               disabled={busy || save.pets.length <= 1}
-              title={save.pets.length <= 1 ? "最后一只伙伴不能放生" : undefined}
+              title={save.pets.length <= 1 ? bk.lastPetTitle : undefined}
               onClick={(event) => {
                 event.stopPropagation();
                 setConfirmRelease(true);
               }}
             >
-              放生
+              {bk.release}
             </button>
           )}
         </div>

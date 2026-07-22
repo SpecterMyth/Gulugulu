@@ -1,5 +1,7 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { GameConfig, GameSave } from "../types";
+import { elementName, fmt, speciesDisplayName } from "../i18n";
+import { useT } from "../useT";
 import { EggSvg } from "../sprites/SvgSprite";
 import { eggPoolCandidates, eggPriceFor, shopMaxLevel, shopUpgradeCost } from "./config";
 import { formatCount } from "./format";
@@ -34,6 +36,8 @@ export function BackyardShopPopup({
   onBuyEgg,
   onUpgradeShop,
 }: BackyardShopPopupProps) {
+  const { lang, T } = useT();
+  const bk = T.bk.shop;
   const stopClick = (event: ReactMouseEvent) => event.stopPropagation();
   const shopLevel = save.shopLevel ?? 1;
   const maxTier = shopMaxLevel(config);
@@ -50,7 +54,7 @@ export function BackyardShopPopup({
           type="button"
           className="by-shop-arrow"
           disabled={viewTier <= 1}
-          aria-label="低阶蛋"
+          aria-label={bk.prevTier}
           onClick={(event) => {
             event.stopPropagation();
             setShopTier(Math.max(1, viewTier - 1));
@@ -59,13 +63,13 @@ export function BackyardShopPopup({
           ‹
         </button>
         <span className="by-shop-title">
-          {viewTier} 阶蛋 · 页 {viewTier}/{shopLevel}
+          {fmt(bk.header, { tier: viewTier, page: viewTier, pages: shopLevel })}
         </span>
         <button
           type="button"
           className="by-shop-arrow"
           disabled={viewTier >= shopLevel}
-          aria-label="高阶蛋"
+          aria-label={bk.nextTier}
           onClick={(event) => {
             event.stopPropagation();
             setShopTier(Math.min(shopLevel, viewTier + 1));
@@ -77,17 +81,17 @@ export function BackyardShopPopup({
       <div className="by-shop-grid">
         {SHOP_ORDER.map((element) => {
           const price = eggPriceFor(config, element, viewTier);
-          const info = config.elements[element];
+          const elName = elementName(element, lang);
           const affordable = save.coins >= price;
           const previewSpecies = config.speciesByRecipe?.[element] ?? "guluduck";
-          const pool = eggPoolCandidates(config, save, element, viewTier);
+          const pool = eggPoolCandidates(config, element, viewTier);
           const outcomes = pool
-            .map(([code]) => config.species[code]?.nameZh ?? save.customSpecies?.[code]?.info.nameZh ?? code)
-            .join("、");
+            .map(([code]) => speciesDisplayName(code, lang, config.species[code]?.nameZh, config.species[code]?.nameEn))
+            .join(bk.outcomeJoiner);
           const title =
             viewTier <= 1
-              ? `${info?.nameZh}蛋 → ${outcomes}`
-              : `${viewTier} 阶${info?.nameZh}蛋 · 可能产出：${outcomes}（含元素越多越稀有）`;
+              ? fmt(bk.tooltipT1, { element: elName, outcomes })
+              : fmt(bk.tooltipTier, { tier: viewTier, element: elName, outcomes });
           return (
             <button
               key={element}
@@ -104,7 +108,8 @@ export function BackyardShopPopup({
                 <EggSvg species={previewSpecies} tier={viewTier} config={config} phase="idle" />
               </div>
               <span className="by-shop-name">
-                {info?.nameZh}蛋{viewTier > 1 ? ` ·${viewTier}阶` : ""}
+                {fmt(bk.eggName, { element: elName })}
+                {viewTier > 1 ? fmt(bk.eggTierSuffix, { tier: viewTier }) : ""}
               </span>
               <span className={`by-shop-price ${affordable ? "" : "is-short"}`}>🪙 {formatCount(price)}</span>
             </button>
@@ -121,10 +126,10 @@ export function BackyardShopPopup({
             onUpgradeShop();
           }}
         >
-          升级商店 → 解锁 {shopLevel + 1} 阶蛋（{formatCount(upgradeCost)} 🪙）
+          {fmt(bk.upgrade, { tier: shopLevel + 1, cost: formatCount(upgradeCost) })}
         </button>
       ) : (
-        <div className="by-shop-note">商店已满级 · {maxTier} 阶蛋封顶（5~6 阶融合专属）</div>
+        <div className="by-shop-note">{fmt(bk.maxed, { tier: maxTier })}</div>
       )}
     </div>
   );

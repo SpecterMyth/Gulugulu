@@ -263,18 +263,37 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-// 吹风机的产物：吹出的风线（配吹落的水珠 + 毛发光泽）
-const windGust: ParticleRenderer = () => (
-  <g fill="none" stroke={SEA} strokeWidth={2.4} strokeLinecap="round">
-    <path d="M-8 -3 q8 -2 13 0" />
-    <path d="M-6 3 q7 -2 11 0" />
+// 肥皂泡沫：2~3 颗泡泡簇 + 高光（洗车獭一按泡沫喷一脸）
+const soapSuds: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeWidth={2}>
+    <circle cx={-4} cy={2} r={5} fill={BUBBLE} opacity={0.9} />
+    <circle cx={4} cy={0} r={4} fill={BUBBLE} opacity={0.9} />
+    <circle cx={0} cy={-5} r={3.2} fill={BUBBLE} opacity={0.9} />
+    <g fill="#FFFFFF" stroke="none">
+      <circle cx={-5.6} cy={0.4} r={1.4} />
+      <circle cx={2.6} cy={-1.4} r={1} />
+    </g>
   </g>
 );
-const dropBit: ParticleRenderer = () => (
-  <path d="M0 -7 q5.5 6.5 5.5 10.5 a5.5 5.5 0 0 1 -11 0 q0 -4 5.5 -10.5 z" fill={SEA} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 海绵：圆角块 + 几个孔
+const sponge: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-9} y={-6} width={18} height={12} rx={3} fill="#F5D97A" strokeWidth={2.4} />
+    <path d="M-9 -2 Q0 -5 9 -2 L9 -3 Q9 -6 6 -6 L-6 -6 Q-9 -6 -9 -3 Z" fill="#57B84C" strokeWidth={2} />
+    <g fill={DEEP} stroke="none">
+      <circle cx={-4} cy={2} r={1.3} />
+      <circle cx={2} cy={3} r={1.1} />
+      <circle cx={5} cy={0} r={1.2} />
+    </g>
+  </g>
 );
-const sparkleBit: ParticleRenderer = () => (
-  <path d="M0 -6 L1.6 -1.6 L6 0 L1.6 1.6 L0 6 L-1.6 1.6 L-6 0 L-1.6 -1.6 Z" fill="#FFFFFF" stroke={SEA} strokeWidth={2} strokeLinejoin="round" />
+// 刮水器：橡胶刮条 + 手柄
+const squeegee: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-1.8} y={-11} width={3.6} height={9} rx={1.5} fill={SEA} strokeWidth={2} />
+    <rect x={-9} y={-3} width={18} height={4} rx={1.5} fill="#5C6172" strokeWidth={2.2} />
+    <path d="M-9 1 L9 1 L8 6 L-8 6 Z" fill="#3E4356" strokeWidth={2.2} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -299,7 +318,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 178, y: 204 },
     baseAngle: (-Math.PI * 2) / 3,
     cone: 0.55,
-    shapes: [windGust, dropBit, sparkleBit],
+    shapes: [soapSuds, sponge, squeegee],
   },
   meta: {
     nameZh: "泡澡獭",

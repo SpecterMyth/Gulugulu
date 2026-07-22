@@ -46,9 +46,13 @@ export function keysPerStaminaFor(config: GameConfig, tier: number): number {
   return Math.max(1, config.keysPerStaminaBase) * tierFactor(config, tier);
 }
 
-/** 每 1 点精力需要的 token 数（镜像 tokens_per_stamina_for）。 */
-export function tokensPerStaminaFor(config: GameConfig, tier: number): number {
-  return Math.max(1, config.tokensPerStaminaBase) * tierFactor(config, tier);
+/** 该阶每 1 点经验所需加权 Token 单位（镜像 tokens_per_exp_for）：`tokensPerExp`
+ *  按阶取值（索引=阶−1），越界回退末项、空数组回退 40，下限钳 1。按阶递减，
+ *  抵消 levelExpFactor 的 ×10/阶暴涨（详见 types.ts 字段文档）。 */
+export function tokensPerExp(config: GameConfig, tier: number): number {
+  const arr = config.tokensPerExp;
+  const rate = arr[Math.max(0, tier - 1)] ?? arr[arr.length - 1] ?? 40;
+  return Math.max(1, rate);
 }
 
 /** 点击经验：clickExpBase × 阶系数（镜像 click_exp_for）。 */
@@ -137,38 +141,35 @@ export function eggRarityWeight(config: GameConfig, elementCount: number): numbe
   return Math.pow(denom, 6 - Math.min(6, Math.max(0, elementCount)));
 }
 
-type EggPoolSave = {
-  dexObtained?: Record<string, number>;
-  customSpecies?: Record<string, { info: { tier?: number; elements: string[] } }>;
-};
+/** 该阶蛋的每日产出上限（镜像 egg_daily_mint_cap）；超出配置数组的阶 = 无上限。 */
+export function eggDailyMintCap(config: GameConfig, tier: number): number {
+  const caps = config.eggDailyMintCaps ?? [10, 8, 6, 3];
+  return caps[tier - 1] ?? Number.MAX_SAFE_INTEGER;
+}
 
-/** 「T 阶 · E 属性」蛋候选物种及整数权重（镜像 egg_pool_candidates）：含该属性、
- *  元素数 ≤ 蛋阶、且已解锁（dexObtained≥1）；元素数=1 的 6 只基础种恒可售。
- *  跳过 21 只 legacy 二阶物种。按键排序 → 与 Rust BTreeMap 顺序一致（掷点可复现）。 */
+/** 该配方（按结果元素数）的每日融合上限（镜像 fusion_daily_mint_cap）；越界 = 无上限。 */
+export function fusionDailyMintCap(config: GameConfig, elementCount: number): number {
+  const caps = config.fusionDailyMintCaps ?? [5, 5, 2, 2, 1, 1];
+  return caps[elementCount - 1] ?? Number.MAX_SAFE_INTEGER;
+}
+
+/** 「T 阶 · E 属性」蛋候选**固定配方物种**及整数权重（镜像 egg_pool_candidates）：含该属性、
+ *  元素数 ≤ 蛋阶。**商店蛋 = 全局池（2026-07-15）**：不按 dexObtained 解锁门筛（可产未解锁
+ *  固定种）、不含 AI 自定义变种（AI 只经融合获得）。跳过 21 只 legacy 二阶物种。按键排序 →
+ *  与 Rust BTreeMap 顺序一致（掷点可复现）。 */
 export function eggPoolCandidates(
   config: GameConfig,
-  save: EggPoolSave,
   element: string,
   tier: number,
 ): Array<[string, number]> {
   const out: Array<[string, number]> = [];
-  const push = (codename: string, info: { tier?: number; elements: string[] }) => {
-    const count = info.elements.length;
-    if (count < 1 || count > tier) return;
-    if (!info.elements.includes(element)) return;
-    const always = count === 1;
-    const unlocked = (save.dexObtained?.[codename] ?? 0) >= 1;
-    if (!(always || unlocked)) return;
-    out.push([codename, eggRarityWeight(config, count)]);
-  };
   for (const codename of Object.keys(config.species).sort()) {
     const info = config.species[codename];
     if ((info.tier ?? 0) === 2) continue; // legacy 二阶副本不进配方蛋池
-    push(codename, info);
-  }
-  const custom = save.customSpecies ?? {};
-  for (const codename of Object.keys(custom).sort()) {
-    push(codename, custom[codename].info);
+    const count = info.elements.length;
+    if (count < 1 || count > tier) continue;
+    if (!info.elements.includes(element)) continue;
+    out.push([codename, eggRarityWeight(config, count)]);
   }
   return out;
 }
@@ -176,12 +177,11 @@ export function eggPoolCandidates(
 /** 按整数权重从蛋池掷定物种（镜像 roll_egg_species）。空池 → undefined。 */
 export function rollEggSpecies(
   config: GameConfig,
-  save: EggPoolSave,
   element: string,
   tier: number,
   roll: number,
 ): string | undefined {
-  const pool = eggPoolCandidates(config, save, element, tier);
+  const pool = eggPoolCandidates(config, element, tier);
   if (pool.length === 0) return undefined;
   const total = Math.max(1, pool.reduce((s, [, w]) => s + w, 0));
   let pick = ((roll % total) + total) % total;

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -6,7 +7,7 @@ import {
   type MutableRefObject,
 } from "react";
 import type { PetInstance } from "../types";
-import { WORLD_W } from "./backyardShared";
+import { WORLD_MAX, WORLD_MIN } from "./backyardShared";
 
 // ---------------------------------------------------------------------------
 // 后院 rAF 运动循环：行走 / 相机 / 视差 / 靠近检测 + 键盘移动 + 点击寻路 +
@@ -14,15 +15,16 @@ import { WORLD_W } from "./backyardShared";
 // 与全部 effect，逐字保留 step 函数体、每个 setter 调用与每个依赖数组。
 // ---------------------------------------------------------------------------
 
-const CHAR_MIN = 70;
-const CHAR_MAX = 5530;
+// 角色可漫步进两侧装饰带（留 60px 不贴到世界边缘栅栏）。
+const CHAR_MIN = WORLD_MIN + 60;
+const CHAR_MAX = WORLD_MAX - 60;
 const WALK_SPEED = 230;
 const SHOP_CENTER_X = 1150;
 const SHOP_NEAR_RANGE = 210;
 const PET_NEAR_RANGE = 150;
-/** 图鉴馆 / 交易市场建筑中心与感应半径 */
-const MUSEUM_X = 4610;
-const MARKET_X = 4990;
+/** 图鉴馆 / 交易市场建筑中心与感应半径（紧贴公告板右侧的功能区簇） */
+const MUSEUM_X = 3310;
+const MARKET_X = 4030;
 const POI_RANGE = 200;
 /** 三个视差层整体下沉量：把土层剖面压缩到只露 76px（正好两行按钮），
  *  角色/布景/面板全部随之贴近窗口底边。 */
@@ -174,9 +176,9 @@ export function useBackyardMotion({
       }
       motion.charX = clamp(motion.charX, CHAR_MIN, CHAR_MAX);
 
-      // 相机以"世界单位"的画卷宽度取景（= 视口宽 / 整体缩放）
+      // 相机以"世界单位"的画卷宽度取景（= 视口宽 / 整体缩放），可平移进两侧装饰带。
       const vw = stageRefValues.current.stageW;
-      const camX = Math.max(0, Math.min(motion.charX - vw / 2, WORLD_W - vw));
+      const camX = Math.max(WORLD_MIN, Math.min(motion.charX - vw / 2, WORLD_MAX - vw));
       motion.camX = camX;
 
       if (nearRef.current) nearRef.current.style.transform = `translate3d(${-camX}px,${GROUND_SHIFT}px,0)`;
@@ -283,6 +285,17 @@ export function useBackyardMotion({
     dismissGuide();
   };
 
+  // 相机定位：把主角（=当前陪伴）瞬移到指定世界 X，下一帧 rAF 循环随之取景。
+  // 融合消耗掉当前陪伴后，用它把视角定位到新陪伴原本的站位（而非把新陪伴凭空拽到
+  // 玩家脚下）。清空寻路目标，避免刚定位又被上一次点击目标带走。
+  const centerOnWorldX = useCallback((x: number) => {
+    motionRef.current.charX = clamp(x, CHAR_MIN, CHAR_MAX);
+    motionRef.current.target = null;
+  }, []);
+
+  // 主角当前世界 X（供就地融合演出在「点融合」瞬间锚定两亲的站位）。读 ref 不触发渲染。
+  const readCharX = useCallback(() => motionRef.current.charX, []);
+
   return {
     rootRef,
     farRef,
@@ -297,6 +310,8 @@ export function useBackyardMotion({
     poiSides,
     nearPetId,
     walkToPointer,
+    centerOnWorldX,
+    readCharX,
     view,
     stageW,
     viewScale,

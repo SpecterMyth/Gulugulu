@@ -642,7 +642,8 @@ function computeAnimalLayout(raw: ChimeraForm | undefined, view: "front" | "side
   const form = normalizedForm(raw);
   const plan: BodyPlan = form.bodyPlan === "stack" ? "round" : form.bodyPlan;
   const bw = clamp(form.bodyW, 0.75, 1.3);
-  const bh = clamp(form.bodyH, 0.75, 1.35);
+  // bodyH 下限 0.85：低于此身体会被压成"扁片/虫子"，破坏可爱幼态。
+  const bh = clamp(form.bodyH, 0.85, 1.35);
   const legStyle: AnimalLayout["legStyle"] = plan === "floaty" ? "none" : form.legStyle;
   const armStyle = form.armStyle;
   const earStyle = form.earStyle;
@@ -716,32 +717,35 @@ function computeAnimalLayout(raw: ChimeraForm | undefined, view: "front" | "side
       break;
     }
     case "long": {
+      // 海獭/海豹幼崽感：大头明显抬起在右前方，身体分节圆胖、向尾端收窄。
+      // 不是等宽扁平的"虫子"——大头 + 厚身 + 抬头是可爱的关键。
       const bumps = (clamp(Math.round(form.segments), 2, 3) || 2) as 2 | 3;
-      const rx = 32 * bw;
-      const ry = 24 * bh;
-      const groundLong = GROUND_Y - 2;
+      const rx = 34 * bw;
+      const ry = 30 * bh; // 圆胖体块（提高，避免扁）
+      const groundLong = GROUND_Y - (legStyle === "none" ? 2 : 6);
       const cy = groundLong - ry;
-      head = { cx: CX + rx * 0.85, cy: cy - ry * 0.4, r: Math.max(32 * bw, 24) };
+      const R = Math.max(40 * bw, 30); // 大头
+      head = { cx: CX + rx * 0.95, cy: cy - ry * 0.62, r: R };
       const list: Blob[] = [];
       for (let i = 0; i < bumps; i += 1) {
-        const x = head.cx - (i + 1) * rx * 1.15;
-        list.push({ cx: x, cy: cy + (i % 2 === 0 ? -1 : 3), rx, ry: ry * (1 - i * 0.06) });
+        const x = head.cx - R * 0.55 - (i + 1) * rx * 0.96;
+        list.push({ cx: x, cy: cy + i * 2, rx: rx * (1 - i * 0.13), ry: ry * (1 - i * 0.08) });
       }
-      // 整条毛虫头右尾左、天然偏心：把水平中点移回 CX，宽体型也不出画布左缘。
-      const leftMost = list[list.length - 1].cx - rx * 1.7; // 含尾根
-      const rightMost = head.cx + head.r;
-      const shift = CX - (leftMost + rightMost) / 2;
+      // 头右尾左、天然偏心：把水平中点移回 CX，宽体型也不出画布左缘。
+      const last = list[list.length - 1];
+      const shift = CX - ((last.cx - last.rx * 1.3) + (head.cx + R)) / 2;
       head.cx += shift;
       for (const b of list) b.cx += shift;
       blobs = list.reverse(); // 远端（左）先画，靠头的一节压在最前
+      belly = { cx: head.cx - R * 0.15, cy: cy + ry * 0.34, rx: rx * 0.5, ry: ry * 0.38 };
       W = (bumps + 1) * rx;
       if (legStyle !== "none") {
         legs = [
-          { x: head.cx - rx * 0.5, y: groundLong, mirror: true },
-          { x: blobs[0].cx + rx * 0.3, y: groundLong },
+          { x: head.cx - rx * 0.55, y: groundLong, mirror: true },
+          { x: blobs[0].cx + rx * 0.2, y: groundLong },
         ];
       }
-      tail = { x: blobs[0].cx - rx * 0.7, y: cy, rot: -28 };
+      tail = { x: blobs[0].cx - rx * 0.55, y: cy, rot: -22 };
       break;
     }
     case "floaty": {

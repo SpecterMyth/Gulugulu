@@ -36,10 +36,8 @@
   "tickSeconds": 3,
   "keysPerStaminaBase": 1,
   "keyRateCapPerSec": 5,
-  "tokensPerStaminaBase": 2,
-  "wanderSnackStaminaMin": 1,
-  "wanderSnackStaminaMax": 2,
-  "wanderSnackDailyCap": 5,
+  "tokensPerExp": [1, 1, 1, 1, 1, 1],
+  "tokenFeedWeights": { "input": 5.0, "cacheCreate": 0.2, "cacheRead": 0.01, "output": 2.0 },
   "levelExpFactor": [
     2,
     3,
@@ -1522,6 +1520,8 @@
   "shopMaxLevel": 4,
   "shopUpgradeCosts": [500, 4000, 32000],
   "eggRarityFalloffDenom": 3,
+  "eggDailyMintCaps": [4, 3, 2, 1],
+  "fusionDailyMintCaps": [2, 2, 1, 1, 1, 1],
   "aiTotalChanceByElementCount": {
     "2": 0.6,
     "3": 0.4,

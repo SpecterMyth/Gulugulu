@@ -3,10 +3,11 @@
 // 形状取自 config 的 badge 字段（star/flame/bolt/drop/leaf/snow）；未知徽记回退圆点。
 // 全部画在 16×16 局部坐标里，深色描边沿用精灵的 OUTLINE，风格与主美术一致。
 
-const OUTLINE = "#3B2B1D";
+export const OUTLINE = "#3B2B1D";
 
-/** badge → 单路径字形（含描边，填充用元素色）。leaf 末段是叶脉（开放子路径，仅描边）。 */
-const BADGE_PATHS: Record<string, string> = {
+/** badge → 单路径字形（含描边，填充用元素色）。leaf 末段是叶脉（开放子路径，仅描边）。
+ *  也被 scripts/render_steam_icons.tsx 复用来画 AI 占位图标的元素徽记（单一真源）。 */
+export const BADGE_PATHS: Record<string, string> = {
   star: "M8 1 L9.71 5.65 L14.66 5.84 L10.76 8.9 L12.11 13.66 L8 10.9 L3.89 13.66 L5.24 8.9 L1.34 5.84 L6.29 5.65 Z",
   flame:
     "M8 2 C 11 5.5 11.5 8 10.8 10.3 C 10.2 12.2 9.1 13.4 8 13.4 C 6.9 13.4 5.8 12.2 5.2 10.3 C 4.5 8 5 5.5 8 2 Z",

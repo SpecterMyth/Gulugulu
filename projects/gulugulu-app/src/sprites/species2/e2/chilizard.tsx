@@ -16,6 +16,8 @@ const DEEP = "#57B84C";
 const CREAM = "#FFF4DC";
 const CHILI = "#E2432E";
 const FLAME = "#FFB03A";
+const HOTFACE = "#EF6D52";
+const SWEAT = "#9BDCFF";
 
 function Front({ palette, slots = {}, eyes = "round", expression = "normal" }: RigProps) {
   return (
@@ -227,11 +229,25 @@ const chiliBit: ParticleRenderer = () => (
     <path d="M-2 -7 q2 -2 4 -1" fill="none" stroke={DEEP} strokeWidth={2} strokeLinecap="round" />
   </g>
 );
-const flameBit: ParticleRenderer = () => (
-  <path d="M0 6 q-5 -4 -3 -10 q2 -5.5 6.5 -9 q-1.5 5.5 2 8.5 q4 3.5 3 8 a6 6 0 0 1 -8.5 2.5 z" fill={FLAME} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+// 辣酱瓶：小瓶 + 标签 + 红色酱料
+const hotSauceBottle: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-3} y={-11} width={6} height={3} rx={1} fill={DEEP} strokeWidth={1.8} />
+    <rect x={-2.5} y={-8.6} width={5} height={2.6} fill={CHILI} strokeWidth={1.6} />
+    <path d="M-5 -6 Q-6 -6 -6 -3 L-6 7 Q-6 9 -4 9 L4 9 Q6 9 6 7 L6 -3 Q6 -6 5 -6 Z" fill={CHILI} strokeWidth={2.2} />
+    <rect x={-4.5} y={-1} width={9} height={6} rx={1} fill={CREAM} strokeWidth={1.6} />
+    <path d="M-2.5 2 h5" stroke={CHILI} strokeWidth={1.4} strokeLinecap="round" />
+  </g>
 );
-const leafBit: ParticleRenderer = () => (
-  <path d="M0 -8 q7 2.5 1.5 12 q-8 -1.5 -1.5 -12 z" fill={SKIN} stroke={OUTLINE} strokeWidth={2.2} strokeLinejoin="round" />
+// 辣到冒汗脸 🥵：涨红脸 + 吐舌 + 汗珠
+const sweatFace: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <circle cx={0} cy={0} r={8} fill={HOTFACE} strokeWidth={2.4} />
+    <path d="M-6 -3 l3 2 l-3 2 M6 -3 l-3 2 l3 2" fill="none" stroke={OUTLINE} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M-3.5 2.5 Q0 6 3.5 2.5 Z" fill={OUTLINE} stroke="none" />
+    <path d="M-1.6 4 Q-2.2 8.5 1 8.5 Q2.6 7.5 1.4 4 Z" fill={CHILI} strokeWidth={1.6} />
+    <path d="M8 -5 q2.5 2.6 2.5 4.6 a2.6 2.6 0 0 1 -5 0 q0 -2 2.5 -4.6 z" fill={SWEAT} strokeWidth={1.6} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -256,7 +272,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 196, y: 204 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.55,
-    shapes: [chiliBit, flameBit, leafBit],
+    shapes: [chiliBit, hotSauceBottle, sweatFace],
   },
   meta: {
     nameZh: "火辣蜥",

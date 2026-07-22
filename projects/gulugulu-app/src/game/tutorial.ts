@@ -1,26 +1,56 @@
 import type { GameConfig, GameSave, PetInstance } from "../types";
-import { clickExpFor, expToNext, isMaxLevel, maxLevelForTier } from "./config";
+import { fmt, type Language, t } from "../i18n";
+import {
+  clickExpFor,
+  expToNext,
+  fusionFeeFor,
+  hatcherySlotCount,
+  isMaxLevel,
+  maxLevelForTier,
+  shopUpgradeCost,
+  yardCapacityFor,
+} from "./config";
 import type { UiMode } from "./GamePanels";
+import { FIXED_DEX_TOTAL } from "./pokedexData";
 
 // ---------------------------------------------------------------------------
-// 状态触发式新手引导（OnboardingFlow.md §二·调整 1）
+// 状态触发式新手引导 —— 展示预算模型（docs/gdd/OnboardingGuidance.md v1.0）
 //
-// 旧引导是 tutorialStep 0-3 的线性计数，只覆盖前 10 分钟。这里改成"由存档状态
-// 推导"的节点表：接管完整三天。每个节点带一个 when(ctx) 谓词，`computeTutorialHint`
-// 返回优先级最高（最靠后里程碑优先）的命中节点。绝大多数节点随玩家动作自然清除，
-// 只有终局"毕业"节点用 tutorialStep 作"已确认"标记避免长期复读。Rust 侧零改动
-// ——tutorialStep 字段已存在，语义仍是"已达成的最远步骤"。
+// 由存档状态推导当前引导节点，不再是线性 tutorialStep 计数。每条引导带一个
+// `budget`（完整展示满这么多轮后永久退休，budget=1 即一次性）+ 一个持久展示键
+// `key`（默认=id，可用 opts.key 覆盖为按实例区分），计数落 localStorage（见 useTutorialHints）。
+// 另有"毕业闸"：拥有首只 2 阶（tutorialStep≥GRADUATION_STEP）后，basicCluster 的
+// 基础引导无论剩余预算一律退休——引导期正式结束。发现/晚期节点（图鉴/Steam/放生/
+// 升级）不属基础族，只看各自预算，可能毕业后才首次遇到。Rust 侧零改动。
 // ---------------------------------------------------------------------------
 
 export type TutorialHint = {
   id: string;
   text: string;
-  /** 一次性提示的持久去重键：展示满一轮后写入 seenOnce，此后不再复读（见 App.tsx）。 */
-  once?: string;
+  /** 展示计数的持久键（默认=id，可用 opts.key 覆盖为按实例区分）。 */
+  key: string;
+  /** 展示预算：完整展示满这么多轮后永久退休（budget=1 即一次性）。 */
+  budget: number;
 };
 
-/** 已达成毕业里程碑（首只 2 阶）后写入的 tutorialStep，避免终局提示复读。 */
+/** 已达成毕业里程碑（首只 2 阶）后写入的 tutorialStep，标记引导期结束。 */
 export const GRADUATION_STEP = 11;
+
+/** 学会核心循环即应退场的"基础族"——毕业后无论剩余预算一律退休。 */
+const BASIC_CLUSTER = new Set<string>([
+  "collect-egg",
+  "recovering",
+  "cap-full",
+  "fusion-ready",
+  "expdiff",
+  "max-switch",
+  "buy-second",
+  "cap-near",
+  "menu-work",
+]);
+
+/** 距满级 ≤ 该击数时，弹"还差 X 下就满级"的目标梯度气泡。 */
+const DIFF_HINT_CLICKS = 12;
 
 /** 该精灵距本阶满级还需的经验（跨级累加，已满级返回 0）。 */
 export function expToMax(config: GameConfig, pet: PetInstance): number {
@@ -45,16 +75,26 @@ export function fusionReady(config: GameConfig, save: GameSave): boolean {
   return false;
 }
 
-/** 当前拥有的不同 2 阶物种数（图鉴进度分子）。 */
-export function pokedexCount(save: GameSave): number {
-  return new Set(save.pets.filter((pet) => pet.tier >= 2).map((pet) => pet.species)).size;
+/**
+ * 后院融合红点：只看**当前陪伴宠**能否立刻融合——同阶满级搭档在册 + 金币够手续费。
+ * （与 fusionReady 不同：那个只看"存在任意一对同阶满级"，供教练路由用；红点更严，
+ * 对齐玩家在后院的真实一步——切谁跟随谁就能融，金币不够就别亮。）
+ */
+export function activePetCanFuse(config: GameConfig, save: GameSave): boolean {
+  const active = save.pets.find((pet) => pet.id === save.activePetId) ?? null;
+  if (!active || !isMaxLevel(config, active)) return false;
+  const hasPartner = save.pets.some(
+    (pet) => pet.id !== active.id && pet.tier === active.tier && isMaxLevel(config, pet),
+  );
+  if (!hasPartner) return false;
+  return save.coins >= fusionFeeFor(config, active.tier);
 }
 
-/** 图鉴分母 = 融合表可产出的不同 2 阶物种数（正式配置 21）+ AI 创造的物种数。 */
-export function pokedexTotal(config: GameConfig, save?: GameSave): number {
-  return (
-    new Set(Object.values(config.fusionTable)).size + Object.keys(save?.customSpecies ?? {}).length
-  );
+/** 孵化屋是否已满（所有槽位都在孵蛋）——满则买蛋只能进库存孵不了，别再劝买/亮红点。 */
+export function hatcheryFull(config: GameConfig, save: GameSave): boolean {
+  const slots = hatcherySlotCount(config, save.hatcheryLevel);
+  const incubating = save.eggs.filter((egg) => egg.slot != null).length;
+  return incubating >= slots;
 }
 
 /** 一条可读的"下一步融合目标"：取后院可融合的一对，给出 A + B → ??? 文案。 */
@@ -75,110 +115,186 @@ export type TutorialContext = {
   save: GameSave;
   config: GameConfig;
   uiMode: UiMode;
-  /** 已展示过的一次性提示去重键集合（App.tsx 从 localStorage 载入并回传）。 */
-  seenOnce?: ReadonlySet<string>;
+  /** 引导文案语言（词条在 i18n/shell.ts 的 tutorial 域；缺省中文）。 */
+  lang?: Language;
+  /** 各展示键已完整展示的轮数（localStorage 落盘，跨重启累计）。 */
+  shows?: Readonly<Record<string, number>>;
+  /** 是否有已孵化、可收取的蛋（App 侧按 stageNow 结算后传入）。 */
+  hatcheryReady?: boolean;
+  /** Steam 集成是否开启（默认关时不引导交易所）。 */
+  steamEnabled?: boolean;
 };
 
-const NO_SEEN_ONCE: ReadonlySet<string> = new Set();
+const NO_SHOWS: Readonly<Record<string, number>> = {};
 
-/** 距满级 ≤ 该击数时，弹"还差 X 经验 ≈ 亲手 Y 击"的目标梯度气泡。 */
-const DIFF_HINT_CLICKS = 12;
+/** 已收集的固定物种数（曾获账本 dexObtained ∩ 63 固定谱），用于毕业文案。 */
+function fixedCollectedCount(config: GameConfig, save: GameSave): number {
+  const fixed = new Set(Object.values(config.speciesByRecipe ?? {}));
+  const dex = save.dexObtained ?? {};
+  return Object.keys(dex).filter((s) => fixed.has(s) && (dex[s] ?? 0) >= 1).length;
+}
 
 export function computeTutorialHint({
   save,
   config,
   uiMode,
-  seenOnce = NO_SEEN_ONCE,
+  lang = "en",
+  shows = NO_SHOWS,
+  hatcheryReady = false,
+  steamEnabled = false,
 }: TutorialContext): TutorialHint | null {
-  const prices = Object.values(config.eggPrices);
-  const cheapest = prices.length > 0 ? Math.min(...prices) : 0;
+  const TT = t(lang).sh.tutorial;
+  const graduated = save.tutorialStep >= GRADUATION_STEP;
+
+  // 构造 + 退休判定：达预算 / 基础族已毕业 → 返回 null（让位给下一条）。
+  const make = (
+    id: string,
+    text: string,
+    opts?: { budget?: number; key?: string; basic?: boolean },
+  ): TutorialHint | null => {
+    const key = opts?.key ?? id;
+    const budget = opts?.budget ?? Number.POSITIVE_INFINITY;
+    if ((shows[key] ?? 0) >= budget) return null;
+    if (opts?.basic && graduated) return null;
+    return { id, text, key, budget };
+  };
+
   const active = save.pets.find((pet) => pet.id === save.activePetId) ?? null;
   const hasPet = save.pets.length > 0;
   const tier2Owned = save.pets.filter((pet) => pet.tier >= 2).length;
-  // 刚产出、尚未提示过的金蛋（每颗蛋一个持久去重键）。只认"新产生"这一刻，
-  // 不再整个孵化期都算命中——否则界面一切换就复读（见 App.tsx seenOnce）。
-  const freshGoldEgg = save.eggs.find(
-    (egg) =>
-      egg.tier >= 2 &&
-      egg.slot != null &&
-      egg.hatchAt != null &&
-      !seenOnce.has(`goldEgg:${egg.id}`),
-  );
-  const canFuse = fusionReady(config, save);
-  const activeMax = active ? isMaxLevel(config, active) : false;
-  const hasNonMax = save.pets.some((pet) => !isMaxLevel(config, pet));
+  const capLeft = Math.max(0, config.dailyClickCap - save.daily.clicks);
+  const eggPrices = Object.values(config.eggPrices);
+  const cheapestEgg = eggPrices.length > 0 ? Math.min(...eggPrices) : 0;
 
-  // ⑪ 毕业总结（终局，一次性 —— 由 tutorialStep 在展示后置为 GRADUATION_STEP）。
-  if (tier2Owned >= 1 && save.tutorialStep < GRADUATION_STEP) {
-    return {
-      id: "graduation",
-      text: `🎉 第一只 2 阶伙伴诞生！图鉴 ${pokedexCount(save)}/${pokedexTotal(config, save)} —— 白天敲代码回精力、休息时点我变成长、晚上融合、早上收蛋，明天见`,
-    };
+  // —— 优先级从上到下（OnboardingGuidance.md §5）：转瞬发现/当刻动作 > 里程碑 >
+  //    引流 > 温和提醒。退休项自动跳过，让位下一条，不留空窗。——
+
+  // G1 毕业总结（终局；tutorialStep 去重，不吃展示预算）。
+  if (tier2Owned >= 1 && !graduated) {
+    const h = make(
+      "graduation",
+      fmt(TT.graduation, { collected: fixedCollectedCount(config, save), total: FIXED_DEX_TOTAL }),
+    );
+    if (h) return h;
   }
-  // ⑩ 金蛋诞生：新物种蛋刚产生时提示一次（每颗蛋一次，持久去重），次日预约钩子。
-  if (freshGoldEgg) {
-    return {
-      id: "gold-egg",
-      once: `goldEgg:${freshGoldEgg.id}`,
-      text: "金蛋孵化中✨ 关掉应用也照孵，回来就能见到全新伙伴",
-    };
+
+  // A3 收蛋（有已孵化、可收取的蛋）。
+  if (hatcheryReady) {
+    const h = make("collect-egg", TT.collectEgg, { budget: 3, basic: true });
+    if (h) return h;
   }
-  // ⑨ 融合择时（配方 + AI 双悬念）：两只同阶满级凑齐。
-  if (canFuse) {
-    return {
-      id: "fusion-ready",
-      text: "两只满级同阶伙伴凑齐啦！去后院走到一起融合——可能是经典配方，也可能由 AI 现场创造新物种",
-    };
+
+  // A5 精力恢复（趴下充电）。
+  if (active?.exhausted) {
+    const h = make("recovering", TT.recovering, {
+      budget: 3,
+      basic: true,
+    });
+    if (h) return h;
   }
-  // ⑥ 满级切主宠：主宠满了但还有没满的，提示换一只继续养。
-  if (activeMax && hasNonMax) {
-    return { id: "max-switch", text: "主宠满级⭐ 去后院换一只没满的继续养，两只都满级就能融合" };
+
+  // E2 额度用尽（纯抚摸模式）。
+  if (hasPet && capLeft === 0) {
+    const h = make("cap-full", TT.capFull, {
+      budget: 2,
+      basic: true,
+    });
+    if (h) return h;
   }
-  // 差额气泡（观察者·目标梯度）：主宠临近满级时把里程碑"留"给玩家的手指。
-  // v1.1：点击经验按阶缩放（clickExpFor），并确认今日额度还够点完。
-  if (active && !activeMax) {
+
+  // C3 融合就绪（两只同阶满级凑齐）。
+  if (fusionReady(config, save)) {
+    const h = make("fusion-ready", TT.fusionReady, { budget: 3, basic: true });
+    if (h) return h;
+  }
+
+  // C1 临近满级（差额梯度；额度够/不够两种文案）。
+  if (active && !isMaxLevel(config, active)) {
     const remain = expToMax(config, active);
     const perClick = Math.max(1, clickExpFor(config, active.tier));
-    const clicks = Math.max(1, Math.ceil(remain / perClick));
     if (remain > 0 && remain <= perClick * DIFF_HINT_CLICKS) {
-      const capLeft = Math.max(0, config.dailyClickCap - save.daily.clicks);
-      return capLeft >= clicks
-        ? { id: "expdiff", text: `还差 ${remain} 经验 ≈ 亲手点 ${clicks} 下就满级！` }
-        : { id: "expdiff", text: `只差 ${remain} 经验！今日额度用完了，明天点 ${clicks} 下就满级` };
+      const clicks = Math.max(1, Math.ceil(remain / perClick));
+      const text =
+        capLeft >= clicks
+          ? fmt(TT.expDiffEnough, { clicks })
+          : fmt(TT.expDiffCapped, { clicks });
+      const h = make("expdiff", text, { budget: 3, basic: true });
+      if (h) return h;
     }
   }
-  // ④ 攒够金币买第二颗蛋（凑一对好融合）。
-  if (hasPet && save.pets.length < 2 && save.coins >= cheapest && uiMode !== "backyard") {
-    return { id: "buy-second", text: "金币够啦！去后院商店买第二颗蛋，凑一对好融合" };
+
+  // C2 满级切主宠。
+  if (active && isMaxLevel(config, active) && save.pets.some((pet) => !isMaxLevel(config, pet))) {
+    const h = make("max-switch", TT.maxSwitch, {
+      budget: 2,
+      basic: true,
+    });
+    if (h) return h;
   }
-  // 每日额度节点（v1.1，InteractionEconomy §4.2）：温柔的稀缺感，不禁点不报错。
+
+  // A6 商店买第二颗蛋（凑一对好融合）。孵化屋已满时不劝买——蛋只能进库存孵不了。
+  if (hasPet && save.pets.length < 2 && save.coins >= cheapestEgg && !hatcheryFull(config, save)) {
+    const h = make("buy-second", TT.buySecond, {
+      budget: 3,
+      basic: true,
+    });
+    if (h) return h;
+  }
+
+  // D5 升级商店（解锁更高阶蛋）。
   if (hasPet) {
-    const capLeft = Math.max(0, config.dailyClickCap - save.daily.clicks);
-    if (capLeft === 0) {
-      return { id: "cap-full", text: "今日的爱已点满💛 现在点我都是纯摸摸，明天再一起攒经验" };
-    }
-    if (capLeft <= Math.max(1, Math.floor(config.dailyClickCap * 0.1))) {
-      return { id: "cap-near", text: `今天的爱快点满啦（还剩 ${capLeft} 下），攒着点明天继续～` };
+    const cost = shopUpgradeCost(config, save.shopLevel ?? 1);
+    if (cost != null && save.coins >= cost) {
+      const h = make("shop-upgrade", TT.shopUpgrade, { budget: 1 });
+      if (h) return h;
     }
   }
-  // ⑤ 恢复期说明（v1.1）：挂机/Token/键盘都在回精力，教会"离场也在充电"。
-  if (active?.exhausted) {
-    return { id: "recovering", text: "它趴着充电呢——挂机、吃 Token、敲键盘都在帮它回精力⚡" };
+
+  // D4 放生腾位（后院满 + 有蛋待收）。
+  if (hatcheryReady && save.pets.length >= yardCapacityFor(config, save.yardLevel)) {
+    const h = make("release", TT.release, { budget: 2 });
+    if (h) return h;
   }
-  // ③ 菜单打开点我打工。
-  if (hasPet && (uiMode === "pet" || uiMode === "menu") && save.tutorialStep < 3) {
-    return { id: "menu-work", text: "菜单打开时点我就能打工赚钱！每一下都算数，精力用完我会趴着充电" };
+
+  // D2 图鉴（首次拥有 2 阶物种即引到博物馆）。
+  if (tier2Owned >= 1) {
+    const h = make("pokedex", TT.pokedex, { budget: 1 });
+    if (h) return h;
   }
-  // ①② 还没有精灵：引导去孵化区看第一颗蛋。
+
+  // F1 交易所（仅集成开启且有可交易/待认领时）。
+  if (steamEnabled && (save.steamOutbox?.length ?? 0) > 0) {
+    const h = make("steam", TT.steam, { budget: 1 });
+    if (h) return h;
+  }
+
+  // E1 额度将尽（温和提醒）。
+  if (hasPet && capLeft > 0 && capLeft <= Math.max(1, Math.floor(config.dailyClickCap * 0.1))) {
+    const h = make("cap-near", fmt(TT.capNear, { left: capLeft }), {
+      budget: 2,
+      basic: true,
+    });
+    if (h) return h;
+  }
+
+  // A4 点击打工（有宠、仍在学基本操作）。
+  if (hasPet) {
+    const h = make("menu-work", TT.menuWork, { budget: 3, basic: true });
+    if (h) return h;
+  }
+
+  // A1 / A2 还没有精灵：引到孵化区看第一颗蛋。
   if (!hasPet) {
     const hasIncubating = save.eggs.some((egg) => egg.slot != null);
-    if (uiMode === "menu") return { id: "first-egg", text: "你的第一颗蛋在后院孵着呢，去看看" };
+    if (uiMode === "menu") {
+      const h = make("first-egg", TT.firstEgg, { budget: 2 });
+      if (h) return h;
+    }
     if (uiMode === "pet") {
-      return {
-        id: "no-pet-click",
-        text: hasIncubating ? "点我一下，打开菜单去看孵化区" : "点我一下试试！",
-      };
+      const h = make("no-pet-click", hasIncubating ? TT.noPetMenu : TT.noPetTry, { budget: 2 });
+      if (h) return h;
     }
   }
+
   return null;
 }

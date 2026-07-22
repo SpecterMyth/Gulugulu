@@ -56,7 +56,7 @@ export function DebugPanel({
   bridge: GameBridge;
   onSave: (save: GameSave) => void;
   onToast: (message: string) => void;
-  /** 预览模式专属：模拟 agent Token 喂食（走主舞台进食队列）。 */
+  /** 预览模式专属：模拟 agent Token 喂食（→ 陪伴宠经验，走主舞台进食队列）。 */
   onFeedTokens?: (amount: number) => void;
 }) {
   const [species, setSpecies] = useState("guluduck");
@@ -121,8 +121,50 @@ export function DebugPanel({
   const debugFeedKeys = () =>
     runSaveDebug(
       () => bridge.debugFeedKeys(30),
-      () => "模拟敲了 30 个键（精力按阶换算入账）",
+      () => "模拟敲了 30 个键（只给陪伴宠回精力，按阶换算入账）",
     );
+
+  // 清空本账号在本游戏发布的全部创意工坊内容（真机 Steam 侧删除，不可逆）。
+  // 复用 saveBusy 作在途闸门（删除可能耗时，期间禁其余调试按钮）。
+  const debugClearWorkshop = () => {
+    if (saveBusy) return;
+    if (!window.confirm("确定删除本账号在创意工坊发布的本游戏全部内容？此操作不可撤销。")) return;
+    setSaveBusy(true);
+    bridge
+      .debugClearWorkshop()
+      .then(({ deleted, failed }) => {
+        onToast(
+          failed > 0
+            ? `已删除 ${deleted} 件创意工坊物品，${failed} 件失败（详见日志）`
+            : deleted > 0
+              ? `已删除 ${deleted} 件创意工坊物品`
+              : "创意工坊没有可删除的本游戏物品",
+        );
+      })
+      .catch((error) => onToast(debugErrorText(error)))
+      .finally(() => setSaveBusy(false));
+  };
+
+  // 清空本账号在本游戏的 Steam 库存物品（逐件 ConsumeItem，不可逆）。
+  // 注意：集成仍在跑时，本地存档尚有未绑定宠物会被 outbox 随后重新发放——
+  // 要彻底清零请配合「清除存档」。
+  const debugClearInventory = () => {
+    if (saveBusy) return;
+    if (
+      !window.confirm(
+        "确定清除本账号在 Steam 的本游戏全部库存物品？\n此操作不可撤销；若本地存档仍有宠物，集成会稍后自动重新发放（彻底清零请配合「清除存档」）。",
+      )
+    )
+      return;
+    setSaveBusy(true);
+    bridge
+      .debugClearInventory()
+      .then((count) => {
+        onToast(count > 0 ? `已清除 ${count} 件库存物品` : "库存已空，无可清除");
+      })
+      .catch((error) => onToast(debugErrorText(error)))
+      .finally(() => setSaveBusy(false));
+  };
 
   const speciesEntries = Object.entries(config.species);
   // 融合 2.0：新物种无自带 tier，按元素数分组（单元素基础 / 多元素融合），显示全谱。
@@ -230,6 +272,19 @@ export function DebugPanel({
               </button>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Steam 调试：真机 Steam 侧操作（开发版 + 集成开启才生效，否则后端回错误提示） */}
+      <div className="debug-game">
+        <span className="debug-group-label">Steam 调试</span>
+        <div className="debug-game-row">
+          <button type="button" className="is-danger" disabled={saveBusy} onClick={debugClearWorkshop}>
+            清空我的创意工坊
+          </button>
+          <button type="button" className="is-danger" disabled={saveBusy} onClick={debugClearInventory}>
+            清空我的库存资产
+          </button>
         </div>
       </div>
 

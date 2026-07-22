@@ -223,17 +223,31 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const waxDrop: ParticleRenderer = () => (
-  <path d="M0 -6 q5 5.5 5 9 a5 5 0 0 1 -10 0 q0 -3.5 5 -9 z" fill={WAX} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
-);
-const sealStar: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={6} fill={FLAME_RED} stroke={OUTLINE} strokeWidth={2} />
-    <path d="M-2.5 0 l2 2 l3 -4" fill="none" stroke="#FFF1C9" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+// 蜡烛：柱状蜡烛 + 烛芯小火（火焰是蜡烛的一部分，非独立火苗）
+const candle: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <rect x={-5} y={-4} width={10} height={14} rx={2} fill={WAX} strokeWidth={2.4} />
+    <path d="M-5 -4 Q0 -7 5 -4" fill={WAX} strokeWidth={2.2} />
+    <path d="M0 -6 L0 -9" stroke={OUTLINE} strokeWidth={1.6} strokeLinecap="round" />
+    <path d="M0 -9 Q2.5 -11 1.6 -13.5 Q0.8 -15 0 -14.5 Q-0.8 -15 -1.6 -13.5 Q-2.5 -11 0 -9 Z" fill={FLAME} strokeWidth={1.6} />
+    <ellipse cx={0} cy={-11.4} rx={0.8} ry={1.6} fill="#FFF1C9" stroke="none" />
+    <path d="M-4 12 h8" stroke={WOOL_DEEP} strokeWidth={1.6} strokeLinecap="round" />
   </g>
 );
-const flameBit: ParticleRenderer = () => (
-  <path d="M0 5 q-4 -3.5 -2.5 -8.5 q1.8 -4.5 5.5 -7.5 q-1.2 4.5 1.8 7 q3.4 3 2.6 6.8 a5 5 0 0 1 -7.4 2.2 z" fill={FLAME} stroke={OUTLINE} strokeWidth={2} strokeLinejoin="round" />
+// 火漆印：红蜡印章戳印 + 蜡滴 + 徽记线
+const waxSeal: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-6 -4 Q-8 -7 -4 -8 Q0 -9 4 -7 Q8 -6 7 -2 Q8 3 4 5 Q0 7 -4 5 Q-8 4 -7 0 Z" fill={FLAME_RED} strokeWidth={2.2} />
+    <path d="M4 5 q3 2 2 5 a2 2 0 0 1 -4 0 q0 -2 2 -5 z" fill={FLAME_RED} strokeWidth={1.8} />
+    <path d="M-2 -3 L-2 3 M-2 -3 L2 1 L2 -3" fill="none" stroke="#B33A22" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+  </g>
+);
+// 火柴：细木杆 + 红棕火柴头
+const matchstick: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round" transform="rotate(20)">
+    <rect x={-1.6} y={-4} width={3.2} height={16} rx={1.4} fill={WOOL_DEEP} strokeWidth={2} />
+    <ellipse cx={0} cy={-6} rx={3} ry={4} fill={FLAME_RED} strokeWidth={2} />
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -259,7 +273,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 200, y: 202 },
     baseAngle: -Math.PI / 2.4,
     cone: 0.5,
-    shapes: [waxDrop, sealStar, flameBit],
+    shapes: [candle, waxSeal, matchstick],
   },
   meta: {
     nameZh: "烛焰羊",

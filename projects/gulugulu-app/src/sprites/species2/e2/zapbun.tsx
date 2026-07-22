@@ -16,6 +16,7 @@ const DEEP = "#E39B00";
 const WHITE = "#FFFFFF";
 const VOLT = "#FFD93B";
 const GREY = "#8E93A6";
+const RED = "#E2432E";
 
 function Front({ palette, slots = {}, eyes = "round", expression = "normal" }: RigProps) {
   return (
@@ -244,17 +245,40 @@ function Rig(props: RigProps) {
   return <Front {...props} />;
 }
 
-const pixelStar: ParticleRenderer = () => (
-  <g fill={VOLT} stroke={OUTLINE} strokeWidth={1.8}>
-    <rect x={-5.5} y={-5.5} width={11} height={11} rx={1.5} />
-    <rect x={-2} y={-2} width={4} height={4} fill="#FFFFFF" stroke="none" />
+// 像素心：8-bit 阶梯红心（一条命）
+const pixelHeart: ParticleRenderer = () => (
+  <path
+    d="M-5 -7 L-2 -7 L-2 -4 L2 -4 L2 -7 L5 -7 L5 -4 L8 -4 L8 -1 L5 -1 L5 2 L2 2 L2 5 L-2 5 L-2 2 L-5 2 L-5 -1 L-8 -1 L-8 -4 L-5 -4 Z"
+    fill={RED}
+    stroke={OUTLINE}
+    strokeWidth={2}
+    strokeLinejoin="round"
+  />
+);
+// 蘑菇道具：红斑菌盖 + 米色菌柄 + 2 只圆眼
+const powerMushroom: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-5 1 Q-5 8 0 8 Q5 8 5 1 Z" fill="#F3E1B0" strokeWidth={2.2} />
+    <g fill={OUTLINE} stroke="none">
+      <ellipse cx={-2.2} cy={4.4} rx={1.1} ry={1.8} />
+      <ellipse cx={2.2} cy={4.4} rx={1.1} ry={1.8} />
+    </g>
+    <path d="M-8 1 Q-8 -8 0 -8 Q8 -8 8 1 Z" fill={RED} strokeWidth={2.4} />
+    <g fill="#FFFFFF" stroke="none">
+      <circle cx={-4} cy={-3} r={2} />
+      <circle cx={4} cy={-2.5} r={1.8} />
+      <circle cx={0} cy={-5.4} r={1.3} />
+    </g>
   </g>
 );
-const boltBit: ParticleRenderer = () => (
-  <path d="M1.5 -8 L-4 1 h3.5 L-1.5 8 L4.5 -1 h-3.5 Z" fill={VOLT} stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
-);
-const heartBit: ParticleRenderer = () => (
-  <path d="M0 5.5 C-6.5 0.5 -6 -5 -2.5 -5.5 C-1 -5.7 0 -4.6 0 -3.6 C0 -4.6 1 -5.7 2.5 -5.5 C6 -5 6.5 0.5 0 5.5 Z" fill="#F5917B" stroke={OUTLINE} strokeWidth={1.8} strokeLinejoin="round" />
+// GAME OVER 横幅：深色底 + 红字
+const gameOverBanner: ParticleRenderer = () => (
+  <g>
+    <rect x={-18} y={-8} width={36} height={16} rx={3} fill="#2B2E3B" stroke={OUTLINE} strokeWidth={2.4} />
+    <text x={0} y={3.6} fontSize={7} fontWeight={900} textAnchor="middle" fill={RED} fontFamily="ui-monospace, monospace">
+      GAME OVER
+    </text>
+  </g>
 );
 
 export const PACK: SpeciesPack = {
@@ -281,7 +305,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 188, y: 205 },
     baseAngle: -Math.PI / 2.2,
     cone: 0.6,
-    shapes: [pixelStar, boltBit, heartBit],
+    shapes: [pixelHeart, powerMushroom, gameOverBanner],
   },
   meta: {
     nameZh: "静电兔",

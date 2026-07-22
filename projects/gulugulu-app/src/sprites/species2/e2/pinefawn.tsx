@@ -266,16 +266,27 @@ const pineBit: ParticleRenderer = () => (
     <path d="M0 -6 V6 M0 -3 L-4 -6 M0 -3 L4 -6 M0 1 L-4.5 -2 M0 1 L4.5 -2 M0 5 L-5 2 M0 5 L5 2" />
   </g>
 );
-const snowBit: ParticleRenderer = () => (
-  <g stroke="#B0E5F0" strokeWidth={2.2} strokeLinecap="round">
-    <path d="M0 -6 V6 M-5 -3 L5 3 M-5 3 L5 -3" />
-    <circle cx={0} cy={0} r={1.5} fill={SNOW} stroke="none" />
+// 彩灯串：电线弧 + 4 颗彩色灯泡
+const stringLights: ParticleRenderer = () => (
+  <g>
+    <path d="M-11 -5 Q-5 3 0 -4 Q5 3 11 -5" fill="none" stroke={DEEP} strokeWidth={2} strokeLinecap="round" />
+    <g stroke={OUTLINE} strokeWidth={1.6}>
+      <ellipse cx={-8} cy={0} rx={2} ry={2.8} fill="#E2432E" />
+      <ellipse cx={-2.5} cy={2} rx={2} ry={2.8} fill="#FFD93B" />
+      <ellipse cx={2.5} cy={2} rx={2} ry={2.8} fill="#57B84C" />
+      <ellipse cx={8} cy={0} rx={2} ry={2.8} fill="#2E7BD6" />
+    </g>
   </g>
 );
-const bellBit: ParticleRenderer = () => (
-  <g>
-    <circle cx={0} cy={0} r={4.5} fill="#F5C542" stroke={OUTLINE} strokeWidth={2} />
-    <circle cx={0} cy={2.4} r={1.2} fill={OUTLINE} />
+// 电锯：圆润机身 + 带锯齿的导板
+const chainsaw: ParticleRenderer = () => (
+  <g stroke={OUTLINE} strokeLinejoin="round">
+    <path d="M-11 -2 Q-12 -7 -7 -7 L-2 -7 Q2 -7 2 -3 L2 3 Q2 6 -3 6 L-8 6 Q-11 6 -11 2 Z" fill="#E2432E" strokeWidth={2.4} />
+    <path d="M-9 -7 Q-9 -11 -5 -10" fill="none" strokeWidth={2} strokeLinecap="round" />
+    <path d="M2 -3 L12 -2 Q14 -1 12 1 L2 2 Z" fill="#C8CCD8" strokeWidth={2.2} />
+    <g stroke={OUTLINE} strokeWidth={1.2}>
+      <path d="M4 -2.6 v-1.6 M7 -2.7 v-1.6 M10 -2.6 v-1.6 M4 1.6 v1.6 M7 1.7 v1.6 M10 1.6 v1.6" />
+    </g>
   </g>
 );
 
@@ -305,7 +316,7 @@ export const PACK: SpeciesPack = {
     emitter: { x: 188, y: 186 },
     baseAngle: -Math.PI / 2.3,
     cone: 0.55,
-    shapes: [pineBit, snowBit, bellBit],
+    shapes: [pineBit, stringLights, chainsaw],
   },
   meta: {
     nameZh: "雪松鹿",
