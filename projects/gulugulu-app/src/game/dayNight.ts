@@ -205,6 +205,24 @@ export function gradeToFilter(g: DayGrade): string {
   return `sepia(${r2(g.sepia)}) hue-rotate(${r2(g.hueRotate)}deg) saturate(${r2(g.saturate)}) brightness(${r2(g.brightness)}) contrast(${r2(g.contrast)})`;
 }
 
+/** 公告板 / 后院升级牌 / 左下底栏这类「常驻木牌·HUD」的柔化调色。
+ *
+ *  关键：**沿用布景同一套色温转换**（sepia + hue-rotate + saturate + contrast 原样保留），
+ *  只把亮度抬向 1。原因——这套「sepia→hue-rotate」是耦合的（sepia 先把画面压成单一
+ *  棕褐再由 hue-rotate 旋到夜蓝/黄昏橙）；若按比例缩小 hue-rotate，牌面的真彩（棕木、
+ *  绿按钮）会被中途旋成诡异的青绿。故色温方向必须与实景完全一致，牌子才与夜色同调；
+ *  而它是「牌面自带微光的招牌」，理应比实景略亮、文字始终清晰，所以只提亮。
+ *
+ *  brighten=0 → 与实景 grade 完全相同；=1 → 完全提亮到常亮（只保留色温、不压暗）。 */
+export function softenGrade(g: DayGrade, brighten: number): DayGrade {
+  const k = brighten < 0 ? 0 : brighten > 1 ? 1 : brighten;
+  return { ...g, brightness: g.brightness + (1 - g.brightness) * k };
+}
+
+/** 木牌/HUD 相对实景的提亮量（0..1）：夜里实景亮度 0.6 → 牌面约 0.78，既融入夜色
+ *  又保证「11.24B / Claude 已连接 / 259.4K」这类读数清晰。可按观感微调。 */
+export const UI_GRADE_BRIGHTEN = 0.42;
+
 export function rgbCss(c: Rgb, alpha = 1): string {
   return `rgba(${c[0]},${c[1]},${c[2]},${r2(alpha)})`;
 }

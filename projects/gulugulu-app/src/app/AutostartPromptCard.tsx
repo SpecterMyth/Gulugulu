@@ -14,11 +14,12 @@ export function AutostartPromptCard({
   return (
     <div className="welcome-overlay" onClick={onDecline}>
       <div
-        className="welcome-card"
+        className="welcome-card autostart-prompt-card"
         role="dialog"
         aria-label={A.aria}
         onClick={(event) => event.stopPropagation()}
       >
+        <span className="guide-sticker-sprinkles" aria-hidden="true" />
         <div className="welcome-title">{A.title}</div>
         <div className="welcome-sub">{A.body}</div>
         <div className="fusion-modal-actions autostart-actions">

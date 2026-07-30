@@ -28,6 +28,7 @@ function errorText(error: unknown): string {
 }
 
 function providerLabel(provider: string | null | undefined): string {
+  if (provider === "classic") return "经典配方";
   return provider === "codex" ? "Codex" : "Claude Code";
 }
 
@@ -35,12 +36,14 @@ export function FusionModal({
   pair,
   config,
   bridge,
+  tutorialMode,
   onClose,
   onCommitted,
 }: {
   pair: { a: PetInstance; b: PetInstance };
   config: GameConfig;
   bridge: GameBridge;
+  tutorialMode?: boolean;
   onClose: () => void;
   onCommitted: (result: FusionStartResult) => void;
 }) {
@@ -77,8 +80,12 @@ export function FusionModal({
   );
 
   useEffect(() => {
+    if (tutorialMode) {
+      setStage({ kind: "confirm", provider: "classic" });
+      return;
+    }
     runCheck();
-  }, [runCheck]);
+  }, [runCheck, tutorialMode]);
 
   const startFusion = useCallback(
     (provider: string) => {
@@ -148,7 +155,11 @@ export function FusionModal({
         {(stage.kind === "confirm" || stage.kind === "starting") && (
           <>
             <div className="welcome-title">🔮 {bk.ritual}</div>
-            <div className="welcome-sub">{fmt(bk.bySub, { provider: providerLabel(stage.provider) })}</div>
+            {!tutorialMode && (
+              <div className="welcome-sub">
+                {fmt(bk.bySub, { provider: providerLabel(stage.provider) })}
+              </div>
+            )}
             <div className="fusion-modal-parents">
               <div className="fusion-modal-parent">
                 <SvgSprite species={pair.a.species} config={config} petState="idle" />
@@ -160,13 +171,17 @@ export function FusionModal({
                 <span>{nameOf(pair.b)}</span>
               </div>
             </div>
-            <p className="fusion-modal-note">
-              {bk.consumePrefix}
-              <b>{bk.consumeBold}</b>
-              {fmt(bk.consumeSuffix, { fee: formatCount(fusionFeeFor(config, pair.a.tier)) })}
-              <br />
-              {bk.resultNote}
-            </p>
+            {!tutorialMode && (
+              <p className="fusion-modal-note">
+                {bk.consumePrefix}
+                <b>{bk.consumeBold}</b>
+                {fmt(bk.consumeSuffix, {
+                  fee: formatCount(fusionFeeFor(config, pair.a.tier)),
+                })}
+                <br />
+                {bk.resultNote}
+              </p>
+            )}
             <div className="fusion-modal-actions">
               <button type="button" className="welcome-cta is-secondary" disabled={busy} onClick={onClose}>
                 {bk.cancel}

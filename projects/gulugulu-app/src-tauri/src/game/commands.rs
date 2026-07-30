@@ -5,7 +5,10 @@ use super::*;
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub fn get_game_state(app: AppHandle, state: tauri::State<'_, SharedGameState>) -> Result<GameSave, String> {
+pub fn get_game_state(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
     let (_, save) = with_save(&app, state.inner(), |config, save| {
         settle_all(config, save, now_secs(), &today_string());
         Ok(())
@@ -92,7 +95,7 @@ pub fn buy_egg(
     Ok(save)
 }
 
-/// 催蛋：点击孵化中的蛋，孵化时间 −1s（OnboardingCoach.md #2）。
+/// 催蛋：点击孵化中的蛋，孵化时间 −1s（OnboardingGuidance.md）。
 #[tauri::command]
 pub fn poke_egg(
     app: AppHandle,
@@ -124,7 +127,11 @@ pub(crate) enum CollectPlan {
     /// 本地路径已应用完毕（一阶本地先行 / 宠物物品绑定蛋 / 遗留本地蛋）。
     Done,
     /// 旧流 legacy 蛋物品（301-321）：意图已写入，待 Steam 兑换孵化生成器。
-    NeedExchange { op_id: String, egg_item: String, egg_def: u32 },
+    NeedExchange {
+        op_id: String,
+        egg_item: String,
+        egg_def: u32,
+    },
     /// 商店蛋（2 阶+，2026-07-16 Steam-first）：待 TriggerItemDrop 商店生成器，
     /// 物种以实发 def 为准（本地 species 只是展示预测）。`element`/`tier` 供成功后累加
     /// 收取侧计数；`collects_today`/`cap`/`last_drop_at` 是阶段 1 快照，供空发放时归因
@@ -145,7 +152,12 @@ pub(crate) enum CollectPlan {
 /// 回「成功 + 0 物品」，客户端**无法从 API 分辨**（steam_inventory::collect_items 只见空集）。
 /// 于是用本地收取侧计数 / 时间戳**近似归因**——不追求精确（Valve 是 24h 滚动窗口、本地按
 /// 日历日计数，跨午夜会有偏差），三类落点都是「稍后再收」，只为把提示说人话。
-pub(crate) fn empty_drop_message(collects_today: u32, cap: u32, last_drop_at: i64, now: i64) -> String {
+pub(crate) fn empty_drop_message(
+    collects_today: u32,
+    cap: u32,
+    last_drop_at: i64,
+    now: i64,
+) -> String {
     // per-def `drop_interval:1`（1 分钟游玩时长）+ 服务器侧时长聚合滞后 → 冷却从宽判 90s。
     const DROP_COOLDOWN_SECS: i64 = 90;
     if cap > 0 && collects_today >= cap {
@@ -177,12 +189,13 @@ pub(crate) fn collect_hatched_blocking(
     }
 
     // 阶段 1（存档锁内，无 Steam 调用）：校验 + 分流；本地路径直接应用。
-    let (plan, save) = with_save(&app, &game_state, |config, save| {
-        settle_all(config, save, now, &today);
-        // 本地先行融合的**未绑定结果蛋**、且物种已知（非神秘/AI 生成中）→ 允许**早收**（不阻挡新手引导）：
-        // 本地把蛋转成宠，并把该 Fuse op 的回绑目标从蛋改到这只宠（泵铸出结果后绑到宠）。无 Steam 调用。
-        // 教学首融即此类（确定性 canonical 物种）；神秘蛋（union-gen 待生成）仍走下方 op-lock，等 sync+生成保 AI 身份。
-        if let Some(op_idx) = save.steam_outbox.iter().position(|op| {
+    let (plan, save) =
+        with_save(&app, &game_state, |config, save| {
+            settle_all(config, save, now, &today);
+            // 本地先行融合的**未绑定结果蛋**、且物种已知（非神秘/AI 生成中）→ 允许**早收**（不阻挡新手引导）：
+            // 本地把蛋转成宠，并把该 Fuse op 的回绑目标从蛋改到这只宠（泵铸出结果后绑到宠）。无 Steam 调用。
+            // 教学首融即此类（确定性 canonical 物种）；神秘蛋（union-gen 待生成）仍走下方 op-lock，等 sync+生成保 AI 身份。
+            if let Some(op_idx) = save.steam_outbox.iter().position(|op| {
             matches!(op, SteamOp::Fuse { applied: true, egg_id: Some(e), .. } if e == &egg_id)
         }) {
             let known = save
@@ -201,88 +214,105 @@ pub(crate) fn collect_hatched_blocking(
                 return Ok(CollectPlan::Done);
             }
         }
-        if crate::steam_sync::op_locked_ids(save).contains(&egg_id) {
-            return Err("#eggOpInProgress".to_string());
-        }
-        let egg_index = validate_collect(config, save, &egg_id, now)?;
-        let egg = &save.eggs[egg_index];
-        if let (Some(item), Some(def)) = (egg.steam_item_id.clone(), egg.steam_item_def) {
-            // 融合 2.0 同步流：蛋绑的是**结果宠物物品**（融合时已兑换到手）
-            // → 收取纯本地绑定，无 Steam 调用（离线也能收）。
-            if crate::steam_sync::species_codename_for_def(config, def).is_some() {
-                let species = crate::steam_sync::collect_species_for(config, save, egg_index, def);
-                apply_collect(config, save, egg_index, now, Some((species, item, def)));
-                return Ok(CollectPlan::Done);
+            if crate::steam_sync::op_locked_ids(save).contains(&egg_id) {
+                return Err("#eggOpInProgress".to_string());
             }
-            // 旧流 legacy 蛋物品（301-321）→ Steam 先行兑换孵化生成器。
-            if !steam_state.is_connected() {
-                return Err("#needSteamForTier2Hatch".to_string());
-            }
-            let op_id = new_id("op");
-            save.steam_outbox.push(SteamOp::CollectT2 {
-                op_id: op_id.clone(),
-                egg_id: egg_id.clone(),
-                egg_item: item.clone(),
-                egg_def: def,
-            });
-            return Ok(CollectPlan::NeedExchange {
-                op_id,
-                egg_item: item,
-                egg_def: def,
-            });
-        }
-        // 商店蛋 2 阶+（随机池）→ Steam 先行 TriggerItemDrop 商店生成器
-        //（EconomyScaling §7.5：窗口封顶在 Valve 侧，物种以实发 def 为准）。
-        if egg.tier >= 2 && egg.pending_fusion.is_none() {
-            if let Some(element) = egg.shop_element.clone() {
-                if !steam_state.is_connected() {
-                    return Err("#needSteamForShopEgg".to_string());
+            let egg_index = validate_collect(config, save, &egg_id, now)?;
+            let egg = &save.eggs[egg_index];
+            if let (Some(item), Some(def)) = (egg.steam_item_id.clone(), egg.steam_item_def) {
+                // 融合 2.0 同步流：蛋绑的是**结果宠物物品**（融合时已兑换到手）
+                // → 收取纯本地绑定，无 Steam 调用（离线也能收）。
+                if crate::steam_sync::species_codename_for_def(config, def).is_some() {
+                    let species =
+                        crate::steam_sync::collect_species_for(config, save, egg_index, def);
+                    apply_collect(config, save, egg_index, now, Some((species, item, def)));
+                    return Ok(CollectPlan::Done);
                 }
-                let tier = egg.tier;
-                let tier1_def = config
-                    .base_species_for_element(&element)
-                    .and_then(|s| config.steam_def_for_species(&s))
-                    .ok_or_else(|| "#missingTier1Mapping".to_string())?;
-                let collect_key = format!("{element}:{tier}");
-                return Ok(CollectPlan::NeedDrop {
-                    gen_def: crate::fusion_slots::shop_gen_def(tier, tier1_def),
-                    collects_today: save.daily.egg_collects.get(&collect_key).copied().unwrap_or(0),
-                    cap: config.egg_daily_mint_cap(tier),
-                    last_drop_at: save.last_shop_drop_at,
-                    element,
-                    tier,
+                // 旧流 legacy 蛋物品（301-321）→ Steam 先行兑换孵化生成器。
+                if !steam_state.is_connected() {
+                    return Err("#needSteamForTier2Hatch".to_string());
+                }
+                let op_id = new_id("op");
+                save.steam_outbox.push(SteamOp::CollectT2 {
+                    op_id: op_id.clone(),
+                    egg_id: egg_id.clone(),
+                    egg_item: item.clone(),
+                    egg_def: def,
+                });
+                return Ok(CollectPlan::NeedExchange {
+                    op_id,
+                    egg_item: item,
+                    egg_def: def,
                 });
             }
-        }
-        // 一阶（含教程蛋）本地先行：玩家已花金币+等待，体验不回退；
-        // Steam 侧入 MintTier1 队列，哪怕当前无 Steam 也照队（数年后仍可发）。
-        let species = egg.species.clone();
-        let tier1_def = if egg.tier == 1 {
-            config.steam_def_for_species(&species)
-        } else {
-            None // 遗留二阶本地蛋（无 shop_element 的 Steam-off 融合蛋等）：本地徽章宠。
-        };
-        let pet_id = apply_collect(config, save, egg_index, now, None);
-        if let Some(def) = tier1_def {
-            save.steam_outbox.push(SteamOp::MintTier1 {
-                op_id: new_id("op"),
-                pet_id,
-                species,
-                def,
-                attempts: 0,
-                next_retry_at: 0,
-            });
-        }
-        Ok(CollectPlan::Done)
-    })?;
+            // 商店蛋 2 阶+（随机池）→ Steam 先行 TriggerItemDrop 商店生成器
+            //（EconomyScaling §7.5：窗口封顶在 Valve 侧，物种以实发 def 为准）。
+            if egg.tier >= 2 && egg.pending_fusion.is_none() {
+                if let Some(element) = egg.shop_element.clone() {
+                    if !steam_state.is_connected() {
+                        return Err("#needSteamForShopEgg".to_string());
+                    }
+                    let tier = egg.tier;
+                    let tier1_def = config
+                        .base_species_for_element(&element)
+                        .and_then(|s| config.steam_def_for_species(&s))
+                        .ok_or_else(|| "#missingTier1Mapping".to_string())?;
+                    let collect_key = format!("{element}:{tier}");
+                    return Ok(CollectPlan::NeedDrop {
+                        gen_def: crate::fusion_slots::shop_gen_def(tier, tier1_def),
+                        collects_today: save
+                            .daily
+                            .egg_collects
+                            .get(&collect_key)
+                            .copied()
+                            .unwrap_or(0),
+                        cap: config.egg_daily_mint_cap(tier),
+                        last_drop_at: save.last_shop_drop_at,
+                        element,
+                        tier,
+                    });
+                }
+            }
+            // 一阶（含教程蛋）本地先行：玩家已花金币+等待，体验不回退；
+            // Steam 侧入 MintTier1 队列，哪怕当前无 Steam 也照队（数年后仍可发）。
+            let species = egg.species.clone();
+            let tier1_def = if egg.tier == 1 {
+                config.steam_def_for_species(&species)
+            } else {
+                None // 遗留二阶本地蛋（无 shop_element 的 Steam-off 融合蛋等）：本地徽章宠。
+            };
+            let pet_id = apply_collect(config, save, egg_index, now, None);
+            if let Some(def) = tier1_def {
+                save.steam_outbox.push(SteamOp::MintTier1 {
+                    op_id: new_id("op"),
+                    pet_id,
+                    species,
+                    def,
+                    attempts: 0,
+                    next_retry_at: 0,
+                });
+            }
+            Ok(CollectPlan::Done)
+        })?;
 
     // ---- 商店蛋 Steam-first：TriggerItemDrop → 拆栈 → 按实发 def 落宠 ----
-    if let CollectPlan::NeedDrop { gen_def, element, tier, collects_today, cap, last_drop_at } = plan {
+    if let CollectPlan::NeedDrop {
+        gen_def,
+        element,
+        tier,
+        collects_today,
+        cap,
+        last_drop_at,
+    } = plan
+    {
         // 阶段 2（锁外）：打商店生成器。无写前意图——drop 不消耗任何东西；
         // 崩在“已发未落”窗口的物品会被对账导入，蛋保留可重收（窗口封顶防膨胀）。
-        let outcome = steam_state.call_blocking(crate::steam::SteamCall::TriggerDrop { def: gen_def });
+        let outcome =
+            steam_state.call_blocking(crate::steam::SteamCall::TriggerDrop { def: gen_def });
         let granted = match &outcome {
-            crate::steam_inventory::OpOutcome::Granted(items) if !items.is_empty() => items[0].clone(),
+            crate::steam_inventory::OpOutcome::Granted(items) if !items.is_empty() => {
+                items[0].clone()
+            }
             // 成功但零物品：Valve 对窗口满/分钟级限频/时长不足统一如此回 → 本地归因分档。
             crate::steam_inventory::OpOutcome::Granted(_) => {
                 return Err(empty_drop_message(collects_today, cap, last_drop_at, now))
@@ -304,15 +334,30 @@ pub(crate) fn collect_hatched_blocking(
                 .position(|e| e.id == egg_id)
                 .ok_or_else(|| "#eggGone".to_string())?;
             let species = crate::steam_sync::collect_species_for(config, save, egg_index, item_def);
-            apply_collect(config, save, egg_index, now, Some((species, item_id.clone(), item_def)));
-            *save.daily.egg_collects.entry(format!("{element}:{tier}")).or_insert(0) += 1;
+            apply_collect(
+                config,
+                save,
+                egg_index,
+                now,
+                Some((species, item_id.clone(), item_def)),
+            );
+            *save
+                .daily
+                .egg_collects
+                .entry(format!("{element}:{tier}"))
+                .or_insert(0) += 1;
             save.last_shop_drop_at = now;
             Ok(())
         })?;
         return Ok(save);
     }
 
-    let CollectPlan::NeedExchange { op_id, egg_item, egg_def } = plan else {
+    let CollectPlan::NeedExchange {
+        op_id,
+        egg_item,
+        egg_def,
+    } = plan
+    else {
         return Ok(save);
     };
 
@@ -400,9 +445,10 @@ pub fn fuse_pets(
         // 已同步 Steam 素材必须走 fuse_pets_ai 的三段式（Steam 先行烧材料）；
         // 本命令只保留给未同步 Steam的遗留本地宠物。集成关闭时不设限（本地调试模式）。
         let bound = crate::steam::integration_enabled()
-            && save.pets.iter().any(|p| {
-                (p.id == id_a || p.id == id_b) && p.steam_item_id.is_some()
-            });
+            && save
+                .pets
+                .iter()
+                .any(|p| (p.id == id_a || p.id == id_b) && p.steam_item_id.is_some());
         if bound {
             return Err("#fuseBoundPetsUseAi".to_string());
         }
@@ -412,7 +458,10 @@ pub fn fuse_pets(
 }
 
 #[tauri::command]
-pub fn upgrade_hatchery(app: AppHandle, state: tauri::State<'_, SharedGameState>) -> Result<GameSave, String> {
+pub fn upgrade_hatchery(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
     let (_, save) = with_save(&app, state.inner(), |config, save| {
         logic_upgrade_hatchery(config, save, now_secs(), &today_string())
     })?;
@@ -420,15 +469,108 @@ pub fn upgrade_hatchery(app: AppHandle, state: tauri::State<'_, SharedGameState>
 }
 
 #[tauri::command]
-pub fn upgrade_yard(app: AppHandle, state: tauri::State<'_, SharedGameState>) -> Result<GameSave, String> {
+pub fn upgrade_yard(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
     let (_, save) = with_save(&app, state.inner(), |config, save| {
         logic_upgrade_yard(config, save, now_secs(), &today_string())
     })?;
     Ok(save)
 }
 
+/// 建造/升级训练馆（EconomyRework-TrainingHall.md §3.3）。
 #[tauri::command]
-pub fn upgrade_shop(app: AppHandle, state: tauri::State<'_, SharedGameState>) -> Result<GameSave, String> {
+pub fn build_training_hall(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        logic_build_training_hall(config, save, now_secs(), &today_string())
+    })?;
+    Ok(save)
+}
+
+/// 扩建训练槽（可同时训练的宠物数）。
+#[tauri::command]
+pub fn upgrade_training_slots(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        logic_upgrade_training_slots(config, save, now_secs(), &today_string())
+    })?;
+    Ok(save)
+}
+
+/// 开始训练一只宠物（升一阶）。`use_universal` = 允许用万能券补足短缺的材料。
+#[tauri::command]
+pub fn start_training(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+    pet_id: String,
+    use_universal: bool,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        logic_start_training(
+            config,
+            save,
+            &pet_id,
+            use_universal,
+            now_secs(),
+            &today_string(),
+        )
+        .map(|_| ())
+    })?;
+    Ok(save)
+}
+
+/// 收取已完成的训练（宠物阶数 +1，等级保留）。
+#[tauri::command]
+pub fn collect_training(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+    job_id: String,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        logic_collect_training(config, save, &job_id, now_secs(), &today_string())
+    })?;
+    Ok(save)
+}
+
+/// 领取工厂关卡奖励：一次性补发第 1..max_level 关今日尚未领取的材料
+/// （每个自然日每关只领一次）。**与来源无关**——工厂关卡制建成后由工厂直接调用。
+#[tauri::command]
+pub fn claim_factory_levels(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+    max_level: u16,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        logic_claim_factory_levels(config, save, max_level, now_secs(), &today_string()).map(|_| ())
+    })?;
+    Ok(save)
+}
+
+/// 合并《危楼打工记》成就统计绝对快照。所有数值只取 max、旗标只做 OR；
+/// 重复提交同一快照不会重复累计。`with_save` 负责落盘及随后成就判定/Steam 上报。
+#[tauri::command]
+pub fn record_factory_rogue_achievement_snapshot(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+    snapshot: FactoryRogueAchievementSnapshot,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |_config, save| {
+        logic_record_factory_rogue_achievement_snapshot(save, &snapshot).map(|_| ())
+    })?;
+    Ok(save)
+}
+
+#[tauri::command]
+pub fn upgrade_shop(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
     let (_, save) = with_save(&app, state.inner(), |config, save| {
         logic_upgrade_shop(config, save, now_secs(), &today_string())
     })?;
@@ -549,3 +691,50 @@ pub fn advance_tutorial(
     Ok(save)
 }
 
+#[tauri::command]
+pub fn advance_onboarding(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+    completed_step: String,
+) -> Result<GameSave, String> {
+    let now = now_secs();
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        logic_advance_onboarding(config, save, &completed_step, now)
+    })?;
+    Ok(save)
+}
+
+#[tauri::command]
+pub fn advance_factory_tutorial(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+    completed_step: String,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |_config, save| {
+        logic_set_factory_tutorial_step(save, &completed_step)
+    })?;
+    Ok(save)
+}
+
+#[tauri::command]
+pub fn skip_onboarding_agent(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |_config, save| {
+        logic_skip_agent_prompt(save);
+        Ok(())
+    })?;
+    Ok(save)
+}
+
+#[tauri::command]
+pub fn claim_stamina_tutorial_rescue(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        logic_claim_stamina_tutorial_rescue(config, save)
+    })?;
+    Ok(save)
+}

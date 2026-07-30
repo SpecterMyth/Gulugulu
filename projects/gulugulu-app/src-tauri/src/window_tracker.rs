@@ -53,6 +53,28 @@ pub fn active_window_bounds() -> Option<WindowBounds> {
     None
 }
 
+/// 全局光标位置（物理像素，桌面坐标系）。点击穿透判定每 40ms 取一次，走 Win32
+/// 直取而非 `AppHandle::cursor_position()`——后者要往返主线程事件循环，鼠标静止
+/// 时也白白唤醒 UI 线程。
+#[cfg(windows)]
+pub fn cursor_position() -> Option<(i32, i32)> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    unsafe {
+        let mut point = POINT::default();
+        if GetCursorPos(&mut point).is_err() {
+            return None;
+        }
+        Some((point.x, point.y))
+    }
+}
+
+#[cfg(not(windows))]
+pub fn cursor_position() -> Option<(i32, i32)> {
+    None
+}
+
 /// 包含 (x, y) 那台显示器的工作区（去掉任务栏后的可用区域）。
 /// 后院停靠布局用它把窗口铺满屏宽、底边贴任务栏上沿。
 #[cfg(windows)]

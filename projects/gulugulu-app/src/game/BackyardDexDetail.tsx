@@ -16,6 +16,7 @@ import { buildVisualFromSpec } from "../sprites/customSpecies";
 import { ElementIcon } from "./ElementIcon";
 import { getGameBridge } from "./bridge";
 import { dexSlotAt, formatDropChance, resolveDefaultCodename, type DexLocator, type PokedexModel } from "./pokedexData";
+import { emitPaperFx } from "../ui/PaperFx";
 
 // ---------------------------------------------------------------------------
 // 图鉴物种详情弹窗（SkinWorkshop.md）：左列活体预览 + 资料；右列（仅 AI 物种）
@@ -213,7 +214,15 @@ export function BackyardDexDetail({
     setBusyId(`use:${card.id}`);
     getGameBridge()
       .selectSpeciesSkin(codename, card.id)
-      .then(() => onDexToast(fmt(t.skinApplied, { name: card.title })))
+      .then(() => {
+        onDexToast(fmt(t.skinApplied, { name: card.title }));
+        emitPaperFx({
+          intensity: 1,
+          preset: "place",
+          label: card.title,
+          eventId: `skin:${codename}:${card.id}`,
+        });
+      })
       .catch((error) => onDexToast(msgOf(error)))
       .finally(() => setBusyId(null));
   };
@@ -223,7 +232,14 @@ export function BackyardDexDetail({
     setBusyId(`install:${row.publishedFileId}`);
     getGameBridge()
       .installWorkshopSkin(workshopCode, row.publishedFileId, row.isFirst ? "first" : "shared")
-      .then(() => onDexToast(t.uploaderInstalledToast))
+      .then(() => {
+        emitPaperFx({
+          intensity: 2,
+          preset: "reward",
+          label: t.uploaderInstalledToast,
+          eventId: `skin-install:${workshopCode}:${row.publishedFileId}`,
+        });
+      })
       .catch((error) => onDexToast(msgOf(error)))
       .finally(() => setBusyId(null));
   };

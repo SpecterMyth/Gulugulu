@@ -9,11 +9,20 @@ fn main() {
 /// 否则动态加载失败、进程起不来。找不到只警告不失败（CI 其他平台/离线环境）。
 fn copy_steam_redistributable() {
     let (dll_rel, dll_name) = if cfg!(target_os = "windows") {
-        ("redistributable_bin/win64/steam_api64.dll", "steam_api64.dll")
+        (
+            "redistributable_bin/win64/steam_api64.dll",
+            "steam_api64.dll",
+        )
     } else if cfg!(target_os = "macos") {
-        ("redistributable_bin/osx/libsteam_api.dylib", "libsteam_api.dylib")
+        (
+            "redistributable_bin/osx/libsteam_api.dylib",
+            "libsteam_api.dylib",
+        )
     } else {
-        ("redistributable_bin/linux64/libsteam_api.so", "libsteam_api.so")
+        (
+            "redistributable_bin/linux64/libsteam_api.so",
+            "libsteam_api.so",
+        )
     };
 
     let Some(source) = find_in_cargo_registry(dll_rel) else {
@@ -28,7 +37,10 @@ fn copy_steam_redistributable() {
     };
     let dest = profile_dir.join(dll_name);
     if let Err(error) = std::fs::copy(&source, &dest) {
-        println!("cargo:warning=failed to copy {dll_name} to {}: {error}", dest.display());
+        println!(
+            "cargo:warning=failed to copy {dll_name} to {}: {error}",
+            dest.display()
+        );
     }
 }
 
@@ -36,8 +48,16 @@ fn find_in_cargo_registry(rel: &str) -> Option<PathBuf> {
     let cargo_home = std::env::var("CARGO_HOME")
         .map(PathBuf::from)
         .ok()
-        .or_else(|| std::env::var("USERPROFILE").map(|p| PathBuf::from(p).join(".cargo")).ok())
-        .or_else(|| std::env::var("HOME").map(|p| PathBuf::from(p).join(".cargo")).ok())?;
+        .or_else(|| {
+            std::env::var("USERPROFILE")
+                .map(|p| PathBuf::from(p).join(".cargo"))
+                .ok()
+        })
+        .or_else(|| {
+            std::env::var("HOME")
+                .map(|p| PathBuf::from(p).join(".cargo"))
+                .ok()
+        })?;
     let registry_src = cargo_home.join("registry").join("src");
     let mut newest: Option<PathBuf> = None;
     for index_dir in std::fs::read_dir(&registry_src).ok()?.flatten() {

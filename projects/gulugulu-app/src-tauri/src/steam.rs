@@ -40,6 +40,15 @@ pub fn integration_enabled() -> bool {
         Err(_) => STEAM_DEFAULT_ENABLED,
     }
 }
+
+/// Steam 可能刚为本地先行融合移除了 outbox 锁并写入权威槽位；立即唤醒 AI worker，
+/// 避免只能等下一次 30 秒轮询。非融合变更多唤醒一次无害，worker 会自行判空。
+fn notify_fusion_worker(app: &AppHandle) {
+    if let Some(state) = app.try_state::<crate::fusion_gen::FusionGenState>() {
+        crate::fusion_gen::notify_worker(state.inner());
+    }
+}
+
 /// 结果句柄轮询上限；命令侧等待 = 此值 + 5s 余量。
 const OP_TIMEOUT: Duration = Duration::from_secs(15);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(20);
@@ -69,22 +78,39 @@ const FLAP_WINDOW: Duration = Duration::from_secs(60);
 #[derive(Clone, Debug)]
 pub enum SteamCall {
     GetAll,
-    TriggerDrop { def: u32 },
-    Exchange { generate_def: u32, destroy: Vec<u64> },
-    Consume { item_id: u64 },
+    TriggerDrop {
+        def: u32,
+    },
+    Exchange {
+        generate_def: u32,
+        destroy: Vec<u64>,
+    },
+    Consume {
+        item_id: u64,
+    },
     /// 拆栈：从堆叠拆 1 个到新实例（绑定前置，A5 实证掉落会自动堆叠）。
-    SplitOne { item_id: u64 },
+    SplitOne {
+        item_id: u64,
+    },
     /// 仅开发期（GenerateItems 在正式版失效）。
-    Generate { defs: Vec<u32> },
+    Generate {
+        defs: Vec<u32>,
+    },
     /// 立即跑一轮 outbox + 对账。
     SyncNow,
     /// 成就上报（非库存操作）：逐条 SetAchievement + StoreStats（幂等，fire-and-forget）。
     /// SteamAchievements.md §4.2。
-    UnlockAchievements { ids: Vec<String> },
+    UnlockAchievements {
+        ids: Vec<String>,
+    },
     /// 立即推一轮云存档（三件套写云）。手动同步 / 退出前 flush / 清档夺权用。
     /// 泵循环特判（不走 perform）：把周期推送计时器拨到即时，本轮 cloud_push_pass 就执行。
     /// SteamCloudSync.md。
     CloudPush,
+    /// 立即巡检工厂最高营收排行榜 outbox。只拨快排行榜泵计时器，不直接携带成绩。
+    LeaderboardSync,
+    /// 调试专用：用 ForceUpdate 把当前 Steam 用户的工厂榜成绩覆写为 0。
+    LeaderboardReset,
 }
 
 pub struct SteamRequest {
@@ -142,7 +168,10 @@ pub enum WorkshopReply {
         entry_json: String,
     },
     /// 清空本账号工坊：`deleted` 成功删除数、`failed` 删除失败数。
-    AllDeleted { deleted: usize, failed: usize },
+    AllDeleted {
+        deleted: usize,
+        failed: usize,
+    },
     Failed(String),
 }
 
@@ -233,7 +262,11 @@ impl SharedSteamState {
     }
 
     pub fn owner_mismatch(&self) -> bool {
-        self.0.status.lock().map(|s| s.owner_mismatch).unwrap_or(false)
+        self.0
+            .status
+            .lock()
+            .map(|s| s.owner_mismatch)
+            .unwrap_or(false)
     }
 
     fn update_status(&self, app: &AppHandle, mutate: impl FnOnce(&mut SteamStatus)) {
@@ -287,6 +320,22 @@ impl SharedSteamState {
             let (reply_tx, _discarded_rx) = mpsc::channel();
             let _ = tx.send(SteamRequest {
                 call: SteamCall::CloudPush,
+                reply: reply_tx,
+                deadline: None,
+            });
+        }
+    }
+
+    /// 非阻塞触发工厂排行榜 outbox 巡检。未连接时静默无效，重连后的首次巡检兜底。
+    pub fn kick_leaderboard(&self) {
+        let tx = match self.0.tx.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => None,
+        };
+        if let Some(tx) = tx {
+            let (reply_tx, _discarded_rx) = mpsc::channel();
+            let _ = tx.send(SteamRequest {
+                call: SteamCall::LeaderboardSync,
                 reply: reply_tx,
                 deadline: None,
             });
@@ -375,7 +424,9 @@ impl SharedSteamState {
         if tx.send(request).is_err() {
             return OpOutcome::Failed("#steamPumpExited".to_string());
         }
-        reply_rx.recv_timeout(COMMAND_TIMEOUT).unwrap_or(OpOutcome::Uncertain)
+        reply_rx
+            .recv_timeout(COMMAND_TIMEOUT)
+            .unwrap_or(OpOutcome::Uncertain)
     }
 
     /// 创意工坊同步调用：发请求给泵线程并等待（不得持存档锁调用）。
@@ -388,7 +439,13 @@ impl SharedSteamState {
             return WorkshopReply::Failed("Steam 未连接".to_string());
         };
         let (reply_tx, reply_rx) = mpsc::channel();
-        if tx.send(WorkshopRequest { op, reply: reply_tx }).is_err() {
+        if tx
+            .send(WorkshopRequest {
+                op,
+                reply: reply_tx,
+            })
+            .is_err()
+        {
             return WorkshopReply::Failed("Steam 泵线程已退出".to_string());
         }
         reply_rx
@@ -411,9 +468,10 @@ impl SharedSteamState {
             entry_json: entry_json.to_string(),
             preview_png,
         }) {
-            WorkshopReply::Published { published_file_id, needs_legal_agreement } => {
-                Ok((published_file_id, needs_legal_agreement))
-            }
+            WorkshopReply::Published {
+                published_file_id,
+                needs_legal_agreement,
+            } => Ok((published_file_id, needs_legal_agreement)),
             WorkshopReply::Failed(error) => Err(error),
             _ => Err("创意工坊返回了意外的回复".to_string()),
         }
@@ -451,7 +509,9 @@ impl SharedSteamState {
         &self,
         codename: &str,
     ) -> Result<Option<(steam_workshop::WorkshopItemDetails, String)>, String> {
-        match self.workshop_blocking(WorkshopOp::Resolve { codename: codename.to_string() }) {
+        match self.workshop_blocking(WorkshopOp::Resolve {
+            codename: codename.to_string(),
+        }) {
             WorkshopReply::Resolved(hit) => Ok(hit),
             WorkshopReply::Failed(error) => Err(error),
             _ => Err("创意工坊返回了意外的回复".to_string()),
@@ -463,7 +523,9 @@ impl SharedSteamState {
         &self,
         codename: &str,
     ) -> Result<Vec<steam_workshop::WorkshopItemMeta>, String> {
-        match self.workshop_blocking(WorkshopOp::ListForPetId { codename: codename.to_string() }) {
+        match self.workshop_blocking(WorkshopOp::ListForPetId {
+            codename: codename.to_string(),
+        }) {
             WorkshopReply::Listing(metas) => Ok(metas),
             WorkshopReply::Failed(error) => Err(error),
             _ => Err("创意工坊返回了意外的回复".to_string()),
@@ -476,7 +538,10 @@ impl SharedSteamState {
         published_file_id: u64,
     ) -> Result<(steam_workshop::WorkshopItemDetails, String), String> {
         match self.workshop_blocking(WorkshopOp::FetchItem { published_file_id }) {
-            WorkshopReply::ItemFetched { details, entry_json } => Ok((details, entry_json)),
+            WorkshopReply::ItemFetched {
+                details,
+                entry_json,
+            } => Ok((details, entry_json)),
             WorkshopReply::Failed(error) => Err(error),
             _ => Err("创意工坊返回了意外的回复".to_string()),
         }
@@ -503,7 +568,9 @@ pub fn new_shared_state() -> SharedSteamState {
 /// 现在连不上就常驻重试、连上后探活，Steam 后开 / 自更新重启都自动接回。
 pub fn init(app: AppHandle, game_state: SharedGameState, steam_state: SharedSteamState) {
     if !integration_enabled() {
-        eprintln!("[steam] integration disabled (GULUGULU_STEAM / STEAM_DEFAULT_ENABLED) — local mode");
+        eprintln!(
+            "[steam] integration disabled (GULUGULU_STEAM / STEAM_DEFAULT_ENABLED) — local mode"
+        );
         steam_state.update_status(&app, |s| s.mode = "disabled".to_string());
         return;
     }
@@ -581,7 +648,9 @@ pub fn init(app: AppHandle, game_state: SharedGameState, steam_state: SharedStea
 
         // 先摘通道 + 标 unavailable，再 drop client（Drop = SteamAPI_Shutdown），
         // 然后回到循环顶部重连 —— 期间所有玩法照常走「未连接」分支。
-        eprintln!("[steam] client disappeared after {uptime:?} — dropping connection, will reconnect");
+        eprintln!(
+            "[steam] client disappeared after {uptime:?} — dropping connection, will reconnect"
+        );
         steam_state.detach(&app);
         drop(client);
         if uptime < FLAP_WINDOW {
@@ -665,10 +734,15 @@ fn perform(client: &steamworks::Client, call: &SteamCall) -> OpOutcome {
             return OpOutcome::Granted(Vec::new());
         }
         // 云推送在泵循环内特判处理（拨快周期计时器），不应走到 perform；防御性早返回。
-        SteamCall::CloudPush => return OpOutcome::Granted(Vec::new()),
+        SteamCall::CloudPush | SteamCall::LeaderboardSync | SteamCall::LeaderboardReset => {
+            return OpOutcome::Granted(Vec::new())
+        }
         SteamCall::GetAll | SteamCall::SyncNow => inv::start_get_all(),
         SteamCall::TriggerDrop { def } => inv::start_trigger_drop(*def),
-        SteamCall::Exchange { generate_def, destroy } => inv::start_exchange(*generate_def, destroy),
+        SteamCall::Exchange {
+            generate_def,
+            destroy,
+        } => inv::start_exchange(*generate_def, destroy),
         SteamCall::Consume { item_id } => inv::start_consume(*item_id),
         SteamCall::SplitOne { item_id } => inv::start_split_one(*item_id),
         SteamCall::Generate { defs } => {
@@ -688,7 +762,12 @@ fn perform(client: &steamworks::Client, call: &SteamCall) -> OpOutcome {
 /// 泵线程内执行创意工坊操作（内部 pump run_callbacks 等回调；串行、低频、gated）。
 fn perform_workshop(client: &steamworks::Client, op: &WorkshopOp) -> WorkshopReply {
     match op {
-        WorkshopOp::Publish { codename, name_zh, entry_json, preview_png } => {
+        WorkshopOp::Publish {
+            codename,
+            name_zh,
+            entry_json,
+            preview_png,
+        } => {
             match steam_workshop::publish(
                 client,
                 STEAM_APP_ID,
@@ -697,16 +776,19 @@ fn perform_workshop(client: &steamworks::Client, op: &WorkshopOp) -> WorkshopRep
                 entry_json,
                 preview_png.as_deref(),
             ) {
-                Ok((published_file_id, needs_legal_agreement)) => {
-                    WorkshopReply::Published { published_file_id, needs_legal_agreement }
-                }
+                Ok((published_file_id, needs_legal_agreement)) => WorkshopReply::Published {
+                    published_file_id,
+                    needs_legal_agreement,
+                },
                 Err(error) => WorkshopReply::Failed(error),
             }
         }
-        WorkshopOp::Resolve { codename } => match steam_workshop::resolve(client, STEAM_APP_ID, codename) {
-            Ok(hit) => WorkshopReply::Resolved(hit),
-            Err(error) => WorkshopReply::Failed(error),
-        },
+        WorkshopOp::Resolve { codename } => {
+            match steam_workshop::resolve(client, STEAM_APP_ID, codename) {
+                Ok(hit) => WorkshopReply::Resolved(hit),
+                Err(error) => WorkshopReply::Failed(error),
+            }
+        }
         WorkshopOp::ListForPetId { codename } => {
             match steam_workshop::list_for_pet_id(
                 client,
@@ -720,7 +802,10 @@ fn perform_workshop(client: &steamworks::Client, op: &WorkshopOp) -> WorkshopRep
         }
         WorkshopOp::FetchItem { published_file_id } => {
             match steam_workshop::fetch_item(client, *published_file_id) {
-                Ok((details, entry_json)) => WorkshopReply::ItemFetched { details, entry_json },
+                Ok((details, entry_json)) => WorkshopReply::ItemFetched {
+                    details,
+                    entry_json,
+                },
                 Err(error) => WorkshopReply::Failed(error),
             }
         }
@@ -738,7 +823,13 @@ fn perform_workshop(client: &steamworks::Client, op: &WorkshopOp) -> WorkshopRep
                 Err(error) => WorkshopReply::Failed(error),
             }
         }
-        WorkshopOp::UpdatePreview { published_file_id, codename, name_zh, entry_json, preview_png } => {
+        WorkshopOp::UpdatePreview {
+            published_file_id,
+            codename,
+            name_zh,
+            entry_json,
+            preview_png,
+        } => {
             match steam_workshop::update_preview(
                 client,
                 STEAM_APP_ID,
@@ -768,7 +859,8 @@ impl Grace {
     }
     fn active(&mut self) -> BTreeSet<String> {
         let now = Instant::now();
-        self.0.retain(|_, at| now.duration_since(*at) < GRACE_WINDOW);
+        self.0
+            .retain(|_, at| now.duration_since(*at) < GRACE_WINDOW);
         self.0.keys().cloned().collect()
     }
 }
@@ -795,6 +887,8 @@ fn pump_loop(
 ) {
     let mut grace = Grace(HashMap::new());
     let mut last_outbox = Instant::now() - OUTBOX_INTERVAL; // 启动立即巡检一次。
+    let mut last_leaderboard = Instant::now() - OUTBOX_INTERVAL;
+    let mut leaderboard = crate::steam_leaderboard::LeaderboardRuntime::new();
     let mut last_reconcile = Instant::now();
     let mut last_liveness = Instant::now();
     let mut strikes: u32 = 0;
@@ -847,6 +941,19 @@ fn pump_loop(
                 let _ = request.reply.send(OpOutcome::Granted(Vec::new()));
                 continue;
             }
+            if matches!(request.call, SteamCall::LeaderboardSync) {
+                last_leaderboard = Instant::now() - OUTBOX_INTERVAL;
+                let _ = request.reply.send(OpOutcome::Granted(Vec::new()));
+                continue;
+            }
+            if matches!(request.call, SteamCall::LeaderboardReset) {
+                let outcome = match leaderboard.reset_self(client) {
+                    Ok(()) => OpOutcome::Granted(Vec::new()),
+                    Err(error) => OpOutcome::Failed(error),
+                };
+                let _ = request.reply.send(outcome);
+                continue;
+            }
             let sync_now = matches!(request.call, SteamCall::SyncNow);
             let outcome = perform(client, &request.call);
             grace.touch(&outcome);
@@ -871,6 +978,11 @@ fn pump_loop(
         if last_outbox.elapsed() >= OUTBOX_INTERVAL {
             last_outbox = Instant::now();
             outbox_pass(&app, &game_state, &steam_state, client, &mut grace);
+        }
+        if last_leaderboard.elapsed() >= OUTBOX_INTERVAL {
+            last_leaderboard = Instant::now();
+            let owner = client.user().steam_id().raw().to_string();
+            leaderboard.pump_pass(&app, client, &owner);
         }
         if last_reconcile.elapsed() >= RECONCILE_INTERVAL {
             last_reconcile = Instant::now();
@@ -958,7 +1070,9 @@ fn cloud_push_pass(
             s.cloud_bytes = Some(bytes);
             s.last_cloud_sync_at = Some(game::now_secs());
         });
-        eprintln!("[steam_cloud] periodic push → synced changed file(s) to cloud（{bytes} bytes 云端）");
+        eprintln!(
+            "[steam_cloud] periodic push → synced changed file(s) to cloud（{bytes} bytes 云端）"
+        );
     }
 }
 
@@ -1092,7 +1206,7 @@ fn cloud_pull_reconcile(
         }
         CloudAction::PushLocal => {
             drop(guard); // 先释放锁再 with_save。
-            // 夺权推送前先清标记：这样推上云的字节不带 true（他机不会误判夺权）。
+                         // 夺权推送前先清标记：这样推上云的字节不带 true（他机不会误判夺权）。
             if force_push {
                 let _ = game::with_save(app, game_state, |_config, save| {
                     save.cloud_force_push = false;
@@ -1179,6 +1293,7 @@ fn outbox_pass(
     // 快照消失（消耗已发生/被交易走），resolve_intents 会在这里直接收掉 op。
     let due_op = game::with_save(app, game_state, |config, save| {
         let mut changed = steam_sync::resolve_intents(config, save, &snapshot, now);
+        changed |= steam_sync::claim_unbound_tier2_results(config, save, &snapshot, now);
         changed |= steam_sync::attach_mints(save, &snapshot);
         let due = save.steam_outbox.iter().find_map(|op| match op {
             SteamOp::MintTier1 {
@@ -1186,7 +1301,10 @@ fn outbox_pass(
                 def,
                 next_retry_at,
                 ..
-            } if *next_retry_at <= now => Some(DueOutboxOp::Mint { op_id: op_id.clone(), def: *def }),
+            } if *next_retry_at <= now => Some(DueOutboxOp::Mint {
+                op_id: op_id.clone(),
+                def: *def,
+            }),
             SteamOp::Release {
                 op_id,
                 item_id,
@@ -1206,12 +1324,13 @@ fn outbox_pass(
                 mat_def_a,
                 mat_def_b,
                 recipe_key,
+                awaiting_result,
                 egg_id,
                 pet_id,
                 parents,
                 next_retry_at,
                 ..
-            } if *next_retry_at <= now => Some(DueOutboxOp::FuseExchange {
+            } if !*awaiting_result && *next_retry_at <= now => Some(DueOutboxOp::FuseExchange {
                 op_id: op_id.clone(),
                 generate_def: *egg_def,
                 item_a: item_a.clone(),
@@ -1231,6 +1350,7 @@ fn outbox_pass(
         Ok(((changed, due), save)) => {
             if changed {
                 let _ = app.emit("game://state", save);
+                notify_fusion_worker(app);
             }
             (changed, due)
         }
@@ -1244,7 +1364,12 @@ fn outbox_pass(
     // drop_max_per_window:10/日、窗口=应用级 1440），bundle 单条目保证掉出的就是 op.def 宠物。
     match due {
         Some(DueOutboxOp::Mint { op_id, def }) => {
-            let outcome = perform(client, &SteamCall::TriggerDrop { def: crate::fusion_slots::shop_gen_def(1, def) });
+            let outcome = perform(
+                client,
+                &SteamCall::TriggerDrop {
+                    def: crate::fusion_slots::shop_gen_def(1, def),
+                },
+            );
             grace.touch(&outcome);
             // 拆栈（锁外，镜像 FuseExchange 分支）：掉落若堆叠到既有同 def 实例上，items[0].item_id
             // 会是那个**已被别的宠绑定**的 id → 两宠共用一 id → 下轮对账把其中一只误删（review 第 1 项）。
@@ -1258,12 +1383,15 @@ fn outbox_pass(
                     if granted.quantity > 1 {
                         match granted.item_id.parse::<u64>() {
                             Ok(source) => {
-                                let split = perform(client, &SteamCall::SplitOne { item_id: source });
+                                let split =
+                                    perform(client, &SteamCall::SplitOne { item_id: source });
                                 grace.touch(&split);
                                 match split {
                                     OpOutcome::Granted(list) => list
                                         .iter()
-                                        .find(|i| i.item_id != granted.item_id && i.def == granted.def)
+                                        .find(|i| {
+                                            i.item_id != granted.item_id && i.def == granted.def
+                                        })
                                         .map(|i| (i.item_id.clone(), i.def))
                                         .or_else(|| Some((granted.item_id.clone(), granted.def))),
                                     _ => Some((granted.item_id.clone(), granted.def)),
@@ -1279,9 +1407,9 @@ fn outbox_pass(
             };
             let now = game::now_secs();
             let result = game::with_save(app, game_state, |_config, save| {
-                let Some(index) = save.steam_outbox.iter().position(|op| {
-                    matches!(op, SteamOp::MintTier1 { op_id: id, .. } if *id == op_id)
-                }) else {
+                let Some(index) = save.steam_outbox.iter().position(
+                    |op| matches!(op, SteamOp::MintTier1 { op_id: id, .. } if *id == op_id),
+                ) else {
                     return Ok(false);
                 };
                 match &outcome {
@@ -1331,9 +1459,9 @@ fn outbox_pass(
             grace.touch(&outcome);
             let now = game::now_secs();
             let result = game::with_save(app, game_state, |_config, save| {
-                let Some(index) = save.steam_outbox.iter().position(|op| {
-                    matches!(op, SteamOp::Release { op_id: id, .. } if *id == op_id)
-                }) else {
+                let Some(index) = save.steam_outbox.iter().position(
+                    |op| matches!(op, SteamOp::Release { op_id: id, .. } if *id == op_id),
+                ) else {
                     return Ok(false);
                 };
                 match &outcome {
@@ -1356,7 +1484,9 @@ fn outbox_pass(
                             // 时，下轮 resolve_intents 对照快照会直接收掉 op。
                             *next_retry_at = now + steam_sync::mint_backoff_secs(*attempts);
                             *attempts += 1;
-                            eprintln!("[steam] release consume {item_id}: 失败（{error}），退避后重试");
+                            eprintln!(
+                                "[steam] release consume {item_id}: 失败（{error}），退避后重试"
+                            );
                         }
                         Ok(true)
                     }
@@ -1393,11 +1523,14 @@ fn outbox_pass(
                 if mint_def == 0 {
                     // 无目录 def 可铸（几乎不会发生：一阶宠必有 def）→ 退避重试。
                     let _ = game::with_save(app, game_state, |_config, save| {
-                        if let Some(i) = save.steam_outbox.iter().position(|op| {
-                            matches!(op, SteamOp::Fuse { op_id: id, .. } if *id == op_id)
-                        }) {
-                            if let SteamOp::Fuse { attempts, next_retry_at, .. } =
-                                &mut save.steam_outbox[i]
+                        if let Some(i) = save.steam_outbox.iter().position(
+                            |op| matches!(op, SteamOp::Fuse { op_id: id, .. } if *id == op_id),
+                        ) {
+                            if let SteamOp::Fuse {
+                                attempts,
+                                next_retry_at,
+                                ..
+                            } = &mut save.steam_outbox[i]
                             {
                                 *next_retry_at = now + steam_sync::mint_backoff_secs(*attempts);
                                 *attempts += 1;
@@ -1409,7 +1542,9 @@ fn outbox_pass(
                     // 铸材料走 tier1 商店 gen（同 MintTier1）；堆叠则拆 1。
                     let outcome = perform(
                         client,
-                        &SteamCall::TriggerDrop { def: crate::fusion_slots::shop_gen_def(1, mint_def) },
+                        &SteamCall::TriggerDrop {
+                            def: crate::fusion_slots::shop_gen_def(1, mint_def),
+                        },
                     );
                     grace.touch(&outcome);
                     let minted = match &outcome {
@@ -1419,9 +1554,9 @@ fn outbox_pass(
                         _ => None,
                     };
                     let result = game::with_save(app, game_state, |_config, save| {
-                        let Some(index) = save.steam_outbox.iter().position(|op| {
-                            matches!(op, SteamOp::Fuse { op_id: id, .. } if *id == op_id)
-                        }) else {
+                        let Some(index) = save.steam_outbox.iter().position(
+                            |op| matches!(op, SteamOp::Fuse { op_id: id, .. } if *id == op_id),
+                        ) else {
                             return Ok(false);
                         };
                         match minted {
@@ -1450,8 +1585,11 @@ fn outbox_pass(
                             }
                             None => {
                                 // 限频（空）/失败：退避重试铸这只材料。
-                                if let SteamOp::Fuse { attempts, next_retry_at, .. } =
-                                    &mut save.steam_outbox[index]
+                                if let SteamOp::Fuse {
+                                    attempts,
+                                    next_retry_at,
+                                    ..
+                                } = &mut save.steam_outbox[index]
                                 {
                                     *next_retry_at = now + steam_sync::mint_backoff_secs(*attempts);
                                     *attempts += 1;
@@ -1473,7 +1611,10 @@ fn outbox_pass(
                 let outcome = match parsed {
                     Ok((a, b)) => perform(
                         client,
-                        &SteamCall::Exchange { generate_def, destroy: vec![a, b] },
+                        &SteamCall::Exchange {
+                            generate_def,
+                            destroy: vec![a, b],
+                        },
                     ),
                     Err(_) => OpOutcome::Failed("#steamItemIdCorrupt".to_string()),
                 };
@@ -1486,13 +1627,15 @@ fn outbox_pass(
                 };
                 let now = game::now_secs();
                 let result = game::with_save(app, game_state, |config, save| {
-                    let Some(index) = save.steam_outbox.iter().position(|op| {
-                        matches!(op, SteamOp::Fuse { op_id: id, .. } if *id == op_id)
-                    }) else {
+                    let Some(index) = save.steam_outbox.iter().position(
+                        |op| matches!(op, SteamOp::Fuse { op_id: id, .. } if *id == op_id),
+                    ) else {
                         return Ok(false);
                     };
                     match (&outcome, &bind_pair) {
-                        (OpOutcome::Granted(items), Some((bind_id, bind_def))) if !items.is_empty() => {
+                        (OpOutcome::Granted(items), Some((bind_id, bind_def)))
+                            if !items.is_empty() =>
+                        {
                             let parents_arr = parents.clone().unwrap_or_else(|| {
                                 [
                                     crate::game::FALLBACK_SPECIES.to_string(),
@@ -1500,8 +1643,15 @@ fn outbox_pass(
                                 ]
                             });
                             steam_sync::apply_fused_result(
-                                config, save, bind_id.clone(), *bind_def, &recipe_key, &parents_arr,
-                                egg_id.as_deref(), pet_id.as_deref(), now,
+                                config,
+                                save,
+                                bind_id.clone(),
+                                *bind_def,
+                                &recipe_key,
+                                &parents_arr,
+                                egg_id.as_deref(),
+                                pet_id.as_deref(),
+                                now,
                             );
                             save.steam_outbox.remove(index);
                             eprintln!("[steam] fuse exchange {op_id}: 已烧材料+铸结果 def={bind_def}，回绑完成");
@@ -1514,8 +1664,11 @@ fn outbox_pass(
                             if corrupt {
                                 save.steam_outbox.remove(index);
                                 eprintln!("[steam] fuse exchange {op_id}: 材料 id 损坏，弃 op");
-                            } else if let SteamOp::Fuse { attempts, next_retry_at, .. } =
-                                &mut save.steam_outbox[index]
+                            } else if let SteamOp::Fuse {
+                                attempts,
+                                next_retry_at,
+                                ..
+                            } = &mut save.steam_outbox[index]
                             {
                                 *next_retry_at = now + steam_sync::mint_backoff_secs(*attempts);
                                 *attempts += 1;
@@ -1526,6 +1679,7 @@ fn outbox_pass(
                 });
                 if let Ok((true, save)) = result {
                     let _ = app.emit("game://state", save);
+                    notify_fusion_worker(app);
                 }
             }
         }
@@ -1550,7 +1704,9 @@ fn reconcile_pass(
     let grace_ids = grace.active();
     let now = game::now_secs();
     let result = game::with_save(app, game_state, |config, save| {
-        Ok(steam_sync::reconcile(config, save, &snapshot, &grace_ids, now))
+        Ok(steam_sync::reconcile_respecting_onboarding(
+            config, save, &snapshot, &grace_ids, now,
+        ))
     });
     if let Ok((report, save)) = result {
         let imported_pets = report.imported_pets;
@@ -1675,7 +1831,9 @@ pub async fn steam_import_pets(
         let snapshot = to_snapshot(&items);
         let now = game::now_secs();
         let (report, save) = game::with_save(&app, &game_state, |config, save| {
-            Ok(steam_sync::import_inventory_pets(config, save, &snapshot, now))
+            Ok(steam_sync::import_inventory_pets_respecting_onboarding(
+                config, save, &snapshot, now,
+            ))
         })?;
         if report.changed {
             let _ = app.emit("game://state", save);

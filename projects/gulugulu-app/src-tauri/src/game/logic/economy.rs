@@ -98,31 +98,49 @@ pub fn logic_buy_egg(
     let cap = config.egg_daily_mint_cap(tier);
     let minted_today = save.daily.egg_mints.get(&mint_key).copied().unwrap_or(0);
     if minted_today >= cap {
-        return Err(format!("#eggDailyCap|recipe={element}|tier={tier}|cap={cap}"));
+        return Err(format!(
+            "#eggDailyCap|recipe={element}|tier={tier}|cap={cap}"
+        ));
     }
     let price = config.egg_price_for(element, tier);
-    if save.coins < price {
+    let reimbursed = save.onboarding.status == "active"
+        && tier == 1
+        && element == "fire"
+        && !save.tutorial_first_egg_bought;
+    if save.coins < price && !reimbursed {
         return Err("#notEnoughCoins".to_string());
     }
     let species = roll_egg_species(config, element, tier, pseudo_random_u64())
         .ok_or_else(|| "#noMatchingSpecies".to_string())?;
 
-    save.coins -= price;
+    if !reimbursed {
+        save.coins -= price;
+    }
     *save.daily.egg_mints.entry(mint_key).or_insert(0) += 1;
     let hatch_kind = if tier <= 1 {
         element.to_string()
     } else {
         format!("tier{tier}")
     };
-    let slot = first_free_slot(config, save);
-    // 教学硬编码：首次商店购买固定 30s 孵化（OnboardingCoach.md §3.1）；仅当真入槽才算首购。
+    // The first guided fire egg must enter inventory. Otherwise the regular auto-slot
+    // convenience silently skips A13, so the player never learns how to place an egg.
+    let tutorial_manual_placement = reimbursed;
+    let slot = if tutorial_manual_placement {
+        None
+    } else {
+        first_free_slot(config, save)
+    };
+    // v6 教学：正式场前的商店蛋封顶 5s；正式数值不变。
     let first_buy = !save.tutorial_first_egg_bought;
-    let hatch_secs = if first_buy && slot.is_some() {
-        30
+    let hatch_secs = if save.onboarding.status == "active"
+        && !save.onboarding.factory_formal_entered
+        && slot.is_some()
+    {
+        5
     } else {
         *config.hatch_seconds.get(&hatch_kind).unwrap_or(&180) as i64
     };
-    if first_buy && slot.is_some() {
+    if first_buy && (slot.is_some() || tutorial_manual_placement) {
         save.tutorial_first_egg_bought = true;
     }
     let hatch_at = slot.map(|_| now + hatch_secs);
@@ -187,7 +205,12 @@ pub fn logic_place_egg(
         if egg.slot.is_some() {
             return Err("#eggAlreadyIncubating".to_string());
         }
-        *config.hatch_seconds.get(&egg.hatch_kind).unwrap_or(&180) as i64
+        let formal = *config.hatch_seconds.get(&egg.hatch_kind).unwrap_or(&180) as i64;
+        if save.onboarding.status == "active" && !save.onboarding.factory_formal_entered {
+            formal.min(8)
+        } else {
+            formal
+        }
     };
     let egg = save.eggs.iter_mut().find(|e| e.id == egg_id).unwrap();
     egg.slot = Some(slot);
@@ -215,7 +238,7 @@ pub(crate) fn validate_collect(
         }
     }
     let capacity = config.yard_capacity_for(save.yard_level) as usize;
-    if save.pets.len() >= capacity {
+    if occupied_pet_count(save) >= capacity {
         return Err("#yardFull".to_string());
     }
     Ok(egg_index)
@@ -237,6 +260,8 @@ pub(crate) fn apply_collect(
     granted: Option<(String, String, u32)>,
 ) -> String {
     let egg = save.eggs.remove(egg_index);
+    let tutorial_direct_max = save.onboarding.status == "active"
+        && egg.tier >= 2;
     let (species, steam_item_id, steam_item_def) = match granted {
         Some((species, item_id, def)) => (species, Some(item_id), Some(def)),
         None => (egg.species, None, None),
@@ -247,16 +272,21 @@ pub(crate) fn apply_collect(
     let tier = egg.tier.max(1);
     record_species_obtained(save, &species);
     save.daily.hatches += 1; // 昨日战报：当日孵化（收取到手）总数（唯一写入点）
-    // 成就：曾拥有过的最高阶（孵出即知阶，SteamAchievements.md §3.3 品阶组）。
+                             // 成就：曾拥有过的最高阶（孵出即知阶，SteamAchievements.md §3.3 品阶组）。
     if tier > save.stats.highest_tier {
         save.stats.highest_tier = tier;
     }
     let pet_id = new_id("pet");
+    let level = if tutorial_direct_max {
+        config.max_level_for_tier(tier)
+    } else {
+        1
+    };
     save.pets.push(PetInstance {
         id: pet_id.clone(),
         species,
         tier,
-        level: 1,
+        level,
         exp: 0,
         stamina: config.stamina_max,
         stamina_updated_at: now,
@@ -266,13 +296,16 @@ pub(crate) fn apply_collect(
         steam_item_id,
         steam_item_def,
     });
+    if tutorial_direct_max {
+        save.stats.first_maxlevel_done = true;
+    }
     if save.active_pet_id.is_none() {
         save.active_pet_id = Some(pet_id.clone());
     }
     pet_id
 }
 
-/// 催蛋：孵化中的蛋每点一下 −1s（OnboardingCoach.md #2）。夹到 now（不早于当前，到点即可收）；
+/// 催蛋：孵化中的蛋每点一下 −1s（OnboardingGuidance.md）。夹到 now（不早于当前，到点即可收）；
 /// 非孵化中的蛋（无槽 / 无 hatch_at / 已就绪）一律忽略。
 pub fn logic_poke_egg(save: &mut GameSave, egg_id: &str, now: i64) {
     if let Some(egg) = save.eggs.iter_mut().find(|e| e.id == egg_id) {
@@ -296,4 +329,3 @@ pub fn logic_collect_hatched(
     let egg_index = validate_collect(config, save, egg_id, now)?;
     Ok(apply_collect(config, save, egg_index, now, None))
 }
-

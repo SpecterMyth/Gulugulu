@@ -156,7 +156,11 @@ fn resolve_cli(name: &str) -> Option<PathBuf> {
     #[cfg(windows)]
     {
         if let Ok(appdata) = std::env::var("APPDATA") {
-            candidates.push(PathBuf::from(&appdata).join("npm").join(format!("{name}.cmd")));
+            candidates.push(
+                PathBuf::from(&appdata)
+                    .join("npm")
+                    .join(format!("{name}.cmd")),
+            );
         }
         if let Ok(profile) = std::env::var("USERPROFILE") {
             let bin = PathBuf::from(&profile).join(".local").join("bin");
@@ -164,14 +168,24 @@ fn resolve_cli(name: &str) -> Option<PathBuf> {
             candidates.push(bin.join(format!("{name}.cmd")));
         }
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            candidates.push(PathBuf::from(&local).join("Programs").join(name).join(format!("{name}.exe")));
+            candidates.push(
+                PathBuf::from(&local)
+                    .join("Programs")
+                    .join(name)
+                    .join(format!("{name}.exe")),
+            );
         }
     }
     #[cfg(not(windows))]
     {
         if let Ok(home) = std::env::var("HOME") {
             candidates.push(PathBuf::from(&home).join(".local").join("bin").join(name));
-            candidates.push(PathBuf::from(&home).join(".npm-global").join("bin").join(name));
+            candidates.push(
+                PathBuf::from(&home)
+                    .join(".npm-global")
+                    .join("bin")
+                    .join(name),
+            );
         }
         candidates.push(PathBuf::from("/usr/local/bin").join(name));
         candidates.push(PathBuf::from("/opt/homebrew/bin").join(name));
@@ -192,7 +206,10 @@ fn pick_spawnable(candidates: &[PathBuf]) -> Option<PathBuf> {
                 continue;
             }
             let ext = path.extension().map(|e| e.to_ascii_lowercase());
-            if ext.map(|e| SPAWNABLE.iter().any(|s| e == *s)).unwrap_or(false) {
+            if ext
+                .map(|e| SPAWNABLE.iter().any(|s| e == *s))
+                .unwrap_or(false)
+            {
                 return Some(path.clone());
             }
         }
@@ -228,10 +245,16 @@ fn run_cli_with_timeout(
 ) -> Result<CliRunOutput, String> {
     use std::io::Read;
 
-    cmd.stdin(if stdin_data.is_some() { Stdio::piped() } else { Stdio::null() })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child = cmd.spawn().map_err(|error| format!("无法启动命令：{error}"))?;
+    cmd.stdin(if stdin_data.is_some() {
+        Stdio::piped()
+    } else {
+        Stdio::null()
+    })
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+    let mut child = cmd
+        .spawn()
+        .map_err(|error| format!("无法启动命令：{error}"))?;
     // 登记 PID：应用退出时统一树杀，避免生成中途关应用留下 node.exe 孤儿。
     // _child_guard 在本函数任一返回路径（正常/超时/错误/panic）Drop 时注销。
     let _child_guard = ChildGuard::register(child.id());
@@ -279,8 +302,12 @@ fn run_cli_with_timeout(
         }
     };
 
-    let stdout = stdout_handle.and_then(|h| h.join().ok()).unwrap_or_default();
-    let stderr = stderr_handle.and_then(|h| h.join().ok()).unwrap_or_default();
+    let stdout = stdout_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
+    let stderr = stderr_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
     Ok(CliRunOutput {
         stdout,
         stderr,
@@ -307,7 +334,8 @@ fn kill_tree(child: &mut Child) {
 
 /// 解析 CLI 并用 `--version` 探测其可用性，返回 (路径, 版本行)。
 pub(crate) fn probe_cli(name: &str) -> Result<(PathBuf, String), String> {
-    let path = resolve_cli(name).ok_or_else(|| "未找到命令（不在 PATH 或常见安装位置）".to_string())?;
+    let path =
+        resolve_cli(name).ok_or_else(|| "未找到命令（不在 PATH 或常见安装位置）".to_string())?;
     let mut cmd = cli_command(&path);
     cmd.arg("--version");
     let output = run_cli_with_timeout(cmd, None, PROBE_TIMEOUT)?;
@@ -316,7 +344,11 @@ pub(crate) fn probe_cli(name: &str) -> Result<(PathBuf, String), String> {
     }
     if !output.success {
         let tail = tail_of(&output.stderr, 160);
-        return Err(if tail.is_empty() { "--version 退出异常".to_string() } else { tail });
+        return Err(if tail.is_empty() {
+            "--version 退出异常".to_string()
+        } else {
+            tail
+        });
     }
     let version = output
         .stdout
@@ -393,7 +425,11 @@ fn probe_claude_login(path: &Path, version: String) -> LoginProbe {
                 logged_in,
                 version: Some(version),
                 account,
-                error: if logged_in { None } else { Some("未登录或登录已过期".to_string()) },
+                error: if logged_in {
+                    None
+                } else {
+                    Some("未登录或登录已过期".to_string())
+                },
             }
         }
         Err(error) => LoginProbe {
@@ -413,7 +449,8 @@ fn probe_codex_login(path: &Path, version: String) -> LoginProbe {
     match run_cli_with_timeout(cmd, None, AUTH_TIMEOUT) {
         Ok(out) => {
             let hay = format!("{}\n{}", out.stdout, out.stderr).to_lowercase();
-            let logged_in = out.success && hay.contains("logged in") && !hay.contains("not logged in");
+            let logged_in =
+                out.success && hay.contains("logged in") && !hay.contains("not logged in");
             let account = out
                 .stdout
                 .lines()
@@ -425,7 +462,11 @@ fn probe_codex_login(path: &Path, version: String) -> LoginProbe {
                 logged_in,
                 version: Some(version),
                 account: if logged_in { account } else { None },
-                error: if logged_in { None } else { Some("未登录".to_string()) },
+                error: if logged_in {
+                    None
+                } else {
+                    Some("未登录".to_string())
+                },
             }
         }
         Err(error) => LoginProbe {
@@ -475,8 +516,12 @@ pub(crate) fn spawn_login_terminal(provider: Provider) -> Result<(), String> {
         // 非 Windows：best-effort 直接 spawn（继承 stdio）；无 TTY 时提示手动运行。
         let mut cmd = cli_command(&path);
         cmd.args(login_args);
-        cmd.spawn()
-            .map_err(|e| format!("无法启动登录（请在终端手动运行 `{name} {}`）：{e}", login_args.join(" ")))?;
+        cmd.spawn().map_err(|e| {
+            format!(
+                "无法启动登录（请在终端手动运行 `{name} {}`）：{e}",
+                login_args.join(" ")
+            )
+        })?;
         Ok(())
     }
 }
@@ -486,8 +531,8 @@ pub(crate) fn spawn_login_terminal(provider: Provider) -> Result<(), String> {
 /// claude：`auth logout`；codex：`logout`。
 pub(crate) fn run_logout(provider: Provider) -> Result<(), String> {
     let name = provider.name();
-    let path = resolve_cli(name)
-        .ok_or_else(|| format!("未找到 {name}（不在 PATH 或常见安装位置）"))?;
+    let path =
+        resolve_cli(name).ok_or_else(|| format!("未找到 {name}（不在 PATH 或常见安装位置）"))?;
     let logout_args: &[&str] = match provider {
         Provider::Claude => &["auth", "logout"],
         Provider::Codex => &["logout"],
@@ -514,6 +559,28 @@ pub(crate) fn run_logout(provider: Provider) -> Result<(), String> {
     }
 }
 
+/// 运行某 CLI 的一个只读子命令并捕获 stdout（如 `codex debug models`）。
+/// 走中性 cwd、超时安全；非 0 退出/超时映射为错误。用于「查询本机可用模型」等场景。
+pub(crate) fn run_cli_query(
+    name: &str,
+    args: &[&str],
+    timeout: Duration,
+) -> Result<String, String> {
+    let path =
+        resolve_cli(name).ok_or_else(|| format!("未找到 {name}（不在 PATH 或常见安装位置）"))?;
+    let mut cmd = cli_command(&path);
+    cmd.args(args);
+    cmd.current_dir(neutral_cwd());
+    let output = run_cli_with_timeout(cmd, None, timeout)?;
+    if output.timed_out {
+        return Err(format!("{name} 查询超时"));
+    }
+    if !output.success {
+        return Err(map_cli_error(name, &output));
+    }
+    Ok(output.stdout)
+}
+
 /// 本次生成可用的 provider 顺序（claude 优先）。
 pub(crate) fn available_providers() -> Vec<(Provider, PathBuf)> {
     let mut providers = Vec::new();
@@ -537,7 +604,16 @@ pub(crate) fn tail_of(text: &str, max_chars: usize) -> String {
 
 fn map_cli_error(name: &str, output: &CliRunOutput) -> String {
     let haystack = format!("{}\n{}", output.stderr, output.stdout).to_lowercase();
-    let auth_markers = ["login", "logged in", "log in", "unauthorized", "401", "authenticat", "api key", "credential"];
+    let auth_markers = [
+        "login",
+        "logged in",
+        "log in",
+        "unauthorized",
+        "401",
+        "authenticat",
+        "api key",
+        "credential",
+    ];
     if auth_markers.iter().any(|marker| haystack.contains(marker)) {
         return format!("「{name}」未登录或登录已过期，请在终端运行 {name} 完成登录后再试");
     }
@@ -586,7 +662,11 @@ fn find_git_bash() -> Option<PathBuf> {
         }
         None
     }
-    if let Ok(out) = base_command("cmd").args(["/C", "where", "git"]).stdin(Stdio::null()).output() {
+    if let Ok(out) = base_command("cmd")
+        .args(["/C", "where", "git"])
+        .stdin(Stdio::null())
+        .output()
+    {
         if out.status.success() {
             for line in String::from_utf8_lossy(&out.stdout).lines() {
                 if let Some(bash) = from_git_exe(Path::new(line.trim())) {
@@ -595,13 +675,20 @@ fn find_git_bash() -> Option<PathBuf> {
             }
         }
     }
-    for c in [r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files (x86)\Git\bin\bash.exe"] {
+    for c in [
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+    ] {
         let p = PathBuf::from(c);
         if p.exists() {
             return Some(p);
         }
     }
-    if let Ok(out) = base_command("cmd").args(["/C", "where", "bash"]).stdin(Stdio::null()).output() {
+    if let Ok(out) = base_command("cmd")
+        .args(["/C", "where", "bash"])
+        .stdin(Stdio::null())
+        .output()
+    {
         if out.status.success() {
             for line in String::from_utf8_lossy(&out.stdout).lines() {
                 let p = PathBuf::from(line.trim());
@@ -615,9 +702,28 @@ fn find_git_bash() -> Option<PathBuf> {
     None
 }
 
-fn run_claude(path: &Path, prompt: &str, timeout: Duration, model: Option<&str>) -> Result<String, String> {
+fn run_claude(
+    path: &Path,
+    prompt: &str,
+    timeout: Duration,
+    model: Option<&str>,
+    schema: Option<&Value>,
+) -> Result<String, String> {
     let mut cmd = cli_command(path);
-    cmd.args(["-p", "--output-format", "json"]);
+    cmd.args([
+        "-p",
+        "--output-format",
+        "json",
+        "--tools",
+        "",
+        "--no-session-persistence",
+    ]);
+    let schema_json;
+    if let Some(schema) = schema {
+        schema_json =
+            serde_json::to_string(schema).map_err(|e| format!("序列化 JSON Schema 失败：{e}"))?;
+        cmd.args(["--json-schema", &schema_json]);
+    }
     // 指定模型（如 opus=最新最强 Opus）；不给则用 CLI 默认模型。
     if let Some(model) = model {
         cmd.args(["--model", model]);
@@ -648,26 +754,52 @@ fn run_claude(path: &Path, prompt: &str, timeout: Duration, model: Option<&str>)
                     .unwrap_or("Claude Code 返回了错误");
                 return Err(tail_of(message, 200));
             }
-            envelope
-                .get("result")
-                .and_then(Value::as_str)
-                .map(|s| s.to_string())
-                .unwrap_or(output.stdout.clone())
+            if let Some(structured) = envelope.get("structured_output") {
+                structured
+                    .as_str()
+                    .map(str::to_string)
+                    .or_else(|| serde_json::to_string(structured).ok())
+                    .unwrap_or_else(|| output.stdout.clone())
+            } else {
+                envelope
+                    .get("result")
+                    .and_then(Value::as_str)
+                    .map(|s| s.to_string())
+                    .unwrap_or(output.stdout.clone())
+            }
         }
         Err(_) => output.stdout.clone(),
     };
     extract_json_object(&text).ok_or_else(|| "输出里没有找到 JSON 对象".to_string())
 }
 
-fn run_codex(path: &Path, prompt: &str, timeout: Duration, model: Option<&str>) -> Result<String, String> {
+fn run_codex(
+    path: &Path,
+    prompt: &str,
+    timeout: Duration,
+    model: Option<&str>,
+    schema: Option<&Value>,
+) -> Result<String, String> {
     let out_file = std::env::temp_dir().join(format!(
         "gulugulu-fusion-last-{}-{}.txt",
         std::process::id(),
         crate::game::now_secs()
     ));
     let _ = std::fs::remove_file(&out_file);
+    let schema_file = schema.map(|_| {
+        std::env::temp_dir().join(format!(
+            "gulugulu-fusion-schema-{}-{}.json",
+            std::process::id(),
+            crate::game::now_secs()
+        ))
+    });
+    if let (Some(schema), Some(path)) = (schema, schema_file.as_ref()) {
+        let bytes =
+            serde_json::to_vec(schema).map_err(|e| format!("序列化 JSON Schema 失败：{e}"))?;
+        std::fs::write(path, bytes).map_err(|e| format!("写入临时 JSON Schema 失败：{e}"))?;
+    }
     let mut cmd = cli_command(path);
-    cmd.arg("exec");
+    cmd.args(["exec", "--ephemeral"]);
     // 指定模型；不给则用 codex 默认模型。
     if let Some(model) = model {
         cmd.args(["-m", model]);
@@ -675,20 +807,32 @@ fn run_codex(path: &Path, prompt: &str, timeout: Duration, model: Option<&str>) 
     cmd.arg("--skip-git-repo-check")
         .args(["--sandbox", "read-only"])
         .arg("--output-last-message")
-        .arg(&out_file)
-        .arg("-");
+        .arg(&out_file);
+    if let Some(path) = schema_file.as_ref() {
+        cmd.arg("--output-schema").arg(path);
+    }
+    cmd.arg("-");
     cmd.current_dir(neutral_cwd());
     let output = run_cli_with_timeout(cmd, Some(prompt), timeout)?;
     if output.timed_out {
         let _ = std::fs::remove_file(&out_file);
+        if let Some(path) = schema_file.as_ref() {
+            let _ = std::fs::remove_file(path);
+        }
         return Err("Codex 响应超时".to_string());
     }
     if !output.success {
         let _ = std::fs::remove_file(&out_file);
+        if let Some(path) = schema_file.as_ref() {
+            let _ = std::fs::remove_file(path);
+        }
         return Err(map_cli_error("codex", &output));
     }
     let text = std::fs::read_to_string(&out_file).unwrap_or_else(|_| output.stdout.clone());
     let _ = std::fs::remove_file(&out_file);
+    if let Some(path) = schema_file.as_ref() {
+        let _ = std::fs::remove_file(path);
+    }
     extract_json_object(&text).ok_or_else(|| "输出里没有找到 JSON 对象".to_string())
 }
 
@@ -699,9 +843,22 @@ pub(crate) fn run_provider(
     timeout: Duration,
     model: Option<&str>,
 ) -> Result<String, String> {
+    run_provider_with_schema(provider, path, prompt, timeout, model, None)
+}
+
+/// 运行 provider 并要求按 JSON Schema 返回结构化结果。旧调用继续走无 Schema 包装，
+/// 融合 V2 的概念/绘制阶段使用本入口。
+pub(crate) fn run_provider_with_schema(
+    provider: Provider,
+    path: &Path,
+    prompt: &str,
+    timeout: Duration,
+    model: Option<&str>,
+    schema: Option<&Value>,
+) -> Result<String, String> {
     match provider {
-        Provider::Claude => run_claude(path, prompt, timeout, model),
-        Provider::Codex => run_codex(path, prompt, timeout, model),
+        Provider::Claude => run_claude(path, prompt, timeout, model, schema),
+        Provider::Codex => run_codex(path, prompt, timeout, model, schema),
     }
 }
 
@@ -760,7 +917,10 @@ mod tests {
         std::fs::write(&shim, "#!/bin/sh\n").unwrap();
         std::fs::write(&cmd, "@echo off\n").unwrap();
         // where 的典型输出顺序：无扩展名壳在前
-        assert_eq!(pick_spawnable(&[shim.clone(), cmd.clone()]), Some(cmd.clone()));
+        assert_eq!(
+            pick_spawnable(&[shim.clone(), cmd.clone()]),
+            Some(cmd.clone())
+        );
         // 只有无扩展名壳时，补扩展名兜底也能找到 .cmd
         assert_eq!(pick_spawnable(&[shim.clone()]), Some(cmd.clone()));
         let _ = std::fs::remove_dir_all(&dir);

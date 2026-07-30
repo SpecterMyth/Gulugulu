@@ -5,6 +5,7 @@ import type {
   DailyCounters,
   EggInstance,
   EnergyFeedOutcome,
+  FactoryRogueAchievementSnapshot,
   FusionProgress,
   FusionStartResult,
   GameConfig,
@@ -30,6 +31,7 @@ import {
   fusionDailyMintCap,
   fusionFeeFor,
   fusionResult,
+  fusionResultTier,
   hatcherySlotCount,
   isMaxLevel,
   isTestConfigRequested,
@@ -41,6 +43,11 @@ import {
   speciesForSet,
   staminaRegenSecondsFor,
   tokensPerExp,
+  trainingHallUpgradeCost,
+  trainingSlotCount,
+  trainingSlotUpgradeCost,
+  trainingStepFor,
+  universalMaterial,
   yardCapacityFor,
 } from "./config";
 import {
@@ -280,9 +287,23 @@ function firstFreeSlot(config: GameConfig, save: GameSave): number | null {
   return null;
 }
 
+function occupiedPetCount(save: GameSave): number {
+  const exempt = new Set(save.capacityExemptPetIds ?? []);
+  return save.pets.filter((pet) => !exempt.has(pet.id)).length;
+}
+
+const ONBOARDING_STEPS = [
+  "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11",
+  "A12", "A13", "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06",
+  "B07", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
+  "C11", "C12", "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "E01",
+  "E02", "E03", "F01", "F02", "F03a", "F04", "G01", "G02", "G03", "G04", "G05",
+  "G06", "G07", "DONE",
+] as const;
+
 function createInitialSave(config: GameConfig, now: number, today: string): GameSave {
   return {
-    version: 7,
+    version: 10,
     coins: config.initialCoins,
     pets: [],
     eggs: [
@@ -298,10 +319,30 @@ function createInitialSave(config: GameConfig, now: number, today: string): Game
     hatcheryLevel: 1,
     yardLevel: 1,
     shopLevel: 1,
+    trainingHallLevel: 0,
+    trainingSlotLevel: 1,
+    trainingJobs: [],
+    materials: {},
     activePetId: null,
     lastSeenProjectTokens: {},
     daily: emptyDaily(today),
     tutorialStep: 0,
+    onboarding: {
+      version: 6,
+      status: "active",
+      step: "A01",
+      tutorialWorkClicks: 0,
+      tutorialFusions: 0,
+      starterTrioClaimed: false,
+      postPracticeRosterClaimed: false,
+      factoryFormalEntered: false,
+      agentPromptSkipped: false,
+      steamMarketOpenAttempted: false,
+    },
+    factoryTutorial: { version: 2, status: "active", step: "C01" },
+    capacityExemptPetIds: [],
+    trainingTutorialBoostClaimed: false,
+    staminaTutorialRescueClaimed: false,
     lastSeenAt: now,
     customSpecies: {},
     dexObtained: {},
@@ -367,6 +408,38 @@ function migrateSave(config: GameConfig, save: GameSave, now: number, today: str
     save.skinSelected ??= {};
     save.version = 6;
   }
+  if ((save.version ?? 1) < 10) {
+    const legacyGraduated =
+      save.tutorialStep >= 11 ||
+      save.tutorialFirstFusionDone === true ||
+      (save.stats?.factoryRogueRunsStarted ?? 0) >= 1;
+    save.onboarding = {
+      version: 6,
+      status: legacyGraduated ? "completed" : "active",
+      step: legacyGraduated ? "DONE" : "A01",
+      tutorialWorkClicks: 0,
+      tutorialFusions: 0,
+      starterTrioClaimed: false,
+      postPracticeRosterClaimed: false,
+      factoryFormalEntered: (save.stats?.factoryRogueRunsStarted ?? 0) >= 1,
+      agentPromptSkipped: false,
+      steamMarketOpenAttempted: false,
+    };
+    save.factoryTutorial = {
+      version: 2,
+      status: (save.stats?.factoryRogueRunsStarted ?? 0) >= 1 ? "completed" : "active",
+      step: (save.stats?.factoryRogueRunsStarted ?? 0) >= 1 ? "C12" : "C01",
+    };
+    save.capacityExemptPetIds ??= [];
+    save.trainingTutorialBoostClaimed ??= false;
+    save.staminaTutorialRescueClaimed ??= false;
+    save.version = 10;
+  }
+  save.onboarding ??= createInitialSave(config, now, today).onboarding;
+  save.factoryTutorial ??= { version: 2, status: "active", step: "C01" };
+  save.capacityExemptPetIds ??= [];
+  save.trainingTutorialBoostClaimed ??= false;
+  save.staminaTutorialRescueClaimed ??= false;
   save.lastSeenProjectTokens ??= {};
   for (const pet of save.pets) {
     pet.keyBuffer ??= 0;
@@ -524,6 +597,16 @@ export class MockGameEngine {
     }
     const coins = clickCoinsFor(config, pet.tier, pet.level);
     const { applied, leveled } = gainExp(config, pet, clickExpFor(config, pet.tier));
+    const onboarding = this.save.onboarding;
+    if (onboarding?.status === "active" && onboarding.tutorialWorkClicks < 20) {
+      onboarding.tutorialWorkClicks += 1;
+      if (onboarding.tutorialWorkClicks >= 20) {
+        pet.level = maxLevelForTier(config, pet.tier);
+        pet.exp = 0;
+        pet.stamina = config.staminaMax;
+        pet.exhausted = false;
+      }
+    }
     this.save.coins += coins;
     this.save.daily.clicks += 1;
     return {
@@ -553,7 +636,12 @@ export class MockGameEngine {
       throw new Error(`#eggDailyCap|recipe=${element}|tier=${tier}|cap=${cap}`);
     }
     const price = eggPriceFor(config, element, tier);
-    if (this.save.coins < price) throw new Error("#notEnoughCoins");
+    const reimbursed =
+      this.save.onboarding?.status === "active" &&
+      tier === 1 &&
+      element === "fire" &&
+      this.save.tutorialFirstEggBought !== true;
+    if (this.save.coins < price && !reimbursed) throw new Error("#notEnoughCoins");
     const species = rollEggSpecies(
       config,
       element,
@@ -561,14 +649,19 @@ export class MockGameEngine {
       Math.floor(Math.random() * 0x100000000),
     );
     if (!species) throw new Error("#noMatchingSpecies");
-    this.save.coins -= price;
+    if (!reimbursed) this.save.coins -= price;
     mints[mintKey] = (mints[mintKey] ?? 0) + 1;
     const hatchKind = tier <= 1 ? element : `tier${tier}`;
-    const slot = firstFreeSlot(config, this.save);
-    // 教学硬编码：首次商店购买固定 30s（OnboardingCoach.md §3.1；镜像 economy.rs）。
+    // Keep the first guided fire egg in inventory so A13 always teaches manual placement.
+    const tutorialManualPlacement = reimbursed;
+    const slot = tutorialManualPlacement ? null : firstFreeSlot(config, this.save);
+    // v6 商店教学蛋 5s（OnboardingGuidance.md §2.1；镜像 economy.rs）。
     const firstBuy = !this.save.tutorialFirstEggBought;
-    const hatchSecs = firstBuy && slot != null ? 30 : config.hatchSeconds[hatchKind] ?? 180;
-    if (firstBuy && slot != null) this.save.tutorialFirstEggBought = true;
+    const tutorialActive =
+      this.save.onboarding?.status === "active" &&
+      this.save.onboarding.factoryFormalEntered !== true;
+    const hatchSecs = tutorialActive && slot != null ? 5 : config.hatchSeconds[hatchKind] ?? 180;
+    if (firstBuy && (slot != null || tutorialManualPlacement)) this.save.tutorialFirstEggBought = true;
     this.save.eggs.push({
       id: newId("egg"),
       species,
@@ -592,11 +685,15 @@ export class MockGameEngine {
     if (!egg) throw new Error("#eggNotFound");
     if (egg.slot != null) throw new Error("#eggAlreadyIncubating");
     egg.slot = slot;
-    egg.hatchAt = now + (config.hatchSeconds[egg.hatchKind] ?? 180);
+    const formal = config.hatchSeconds[egg.hatchKind] ?? 180;
+    const tutorialActive =
+      this.save.onboarding?.status === "active" &&
+      this.save.onboarding.factoryFormalEntered !== true;
+    egg.hatchAt = now + (tutorialActive ? Math.min(formal, 8) : formal);
     return this.commit();
   }
 
-  // 催蛋：点击孵化中的蛋，孵化时间 −1s（OnboardingCoach.md #2；镜像 logic_poke_egg）。
+  // 催蛋：点击孵化中的蛋，孵化时间 −1s（OnboardingGuidance.md；镜像 logic_poke_egg）。
   pokeEgg(eggId: string): GameSave {
     const now = nowSecs();
     const egg = this.save.eggs.find((e) => e.id === eggId);
@@ -615,7 +712,7 @@ export class MockGameEngine {
     const egg = this.save.eggs[index];
     if (egg.slot == null || egg.hatchAt == null || now < egg.hatchAt) throw new Error("#eggNotReady");
     const capacity = yardCapacityFor(config, this.save.yardLevel);
-    if (this.save.pets.length >= capacity) throw new Error("#yardFull");
+    if (occupiedPetCount(this.save) >= capacity) throw new Error("#yardFull");
     this.save.eggs.splice(index, 1);
     // 镜像 Rust apply_collect（economy.rs）的 `egg.tier.max(1)`：蛋自身的 tier 才是权威阶数。
     // 旧实现让目录物种 tier 抢先（2 阶商店蛋掷中一阶目录物种 emberfox 时会错落成 1 阶），
@@ -636,6 +733,10 @@ export class MockGameEngine {
       keyBuffer: 0,
       tokenBuffer: 0,
     };
+    const directMax =
+      this.save.onboarding?.status === "active" &&
+      tier >= 2;
+    if (directMax) pet.level = maxLevelForTier(config, tier);
     this.save.pets.push(pet);
     if (!this.save.activePetId) this.save.activePetId = pet.id;
     return this.commit();
@@ -654,12 +755,21 @@ export class MockGameEngine {
     const petB = this.save.pets.find((p) => p.id === idB);
     if (!petA || !petB) throw new Error("#fusionPetsNotFound");
     if (petA.tier !== petB.tier) throw new Error("#fusionTierMismatch");
-    // 融合 2.0：同阶 1~5 可融（结果 = 亲代阶 +1），两只 6 阶已达顶。
-    if (petA.tier < 1 || petA.tier > 5) throw new Error("#fusionMaxTier");
+    // 经济 v2.0：同阶 1~6 可融；亲代阶达 fusionMaxResultTier 时只取并集、不涨阶。
+    if (petA.tier < 1 || petA.tier > 6) throw new Error("#fusionMaxTier");
     if (!isMaxLevel(config, petA) || !isMaxLevel(config, petB)) {
       throw new Error("#fusionNeedMaxLevel");
     }
-    if (this.save.coins < fusionFeeFor(config, petA.tier)) throw new Error("#fusionNeedFee");
+    // 同物种 + 不涨阶 = 并集即自身、阶数不变 → 纯亏两只。
+    if (petA.species === petB.species && fusionResultTier(config, petA.tier) === petA.tier) {
+      throw new Error("#fusionSameSpeciesNoGain");
+    }
+    const tutorialReimbursed =
+      this.save.onboarding?.status === "active" &&
+      this.save.onboarding.tutorialFusions < 2;
+    if (this.save.coins < fusionFeeFor(config, petA.tier) && !tutorialReimbursed) {
+      throw new Error("#fusionNeedFee");
+    }
     // 每日融合上限（镜像 logic_validate_fusion_pair；EconomyScaling.md §7.5）。
     // 传配方**键**（recipe=），显示端 recipeLabel 按语言渲染。
     const recipeKey = elementSetKey([
@@ -694,8 +804,10 @@ export class MockGameEngine {
   ): { resultSpecies: string; resultTier: number; fee: number; recipeKey: string; kind: string; slot?: number } {
     const config = this.config;
     const tier = petA.tier;
-    const fee = fusionFeeFor(config, tier);
-    const resultTier = tier + 1;
+    const tutorialReimbursed =
+      this.save.onboarding?.status === "active" && this.save.onboarding.tutorialFusions < 2;
+    const fee = tutorialReimbursed ? 0 : fusionFeeFor(config, tier);
+    const resultTier = fusionResultTier(config, tier);
     const elements = [
       ...(this.speciesInfoAny(petA.species)?.elements ?? []),
       ...(this.speciesInfoAny(petB.species)?.elements ?? []),
@@ -740,12 +852,18 @@ export class MockGameEngine {
   private consumeFusionPair(idA: string, idB: string, fee: number, recipeKey: string) {
     this.save.coins = Math.max(0, this.save.coins - fee);
     this.save.pets = this.save.pets.filter((p) => p.id !== idA && p.id !== idB);
+    this.save.capacityExemptPetIds = (this.save.capacityExemptPetIds ?? []).filter(
+      (id) => id !== idA && id !== idB,
+    );
     if (this.save.activePetId === idA || this.save.activePetId === idB) {
       this.save.activePetId = this.save.pets[0]?.id ?? null;
     }
     // 每日融合计数（镜像 consume_fusion_pair → record_fusion_mint）。
     const mints = (this.save.daily.fusionMints ??= {});
     mints[recipeKey] = (mints[recipeKey] ?? 0) + 1;
+    if (this.save.onboarding?.status === "active" && this.save.onboarding.tutorialFusions < 2) {
+      this.save.onboarding.tutorialFusions += 1;
+    }
   }
 
   private pushFusionEgg(
@@ -756,7 +874,13 @@ export class MockGameEngine {
   ): string {
     const slot = firstFreeSlot(this.config, this.save);
     const hatchKind = `tier${tier}`;
-    const hatchSecs = this.config.hatchSeconds[hatchKind] ?? this.config.hatchSeconds.tier2 ?? 1800;
+    const formalHatchSecs =
+      this.config.hatchSeconds[hatchKind] ?? this.config.hatchSeconds.tier2 ?? 1800;
+    const hatchSecs =
+      this.save.onboarding?.status === "active" &&
+      this.save.onboarding.factoryFormalEntered !== true
+        ? 8
+        : formalHatchSecs;
     const eggId = newId("egg");
     this.save.eggs.push({
       id: eggId,
@@ -793,13 +917,18 @@ export class MockGameEngine {
     const plan = this.planFusion(petA, petB, Math.floor(Math.random() * 0x7fffffff), true);
 
     // #9 首次融合必产经典配方（不走 AI）+ 蛋 1 分钟孵化（镜像 fusion_gen.rs）。
+    const tutorialFusion =
+      this.save.onboarding?.status === "active" &&
+      this.save.onboarding.tutorialFusions < 2;
     const firstFusion = !this.save.tutorialFirstFusionDone;
-    if (firstFusion || plan.kind !== "generate") {
+    if (tutorialFusion || firstFusion || plan.kind !== "generate") {
       this.consumeFusionPair(idA, idB, plan.fee, plan.recipeKey);
       const eggId = this.pushFusionEgg(plan.resultSpecies, plan.resultTier, now);
-      if (firstFusion) {
+      if (tutorialFusion || firstFusion) {
         const egg = this.save.eggs.find((e) => e.id === eggId);
-        if (egg?.hatchAt != null) egg.hatchAt = now + 60;
+        if (egg?.hatchAt != null) egg.hatchAt = now + 8;
+      }
+      if (firstFusion) {
         this.save.tutorialFirstFusionDone = true;
       }
       return { mode: "recipe", save: this.commit(), eggId, species: plan.resultSpecies };
@@ -1032,8 +1161,9 @@ export class MockGameEngine {
     if (level >= config.hatcherySlots.length) throw new Error("#hatcheryMaxLevel");
     const cost = config.hatcheryUpgradeCosts[level - 1];
     if (cost == null) throw new Error("#missingUpgradeCost");
-    if (this.save.coins < cost) throw new Error("#notEnoughCoins");
-    this.save.coins -= cost;
+    const reimbursed = this.save.onboarding?.status === "active" && level === 1;
+    if (this.save.coins < cost && !reimbursed) throw new Error("#notEnoughCoins");
+    if (!reimbursed) this.save.coins -= cost;
     this.save.hatcheryLevel += 1;
     return this.commit();
   }
@@ -1045,8 +1175,9 @@ export class MockGameEngine {
     if (level >= config.yardCapacity.length) throw new Error("#yardMaxLevel");
     const cost = config.yardUpgradeCosts[level - 1];
     if (cost == null) throw new Error("#missingUpgradeCost");
-    if (this.save.coins < cost) throw new Error("#notEnoughCoins");
-    this.save.coins -= cost;
+    const reimbursed = this.save.onboarding?.status === "active" && level === 1;
+    if (this.save.coins < cost && !reimbursed) throw new Error("#notEnoughCoins");
+    if (!reimbursed) this.save.coins -= cost;
     this.save.yardLevel += 1;
     return this.commit();
   }
@@ -1063,6 +1194,222 @@ export class MockGameEngine {
     return this.commit();
   }
 
+  // ---- 训练馆（镜像 game/logic/training.rs）----
+
+  private materialCount(material: string): number {
+    return this.save.materials?.[material] ?? 0;
+  }
+
+  private takeMaterial(material: string, count: number) {
+    if (count <= 0) return;
+    const materials = (this.save.materials ??= {});
+    const left = Math.max(0, (materials[material] ?? 0) - count);
+    if (left === 0) delete materials[material];
+    else materials[material] = left;
+  }
+
+  private giveMaterial(material: string, count: number) {
+    if (count <= 0) return;
+    const materials = (this.save.materials ??= {});
+    materials[material] = (materials[material] ?? 0) + count;
+  }
+
+  /** 材料够不够 + 扣减拆分（万能券只补差额）；镜像 plan_material_spend。 */
+  private planMaterialSpend(material: string, need: number, useUniversal: boolean) {
+    const have = this.materialCount(material);
+    const main = Math.min(have, need);
+    const short = need - main;
+    if (short === 0) return { main, universal: 0 };
+    const fail = new Error(`#trainingNoMaterial|material=${material}|have=${have}|need=${need}`);
+    if (!useUniversal) throw fail;
+    if (this.materialCount(universalMaterial(this.config)) < short) throw fail;
+    return { main, universal: short };
+  }
+
+  buildTrainingHall(): GameSave {
+    const config = this.config;
+    settleAll(config, this.save, nowSecs(), todayString());
+    const level = this.save.trainingHallLevel ?? 0;
+    const cost = trainingHallUpgradeCost(config, level);
+    if (cost == null) throw new Error("#trainingHallMaxLevel");
+    const tutorialReimburse =
+      this.save.trainingTutorialBoostClaimed !== true &&
+      level === 0 &&
+      this.save.pets.some((pet) => {
+        if (pet.tier !== 1 || !isMaxLevel(config, pet)) return false;
+        const step = trainingStepFor(config, 1);
+        return step != null && this.materialCount(step.material) >= step.count;
+      });
+    if (this.save.coins < cost && !tutorialReimburse) throw new Error("#notEnoughCoins");
+    this.save.coins = Math.max(0, this.save.coins - cost);
+    this.save.trainingHallLevel = level + 1;
+    return this.commit();
+  }
+
+  upgradeTrainingSlots(): GameSave {
+    const config = this.config;
+    settleAll(config, this.save, nowSecs(), todayString());
+    if ((this.save.trainingHallLevel ?? 0) === 0) throw new Error("#trainingHallLocked");
+    const level = Math.max(1, this.save.trainingSlotLevel ?? 1);
+    const cost = trainingSlotUpgradeCost(config, level);
+    if (cost == null) throw new Error("#trainingSlotMaxLevel");
+    if (this.save.coins < cost) throw new Error("#notEnoughCoins");
+    this.save.coins -= cost;
+    this.save.trainingSlotLevel = level + 1;
+    return this.commit();
+  }
+
+  startTraining(petId: string, useUniversal: boolean): GameSave {
+    const config = this.config;
+    const now = nowSecs();
+    settleAll(config, this.save, now, todayString());
+    if ((this.save.trainingHallLevel ?? 0) === 0) throw new Error("#trainingHallLocked");
+    const pet = this.save.pets.find((p) => p.id === petId);
+    if (!pet) throw new Error("#petNotFound");
+    const jobs = (this.save.trainingJobs ??= []);
+    if (jobs.some((job) => job.petId === petId)) throw new Error("#trainingAlreadyRunning");
+    const step = trainingStepFor(config, pet.tier);
+    if (!step) throw new Error("#trainingMaxTier");
+    if ((this.save.trainingHallLevel ?? 0) < pet.tier) {
+      throw new Error(`#trainingHallTooLow|need=${pet.tier}`);
+    }
+    if (!isMaxLevel(config, pet)) throw new Error("#trainingNeedMaxLevel");
+    if (this.save.coins < step.coins) throw new Error("#notEnoughCoins");
+    const spend = this.planMaterialSpend(step.material, step.count, useUniversal);
+    const total = trainingSlotCount(config, this.save.trainingSlotLevel ?? 1);
+    let slot = -1;
+    for (let i = 0; i < total; i += 1) {
+      if (!jobs.some((job) => job.slot === i)) {
+        slot = i;
+        break;
+      }
+    }
+    if (slot < 0) throw new Error("#trainingNoSlot");
+
+    this.save.coins -= step.coins;
+    this.takeMaterial(step.material, spend.main);
+    this.takeMaterial(universalMaterial(config), spend.universal);
+    const tutorialBoost = pet.tier === 1 && this.save.trainingTutorialBoostClaimed !== true;
+    if (tutorialBoost) this.save.trainingTutorialBoostClaimed = true;
+    jobs.push({
+      id: newId("train"),
+      petId,
+      fromTier: pet.tier,
+      slot,
+      doneAt: now + (tutorialBoost ? 10 : step.seconds),
+    });
+    return this.commit();
+  }
+
+  collectTraining(jobId: string): GameSave {
+    const config = this.config;
+    const now = nowSecs();
+    settleAll(config, this.save, now, todayString());
+    const jobs = (this.save.trainingJobs ??= []);
+    const index = jobs.findIndex((job) => job.id === jobId);
+    if (index < 0) throw new Error("#trainingJobNotFound");
+    if (jobs[index].doneAt > now) throw new Error("#trainingNotDone");
+    const [job] = jobs.splice(index, 1);
+    // 宠物训练期间被消耗掉：槽位照常释放，静默丢弃。
+    const pet = this.save.pets.find((p) => p.id === job.petId);
+    if (pet) pet.tier = Math.min(6, pet.tier + 1); // 等级保留——训练是「还是这一只」
+    return this.commit();
+  }
+
+  claimFactoryLevels(maxLevel: number): GameSave {
+    const config = this.config;
+    settleAll(config, this.save, nowSecs(), todayString());
+    const cap = config.factoryMaxLevel ?? 30;
+    const target = Math.min(Math.max(0, Math.floor(maxLevel)), cap);
+    const claimed = this.save.daily.factoryClaimedLevel ?? 0;
+    if (target <= claimed) return this.commit();
+    const table = config.factoryRewardMaterials ?? [];
+    for (let level = claimed + 1; level <= target; level += 1) {
+      const material = table[Math.floor((level - 1) / 5)];
+      if (material) this.giveMaterial(material, 1);
+    }
+    this.save.daily.factoryClaimedLevel = target;
+    return this.commit();
+  }
+
+  /** 预览镜像：合并绝对高水位快照；真实 Tauri 版由 Rust 校验并持久化。 */
+  recordFactoryRogueAchievementSnapshot(snapshot: FactoryRogueAchievementSnapshot): GameSave {
+    const invalid = (field: string, reason: string) =>
+      new Error(`#factoryAchievementInvalid|field=${field}|reason=${reason}`);
+    const boundedInt = (field: string, value: number | undefined, max: number) => {
+      if (value == null) return 0;
+      if (!Number.isSafeInteger(value) || value < 0) throw invalid(field, "integer");
+      if (value > max) throw invalid(field, "hardCap");
+      return value;
+    };
+    const decimal = (field: string, raw: string | undefined) => {
+      if (raw == null) return 0;
+      if (!/^\d+$/.test(raw)) throw invalid(field, "integer");
+      const value = Number(raw);
+      if (!Number.isSafeInteger(value) || value > Number.MAX_SAFE_INTEGER) {
+        throw invalid(field, "hardCap");
+      }
+      return value;
+    };
+
+    const st = (this.save.stats ??= {});
+    const runsStarted = Math.max(
+      st.factoryRogueRunsStarted ?? 0,
+      boundedInt("runsStarted", snapshot.runsStarted, 1_000_000),
+    );
+    const runsFinished = Math.max(
+      st.factoryRogueRunsFinished ?? 0,
+      boundedInt("runsFinished", snapshot.runsFinished, 1_000_000),
+    );
+    if (runsFinished > runsStarted) throw invalid("runsFinished", "exceedsStarted");
+
+    const debtFree = snapshot.graduatedWithoutLoan === true;
+    const graduated = snapshot.graduated === true || debtFree;
+    const allInspections = snapshot.allInspectionsInOneRun === true;
+    const inferredShift =
+      graduated || allInspections ? 20 : snapshot.firstKpi || snapshot.firstCard ? 1 : 0;
+
+    st.factoryRogueRunsStarted = runsStarted;
+    st.factoryRogueRunsFinished = runsFinished;
+    st.factoryRogueBestRevenue = Math.max(
+      st.factoryRogueBestRevenue ?? 0,
+      decimal("bestRevenue", snapshot.bestRevenue),
+    );
+    st.factoryRogueBestShift = Math.max(
+      st.factoryRogueBestShift ?? 0,
+      boundedInt("bestShift", snapshot.bestShift, 10_000),
+      inferredShift,
+    );
+    st.factoryRogueBestPulse = Math.max(
+      st.factoryRogueBestPulse ?? 0,
+      decimal("bestPulse", snapshot.bestPulse),
+    );
+    st.factoryRogueBestCombo = Math.max(
+      st.factoryRogueBestCombo ?? 0,
+      boundedInt("bestCombo", snapshot.bestCombo, 1_000_000),
+    );
+    st.factoryRogueBestDesks = Math.max(
+      st.factoryRogueBestDesks ?? 0,
+      boundedInt("bestDesks", snapshot.bestDesks, 6),
+    );
+    st.factoryRogueMaxUpgradeLevels = Math.max(
+      st.factoryRogueMaxUpgradeLevels ?? 0,
+      boundedInt("maxUpgradeLevels", snapshot.maxUpgradeLevels, 10_000),
+    );
+    st.factoryRogueMaxLoadout = Math.max(
+      st.factoryRogueMaxLoadout ?? 0,
+      boundedInt("maxLoadout", snapshot.maxLoadout, 10),
+    );
+    st.factoryRogueFirstKpi ||= snapshot.firstKpi === true;
+    st.factoryRogueFirstCard ||= snapshot.firstCard === true;
+    st.factoryRogueFirstBankruptcy ||= snapshot.firstBankruptcy === true;
+    st.factoryRogueStrikeClear ||= snapshot.strikeClear === true;
+    if (allInspections) st.factoryRogueInspectionMask = 0b1111;
+    st.factoryRogueGraduated ||= graduated;
+    st.factoryRogueGraduatedWithoutLoan ||= debtFree;
+    return this.commit();
+  }
+
   releasePet(petId: string): ReleasePetResult {
     const config = this.config;
     settleAll(config, this.save, nowSecs(), todayString());
@@ -1075,6 +1422,7 @@ export class MockGameEngine {
     const refund =
       Math.floor(equivalent * config.releaseRefundRate) + config.releaseRefundPerLevel * pet.level;
     this.save.pets = this.save.pets.filter((p) => p.id !== petId);
+    this.save.capacityExemptPetIds = (this.save.capacityExemptPetIds ?? []).filter((id) => id !== petId);
     if (this.save.activePetId === petId) {
       this.save.activePetId = this.save.pets[0]?.id ?? null;
     }
@@ -1090,6 +1438,122 @@ export class MockGameEngine {
 
   advanceTutorial(step: number): GameSave {
     if (step > this.save.tutorialStep) this.save.tutorialStep = step;
+    return this.commit();
+  }
+
+  private grantOnboardingPet(element: string, capacityExempt: boolean): void {
+    const species = this.config.speciesByRecipe?.[element];
+    if (!species) throw new Error(`#missingRecipe|recipe=${element}`);
+    const id = newId("pet");
+    this.save.pets.push({
+      id,
+      species,
+      tier: 1,
+      level: maxLevelForTier(this.config, 1),
+      exp: 0,
+      stamina: this.config.staminaMax,
+      staminaUpdatedAt: nowSecs(),
+      exhausted: false,
+      keyBuffer: 0,
+      tokenBuffer: 0,
+    });
+    this.save.dexObtained ??= {};
+    this.save.dexObtained[species] = (this.save.dexObtained[species] ?? 0) + 1;
+    this.save.stats ??= {};
+    this.save.stats.firstMaxlevelDone = true;
+    this.save.stats.highestTier = Math.max(this.save.stats.highestTier ?? 0, 1);
+    if (capacityExempt) {
+      this.save.capacityExemptPetIds ??= [];
+      if (!this.save.capacityExemptPetIds.includes(id)) this.save.capacityExemptPetIds.push(id);
+    }
+    this.save.activePetId ??= id;
+  }
+
+  advanceOnboarding(completedStep: string): GameSave {
+    const state = this.save.onboarding;
+    if (!state || state.status === "completed") return this.commit();
+    const currentIndex = ONBOARDING_STEPS.indexOf(state.step as (typeof ONBOARDING_STEPS)[number]);
+    const completedIndex = ONBOARDING_STEPS.indexOf(
+      completedStep as (typeof ONBOARDING_STEPS)[number],
+    );
+    if (currentIndex < 0 || completedIndex < 0) throw new Error("#unknownOnboardingStep");
+    if (completedIndex < currentIndex) return this.commit();
+    const completesRealFirstShift =
+      completedStep === "C12" && ONBOARDING_STEPS[currentIndex]?.startsWith("C");
+    if (completedIndex > currentIndex && !completesRealFirstShift) {
+      throw new Error(`#onboardingOutOfOrder|expected=${state.step}|got=${completedStep}`);
+    }
+    if (completedStep === "A03") {
+      const active = this.save.pets.find((pet) => pet.id === this.save.activePetId);
+      if (active) {
+        active.level = maxLevelForTier(this.config, active.tier);
+        active.exp = 0;
+        active.stamina = this.config.staminaMax;
+        active.exhausted = false;
+      }
+    } else if (completedStep === "A15") {
+      state.tutorialWorkClicks = 0;
+    } else if (completedStep === "B05" && !state.starterTrioClaimed) {
+      for (const element of ["water", "electric", "ice"]) this.grantOnboardingPet(element, false);
+      state.starterTrioClaimed = true;
+    } else if (completedStep === "C12") {
+      if (!state.postPracticeRosterClaimed) {
+        for (const element of ["normal", "fire", "water", "grass", "electric", "ice"]) {
+          this.grantOnboardingPet(element, true);
+        }
+        state.postPracticeRosterClaimed = true;
+      }
+      this.save.factoryTutorial = { version: 2, status: "completed", step: "C12" };
+    } else if (completedStep === "E02") {
+      state.factoryFormalEntered = true;
+    } else if (completedStep === "G03") {
+      state.steamMarketOpenAttempted = true;
+    } else if (completedStep === "G07") {
+      state.status = "completed";
+      state.step = "DONE";
+      this.save.tutorialStep = Math.max(this.save.tutorialStep, 11);
+      return this.commit();
+    }
+    state.step = completesRealFirstShift
+      ? ONBOARDING_STEPS[ONBOARDING_STEPS.indexOf("C12") + 1]
+      : ONBOARDING_STEPS[currentIndex + 1];
+    return this.commit();
+  }
+
+  advanceFactoryTutorial(completedStep: string): GameSave {
+    const state = (this.save.factoryTutorial ??= { version: 2, status: "active", step: "C01" });
+    if (state.status === "completed") return this.commit();
+    const currentIndex = ONBOARDING_STEPS.indexOf(state.step as (typeof ONBOARDING_STEPS)[number]);
+    const completedIndex = ONBOARDING_STEPS.indexOf(
+      completedStep as (typeof ONBOARDING_STEPS)[number],
+    );
+    if (currentIndex < 0 || completedIndex < 0) throw new Error("#unknownFactoryTutorialStep");
+    if (completedIndex < currentIndex) return this.commit();
+    if (completedIndex > currentIndex && completedStep !== "C12") {
+      throw new Error(`#factoryTutorialOutOfOrder|expected=${state.step}|got=${completedStep}`);
+    }
+    if (completedStep === "C12") {
+      state.status = "completed";
+      state.step = "C12";
+      return this.commit();
+    }
+    state.step = ONBOARDING_STEPS[currentIndex + 1];
+    return this.commit();
+  }
+
+  skipOnboardingAgent(): GameSave {
+    if (this.save.onboarding) this.save.onboarding.agentPromptSkipped = true;
+    return this.commit();
+  }
+
+  claimStaminaTutorialRescue(): GameSave {
+    if (this.save.staminaTutorialRescueClaimed === true) return this.commit();
+    const active = this.save.pets.find((pet) => pet.id === this.save.activePetId);
+    if (!active) throw new Error("#petNotFound");
+    if (!active.exhausted) throw new Error("#staminaTutorialNotExhausted");
+    active.stamina = Math.min(this.config.staminaMax, Math.max(active.stamina, this.config.wakeThreshold));
+    active.exhausted = false;
+    this.save.staminaTutorialRescueClaimed = true;
     return this.commit();
   }
 

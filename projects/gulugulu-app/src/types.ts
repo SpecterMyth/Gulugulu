@@ -205,6 +205,8 @@ export type DailyCounters = {
   coinsEarned?: number;
   releases?: number;
   nightOwl?: boolean;
+  /** 今日已领取奖励的工厂最高关（每关每自然日只领一次；重复冲不重复发料）。 */
+  factoryClaimedLevel?: number;
 };
 
 /** 某一本地日结束时归档的「当日战报」（WelcomeBack 昨日总结）。镜像 Rust DailyDigest。
@@ -261,11 +263,113 @@ export type LifetimeStats = {
   firstReleaseDone?: boolean;
   dailyCapReachedEver?: boolean;
   nightOwl?: boolean;
+  /** 训练馆升阶成功总次数。 */
+  totalTierUps?: number;
+  /** 旧训练馆材料玩法的历史最高关；不得用于 Roguelike 成就。 */
+  factoryBestLevel?: number;
+  // 《危楼打工记》Roguelike 终身统计；镜像 Rust，同为单调计数/高水位/旗标。
+  factoryRogueRunsStarted?: number;
+  factoryRogueRunsFinished?: number;
+  factoryRogueRewardedRun?: number;
+  factoryRogueRewardedRevenue?: number;
+  factoryRogueBestRevenue?: number;
+  factoryRogueBestShift?: number;
+  factoryRogueBestPulse?: number;
+  factoryRogueBestCombo?: number;
+  factoryRogueBestDesks?: number;
+  factoryRogueMaxUpgradeLevels?: number;
+  factoryRogueMaxLoadout?: number;
+  factoryRogueFirstKpi?: boolean;
+  factoryRogueFirstCard?: boolean;
+  factoryRogueFirstBankruptcy?: boolean;
+  factoryRogueStrikeClear?: boolean;
+  /** 单局检查见证：bit 0/1/2/3 = 第 5/10/15/20 班；禁止跨局 OR。 */
+  factoryRogueInspectionMask?: number;
+  factoryRogueGraduated?: boolean;
+  factoryRogueGraduatedWithoutLoan?: boolean;
+};
+
+/** 《危楼打工记》成就统计的绝对快照。省略字段保持不变；数值只取 max、旗标只做 OR。
+ *  营收/脉冲用十进制整数字符串，避免大数经过 JSON 时丢精度。 */
+export type FactoryRogueAchievementSnapshot = {
+  runsStarted?: number;
+  runsFinished?: number;
+  bestRevenue?: string;
+  bestShift?: number;
+  bestPulse?: string;
+  bestCombo?: number;
+  bestDesks?: number;
+  maxUpgradeLevels?: number;
+  maxLoadout?: number;
+  firstKpi?: boolean;
+  firstCard?: boolean;
+  firstBankruptcy?: boolean;
+  strikeClear?: boolean;
+  /** 只在同一局确实通过第 5/10/15/20 班全部检查后传 true；不传部分 mask。 */
+  allInspectionsInOneRun?: boolean;
+  graduated?: boolean;
+  graduatedWithoutLoan?: boolean;
+  rewardCoins?: string;
+};
+
+/** 一局真实结算后提交给 Steam 最高营收榜的数据。 */
+export type FactoryLeaderboardResult = {
+  revenueTotal: string;
+  bestShift: number;
+  endless: boolean;
+  balanceVersion: number;
+};
+
+/** `factory://leaderboard` / get_factory_leaderboard_status 的状态快照。 */
+export type FactoryLeaderboardStatus = {
+  apiName: string;
+  scoreUnit: number;
+  localBestRevenue: string | null;
+  steamScore: number | null;
+  pending: boolean;
+  globalRank: number | null;
+  leaderboardAvailable: boolean;
+  lastError: string | null;
+  newPersonalBest?: boolean;
 };
 
 /** achievement://unlocked 事件载荷（镜像 Rust AchievementUnlock）。
  *  仅带 id；id→显示名映射在 game/achievements.ts。 */
 export type AchievementUnlock = { id: string };
+
+/** 一次进行中的训练（镜像 Rust TrainingJob）。到点收取 → 宠物 tier +1、**等级保留**。 */
+export type TrainingJob = {
+  id: string;
+  petId: string;
+  /** 起始阶（结果阶 = fromTier + 1）；开练瞬间快照。 */
+  fromTier: number;
+  /** 占用的训练槽序号（0 起）。 */
+  slot: number;
+  /** 训练完成的时刻（秒）。 */
+  doneAt: number;
+};
+
+export type OnboardingStatus = "active" | "completed";
+
+export type OnboardingState = {
+  version: number;
+  status: OnboardingStatus;
+  /** Persistent route cursor, A01…G07. */
+  step: string;
+  tutorialWorkClicks: number;
+  tutorialFusions: number;
+  starterTrioClaimed: boolean;
+  postPracticeRosterClaimed: boolean;
+  factoryFormalEntered: boolean;
+  agentPromptSkipped: boolean;
+  steamMarketOpenAttempted: boolean;
+};
+
+export type FactoryTutorialState = {
+  version: number;
+  status: OnboardingStatus;
+  step: string;
+};
 
 export type GameSave = {
   version: number;
@@ -274,6 +378,14 @@ export type GameSave = {
   eggs: EggInstance[];
   hatcheryLevel: number;
   yardLevel: number;
+  /** 训练馆等级（0 = 未建造；L 级解锁「L → L+1 阶」升阶，封顶 5）。 */
+  trainingHallLevel?: number;
+  /** 训练槽等级（索引进 config.trainingSlots；缺省 1）。 */
+  trainingSlotLevel?: number;
+  /** 进行中的训练（长度 ≤ 当前槽数）。 */
+  trainingJobs?: TrainingJob[];
+  /** 升阶材料库存（材料 id → 数量）。产出源 = 工厂关卡奖励，消耗点 = 训练馆。 */
+  materials?: Record<string, number>;
   /** 商店等级 = 可售最高蛋阶（1~shopMaxLevel）。EconomyScaling.md §6.1。
    *  镜像 Rust GameSave.shopLevel（serde default 1；旧存档缺失按初始商店）。 */
   shopLevel?: number;
@@ -290,10 +402,20 @@ export type GameSave = {
   /** 清档夺权标记（连线时强制推云、跳过采纳）；仅后端置位，前端不用。 */
   cloudForcePush?: boolean;
   tutorialStep: number;
-  /** 教学硬编码：是否已购买过首颗商店蛋（首购蛋固定 30s，OnboardingCoach.md §3.1）。 */
+  /** 教学硬编码：是否已购买过首颗商店蛋（v6 商店教学蛋 5s，OnboardingGuidance.md §2.1）。 */
   tutorialFirstEggBought?: boolean;
-  /** 教学硬编码：是否已完成首次融合（首融必产经典配方 + 5min 孵化，OnboardingCoach.md §3.1）。 */
+  /** 旧存档兼容标记；v6 前两次教学融合由 onboarding.tutorialFusions 判定并固定 8s。 */
   tutorialFirstFusionDone?: boolean;
+  /** v6 强制新手引导的存档真源。 */
+  onboarding?: OnboardingState;
+  /** 《职场叠叠乐》真实第一班教学的兼容进度。 */
+  factoryTutorial?: FactoryTutorialState;
+  /** 不占后院容量的新手奖励宠 id。 */
+  capacityExemptPetIds?: string[];
+  /** 首次 1→2 实训的 10 秒加速已使用。 */
+  trainingTutorialBoostClaimed?: boolean;
+  /** 首次精力耗尽的五键应急充能已领取。 */
+  staminaTutorialRescueClaimed?: boolean;
   lastSeenAt: number;
   /** AI 融合诞生的自定义物种（codename → 完整设定），随存档持久化。 */
   customSpecies: Record<string, CustomSpeciesEntry>;
@@ -355,6 +477,8 @@ export type SteamOp =
       /** true = 本地先行（二阶：即时应用，ExchangeItems 由泵烧材料+铸结果回绑到 eggId/petId）；
        *  省略/false = 旧写前意图（三阶+ Steam 先行）。 */
       applied?: boolean;
+      /** 两件材料已从 Steam 消失、结果尚未进入快照；仅等待对账，不得重复兑换或清除任务。 */
+      awaitingResult?: boolean;
       /** 材料 A/B 待铸的一阶 def（itemA/itemB 为空时泵先 TriggerItemDrop 铸出；已同步 Steam=0）。 */
       matDefA?: number;
       matDefB?: number;
@@ -506,6 +630,22 @@ export type AppSettings = {
   autostart: boolean;
   /** 「融合领新宠 → 引导开机自启」弹窗已展示次数（0..=3；加入自启或到上限后不再弹）。 */
   autostartPromptCount: number;
+  /** AI 融合首选 Agent（"claude" | "codex"）。生成时优先用它（不可用回退另一个）。 */
+  defaultAgent: string;
+  /** AI 融合首选模型（首选 Agent 下的模型别名；空串 = CLI 默认模型）。 */
+  defaultModel: string;
+};
+
+/** 一个 Agent 的可选模型（下拉项；id = 传给 CLI 的模型别名，label = 展示名）。 */
+export type AgentModelOption = {
+  id: string;
+  label: string;
+};
+
+/** 两个 Agent 的可用模型目录（设置面板「默认模型」下拉数据源）。 */
+export type AgentModels = {
+  claude: AgentModelOption[];
+  codex: AgentModelOption[];
 };
 
 export type ReleasePetResult = {
@@ -591,10 +731,33 @@ export type GameConfig = {
   // ---- 经济纵深（EconomyScaling.md）----
   /** 分阶蛋价乘数：T 阶蛋价 = 1 阶基价 × 此值^(阶−1)（默认 15）。 */
   eggTierPriceMultiplier?: number;
-  /** 商店最高等级 = 可售最高蛋阶（默认 4；5~6 阶纯融合专属）。 */
+  /** 商店最高等级 = 可售最高蛋阶（默认 3；4~6 阶只能靠训练馆升阶得来）。 */
   shopMaxLevel?: number;
-  /** 商店升级费（索引 = 当前 shopLevel − 1；Lv1→2 / 2→3 / 3→4）。 */
+  /** 商店升级费（索引 = 当前 shopLevel − 1；Lv1→2 / 2→3）。 */
   shopUpgradeCosts?: number[];
+  // ---- 训练馆与升阶材料（EconomyRework-TrainingHall.md）----
+  /** 融合能达到的最高结果阶（默认 3）。亲代阶达此值时同阶仍可融、只取并集不涨阶。 */
+  fusionMaxResultTier?: number;
+  /** 各级升阶所需材料 id（索引 = 起始阶 − 1，共 5 项：1→2 … 5→6）。 */
+  trainingMaterials?: string[];
+  /** 各级升阶所需材料数量（索引同 trainingMaterials）。 */
+  trainingMaterialCounts?: number[];
+  /** 各级升阶的金币费（索引同上）。 */
+  trainingCosts?: number[];
+  /** 各级升阶的训练耗时（秒，索引同上）。 */
+  trainingSeconds?: number[];
+  /** 训练馆建造/升级费（索引 = 当前馆等级；索引 0 = 建造费）。 */
+  trainingHallUpgradeCosts?: number[];
+  /** 训练槽数量阶梯（索引 = trainingSlotLevel − 1）。 */
+  trainingSlots?: number[];
+  /** 训练槽扩容费（索引 = 当前 trainingSlotLevel − 1）。 */
+  trainingSlotUpgradeCosts?: number[];
+  /** 万能券材料 id：可 1:1 替代任意一种升阶材料。 */
+  universalMaterial?: string;
+  /** 工厂关卡上限（材料领取的 clamp 上界）。 */
+  factoryMaxLevel?: number;
+  /** 工厂关卡奖励材料表：第 L 关产出 factoryRewardMaterials[(L−1)/5] × 1。 */
+  factoryRewardMaterials?: string[];
   /** 蛋池元素数稀有度衰减分母：整数权重 w(c)=denom^(6−c)（denom=3 → falloff 1/3）。 */
   eggRarityFalloffDenom?: number;
   /** 每日蛋产出上限（索引 = 蛋阶 − 1，[10,8,6,3]，全 ≤10=Steam drop_max_per_window 上限）；
@@ -746,6 +909,10 @@ export type CustomVisualSpec = {
   iris?: string | null;
   /** 待机嘴型（smile/cat/fang/smirk/open/pout/flat）；缺省 smile。 */
   mouthStyle?: string | null;
+  /** AI 宠物移动节奏；缺省时保持旧动画。 */
+  motionPreset?: "waddle" | "trot" | "bound" | "scuttle" | "slither" | "float" | "sway" | null;
+  /** 仅改变移动、点击与庆祝表情；工作/进食/睡眠/错误等语义状态不变。 */
+  reactionProfile?: "sunny" | "shy" | "cool" | "sleepy" | "mischievous" | null;
   toolId?: string | null;
   floating?: boolean;
   slots: Record<string, SlotSpec>;
@@ -755,6 +922,16 @@ export type CustomVisualSpec = {
   customRig?: CustomRig | null;
   /** 角色专属打工粒子（缺省时渲染层按调色板合成兜底）。 */
   workFx?: CustomWorkFx | null;
+};
+
+export type GeneratedDesignMeta = {
+  promptVersion: string;
+  prototype: string;
+  archetype: string;
+  heroFeature: string;
+  personality: string;
+  paletteFamily: string;
+  qualityScore: number;
 };
 
 /** 存档里的一条自定义物种记录。 */
@@ -767,6 +944,8 @@ export type CustomSpeciesEntry = {
   /** 出处:"local" = 本机 CLI 生成;"workshop" = 工坊下载的他人设计;
    *  缺省 = v6 之前的存量条目(不可知,不得据此重发布)。镜像 Rust origin。 */
   origin?: string | null;
+  /** V2 概念与质量记录；旧条目缺省。 */
+  designMeta?: GeneratedDesignMeta | null;
 };
 
 /** 皮肤获取途径:"first" 首发者形象 | "shared" 分享文本/上传者列表安装。 */
@@ -858,7 +1037,17 @@ export type AgentConnections = {
 
 export type FusionProgress = {
   eggId: string;
-  phase: "queued" | "generating" | "retrying" | "validating" | "resolved" | "failed";
+  phase:
+    | "queued"
+    | "generating"
+    | "retrying"
+    | "validating"
+    | "ideating"
+    | "drawing"
+    | "reviewing"
+    | "revising"
+    | "resolved"
+    | "failed";
   provider?: string | null;
   attempt: number;
   message?: string | null;

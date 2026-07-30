@@ -1,5 +1,6 @@
 mod agent_conn;
 mod cli_spawn;
+mod click_through;
 mod codex_adapter;
 mod fusion_gen;
 mod fusion_slots;
@@ -13,6 +14,7 @@ mod steam;
 mod steam_autostart;
 mod steam_cloud;
 mod steam_inventory;
+mod steam_leaderboard;
 mod steam_market;
 #[cfg(test)]
 mod steam_smoke;
@@ -32,10 +34,7 @@ use tauri::{
 };
 
 #[tauri::command]
-fn get_codex_status(
-    app: AppHandle,
-    state: tauri::State<'_, SharedCodexState>,
-) -> CodexStatus {
+fn get_codex_status(app: AppHandle, state: tauri::State<'_, SharedCodexState>) -> CodexStatus {
     let mut status = state.snapshot();
     // 累计 Token 改为全局口径：默认展示所有项目历史累计（all），并附带
     // 1d/1w/1m 时间窗，公告板据此本地切换——不再随「最后被监听的项目」跳变。
@@ -159,6 +158,43 @@ fn dock_backyard_window(app: AppHandle, height: f64) -> Result<(), String> {
     Ok(())
 }
 
+/// 工厂停靠布局：铺满当前显示器**整个工作区**（顶到屏幕顶、底贴任务栏上沿）。
+/// 天空全透明（场景只画底部办公室与顶部运输机），观感 = 桌面上空飘着一架
+/// 运输机往下空投打工仔。与后院同款：不置顶（其他窗口可盖上来）、不可拉伸；
+/// 用工作区而非整屏，规避 Win11 把「精确整屏窗口」判为全屏压暗任务栏的启发式。
+#[tauri::command]
+fn dock_factory_window(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window missing".to_string())?;
+    let position = window.outer_position().map_err(|error| error.to_string())?;
+
+    let work = window_tracker::work_area_at(position.x, position.y).or_else(|| {
+        window
+            .current_monitor()
+            .ok()
+            .flatten()
+            .map(|monitor| window_tracker::WindowBounds {
+                x: monitor.position().x,
+                y: monitor.position().y,
+                width: monitor.size().width as i32,
+                height: monitor.size().height as i32,
+            })
+    });
+    let work = work.ok_or_else(|| "no monitor".to_string())?;
+
+    let _ = window.set_always_on_top(false);
+    let _ = window.set_resizable(false);
+
+    window
+        .set_size(PhysicalSize::new(work.width as u32, work.height as u32))
+        .map_err(|error| error.to_string())?;
+    window
+        .set_position(PhysicalPosition::new(work.x, work.y))
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 /// 打开 Steam 交易市场（后院交易所建筑入口；后续接入具体物品页）。
 #[tauri::command]
 fn open_steam_market() -> Result<(), String> {
@@ -186,24 +222,25 @@ async fn ensure_fx_overlay(app: AppHandle) -> Result<(), String> {
     let window = match app.get_webview_window("fx") {
         Some(window) => window,
         None => {
-            let window = WebviewWindowBuilder::new(&app, "fx", WebviewUrl::App("index.html".into()))
-                .title("Gulugulu FX")
-                .transparent(true)
-                .decorations(false)
-                .shadow(false)
-                .resizable(false)
-                .maximizable(false)
-                .minimizable(false)
-                .skip_taskbar(true)
-                .always_on_top(true)
-                .focusable(false)
-                .focused(false)
-                .visible(false)
-                .build()
-                .map_err(|error| {
-                    eprintln!("[fx-overlay] build webview failed: {error}");
-                    error.to_string()
-                })?;
+            let window =
+                WebviewWindowBuilder::new(&app, "fx", WebviewUrl::App("index.html".into()))
+                    .title("Gulugulu FX")
+                    .transparent(true)
+                    .decorations(false)
+                    .shadow(false)
+                    .resizable(false)
+                    .maximizable(false)
+                    .minimizable(false)
+                    .skip_taskbar(true)
+                    .always_on_top(true)
+                    .focusable(false)
+                    .focused(false)
+                    .visible(false)
+                    .build()
+                    .map_err(|error| {
+                        eprintln!("[fx-overlay] build webview failed: {error}");
+                        error.to_string()
+                    })?;
             window
                 .set_ignore_cursor_events(true)
                 .map_err(|error| error.to_string())?;
@@ -226,10 +263,20 @@ async fn ensure_fx_overlay(app: AppHandle) -> Result<(), String> {
     match monitor {
         Some(monitor) => {
             window
-                .set_position(PhysicalPosition::new(monitor.position().x, monitor.position().y))
+                .set_position(PhysicalPosition::new(
+                    monitor.position().x,
+                    monitor.position().y,
+                ))
                 .map_err(|error| error.to_string())?;
+            // 高度比显示器少 1 物理像素：无边框窗边界**恰好**铺满整块显示器时会被
+            // Windows shell 判为全屏窗口，可见期间任务栏被切成不透明深色态（表现为
+            // 每次特效"任务栏压暗一下"）。原点不动，前端「主窗坐标 − monitor.position()」
+            // 的覆盖层换算不受影响；少的 1px 本就压在任务栏上，视觉无差。
             window
-                .set_size(PhysicalSize::new(monitor.size().width, monitor.size().height))
+                .set_size(PhysicalSize::new(
+                    monitor.size().width,
+                    monitor.size().height.saturating_sub(1),
+                ))
                 .map_err(|error| error.to_string())?;
         }
         None => {
@@ -266,20 +313,18 @@ fn position_bottom_right(window: &tauri::WebviewWindow) {
 
     // 优先用工作区（排除任务栏）；取不到时退回整块显示器区域。
     let pos = window.outer_position().ok();
-    let work = pos
-        .and_then(|p| window_tracker::work_area_at(p.x, p.y))
-        .or_else(|| {
-            window
-                .current_monitor()
-                .ok()
-                .flatten()
-                .map(|monitor| window_tracker::WindowBounds {
-                    x: monitor.position().x,
-                    y: monitor.position().y,
-                    width: monitor.size().width as i32,
-                    height: monitor.size().height as i32,
+    let work =
+        pos.and_then(|p| window_tracker::work_area_at(p.x, p.y))
+            .or_else(|| {
+                window.current_monitor().ok().flatten().map(|monitor| {
+                    window_tracker::WindowBounds {
+                        x: monitor.position().x,
+                        y: monitor.position().y,
+                        width: monitor.size().width as i32,
+                        height: monitor.size().height as i32,
+                    }
                 })
-        });
+            });
     let Some(work) = work else { return };
 
     let x = work.x + work.width - outer.width as i32 - MARGIN;
@@ -371,6 +416,10 @@ pub fn run() {
             // 键盘充能：全局键盘钩子（Windows）+ 250ms/1s 双节拍泵。
             key_watcher::spawn_key_watcher(app_handle.clone(), game_state.clone());
 
+            // 点击穿透探针：透明窗空白处的点击直达桌面。线程常驻但默认闲置，
+            // 由前端在「纯宠物」界面 set_click_through_watch(true) 才开始轮询。
+            click_through::spawn_hit_watcher(app_handle.clone());
+
             // AI 融合后台 worker：扫描存档里的挂起融合蛋并调本地 CLI 生成。
             let fusion_state = app.state::<fusion_gen::FusionGenState>().inner().clone();
             fusion_gen::spawn_fusion_worker(app_handle.clone(), game_state.clone(), fusion_state);
@@ -384,8 +433,9 @@ pub fn run() {
             let steam_state = app.state::<steam::SharedSteamState>().inner().clone();
             steam::init(app_handle, game_state, steam_state);
 
-            // 已开机自启的用户：确保 Steam 也随开机启动，免得自启时连不上 Steam。
-            settings::reconcile_steam_autostart(app.handle());
+            // 开机自启对账：dev 构建自愈坏登记（见 settings::reconcile_autostart），
+            // 否则确保 Steam 也随开机启动，免得自启时连不上 Steam。
+            settings::reconcile_autostart(app.handle());
 
             Ok(())
         })
@@ -396,7 +446,10 @@ pub fn run() {
             get_active_window_bounds,
             resize_game_window,
             dock_backyard_window,
+            dock_factory_window,
             open_steam_market,
+            click_through::set_click_through,
+            click_through::set_click_through_watch,
             ensure_fx_overlay,
             hide_fx_overlay,
             fusion_gen::check_fusion_cli,
@@ -426,28 +479,46 @@ pub fn run() {
             game::upgrade_hatchery,
             game::upgrade_yard,
             game::upgrade_shop,
+            game::build_training_hall,
+            game::upgrade_training_slots,
+            game::start_training,
+            game::collect_training,
+            game::claim_factory_levels,
+            game::record_factory_rogue_achievement_snapshot,
             game::release_pet,
             game::set_active_pet,
             game::advance_tutorial,
+            game::advance_onboarding,
+            game::advance_factory_tutorial,
+            game::skip_onboarding_agent,
+            game::claim_stamina_tutorial_rescue,
             game::debug_add_coins,
+            game::debug_grant_materials,
             game::debug_hatch_now,
             game::debug_max_pets,
             game::debug_drain_stamina,
             game::debug_feed_keys,
             game::debug_clear_save,
+            game::debug_clear_factory_data,
             key_watcher::get_keyboard_capture,
             key_watcher::set_keyboard_capture,
             settings::get_settings,
             settings::set_always_on_top,
             settings::set_random_movement,
             settings::set_language,
+            settings::set_default_agent,
+            settings::set_default_model,
             settings::set_autostart,
             settings::note_autostart_prompt_shown,
+            fusion_gen::list_agent_models,
             steam::get_steam_status,
             steam::steam_sync_now,
             steam::steam_cloud_sync_now,
             steam::steam_import_pets,
             steam::steam_confirm_rebind,
+            steam_leaderboard::record_factory_leaderboard_result,
+            steam_leaderboard::get_factory_leaderboard_status,
+            steam_leaderboard::debug_clear_factory_leaderboard,
             steam_market::steam_market_prices,
             steam::debug_steam_generate_items,
             steam::debug_steam_consume_all,

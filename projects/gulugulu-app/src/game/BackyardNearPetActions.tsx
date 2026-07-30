@@ -50,6 +50,9 @@ export function BackyardNearPetActions({
   const { pet, spot } = nearPlaced;
   const hint = fusionHintFor(pet);
   const canFuse = hint == null && !busy;
+  const tutorialReimbursed =
+    save.onboarding?.status === "active" &&
+    (save.onboarding.tutorialFusions ?? 0) < 2;
   return (
     <div className="by-bubble" style={{ left: spot.x - 150, bottom: 68 }} onClick={stopClick}>
       {/* 左：大融合印章（与右列两个小按钮等高）；右：陪伴/放生上下排布。
@@ -66,7 +69,11 @@ export function BackyardNearPetActions({
           }}
         >
           <b>{bk.fuse}</b>
-          <small>{canFuse ? `${formatCount(fusionFeeFor(config, pet.tier))} 🪙` : bk.notEligible}</small>
+          <small>
+            {canFuse
+              ? `${formatCount(tutorialReimbursed ? 0 : fusionFeeFor(config, pet.tier))} 🪙`
+              : bk.notEligible}
+          </small>
         </button>
         <div className="by-bubble-col">
           <button

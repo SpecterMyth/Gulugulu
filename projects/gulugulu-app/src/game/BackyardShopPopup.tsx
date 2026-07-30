@@ -1,10 +1,11 @@
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 import type { GameConfig, GameSave } from "../types";
 import { elementName, fmt, speciesDisplayName } from "../i18n";
 import { useT } from "../useT";
 import { EggSvg } from "../sprites/SvgSprite";
 import { eggPoolCandidates, eggPriceFor, shopMaxLevel, shopUpgradeCost } from "./config";
 import { formatCount } from "./format";
+import { emitPaperFx } from "../ui/PaperFx";
 
 // ---------------------------------------------------------------------------
 // 商店弹出商品板（分阶蛋 · 默认最高阶 · 左右翻页 · 2×3 两行）。
@@ -43,8 +44,49 @@ export function BackyardShopPopup({
   const maxTier = shopMaxLevel(config);
   const viewTier = Math.min(Math.max(1, shopTier), shopLevel);
   const upgradeCost = shopUpgradeCost(config, shopLevel);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const pendingBuyRef = useRef<{ anchor: HTMLElement; eggCount: number; timer: number } | null>(null);
+  const prevShopLevelRef = useRef(shopLevel);
+
+  useEffect(() => {
+    const previous = prevShopLevelRef.current;
+    if (shopLevel > previous) {
+      emitPaperFx({
+        preset: "upgrade",
+        intensity: shopLevel >= maxTier ? 3 : 2,
+        anchor: rootRef.current,
+        label:
+          shopLevel >= maxTier
+            ? lang === "zh" ? "商店满级" : "SHOP MAXED"
+            : lang === "zh" ? `商店升级 · ${shopLevel}阶` : `SHOP UPGRADED · T${shopLevel}`,
+        dedupeKey: `shop-level:${shopLevel}`,
+      });
+    }
+    prevShopLevelRef.current = shopLevel;
+  }, [lang, maxTier, shopLevel]);
+
+  useEffect(() => {
+    const pending = pendingBuyRef.current;
+    if (!pending || save.eggs.length <= pending.eggCount) return;
+    window.clearTimeout(pending.timer);
+    emitPaperFx({
+      preset: "purchase",
+      intensity: 1,
+      anchor: pending.anchor,
+      dedupeKey: `egg-purchase:${save.eggs.length}`,
+    });
+    pendingBuyRef.current = null;
+  }, [save.eggs.length]);
+
+  useEffect(
+    () => () => {
+      if (pendingBuyRef.current) window.clearTimeout(pendingBuyRef.current.timer);
+    },
+    [],
+  );
   return (
     <div
+      ref={rootRef}
       className={`by-shop-pop ${shopOpen ? "is-open" : ""}`}
       style={{ left: shopSide === "right" ? 1312 : 694, bottom: 164 }}
       onClick={stopClick}
@@ -83,6 +125,11 @@ export function BackyardShopPopup({
           const price = eggPriceFor(config, element, viewTier);
           const elName = elementName(element, lang);
           const affordable = save.coins >= price;
+          const tutorialFire =
+            element === "fire" &&
+            viewTier === 1 &&
+            save.onboarding?.status === "active" &&
+            save.onboarding.step === "A12";
           const previewSpecies = config.speciesByRecipe?.[element] ?? "guluduck";
           const pool = eggPoolCandidates(config, element, viewTier);
           const outcomes = pool
@@ -97,10 +144,17 @@ export function BackyardShopPopup({
               key={element}
               type="button"
               className="by-shop-card"
-              disabled={busy || !affordable}
+              data-coach={element === "fire" && viewTier === 1 ? "shopFire" : undefined}
+              disabled={busy || (!affordable && !tutorialFire)}
               title={title}
               onClick={(event) => {
                 event.stopPropagation();
+                if (pendingBuyRef.current) window.clearTimeout(pendingBuyRef.current.timer);
+                const anchor = event.currentTarget;
+                const timer = window.setTimeout(() => {
+                  if (pendingBuyRef.current?.anchor === anchor) pendingBuyRef.current = null;
+                }, 5000);
+                pendingBuyRef.current = { anchor, eggCount: save.eggs.length, timer };
                 onBuyEgg(element, viewTier);
               }}
             >

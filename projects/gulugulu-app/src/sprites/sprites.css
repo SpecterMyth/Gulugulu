@@ -118,7 +118,7 @@
 }
 
 .svg-sprite-state-moving .part-tail {
-  animation: rig-tail-sway 0.9s ease-in-out infinite;
+  animation: rig-tail-sway var(--stride-dur, 0.9s) ease-in-out infinite;
 }
 
 .svg-sprite-state-moving .part-headtop {
@@ -127,6 +127,30 @@
 
 .svg-sprite-state-moving .part-face {
   animation: rig-face-bob var(--stride-dur, 0.5s) ease-in-out infinite;
+}
+
+/* V2 动作预设：仍复用同一套语义状态，只改变物种的自然移动节奏。 */
+.motion-waddle.svg-sprite-state-moving .part-body {
+  animation-name: rig-motion-waddle;
+}
+
+.motion-bound.svg-sprite-state-moving .part-body {
+  animation-name: rig-motion-bound;
+}
+
+.motion-slither.svg-sprite-state-moving .part-body {
+  animation-name: rig-motion-slither;
+}
+
+.motion-sway.svg-sprite-state-moving .part-body {
+  animation-name: rig-motion-sway;
+}
+
+.motion-slither.svg-sprite-state-moving .part-legL,
+.motion-slither.svg-sprite-state-moving .part-legR,
+.motion-float.svg-sprite-state-moving .part-legL,
+.motion-float.svg-sprite-state-moving .part-legR {
+  animation-duration: calc(var(--stride-dur) * 1.4);
 }
 
 /* 漂浮物种没有腿：加大身体起伏 + 尾鳍拍打 + 侧鳍划水 */
@@ -558,6 +582,26 @@
   25% { transform: translateY(calc(var(--bob-px, 5px) * -1)) rotate(-2deg); }
   50% { transform: translateY(0) rotate(0deg); }
   75% { transform: translateY(calc(var(--bob-px, 5px) * -1)) rotate(2deg); }
+}
+
+@keyframes rig-motion-waddle {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(calc(var(--bob-px, 4px) * -1)) rotate(3deg); }
+}
+
+@keyframes rig-motion-bound {
+  0%, 100% { transform: translateY(0) scale(1.03, 0.97); }
+  45% { transform: translateY(calc(var(--hop-h, 30px) * -0.32)) scale(0.98, 1.04); }
+}
+
+@keyframes rig-motion-slither {
+  0%, 100% { transform: translate(0, 0) skewX(-2deg); }
+  50% { transform: translate(3px, calc(var(--bob-px, 3px) * -1)) skewX(2deg); }
+}
+
+@keyframes rig-motion-sway {
+  0%, 100% { transform: translateY(0) rotate(-2.5deg); }
+  50% { transform: translateY(calc(var(--bob-px, 4px) * -1)) rotate(2.5deg); }
 }
 
 @keyframes rig-stride {

@@ -4,7 +4,7 @@ use std::path::Path;
 
 /// 当前存档 schema 版本（create_initial_save 写入、migrate_save 迁移到此）。
 /// 加载时高于此版本的存档拒绝加载（降级会静默丢字段，见 ensure_loaded）。
-pub(crate) const CURRENT_SAVE_VERSION: u32 = 8;
+pub(crate) const CURRENT_SAVE_VERSION: u32 = 10;
 
 pub fn create_initial_save(
     config: &GameConfig,
@@ -16,7 +16,7 @@ pub fn create_initial_save(
     let bonus = historical_experience.min(config.historical_exp_coin_cap);
     let tutorial_seconds = *config.hatch_seconds.get("tutorial").unwrap_or(&60) as i64;
     GameSave {
-        version: 8,
+        version: CURRENT_SAVE_VERSION,
         coins: config.initial_coins + bonus,
         pets: Vec::new(),
         eggs: vec![EggInstance {
@@ -33,6 +33,10 @@ pub fn create_initial_save(
         }],
         hatchery_level: 1,
         yard_level: 1,
+        training_hall_level: 0, // 未建造——训练馆是玩家自己盖起来的
+        training_slot_level: 1,
+        training_jobs: Vec::new(),
+        materials: BTreeMap::new(),
         shop_level: 1,
         active_pet_id: None,
         last_seen_project_tokens: token_baseline,
@@ -45,6 +49,11 @@ pub fn create_initial_save(
         tutorial_step: 0,
         tutorial_first_egg_bought: false,
         tutorial_first_fusion_done: false,
+        onboarding: OnboardingState::default(),
+        factory_tutorial: FactoryTutorialState::default(),
+        capacity_exempt_pet_ids: std::collections::BTreeSet::new(),
+        training_tutorial_boost_claimed: false,
+        stamina_tutorial_rescue_claimed: false,
         last_seen_at: now,
         custom_species: BTreeMap::new(),
         dex_obtained: BTreeMap::new(),
@@ -178,6 +187,47 @@ pub(crate) fn migrate_save(
         save.version = 8;
         changed = true;
     }
+    // v8 → v9（经济 v2.0，EconomyRework-TrainingHall.md）：新增训练馆
+    // （training_hall_level / training_slot_level / training_jobs）与升阶材料库存
+    // （materials），全部 serde default。存量 4~6 阶宠物一律**保留原阶**——它们经由
+    // 旧的「融合即升阶」规则得来，封顶只约束今后的新融合，不追溯已有个体。
+    // 纯版本号推进，幂等。
+    if save.version < 9 {
+        save.version = 9;
+        changed = true;
+    }
+    // v9 → v10（OnboardingGuidance v6）：强引导与工厂演习进度进入 GameSave，
+    // 新手礼包容量豁免改用 id 账本。旧玩家不被突然拉回强制教程；只对尚未完成
+    // 首融、也没有旧毕业游标的存档继续 v6 路线，resolver 会按真实回执自愈。
+    if save.version < 10 {
+        let legacy_graduated = save.tutorial_step >= 11
+            || save.tutorial_first_fusion_done
+            || save.stats.factory_rogue_runs_started >= 1;
+        if legacy_graduated {
+            save.onboarding.status = "completed".to_string();
+            save.onboarding.step = "DONE".to_string();
+        } else {
+            save.onboarding = OnboardingState::default();
+        }
+        if save.stats.factory_rogue_runs_started >= 1 {
+            save.factory_tutorial.status = "completed".to_string();
+            save.factory_tutorial.step = "C12".to_string();
+        }
+        save.version = 10;
+        changed = true;
+    }
+    // 清档后 Steam 库存会立即回填旧宠物。导入逻辑过去会顺手把第一只设为主宠，
+    // 但新档仍停在 A01（收教学蛋），于是舞台优先渲染主宠、强引导又只放行蛋，
+    // 形成无法点击的死锁。A01 的教学蛋才是此时的权威舞台目标；保留导入宠物，
+    // 仅暂时撤下主宠，收蛋后 apply_collect 会自然选中新教学宠。
+    let tutorial_egg_pending = save.onboarding.status == "active"
+        && save.onboarding.step == "A01"
+        && save.eggs.iter().any(|egg| egg.hatch_kind == "tutorial");
+    if tutorial_egg_pending {
+        if save.active_pet_id.take().is_some() {
+            changed = true;
+        }
+    }
     // 所有版本：时钟回拨防呆（settle_pet 也有同款钳制，这里让存档尽快自愈）。
     for pet in &mut save.pets {
         if pet.stamina_updated_at > now {
@@ -218,7 +268,8 @@ pub(crate) fn persist_to(path: &Path, save: &GameSave) -> Result<(), String> {
     let tmp = path.with_extension("json.tmp");
     {
         let mut file = fs::File::create(&tmp).map_err(|error| error.to_string())?;
-        file.write_all(contents.as_bytes()).map_err(|error| error.to_string())?;
+        file.write_all(contents.as_bytes())
+            .map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
     }
     // 轮转 .bak：用 copy 而非 rename，避免出现主档短暂缺失的窗口。
@@ -254,8 +305,8 @@ enum LoadError {
 
 /// 读一份存档文件：IO/解析失败 → `Unreadable`；版本超前 → `TooNew`。
 fn read_save_file(path: &Path) -> Result<GameSave, LoadError> {
-    let contents =
-        fs::read_to_string(path).map_err(|error| LoadError::Unreadable(format!("read: {error}")))?;
+    let contents = fs::read_to_string(path)
+        .map_err(|error| LoadError::Unreadable(format!("read: {error}")))?;
     let save: GameSave = serde_json::from_str(&contents)
         .map_err(|error| LoadError::Unreadable(format!("parse: {error}")))?;
     if save.version > CURRENT_SAVE_VERSION {
@@ -276,7 +327,13 @@ fn finalize_loaded(
     } else {
         BTreeMap::new()
     };
-    if migrate_save(config, &mut save, &token_baseline, now_secs(), &today_string()) {
+    if migrate_save(
+        config,
+        &mut save,
+        &token_baseline,
+        now_secs(),
+        &today_string(),
+    ) {
         persist(app, &save)?;
     }
     Ok(save)
@@ -287,7 +344,10 @@ fn finalize_loaded(
 fn quarantine(path: &Path) {
     let dest = path.with_extension(format!("corrupt-{}.json", now_secs()));
     match fs::rename(path, &dest) {
-        Ok(()) => eprintln!("Gulugulu save: corrupt save quarantined to {}", dest.display()),
+        Ok(()) => eprintln!(
+            "Gulugulu save: corrupt save quarantined to {}",
+            dest.display()
+        ),
         Err(error) => eprintln!("Gulugulu save: failed to quarantine corrupt save: {error}"),
     }
 }
@@ -335,8 +395,13 @@ fn load_or_init_save(
 
     // 真全新开局，或确认无可恢复数据。
     let (historical, token_baseline) = crate::codex_adapter::progress_snapshot(app);
-    let save =
-        create_initial_save(config, historical, token_baseline, now_secs(), &today_string());
+    let save = create_initial_save(
+        config,
+        historical,
+        token_baseline,
+        now_secs(),
+        &today_string(),
+    );
     persist(app, &save)?;
     Ok(save)
 }
@@ -423,12 +488,22 @@ pub fn feed_from_project_tokens(
 /// 键盘充能入账（key_watcher 的 1s 节拍调用）。count 为已限速去重的按键数。
 /// 只喂陪伴宠。Returns None when nothing was fed（缓冲未满一点或陪伴宠满管
 /// ——缓冲照常入档）。
-pub fn feed_keys(app: &AppHandle, state: &SharedGameState, count: u64) -> Option<EnergyFeedOutcome> {
+pub fn feed_keys(
+    app: &AppHandle,
+    state: &SharedGameState,
+    count: u64,
+) -> Option<EnergyFeedOutcome> {
     if count == 0 {
         return None;
     }
     let result = with_save(app, state, |config, save| {
-        Ok(logic_feed_keys(config, save, count, now_secs(), &today_string()))
+        Ok(logic_feed_keys(
+            config,
+            save,
+            count,
+            now_secs(),
+            &today_string(),
+        ))
     });
     match result {
         Ok((outcome, _)) if outcome.stamina_fed > 0 => Some(outcome),
@@ -509,7 +584,10 @@ mod persist_tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, b"{ this is not valid json").unwrap();
         // 关键：损坏档必须报 Unreadable（→ 隔离/回退），绝不能被当成「文件不存在=首启」而静默重置。
-        assert!(matches!(read_save_file(&path), Err(LoadError::Unreadable(_))));
+        assert!(matches!(
+            read_save_file(&path),
+            Err(LoadError::Unreadable(_))
+        ));
         cleanup(&path);
     }
 

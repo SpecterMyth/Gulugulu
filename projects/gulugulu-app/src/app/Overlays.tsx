@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { WelcomeBackCard } from "../game/WelcomeBack";
 import { AutostartPromptCard } from "./AutostartPromptCard";
+import { CodexUpgradeCard } from "./CodexUpgradeCard";
 import { FusionModal } from "../game/FusionModal";
 import type { GameBridge } from "../game/bridge";
 import type { UiMode } from "../game/GamePanels";
@@ -25,6 +26,8 @@ type OverlaysProps = {
   autostartPromptOpen: boolean;
   onAutostartAccept: () => void;
   onAutostartDecline: () => void;
+  codexUpgradeOpen: boolean;
+  onCodexUpgradeClose: () => void;
 };
 
 export function Overlays({
@@ -45,12 +48,15 @@ export function Overlays({
   autostartPromptOpen,
   onAutostartAccept,
   onAutostartDecline,
+  codexUpgradeOpen,
+  onCodexUpgradeClose,
 }: OverlaysProps) {
   return (
     <>
-      {!showStage && visibleTutorialHint && (
+      {!showStage && visibleTutorialHint && !toast && (
         <div className="tutorial-bubble" key={visibleTutorialHint.id}>
-          {visibleTutorialHint.text}
+          <span className="guide-sticker-sprinkles" aria-hidden="true" />
+          <span className="guide-sticker-copy">{visibleTutorialHint.text}</span>
         </div>
       )}
 
@@ -66,6 +72,10 @@ export function Overlays({
           pair={fusionPair}
           config={gameConfig}
           bridge={bridge}
+          tutorialMode={
+            save?.onboarding?.status === "active" &&
+            (save.onboarding.tutorialFusions ?? 0) < 2
+          }
           onClose={() => setFusionPair(null)}
           onCommitted={handleFusionCommitted}
         />
@@ -84,6 +94,8 @@ export function Overlays({
       {autostartPromptOpen && (
         <AutostartPromptCard onAccept={onAutostartAccept} onDecline={onAutostartDecline} />
       )}
+
+      {codexUpgradeOpen && <CodexUpgradeCard onClose={onCodexUpgradeClose} />}
     </>
   );
 }

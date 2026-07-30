@@ -34,24 +34,31 @@ function SignPost({ left, label }: { left: number; label: string }) {
   return (
     <>
       <div style={abs({ left: left + 24, bottom: 150, width: 8, height: 76, borderRadius: 4, background: "#8A6437" })} />
-      <div style={abs({ left, bottom: 198, padding: "3px 12px 4px", borderRadius: 7, border: "2.5px solid #6B4520", background: "linear-gradient(180deg,#C08A4E,#A06A33)", fontFamily: "var(--font-display)", fontSize: 13, color: "#FFF3D9", textShadow: "0 -1px 0 rgba(0,0,0,0.4)", whiteSpace: "nowrap", transform: "rotate(-2deg)" })}>
+      <div className="by-scene-note" style={abs({ left, bottom: 198, padding: "3px 12px 4px", fontSize: 13, whiteSpace: "nowrap", transform: "rotate(-2deg)" })}>
         {label}
       </div>
     </>
   );
 }
 
-/** 路灯柱：铁艺立柱 + 顶部灯罩（灯芯白天暗、入夜由 BackyardNightLights 在同 X 点亮）。
- *  x 为灯罩/灯光中心（与 LAMP_POSTS / BackyardNightLights 对齐）。 */
+/** 路灯柱：铁艺立柱 + 顶罩铁盖（都是冷色金属件，随昼夜正常调色）。灯罩玻璃（暖光）
+ *  另由 NearLights 的 LampGlass 在同 X 单独渲染、不调色，入夜/黄昏仍保暖亮。
+ *  x 为灯罩/灯光中心（与 LAMP_POSTS / BackyardNightLights / LampGlass 对齐）。 */
 function LampPost({ x }: { x: number }) {
   return (
     <>
       <div style={abs({ left: x - 3.5, bottom: 150, width: 7, height: 92, borderRadius: 4, background: "linear-gradient(90deg,#3d2f22,#5f4a35 55%,#332619)" })} />
       <div style={abs({ left: x - 7, bottom: 148, width: 14, height: 6, borderRadius: "50%", background: "#3d2f22" })} />
-      {/* 灯罩（居中于 x，灯芯偏暖，入夜叠加暖光晕） */}
-      <div style={abs({ left: x - 8, bottom: LAMP_HEAD_BOTTOM - 9, width: 16, height: 18, borderRadius: "6px 6px 4px 4px", border: "1.5px solid #332619", boxSizing: "border-box", background: "linear-gradient(180deg,#ffe6a8,#e6b25f)" })} />
       <div style={abs({ left: x - 9, bottom: LAMP_HEAD_BOTTOM + 9, width: 18, height: 5, borderRadius: "4px 4px 0 0", background: "#332619" })} />
     </>
+  );
+}
+
+/** 路灯灯罩玻璃（暖光）：从 LampPost 拆出，单独渲染在不调色的 NearLights 层，
+ *  入夜/黄昏仍保暖亮。x 与 LampPost 立柱对齐。 */
+function LampGlass({ x }: { x: number }) {
+  return (
+    <div style={abs({ left: x - 8, bottom: LAMP_HEAD_BOTTOM - 9, width: 16, height: 18, borderRadius: "6px 6px 4px 4px", border: "1.5px solid #332619", boxSizing: "border-box", background: "linear-gradient(180deg,#ffe6a8,#e6b25f)" })} />
   );
 }
 
@@ -179,9 +186,10 @@ export const MidDecor = memo(function MidDecor() {
 
       {/* —— 具象点缀（尺寸/比例各异，不规则散布） —— */}
       {/* 左端装饰带后方的远树（一高一矮双冠） */}
-      <div style={abs({ left: -300, bottom: 168, width: 14, height: 64, borderRadius: 7, background: "#A98D6B" })} />
-      <div style={abs({ left: -344, bottom: 218, width: 100, height: 86, borderRadius: "50%", background: "#7EAD79", opacity: 0.95 })} />
-      <div style={abs({ left: -314, bottom: 258, width: 56, height: 46, borderRadius: "50%", background: "#9BC06E", opacity: 0.9 })} />
+      {/* 训练馆（近景 -580..-260）后方留空，中景树左移到 -760 免得从屋顶里长出来 */}
+      <div style={abs({ left: -760, bottom: 168, width: 14, height: 64, borderRadius: 7, background: "#A98D6B" })} />
+      <div style={abs({ left: -804, bottom: 218, width: 100, height: 86, borderRadius: "50%", background: "#7EAD79", opacity: 0.95 })} />
+      <div style={abs({ left: -774, bottom: 258, width: 56, height: 46, borderRadius: "50%", background: "#9BC06E", opacity: 0.9 })} />
 
       {/* 风车 */}
       <div style={abs({ left: 860, bottom: 168, width: 32, height: 132, borderRadius: "9px 9px 4px 4px", background: "linear-gradient(90deg,#C9B08C,#B9A07C)", opacity: 0.95 })} />
@@ -242,19 +250,48 @@ export const NearDecor = memo(function NearDecor() {
         })}
       />
 
-      {/* ── 左尽头·林间空地（孵化区之前的一屏纯装饰带） ── */}
-      <EdgeFence left={-864} />
-      <Bush left={-800} w={110} h={56} color="#93B98A" />
-      <RoundTree left={-742} tone="#7CBE5F" />
-      <Flower left={-616} color="#F5917B" />
-      <Bush left={-582} w={96} h={62} color="#7CBE5F" />
-      <Flower left={-520} color="#E2432E" />
-      <RoundTree left={-452} tone="#69AE52" />
-      <Bush left={-322} w={122} h={58} color="#7EAD79" />
-      <Flower left={-262} color="#F5D95A" />
-      <SignPost left={-190} label={T.bk.decor.glade} />
+      {/* ── 左尽头·林间空地（训练馆之前的收边装饰） ── */}
+      <EdgeFence left={-880} />
+      <Bush left={-828} w={110} h={56} color="#93B98A" />
+      <RoundTree left={-770} tone="#7CBE5F" />
+      <Flower left={-648} color="#F5917B" />
+      <SignPost left={-624} label={T.bk.decor.glade} />
+
+      {/* ── 训练馆（世界 x≈-420，孵化区左侧；占位带 -580..-260） ──
+           石砌墙体 + 双开木门 + 屋顶 + 招牌，门口摆举重台/哑铃/沙袋。
+           手绘风与商店建筑（x=1016..1290）同一套：绝对定位 div 堆叠、#6B4520 描边。 */}
+      {/* 地基台阶 */}
+      <div style={abs({ left: -566, bottom: 146, width: 292, height: 14, borderRadius: 5, background: "linear-gradient(180deg,#C2B39A,#9C8B72)", boxShadow: "0 2px 0 rgba(59,43,29,0.25)" })} />
+      {/* 墙体（石砌纹理 = 两层错位的重复渐变） */}
+      <div style={abs({ left: -552, bottom: 158, width: 264, height: 140, borderRadius: "8px 8px 4px 4px", border: "3px solid #6B4520", boxSizing: "border-box", background: "repeating-linear-gradient(0deg, rgba(59,32,10,0.14) 0 2px, transparent 2px 26px), repeating-linear-gradient(90deg, rgba(59,32,10,0.10) 0 2px, transparent 2px 44px), linear-gradient(180deg,#B9A88C,#9C8B72)" })} />
+      {/* 双开木门 */}
+      <div style={abs({ left: -466, bottom: 158, width: 92, height: 88, borderRadius: "44px 44px 3px 3px", border: "3px solid #6B4520", boxSizing: "border-box", background: "repeating-linear-gradient(90deg, rgba(59,32,10,0.18) 0 2px, transparent 2px 22px), linear-gradient(180deg,#B07B44,#8E5D2C)" })} />
+      <div style={abs({ left: -421, bottom: 166, width: 3, height: 72, background: "#6B4520" })} />
+      <div style={abs({ left: -434, bottom: 196, width: 9, height: 9, borderRadius: "50%", background: "#F5C542" })} />
+      <div style={abs({ left: -413, bottom: 196, width: 9, height: 9, borderRadius: "50%", background: "#F5C542" })} />
+      {/* 侧窗（夜间由 BackyardNightLights 点亮） */}
+      <div style={abs({ left: -528, bottom: 216, width: 42, height: 34, borderRadius: 5, border: "3px solid #6B4520", boxSizing: "border-box", background: "linear-gradient(180deg,#CFE9FF,#9BDCFF)" })} />
+      <div style={abs({ left: -352, bottom: 216, width: 42, height: 34, borderRadius: 5, border: "3px solid #6B4520", boxSizing: "border-box", background: "linear-gradient(180deg,#CFE9FF,#9BDCFF)" })} />
+      {/* 屋顶（两坡 + 屋脊） */}
+      <div style={abs({ left: -574, bottom: 292, width: 308, height: 34, borderRadius: "8px 8px 0 0", border: "3px solid #6B4520", boxSizing: "border-box", background: "repeating-linear-gradient(90deg,#5F7F9B 0 22px,#4C6A85 22px 44px)", boxShadow: "0 8px 12px rgba(43,26,8,0.22)" })} />
+      <div style={abs({ left: -560, bottom: 322, width: 280, height: 0, borderLeft: "18px solid transparent", borderRight: "18px solid transparent", borderBottom: "38px solid #6F90AC" })} />
+      {/* 招牌木牌 */}
+      <div className="by-scene-note" style={abs({ left: -486, bottom: 336, padding: "4px 16px 5px", fontSize: 16, whiteSpace: "nowrap", zIndex: 1 })}>
+        {T.bk.decor.trainingHall}
+      </div>
+      {/* 门口道具：举重台 + 杠铃 */}
+      <div style={abs({ left: -268, bottom: 150, width: 72, height: 12, borderRadius: 4, background: "linear-gradient(180deg,#8A6437,#6B4520)" })} />
+      <div style={abs({ left: -262, bottom: 162, width: 60, height: 5, borderRadius: 3, background: "#4F4A44" })} />
+      <div style={abs({ left: -272, bottom: 154, width: 16, height: 22, borderRadius: 4, background: "#3F3A35" })} />
+      <div style={abs({ left: -208, bottom: 154, width: 16, height: 22, borderRadius: 4, background: "#3F3A35" })} />
+      {/* 门口道具：沙袋（轻微摆动，复用 gg-sway） */}
+      <div style={abs({ left: -604, bottom: 246, width: 6, height: 26, background: "#6B4520" })} />
+      <div style={abs({ left: -614, bottom: 178, width: 26, height: 70, borderRadius: "10px 10px 12px 12px", background: "linear-gradient(180deg,#C4553F,#8E3A2A)", boxShadow: "inset -6px 0 0 rgba(0,0,0,0.16)", transformOrigin: "50% 0", animation: "gg-sway 3.8s ease-in-out infinite" })} />
+      {/* 训练馆两侧的收边绿植 */}
+      <Bush left={-676} w={96} h={54} color="#7CBE5F" />
+      <Flower left={-244} color="#F5D95A" />
+      <Bush left={-176} w={110} h={56} color="#7EAD79" />
       <Flower left={-96} color="#E2432E" />
-      <div style={abs({ left: -430, bottom: 150, width: 30, height: 24, borderRadius: "50%", background: "#E07B39", boxShadow: "inset -6px 0 0 rgba(150,60,20,0.3)" })} />
 
       {/* ── 右尽头·旷野观景（交易市场之后的一屏纯装饰带） ── */}
       <Bush left={5888} w={120} h={58} color="#7EAD79" />
@@ -278,7 +315,7 @@ export const NearDecor = memo(function NearDecor() {
       <div style={abs({ left: 56, bottom: 150, width: 9, height: 44, borderRadius: 5, background: "#C89B62", boxShadow: "inset 0 -3px 0 rgba(59,43,29,0.25)" })} />
       <div style={abs({ left: 14, bottom: 172, width: 58, height: 7, borderRadius: 4, background: "#B98A4E" })} />
       <div style={abs({ left: 96, bottom: 150, width: 8, height: 88, borderRadius: 4, background: "#8A6437" })} />
-      <div style={abs({ left: 58, bottom: 226, padding: "4px 14px 5px", borderRadius: 8, border: "2.5px solid #6B4520", background: "linear-gradient(180deg,#C08A4E,#A06A33)", fontFamily: "var(--font-display)", fontSize: 14, color: "#FFF3D9", textShadow: "0 -1px 0 rgba(0,0,0,0.4)", transform: "rotate(-2deg)", whiteSpace: "nowrap" })}>
+      <div className="by-scene-note" style={abs({ left: 58, bottom: 226, padding: "4px 14px 5px", fontSize: 14, transform: "rotate(-2deg)", whiteSpace: "nowrap" })}>
         {T.bk.decor.hatchery}
       </div>
 
@@ -306,7 +343,7 @@ export const NearDecor = memo(function NearDecor() {
       <div style={abs({ left: 1152, bottom: 192, width: 20, height: 26, borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%", border: "2px solid #3B2B1D", boxSizing: "border-box", background: "radial-gradient(circle at 60% 40%, #2E7BD6 0 3px, transparent 4px), #FFFDF6" })} />
       <div style={abs({ left: 1180, bottom: 192, width: 20, height: 26, borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%", border: "2px solid #3B2B1D", boxSizing: "border-box", background: "radial-gradient(circle at 60% 40%, #E85D3A 0 3px, transparent 4px), #FFFDF6" })} />
       <div style={abs({ left: 1010, bottom: 270, width: 280, height: 40, borderRadius: "10px 10px 0 0", border: "3px solid #6B4520", background: "repeating-linear-gradient(90deg,#D9553F 0 28px,#FFF3D9 28px 56px)", boxSizing: "border-box", boxShadow: "0 8px 12px rgba(43,26,8,0.22)" })} />
-      <div style={abs({ left: 1104, bottom: 306, padding: "4px 18px 5px", borderRadius: 9, border: "2.5px solid #6B4520", background: "linear-gradient(180deg,#B07B44,#96622F)", fontFamily: "var(--font-display)", fontSize: 17, color: "#FFE9AD", textShadow: "0 2px 0 rgba(0,0,0,0.35)", whiteSpace: "nowrap" })}>
+      <div className="by-scene-note" style={abs({ left: 1104, bottom: 306, padding: "4px 18px 5px", fontSize: 17, whiteSpace: "nowrap" })}>
         {T.bk.decor.shop}
       </div>
 
@@ -351,7 +388,7 @@ export const NearDecor = memo(function NearDecor() {
       <div style={abs({ left: 2288, bottom: 150, width: 11, height: 90, borderRadius: 5, background: "linear-gradient(90deg,#8A6437,#A9814F)" })} />
       <div style={abs({ left: 2529, bottom: 150, width: 11, height: 90, borderRadius: 5, background: "linear-gradient(90deg,#8A6437,#A9814F)" })} />
       {/* 标题牌骑在板体上缘：底部与板框相接（板顶 396），完整露出文字 */}
-      <div style={abs({ left: 2353, bottom: 394, padding: "5px 18px 6px", borderRadius: 9, border: "2.5px solid #6B4520", background: "linear-gradient(180deg,#B07B44,#96622F)", fontFamily: "var(--font-display)", fontSize: 16, lineHeight: 1.2, color: "#FFE9AD", textShadow: "0 2px 0 rgba(0,0,0,0.35)", whiteSpace: "nowrap", zIndex: 1 })}>
+      <div className="by-scene-note" style={abs({ left: 2353, bottom: 394, padding: "5px 18px 6px", fontSize: 16, lineHeight: 1.2, whiteSpace: "nowrap", zIndex: 1 })}>
         {T.bk.decor.board}
       </div>
 
@@ -383,16 +420,13 @@ export const NearDecor = memo(function NearDecor() {
       {/* ── 营地（迁到果园右侧，与果园一同收束右端自然带；原位于图鉴馆之前） ── */}
       <div style={abs({ left: 4980, bottom: 152, width: 0, height: 0, borderLeft: "82px solid transparent", borderRight: "82px solid transparent", borderBottom: "122px solid #D9553F" })} />
       <div style={abs({ left: 5036, bottom: 152, width: 0, height: 0, borderLeft: "26px solid transparent", borderRight: "26px solid transparent", borderBottom: "54px solid #A93B29" })} />
-      <div style={abs({ left: 5190, bottom: 128, width: 200, height: 100, borderRadius: "50%", background: "radial-gradient(ellipse, rgba(255,176,58,0.4) 0%, rgba(255,176,58,0) 70%)", animation: "gg-glow 2.4s ease-in-out infinite" })} />
+      {/* 柴堆（地面火光 + 三层跳动火舌 → 不调色，见 NearLights 的营地篝火） */}
       <div style={abs({ left: 5250, bottom: 150, width: 60, height: 11, borderRadius: 6, background: "#6B4520", transform: "rotate(14deg)" })} />
       <div style={abs({ left: 5256, bottom: 150, width: 60, height: 11, borderRadius: 6, background: "#5C3B1E", transform: "rotate(-13deg)" })} />
-      <div style={abs({ left: 5266, bottom: 164, width: 32, height: 42, borderRadius: "50% 50% 50% 50% / 64% 64% 36% 36%", background: "#E85D3A", animation: "gg-flame 0.8s ease-in-out infinite" })} />
-      <div style={abs({ left: 5272, bottom: 168, width: 20, height: 30, borderRadius: "50% 50% 50% 50% / 64% 64% 36% 36%", background: "#FFB03A", animation: "gg-flame 0.62s ease-in-out 0.1s infinite" })} />
-      <div style={abs({ left: 5277, bottom: 172, width: 11, height: 18, borderRadius: "50% 50% 50% 50% / 64% 64% 36% 36%", background: "#FFF1C9", animation: "gg-flame 0.5s ease-in-out 0.2s infinite" })} />
+      {/* 挂灯支架（灯杆 + 横臂 + 挂钩，冷色木件随昼夜调色）；暖光灯笼另见 NearLights */}
       <div style={abs({ left: 5570, bottom: 152, width: 7, height: 150, borderRadius: 4, background: "#8A6437" })} />
       <div style={abs({ left: 5573, bottom: 294, width: 44, height: 6, borderRadius: 3, background: "#8A6437" })} />
       <div style={abs({ left: 5608, bottom: 280, width: 3, height: 16, background: "#8A6437" })} />
-      <div style={abs({ left: 5598, bottom: 246, width: 24, height: 32, borderRadius: 7, border: "2px solid #6B4520", background: "linear-gradient(180deg,#FFD98A,#FFB03A)", boxShadow: "0 0 16px 6px rgba(255,176,58,0.5)", animation: "gg-glow 3s ease-in-out infinite", boxSizing: "border-box" })} />
       <div style={abs({ left: 5660, bottom: 154, width: 9, height: 9, borderRadius: "50%", background: "radial-gradient(circle,#F5D95A 0 3px,#F5917B 3px)" })} />
       <div style={abs({ left: 5720, bottom: 150, width: 9, height: 40, borderRadius: 5, background: "#C89B62", boxShadow: "inset 0 -3px 0 rgba(59,43,29,0.25)" })} />
       <div style={abs({ left: 5756, bottom: 150, width: 9, height: 44, borderRadius: 5, background: "#C89B62", boxShadow: "inset 0 -3px 0 rgba(59,43,29,0.25)" })} />
@@ -411,7 +445,7 @@ export const NearDecor = memo(function NearDecor() {
       <div style={abs({ left: 3182, bottom: 286, width: 0, height: 0, borderLeft: "128px solid transparent", borderRight: "128px solid transparent", borderBottom: "54px solid #D9B37C" })} />
       <div style={abs({ left: 3194, bottom: 286, width: 0, height: 0, borderLeft: "116px solid transparent", borderRight: "116px solid transparent", borderBottom: "48px solid #C9A15B" })} />
       <div style={abs({ left: 3296, bottom: 296, width: 28, height: 28, borderRadius: "50%", background: "radial-gradient(circle at 40% 35%, #FFFDF6, #D9CCA8)", border: "2.5px solid #6B4520", boxSizing: "border-box" })} />
-      <div style={abs({ left: 3248, bottom: 352, padding: "4px 16px 5px", borderRadius: 9, border: "2.5px solid #6B4520", background: "linear-gradient(180deg,#B07B44,#96622F)", fontFamily: "var(--font-display)", fontSize: 15, lineHeight: 1.2, color: "#FFE9AD", textShadow: "0 2px 0 rgba(0,0,0,0.35)", whiteSpace: "nowrap" })}>
+      <div className="by-scene-note" style={abs({ left: 3248, bottom: 352, padding: "4px 16px 5px", fontSize: 15, lineHeight: 1.2, whiteSpace: "nowrap" })}>
         {T.bk.decor.museum}
       </div>
 
@@ -425,7 +459,7 @@ export const NearDecor = memo(function NearDecor() {
         <span style={abs({ left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: 13 })}>🪙</span>
       </div>
       <div style={abs({ left: 3886, bottom: 268, width: 288, height: 42, borderRadius: "12px 12px 0 0", border: "3px solid #6B4520", background: "repeating-linear-gradient(90deg,#57964B 0 30px,#FFF3D9 30px 60px)", boxSizing: "border-box", boxShadow: "0 8px 12px rgba(43,26,8,0.22)" })} />
-      <div style={abs({ left: 3946, bottom: 318, padding: "4px 16px 5px", borderRadius: 9, border: "2.5px solid #6B4520", background: "linear-gradient(180deg,#B07B44,#96622F)", fontFamily: "var(--font-display)", fontSize: 15, lineHeight: 1.2, color: "#FFE9AD", textShadow: "0 2px 0 rgba(0,0,0,0.35)", whiteSpace: "nowrap" })}>
+      <div className="by-scene-note" style={abs({ left: 3946, bottom: 318, padding: "4px 16px 5px", fontSize: 15, lineHeight: 1.2, whiteSpace: "nowrap" })}>
         {T.bk.decor.market}
       </div>
 
@@ -459,8 +493,74 @@ export const NearDecor = memo(function NearDecor() {
       <Flower left={5030} color="#F5D95A" />
       <Flower left={5470} color="#E2432E" />
 
-      {/* ── 商店门前彩灯串（两柱间垂挂；暖色小灯泡，与夜间暖光呼应） ── */}
+      {/* ── 商店门前彩灯串·灯线（两柱间垂挂；暖色小灯泡另见 NearLights，不调色保暖亮） ── */}
       <div style={abs({ left: 1028, bottom: 268, width: 262, height: 3, borderRadius: 2, background: "#5a4632", transform: "rotate(0.5deg)" })} />
+    </>
+  );
+});
+
+/**
+ * Functional location labels render above the day/night scenery grade so the
+ * UI labels remain readable and semantically consistent at night.
+ */
+export const NearUiNotes = memo(function NearUiNotes() {
+  const { T } = useT();
+  return (
+    <div className="by-scene-notes" aria-hidden="true">
+      <div className="by-scene-note" style={abs({ left: -624, bottom: 198, padding: "3px 12px 4px", fontSize: 13, whiteSpace: "nowrap", transform: "rotate(-2deg)" })}>
+        {T.bk.decor.glade}
+      </div>
+      <div className="by-scene-note" style={abs({ left: -486, bottom: 336, padding: "4px 16px 5px", fontSize: 16, whiteSpace: "nowrap", zIndex: 1 })}>
+        {T.bk.decor.trainingHall}
+      </div>
+      <div className="by-scene-note" style={abs({ left: 58, bottom: 226, padding: "4px 14px 5px", fontSize: 14, transform: "rotate(-2deg)", whiteSpace: "nowrap" })}>
+        {T.bk.decor.hatchery}
+      </div>
+      <div className="by-scene-note" style={abs({ left: 1104, bottom: 306, padding: "4px 18px 5px", fontSize: 17, whiteSpace: "nowrap" })}>
+        {T.bk.decor.shop}
+      </div>
+      <div className="by-scene-note" style={abs({ left: 2353, bottom: 394, padding: "5px 18px 6px", fontSize: 16, lineHeight: 1.2, whiteSpace: "nowrap", zIndex: 1 })}>
+        {T.bk.decor.board}
+      </div>
+      <div className="by-scene-note" style={abs({ left: 3248, bottom: 352, padding: "4px 16px 5px", fontSize: 15, lineHeight: 1.2, whiteSpace: "nowrap" })}>
+        {T.bk.decor.museum}
+      </div>
+      <div className="by-scene-note" style={abs({ left: 3946, bottom: 318, padding: "4px 16px 5px", fontSize: 15, lineHeight: 1.2, whiteSpace: "nowrap" })}>
+        {T.bk.decor.market}
+      </div>
+      <div className="by-scene-note" style={abs({ left: 6146, bottom: 198, padding: "3px 12px 4px", fontSize: 13, whiteSpace: "nowrap", transform: "rotate(-2deg)" })}>
+        {T.bk.decor.wilds}
+      </div>
+    </div>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 近景「发光体」层（世界锚定，随相机平移，**不受实景昼夜调色 filter**）。
+// 把本该自发光的物件——路灯灯罩玻璃、营地篝火、营地挂灯、商店彩灯泡——从随昼夜
+// 变暗的 NearDecor 里拎出来单独渲染：黄昏/入夜时实景整体压暗、偏蓝/偏橙，而这些
+// 灯火保持原本的暖亮，自然成为变暗画面里的「亮点」点缀（承托它们的木柱/柴堆/帐篷/
+// 灯线仍在 NearDecor 内随昼夜调色，光才落在正确的暗环境里）。入夜后再由
+// BackyardNightLights 在同位叠加柔和光晕强化，日间该组件不挂载。
+// ---------------------------------------------------------------------------
+export const NearLights = memo(function NearLights() {
+  return (
+    <>
+      {/* 路灯灯罩玻璃（与 NearDecor 的灯柱同 x 对齐） */}
+      {LAMP_POSTS.map((x) => (
+        <LampGlass key={`lampglass${x}`} x={x} />
+      ))}
+
+      {/* ── 营地篝火：地面火光 + 三层跳动火舌 ── */}
+      <div style={abs({ left: 5190, bottom: 128, width: 200, height: 100, borderRadius: "50%", background: "radial-gradient(ellipse, rgba(255,176,58,0.4) 0%, rgba(255,176,58,0) 70%)", animation: "gg-glow 2.4s ease-in-out infinite" })} />
+      <div style={abs({ left: 5266, bottom: 164, width: 32, height: 42, borderRadius: "50% 50% 50% 50% / 64% 64% 36% 36%", background: "#E85D3A", animation: "gg-flame 0.8s ease-in-out infinite" })} />
+      <div style={abs({ left: 5272, bottom: 168, width: 20, height: 30, borderRadius: "50% 50% 50% 50% / 64% 64% 36% 36%", background: "#FFB03A", animation: "gg-flame 0.62s ease-in-out 0.1s infinite" })} />
+      <div style={abs({ left: 5277, bottom: 172, width: 11, height: 18, borderRadius: "50% 50% 50% 50% / 64% 64% 36% 36%", background: "#FFF1C9", animation: "gg-flame 0.5s ease-in-out 0.2s infinite" })} />
+
+      {/* ── 营地挂灯（暖光灯笼） ── */}
+      <div style={abs({ left: 5598, bottom: 246, width: 24, height: 32, borderRadius: 7, border: "2px solid #6B4520", background: "linear-gradient(180deg,#FFD98A,#FFB03A)", boxShadow: "0 0 16px 6px rgba(255,176,58,0.5)", animation: "gg-glow 3s ease-in-out infinite", boxSizing: "border-box" })} />
+
+      {/* ── 商店门前彩灯泡（暖色/粉/绿，与夜间暖光呼应；灯线在 NearDecor 内） ── */}
       {[1052, 1086, 1120, 1154, 1188, 1222, 1256].map((x, index) => (
         <span
           key={`bulb${x}`}

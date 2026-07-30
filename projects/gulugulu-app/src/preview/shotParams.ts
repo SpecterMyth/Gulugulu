@@ -1,10 +1,12 @@
 // 预览专用截图参数(仅浏览器预览模式生效,Tauri 真机零行为变化):
-//   ?ui=pet|menu|backyard|settings|debug   初始 uiMode(App.tsx 初值)
-//   ?panel=shop|museum|market|notice|pits|dex  后院出生点/图鉴开关(BackyardScene)
+//   ?ui=pet|menu|backyard|factory|settings|debug   初始 uiMode(App.tsx 初值)
+//   ?panel=shop|museum|market|notice|pits|training|dex  后院出生点/图鉴开关(BackyardScene)
 //   ?lang=zh|en                            初始语言(写 localStorage 后由正常链路生效)
 //   ?seed=rich                             注入 mock 种子存档 + 压制全部新手引导
 //   ?shot=1                                截图模式:body.shot-mode(去预览虚线框等)
 //   ?scale=2.4                             截图模式下小窗 uiMode 的居中放大倍率
+//   ?factoryShot=action|jackpot|overflow|shop|inspection|graduate|loadout
+//                                           工厂商店页确定性营销场景
 // 由 main.tsx 在 createRoot 之前调用 applyPreviewBootstrap()——早于 bridge/mock
 // 引擎的惰性初始化,localStorage 写入对同一次加载即刻可见。
 
@@ -21,15 +23,56 @@ function params(): URLSearchParams | null {
   }
 }
 
-const UI_MODES = new Set(["pet", "menu", "backyard", "settings", "debug"]);
-const PANELS = new Set(["shop", "museum", "market", "notice", "pits", "dex"]);
+const UI_MODES = new Set(["pet", "menu", "backyard", "factory", "settings", "debug"]);
+const PANELS = new Set(["shop", "museum", "market", "notice", "pits", "training", "dex"]);
 // 舞台可直接演出的宠物状态(截图定格用);moving 依赖窗口位移不收。
 const PET_STATES = new Set(["idle", "working", "laboring", "thinking", "sleeping", "fed", "success", "error"]);
+export const FACTORY_SHOTS = [
+  "action",
+  "jackpot",
+  "overflow",
+  "shop",
+  "inspection",
+  "graduate",
+  "loadout",
+] as const;
+export type FactoryShot = (typeof FACTORY_SHOTS)[number];
+const FACTORY_SHOT_SET = new Set<string>(FACTORY_SHOTS);
 
 /** ?ui= 请求的初始 uiMode(无/非法 → null)。 */
 export function previewUiMode(): string | null {
   const v = params()?.get("ui");
   return v && UI_MODES.has(v) ? v : null;
+}
+
+/** ?factoryShot= 工厂商店页镜头（仅 ?shot=1 时启用）。 */
+export function previewFactoryShot(): FactoryShot | null {
+  const p = params();
+  if (!p || p.get("shot") !== "1") return null;
+  const v = p.get("factoryShot");
+  return v && FACTORY_SHOT_SET.has(v) ? (v as FactoryShot) : null;
+}
+
+/** ?steamClean=1:Steam 官方截图版，只保留真实游戏 HUD / 场景 / 精灵，移除营销标题框。 */
+export function previewSteamClean(): boolean {
+  return params()?.get("steamClean") === "1";
+}
+
+/** ?facpile= 工厂满编压测；工厂营销镜头未显式指定时按镜头给确定性密度。 */
+export function previewFacPile(): number {
+  const p = params();
+  const raw = p?.get("facpile");
+  const byShot: Record<FactoryShot, number> = {
+    action: 92,
+    jackpot: 138,
+    overflow: 188,
+    shop: 58,
+    inspection: 126,
+    graduate: 82,
+    loadout: 30,
+  };
+  const v = Number(raw ?? (previewFactoryShot() ? byShot[previewFactoryShot()!] : 0));
+  return Number.isFinite(v) ? Math.max(0, Math.min(300, Math.floor(v))) : 0;
 }
 
 /** ?panel= 请求的后院初始落点(无/非法 → null)。 */

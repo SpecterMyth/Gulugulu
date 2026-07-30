@@ -1,14 +1,17 @@
 import { type RefObject, useCallback, useEffect, useState } from "react";
-import type { GameBridge } from "../../game/bridge";
+import { FALLBACK_AGENT_MODELS, type GameBridge } from "../../game/bridge";
 import type { Language } from "../../i18n";
-import type { AppSettings } from "../../types";
+import type { AgentModels, AppSettings } from "../../types";
 
 type UseAppSettingsResult = {
   appSettings: AppSettings | null;
+  agentModels: AgentModels;
   handleAlwaysOnTop: (enabled: boolean) => void;
   handleKeyboardCapture: (enabled: boolean) => void;
   handleRandomMovement: (enabled: boolean) => void;
   handleAutostart: (enabled: boolean) => void;
+  handleDefaultAgent: (agent: string) => void;
+  handleDefaultModel: (model: string) => void;
 };
 
 /** 设备/隐私设置（键盘充能/总在最前/随机移动/语言）：托盘与设置面板共享的真源。 */
@@ -18,6 +21,21 @@ export function useAppSettings(
   languageRef: RefObject<Language>,
 ): UseAppSettingsResult {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  // AI 融合可选模型目录（「默认模型」下拉数据源）：启动向 Rust 取一次，失败用兜底。
+  const [agentModels, setAgentModels] = useState<AgentModels>(FALLBACK_AGENT_MODELS);
+
+  useEffect(() => {
+    let disposed = false;
+    bridge
+      .listAgentModels()
+      .then((next) => {
+        if (!disposed && next?.claude?.length && next?.codex?.length) setAgentModels(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      disposed = true;
+    };
+  }, [bridge]);
 
   // 设备设置：启动读取一次 + 订阅托盘/其它入口的改动（settings://changed）。
   useEffect(() => {
@@ -76,5 +94,38 @@ export function useAppSettings(
     [bridge],
   );
 
-  return { appSettings, handleAlwaysOnTop, handleKeyboardCapture, handleRandomMovement, handleAutostart };
+  // AI 融合首选 Agent：切 Agent 时若当前模型不在新 Agent 的模型表里，一并落到该 Agent
+  // 的首个模型（避免出现「Codex + opus」这类无效组合）。
+  const handleDefaultAgent = useCallback(
+    (agent: string) => {
+      const models = agent === "codex" ? agentModels.codex : agentModels.claude;
+      setAppSettings((prev) => {
+        if (!prev) return prev;
+        const keepModel = models.some((m) => m.id === prev.defaultModel);
+        const nextModel = keepModel ? prev.defaultModel : (models[0]?.id ?? "");
+        if (!keepModel) void bridge.setDefaultModel(nextModel).catch(() => undefined);
+        return { ...prev, defaultAgent: agent, defaultModel: nextModel };
+      });
+      void bridge.setDefaultAgent(agent).catch(() => undefined);
+    },
+    [bridge, agentModels],
+  );
+  const handleDefaultModel = useCallback(
+    (model: string) => {
+      setAppSettings((prev) => (prev ? { ...prev, defaultModel: model } : prev));
+      void bridge.setDefaultModel(model).catch(() => undefined);
+    },
+    [bridge],
+  );
+
+  return {
+    appSettings,
+    agentModels,
+    handleAlwaysOnTop,
+    handleKeyboardCapture,
+    handleRandomMovement,
+    handleAutostart,
+    handleDefaultAgent,
+    handleDefaultModel,
+  };
 }

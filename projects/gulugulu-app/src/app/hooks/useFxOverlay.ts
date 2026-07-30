@@ -11,11 +11,12 @@ import { celebrationDurationFor, type CelebrationPulse } from "../../game/Celebr
 import type { Flight } from "../../game/FlightLayer";
 import type { Language } from "../../i18n";
 import type { CustomSpeciesEntry, GameConfig } from "../../types";
+import type { PaperFxOverlayPayload } from "../../ui/PaperFx";
 
 /** 全屏特效覆盖层：停手该时长后隐藏（覆盖 screen 模式粒子 ~1.5s 滞空） */
 const FX_HIDE_DELAY_MS = 2000;
 /** 后院升级光效生命周期（与 .yup-root / YardUpgradeFx 一致）。 */
-const YARD_FX_LIFETIME_MS = 1600;
+const YARD_FX_LIFETIME_MS = 2800;
 
 type WorkBurst = { id: number; tier: number; seed: number; boom: boolean };
 
@@ -92,7 +93,9 @@ type UseFxOverlayResult = {
   /** 孵化庆典：整幕交给全屏覆盖层居中重演；返回 false 回退后院窗口内渲染。 */
   emitCelebration: (payload: CelebrationEmitPayload) => Promise<boolean>;
   /** 后院升级光效：交给全屏覆盖层；返回 false 回退后院窗口内渲染。 */
-  emitYardFx: (level: number, cap: number, lang: Language) => Promise<boolean>;
+  emitYardFx: (level: number, cap: number, lang: Language, maxed: boolean) => Promise<boolean>;
+  /** Unified paper celebration burst; coordinates arrive in the main window viewport. */
+  emitPaperFx: (payload: PaperFxOverlayPayload) => Promise<boolean>;
   workBursts: WorkBurst[];
 };
 
@@ -301,13 +304,29 @@ export function useFxOverlay(uiMode: UiMode, activePetSpecies: string | null): U
 
   /** 后院升级光效：同样就地锚定在 App 窗口实际位置，溢出的神光扇向上羽化淡出。 */
   const emitYardFx = useCallback(
-    (level: number, cap: number, lang: Language): Promise<boolean> =>
+    (level: number, cap: number, lang: Language, maxed: boolean): Promise<boolean> =>
       withReadyOverlay(async () => {
         const appRect = await appWindowOverlayRect();
         if (!appRect) return false;
         try {
-          await emitTo("fx", "fx://yardfx", { level, cap, lang, appRect });
+          await emitTo("fx", "fx://yardfx", { level, cap, lang, maxed, appRect });
           scheduleFxHide(YARD_FX_LIFETIME_MS + 400);
+          return true;
+        } catch {
+          return false;
+        }
+      }),
+    [withReadyOverlay, scheduleFxHide],
+  );
+
+  const emitPaperFx = useCallback(
+    (payload: PaperFxOverlayPayload): Promise<boolean> =>
+      withReadyOverlay(async () => {
+        const point = await clientPointToOverlay(payload.x, payload.y);
+        if (!point) return false;
+        try {
+          await emitTo("fx", "fx://paper", { ...payload, ...point });
+          scheduleFxHide(payload.durationMs + 400);
           return true;
         } catch {
           return false;
@@ -357,6 +376,7 @@ export function useFxOverlay(uiMode: UiMode, activePetSpecies: string | null): U
     emitFoodFlight,
     emitCelebration,
     emitYardFx,
+    emitPaperFx,
     workBursts,
   };
 }

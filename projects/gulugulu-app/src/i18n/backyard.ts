@@ -24,6 +24,47 @@ export interface BackyardStrings {
     board: string;
     museum: string;
     market: string;
+    trainingHall: string;
+  };
+
+  /** 训练馆弹板 + 训练弹窗(BackyardTrainingPanel / TrainingModal)。 */
+  training: {
+    title: string;
+    /** 未建造时的招徕文案与建造按钮。 */
+    lockedHint: string;
+    buildBtn: string;
+    hallLevel: string;
+    /** 馆等级说明：当前可做到第几级升阶。 */
+    hallUnlocks: string;
+    hallMaxed: string;
+    upgradeHallBtn: string;
+    slots: string;
+    expandSlotsBtn: string;
+    slotsMaxed: string;
+    idleSlot: string;
+    training: string;
+    remaining: string;
+    collectBtn: string;
+    openBtn: string;
+    materialsTitle: string;
+    noMaterials: string;
+    /** 弹窗：选宠与确认。 */
+    pickTitle: string;
+    pickHint: string;
+    noEligible: string;
+    tierUp: string;
+    needMaxLevel: string;
+    needHallLevel: string;
+    atTopTier: string;
+    inTraining: string;
+    costCoins: string;
+    costTime: string;
+    useUniversal: string;
+    universalShort: string;
+    startBtn: string;
+    cancelBtn: string;
+    /** 材料名（含万能券）。 */
+    materialNames: Record<string, string>;
   };
 
   /** 后院主场景(BackyardScene):左下牌簇 / 升级木牌 / 主角与驻留伙伴 / 引导。 */
@@ -53,6 +94,7 @@ export interface BackyardStrings {
     otherNotMax: string;
     yoursNotMax: string;
     needCoins: string;
+    steamReconciling: string;
     /** 物种信息缺失时的兜底称呼(zh:精灵)。 */
     genericName: string;
   };
@@ -335,9 +377,52 @@ const zh: BackyardStrings = {
     wilds: "🌾 旷野 →",
     hatchery: "🥚 孵化区",
     shop: "🛒 商店",
-    board: "📊 公告板",
+    board: "公告板",
     museum: "📖 图鉴馆",
     market: "💰 交易市场",
+    trainingHall: "🏋️ 训练馆",
+  },
+
+  training: {
+    title: "🏋️ 训练馆",
+    lockedHint: "融合换物种，训练升阶数——盖起训练馆，把你最喜欢的那只练上去。",
+    buildBtn: "🔨 建造训练馆 · {cost}🪙",
+    hallLevel: "训练馆 Lv{level}",
+    hallUnlocks: "可训练至 {tier} 阶",
+    hallMaxed: "已满级 · 可训练至 6 阶",
+    upgradeHallBtn: "⬆️ 升级 · {cost}🪙",
+    slots: "训练位 {used}/{total}",
+    expandSlotsBtn: "➕ 扩建训练位 · {cost}🪙",
+    slotsMaxed: "训练位已扩满",
+    idleSlot: "空闲",
+    training: "{name} · {from}阶 → {to}阶",
+    remaining: "还需 {time}",
+    collectBtn: "✨ 出师",
+    openBtn: "🏋️ 开始训练",
+    materialsTitle: "升阶材料",
+    noMaterials: "还没有升阶材料——去工厂打工赚材料吧",
+    pickTitle: "选择要升阶的伙伴",
+    pickHint: "训练不消耗伙伴、不清空等级——还是这一只，只是更强了。",
+    noEligible: "还没有满级的伙伴可以升阶",
+    tierUp: "{from} 阶 → {to} 阶",
+    needMaxLevel: "需先点到满级",
+    needHallLevel: "需训练馆 Lv{level}",
+    atTopTier: "已达最高阶",
+    inTraining: "训练中",
+    costCoins: "{cost}🪙",
+    costTime: "耗时 {time}",
+    useUniversal: "用 {count} 张{name}补足",
+    universalShort: "材料不足 {count}",
+    startBtn: "🏋️ 开始训练",
+    cancelBtn: "取消",
+    materialNames: {
+      ironBadge: "🔩 铁质工牌",
+      copperGoggles: "🥽 铜质护目镜",
+      silverHelmet: "⛑️ 银质安全帽",
+      goldWrench: "🔧 鎏金扳手",
+      platinumVest: "🦺 铂金工装",
+      goldenBadge: "🎫 金牌工牌",
+    },
   },
 
   scene: {
@@ -364,6 +449,7 @@ const zh: BackyardStrings = {
     otherNotMax: "需对方满级 Lv{level}（{name}未满级）",
     yoursNotMax: "你的{name}还没满级",
     needCoins: "金币不足（融合需 {fee} 🪙）",
+    steamReconciling: "Steam 正在核对这只精灵，整理好后会自动恢复融合",
     genericName: "精灵",
   },
 
@@ -401,7 +487,7 @@ const zh: BackyardStrings = {
     designDone: "✨ 设计完成",
     genFailed: "💤 生成未完成",
     generating: "🤖 {provider} 设计中…",
-    queued: "🤖 Claude/Codex 设计中…",
+    queued: "🤖 等待 AI 设计…",
     syncing: "🔄 同步中",
     syncingTitle: "正在 Steam 上销毁融合材料、生成结果",
     collectTitle: "点击收取",
@@ -470,9 +556,9 @@ const zh: BackyardStrings = {
   },
 
   nearPet: {
-    fuse: "✨ 融合",
+    fuse: "融合",
     notEligible: "条件未满足",
-    follow: "🤝 陪伴",
+    follow: "陪伴",
     confirmRelease: "确认放生（返 {refund} 🪙）",
     release: "放生",
     lastPetTitle: "最后一只伙伴不能放生",
@@ -611,9 +697,53 @@ const en: BackyardStrings = {
     wilds: "🌾 Wilds →",
     hatchery: "🥚 Hatchery",
     shop: "🛒 Shop",
-    board: "📊 Notice Board",
+    board: "Notice Board",
     museum: "📖 Museum",
     market: "💰 Market",
+    trainingHall: "🏋️ Training Hall",
+  },
+
+  training: {
+    title: "🏋️ Training Hall",
+    lockedHint:
+      "Fusion swaps species; training raises tiers — build the hall and level up the one you actually love.",
+    buildBtn: "🔨 Build Training Hall · {cost}🪙",
+    hallLevel: "Training Hall Lv{level}",
+    hallUnlocks: "Trains up to tier {tier}",
+    hallMaxed: "Fully upgraded · trains up to tier 6",
+    upgradeHallBtn: "⬆️ Upgrade · {cost}🪙",
+    slots: "Slots {used}/{total}",
+    expandSlotsBtn: "➕ Add slot · {cost}🪙",
+    slotsMaxed: "All slots built",
+    idleSlot: "Idle",
+    training: "{name} · T{from} → T{to}",
+    remaining: "{time} left",
+    collectBtn: "✨ Graduate",
+    openBtn: "🏋️ Train a buddy",
+    materialsTitle: "Tier-up materials",
+    noMaterials: "No materials yet — earn them on the factory floor",
+    pickTitle: "Pick a buddy to tier up",
+    pickHint: "Training costs no buddies and keeps their level — same friend, just stronger.",
+    noEligible: "No max-level buddies ready to tier up",
+    tierUp: "T{from} → T{to}",
+    needMaxLevel: "Needs max level first",
+    needHallLevel: "Needs Training Hall Lv{level}",
+    atTopTier: "Already top tier",
+    inTraining: "In training",
+    costCoins: "{cost}🪙",
+    costTime: "Takes {time}",
+    useUniversal: "Cover the gap with {count} × {name}",
+    universalShort: "{count} short",
+    startBtn: "🏋️ Start training",
+    cancelBtn: "Cancel",
+    materialNames: {
+      ironBadge: "🔩 Iron Badge",
+      copperGoggles: "🥽 Copper Goggles",
+      silverHelmet: "⛑️ Silver Helmet",
+      goldWrench: "🔧 Gilded Wrench",
+      platinumVest: "🦺 Platinum Vest",
+      goldenBadge: "🎫 Gold Badge",
+    },
   },
 
   scene: {
@@ -640,6 +770,7 @@ const en: BackyardStrings = {
     otherNotMax: "Partner must be max Lv{level} ({name} isn't there yet)",
     yoursNotMax: "Your {name} isn't max level yet",
     needCoins: "Not enough coins (fusion costs {fee} 🪙)",
+    steamReconciling: "Steam is reconciling this pet; fusion will return automatically when it is ready",
     genericName: "pet",
   },
 
@@ -677,7 +808,7 @@ const en: BackyardStrings = {
     designDone: "✨ Design ready",
     genFailed: "💤 Gen unfinished",
     generating: "🤖 {provider} designing…",
-    queued: "🤖 Claude/Codex designing…",
+    queued: "🤖 Waiting for AI design…",
     syncing: "🔄 syncing",
     syncingTitle: "Burning materials & minting on Steam",
     collectTitle: "Click to collect",
@@ -746,9 +877,9 @@ const en: BackyardStrings = {
   },
 
   nearPet: {
-    fuse: "✨ Fuse",
+    fuse: "Fuse",
     notEligible: "not eligible",
-    follow: "🤝 Follow",
+    follow: "Follow",
     confirmRelease: "Sure? +{refund} 🪙",
     release: "Release",
     lastPetTitle: "Can't release your last buddy",

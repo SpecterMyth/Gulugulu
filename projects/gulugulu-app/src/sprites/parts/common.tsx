@@ -32,75 +32,153 @@ export function Part({
   );
 }
 
-/** 眼睛对（含眨眼动画组 .sprite-eyes）。variant: round 圆眼 / happy 弯月笑眼 / sleepy 半合眼 */
+// 单只眼的绘制：9 种眼型 × 可选虹膜色 iris。side=-1 左眼 / +1 右眼（锐眼外角上扬用）。
+// 全部由 Eyes/SideEye 包进 .sprite-eyes 组，眨眼/表情动画照常继承。
+function irisPupil(cx: number, cy: number, r: number, iris?: string, hi = true): ReactNode {
+  if (iris) {
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={r} fill={iris} stroke={OUTLINE} strokeWidth={r * 0.3} />
+        <circle cx={cx} cy={cy + r * 0.06} r={r * 0.5} fill={OUTLINE} />
+        {hi && <circle cx={cx + r * 0.32} cy={cy - r * 0.34} r={r * 0.26} fill="#fff" />}
+      </g>
+    );
+  }
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r} fill={OUTLINE} />
+      {hi && <circle cx={cx + r * 0.35} cy={cy - r * 0.35} r={r * 0.32} fill="#fff" />}
+    </g>
+  );
+}
+
+function eyeShape(cx: number, cy: number, r: number, variant: EyeVariant, iris: string | undefined, side: number): ReactNode {
+  switch (variant) {
+    case "happy":
+      return (
+        <path
+          d={`M${cx - r} ${cy + r * 0.3} q${r} ${-r * 1.2} ${r * 2} 0`}
+          fill="none"
+          stroke={OUTLINE}
+          strokeWidth={r * 0.6}
+          strokeLinecap="round"
+        />
+      );
+    case "sleepy":
+      return (
+        <g>
+          <path d={`M${cx - r} ${cy} a${r} ${r} 0 0 0 ${r * 2} 0 z`} fill={OUTLINE} />
+          <path d={`M${cx - r} ${cy - 1} h${r * 2}`} stroke={OUTLINE} strokeWidth={2.4} strokeLinecap="round" />
+          <circle cx={cx + 2} cy={cy + 2.5} r={1.8} fill="#fff" />
+        </g>
+      );
+    case "dot":
+      return (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r * 0.6}
+          fill={iris ?? OUTLINE}
+          stroke={iris ? OUTLINE : "none"}
+          strokeWidth={iris ? r * 0.26 : 0}
+        />
+      );
+    case "beady":
+      return (
+        <g>
+          <circle cx={cx} cy={cy} r={r} fill="#fff" stroke={OUTLINE} strokeWidth={r * 0.34} />
+          <circle cx={cx} cy={cy} r={r * 0.46} fill={iris ?? OUTLINE} />
+          {iris && <circle cx={cx} cy={cy} r={r * 0.2} fill={OUTLINE} />}
+          <circle cx={cx + r * 0.16} cy={cy - r * 0.2} r={r * 0.15} fill="#fff" />
+        </g>
+      );
+    case "sharp": {
+      // 上挑锐眼 = 倾斜椭圆：外眼角上扬（右眼逆时针、左眼顺时针）。
+      const angle = -18 * side;
+      return (
+        <g transform={`rotate(${angle} ${cx} ${cy})`}>
+          <ellipse cx={cx} cy={cy} rx={r} ry={r * 0.68} fill={iris ?? OUTLINE} stroke={OUTLINE} strokeWidth={r * 0.28} />
+          {iris && <circle cx={cx} cy={cy} r={r * 0.42} fill={OUTLINE} />}
+          <circle cx={cx + r * 0.22} cy={cy - r * 0.24} r={r * 0.16} fill="#fff" />
+        </g>
+      );
+    }
+    case "droopy":
+      return (
+        <g>
+          {irisPupil(cx, cy + r * 0.12, r, iris)}
+          {/* 上眼睑压住上缘 → 慵懒半眼 */}
+          <path
+            d={`M${cx - r * 1.05} ${cy - r * 0.1} Q${cx} ${cy - r} ${cx + r * 1.05} ${cy - r * 0.1}`}
+            fill="none"
+            stroke={OUTLINE}
+            strokeWidth={r * 0.44}
+            strokeLinecap="round"
+          />
+        </g>
+      );
+    case "sparkle":
+      return (
+        <g>
+          {irisPupil(cx, cy, r, iris)}
+          <circle cx={cx - r * 0.34} cy={cy + r * 0.42} r={r * 0.18} fill="#fff" />
+        </g>
+      );
+    case "round":
+    default:
+      return irisPupil(cx, cy, r, iris);
+  }
+}
+
+/** 眼睛对（含眨眼动画组 .sprite-eyes）。9 种基础眼型 + 可选虹膜色 iris。
+ *  wink=左眼睁圆、右眼弯月眨。 */
 export function Eyes({
   cx1,
   cx2,
   cy,
   r = 8,
   variant = "round",
+  iris,
 }: {
   cx1: number;
   cx2: number;
   cy: number;
   r?: number;
   variant?: EyeVariant;
+  iris?: string;
 }) {
-  if (variant === "happy") {
-    return (
-      <g className="sprite-eyes" fill="none" stroke={OUTLINE} strokeWidth={r * 0.6} strokeLinecap="round">
-        <path d={`M${cx1 - r} ${cy + r * 0.3} q${r} ${-r * 1.2} ${r * 2} 0`} />
-        <path d={`M${cx2 - r} ${cy + r * 0.3} q${r} ${-r * 1.2} ${r * 2} 0`} />
-      </g>
-    );
-  }
-  if (variant === "sleepy") {
+  if (variant === "wink") {
     return (
       <g className="sprite-eyes">
-        <path d={`M${cx1 - r} ${cy} a${r} ${r} 0 0 0 ${r * 2} 0 z`} fill={OUTLINE} />
-        <path d={`M${cx2 - r} ${cy} a${r} ${r} 0 0 0 ${r * 2} 0 z`} fill={OUTLINE} />
-        <g stroke={OUTLINE} strokeWidth={2.4} strokeLinecap="round">
-          <path d={`M${cx1 - r} ${cy - 1} h${r * 2}`} />
-          <path d={`M${cx2 - r} ${cy - 1} h${r * 2}`} />
-        </g>
-        <circle cx={cx1 + 2} cy={cy + 2.5} r={1.8} fill="#fff" />
-        <circle cx={cx2 + 2} cy={cy + 2.5} r={1.8} fill="#fff" />
+        {eyeShape(cx1, cy, r, "round", iris, -1)}
+        {eyeShape(cx2, cy, r, "happy", undefined, 1)}
       </g>
     );
   }
   return (
     <g className="sprite-eyes">
-      <circle cx={cx1} cy={cy} r={r} fill={OUTLINE} />
-      <circle cx={cx2} cy={cy} r={r} fill={OUTLINE} />
-      <circle cx={cx1 + r * 0.35} cy={cy - r * 0.35} r={r * 0.32} fill="#fff" />
-      <circle cx={cx2 + r * 0.35} cy={cy - r * 0.35} r={r * 0.32} fill="#fff" />
+      {eyeShape(cx1, cy, r, variant, iris, -1)}
+      {eyeShape(cx2, cy, r, variant, iris, 1)}
     </g>
   );
 }
 
 /** 侧视单眼 */
-export function SideEye({ cx, cy, r = 8, variant = "round" }: { cx: number; cy: number; r?: number; variant?: EyeVariant }) {
-  if (variant === "happy") {
-    return (
-      <g className="sprite-eyes" fill="none" stroke={OUTLINE} strokeWidth={r * 0.6} strokeLinecap="round">
-        <path d={`M${cx - r} ${cy + r * 0.3} q${r} ${-r * 1.2} ${r * 2} 0`} />
-      </g>
-    );
-  }
-  if (variant === "sleepy") {
-    return (
-      <g className="sprite-eyes">
-        <path d={`M${cx - r} ${cy} a${r} ${r} 0 0 0 ${r * 2} 0 z`} fill={OUTLINE} />
-        <path d={`M${cx - r} ${cy - 1} h${r * 2}`} stroke={OUTLINE} strokeWidth={2.4} strokeLinecap="round" />
-      </g>
-    );
-  }
-  return (
-    <g className="sprite-eyes">
-      <circle cx={cx} cy={cy} r={r} fill={OUTLINE} />
-      <circle cx={cx + r * 0.35} cy={cy - r * 0.35} r={r * 0.32} fill="#fff" />
-    </g>
-  );
+export function SideEye({
+  cx,
+  cy,
+  r = 8,
+  variant = "round",
+  iris,
+}: {
+  cx: number;
+  cy: number;
+  r?: number;
+  variant?: EyeVariant;
+  iris?: string;
+}) {
+  const v: EyeVariant = variant === "wink" ? "round" : variant;
+  return <g className="sprite-eyes">{eyeShape(cx, cy, r, v, iris, 1)}</g>;
 }
 
 export function Blush({ cx1, cx2, cy, color = "#F5917B" }: { cx1: number; cx2: number; cy: number; color?: string }) {

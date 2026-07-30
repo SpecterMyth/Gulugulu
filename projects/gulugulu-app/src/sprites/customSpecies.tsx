@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type {
   CustomPart,
   CustomSpeciesEntry,
@@ -24,6 +24,8 @@ import {
   type RigView,
   type RigViewParts,
   type SpeciesVisual,
+  type MotionPreset,
+  type ReactionProfile,
 } from "./rigTypes";
 import { chimeraFitScale, chimeraFxEmitter } from "./rigs/chimeraRig";
 import { Part } from "./parts/common";
@@ -841,6 +843,25 @@ export function buildVisualFromSpec(spec: CustomVisualSpec): SpeciesVisual {
   const mouthStyle =
     spec.mouthStyle != null && MOUTH_KEYS.includes(spec.mouthStyle as MouthStyle) ? (spec.mouthStyle as MouthStyle) : undefined;
   const toolId = spec.toolId != null && TOOL_KEYS.includes(spec.toolId) ? spec.toolId : undefined;
+  const motionPreset = (
+    ["waddle", "trot", "bound", "scuttle", "slither", "float", "sway"] as MotionPreset[]
+  ).includes(spec.motionPreset as MotionPreset)
+    ? (spec.motionPreset as MotionPreset)
+    : undefined;
+  const reactionProfile = (
+    ["sunny", "shy", "cool", "sleepy", "mischievous"] as ReactionProfile[]
+  ).includes(spec.reactionProfile as ReactionProfile)
+    ? (spec.reactionProfile as ReactionProfile)
+    : undefined;
+  const motionVars: Partial<Record<MotionPreset, CSSProperties>> = {
+    waddle: { "--stride-dur": "0.68s", "--stride-deg": "10deg", "--hop-h": "18px", "--bob-px": "4px" } as CSSProperties,
+    trot: { "--stride-dur": "0.48s", "--stride-deg": "16deg", "--hop-h": "26px", "--bob-px": "5px" } as CSSProperties,
+    bound: { "--stride-dur": "0.42s", "--stride-deg": "21deg", "--hop-h": "36px", "--bob-px": "8px" } as CSSProperties,
+    scuttle: { "--stride-dur": "0.28s", "--stride-deg": "9deg", "--hop-h": "12px", "--bob-px": "2px" } as CSSProperties,
+    slither: { "--stride-dur": "0.72s", "--stride-deg": "4deg", "--hop-h": "10px", "--bob-px": "3px" } as CSSProperties,
+    float: { "--stride-dur": "0.9s", "--stride-deg": "7deg", "--hop-h": "18px", "--bob-px": "6px" } as CSSProperties,
+    sway: { "--stride-dur": "0.82s", "--stride-deg": "8deg", "--hop-h": "16px", "--bob-px": "4px" } as CSSProperties,
+  };
   const slotEntries = Object.entries(spec.slots ?? {}).filter(
     ([name, value]) => SLOT_NAMES.includes(name as SlotName) && value != null,
   ) as Array<[SlotName, SlotSpec]>;
@@ -858,8 +879,11 @@ export function buildVisualFromSpec(spec: CustomVisualSpec): SpeciesVisual {
     eyes,
     iris,
     mouthStyle,
+    motionPreset,
+    reactionProfile,
     toolId,
     floating,
+    cssVars: motionPreset ? motionVars[motionPreset] : undefined,
     form,
     rigData: customRig,
     shadowRx: floating ? 48 : undefined,

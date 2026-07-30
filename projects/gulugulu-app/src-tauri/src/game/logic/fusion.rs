@@ -27,14 +27,22 @@ pub fn logic_validate_fusion_pair(
     if pet_a.tier != pet_b.tier {
         return Err("#fusionTierMismatch".to_string());
     }
-    // 融合 2.0：同阶 1~5 皆可融（结果 = 亲代阶 +1），两只 6 阶已达顶。
-    if pet_a.tier < 1 || pet_a.tier > 5 {
+    // 经济 v2.0：同阶 1~6 皆可融。结果阶 = min(亲代阶+1, fusionMaxResultTier)——
+    // 亲代阶已达上限时**只取元素并集、不涨阶**（5/6 元素物种由此在 3 阶诞生，
+    // 图鉴仍可满）。阶数的上限段改由训练馆承包。
+    if pet_a.tier < 1 || pet_a.tier > 6 {
         return Err("#fusionMaxTier".to_string());
     }
     if !is_max_level(config, &pet_a) || !is_max_level(config, &pet_b) {
         return Err("#fusionNeedMaxLevel".to_string());
     }
-    if save.coins < config.fusion_fee_for(pet_a.tier) {
+    // 同物种 + 不涨阶 = 并集即自身、阶数不变 → 纯亏两只，直接拦在门口。
+    if pet_a.species == pet_b.species && config.fusion_result_tier(pet_a.tier) == pet_a.tier {
+        return Err("#fusionSameSpeciesNoGain".to_string());
+    }
+    let tutorial_reimbursed =
+        save.onboarding.status == "active" && save.onboarding.tutorial_fusions < 2;
+    if save.coins < config.fusion_fee_for(pet_a.tier) && !tutorial_reimbursed {
         return Err("#fusionNeedFee".to_string());
     }
     // 每日融合上限（EconomyScaling.md §7.5）：按结果配方键计数，达上限拒绝。
@@ -42,7 +50,12 @@ pub fn logic_validate_fusion_pair(
     // 传配方**键**（recipe=），前端 recipeLabel 按语言渲染（"火+水" / "Fire + Water"）。
     let recipe_key = fusion_result_recipe_key(config, save, &pet_a, &pet_b)?;
     let cap = config.fusion_daily_mint_cap(recipe_key.split('+').count());
-    let minted = save.daily.fusion_mints.get(&recipe_key).copied().unwrap_or(0);
+    let minted = save
+        .daily
+        .fusion_mints
+        .get(&recipe_key)
+        .copied()
+        .unwrap_or(0);
     if minted >= cap {
         return Err(format!("#fusionDailyCap|recipe={recipe_key}|cap={cap}"));
     }
@@ -64,7 +77,11 @@ pub(crate) fn fusion_result_recipe_key(
 /// 每日融合计数 +1（唯一写入点集中于素材消耗时刻：`consume_fusion_pair` 与
 /// Steam 路径的 `apply_fusion_local`）。
 pub(crate) fn record_fusion_mint(save: &mut GameSave, recipe_key: &str) {
-    *save.daily.fusion_mints.entry(recipe_key.to_string()).or_insert(0) += 1;
+    *save
+        .daily
+        .fusion_mints
+        .entry(recipe_key.to_string())
+        .or_insert(0) += 1;
     // 成就：融合总次数（本函数是全路径唯一融合计数点，SteamAchievements.md §3.3）。
     save.stats.total_fusions += 1;
 }
@@ -74,7 +91,10 @@ pub(crate) fn record_fusion_mint(save: &mut GameSave, recipe_key: &str) {
 /// （本地阶梯遍历空串永不命中 dexObtained，前沿数学无损）；旧随机 codename 按
 /// 注册序追加（原行为）。幂等：已注册不重复占槽。
 pub fn register_ai_slot(save: &mut GameSave, recipe_key: &str, codename: &str) {
-    let slots = save.recipe_ai_slots.entry(recipe_key.to_string()).or_default();
+    let slots = save
+        .recipe_ai_slots
+        .entry(recipe_key.to_string())
+        .or_default();
     if slots.iter().any(|c| c == codename) {
         return;
     }
@@ -136,7 +156,8 @@ pub fn logic_register_workshop_species(
     }
     // 首发皮肤入库（换肤/上传者列表用）；入库失败（封顶等）不阻断形象注册。
     let _ = logic_install_skin(save, codename, skin);
-    save.workshop_published.insert(codename.to_string(), String::new());
+    save.workshop_published
+        .insert(codename.to_string(), String::new());
     Ok(())
 }
 
@@ -157,15 +178,26 @@ pub fn fusion_pair_recipe_key(
 }
 
 /// 消耗融合素材：扣手续费（按亲代阶）、移除双亲、修复 active_pet_id、记每日融合数。
-pub(crate) fn consume_fusion_pair(save: &mut GameSave, id_a: &str, id_b: &str, fee: u64, recipe_key: &str) {
+pub(crate) fn consume_fusion_pair(
+    save: &mut GameSave,
+    id_a: &str,
+    id_b: &str,
+    fee: u64,
+    recipe_key: &str,
+) {
     save.coins = save.coins.saturating_sub(fee);
     save.pets.retain(|p| p.id != id_a && p.id != id_b);
+    save.capacity_exempt_pet_ids.remove(id_a);
+    save.capacity_exempt_pet_ids.remove(id_b);
     if let Some(active) = &save.active_pet_id {
         if active == id_a || active == id_b {
             save.active_pet_id = save.pets.first().map(|p| p.id.clone());
         }
     }
     record_fusion_mint(save, recipe_key);
+    if save.onboarding.status == "active" && save.onboarding.tutorial_fusions < 2 {
+        save.onboarding.tutorial_fusions += 1;
+    }
 }
 
 /// 产出一颗融合蛋（结果阶 `tier`，有空槽直接入槽计时，否则进背包）。
@@ -180,12 +212,18 @@ pub(crate) fn push_fusion_egg(
 ) -> String {
     let slot = first_free_slot(config, save);
     let hatch_kind = format!("tier{tier}");
-    let hatch_secs = config
+    let formal_hatch_secs = config
         .hatch_seconds
         .get(&hatch_kind)
         .or_else(|| config.hatch_seconds.get("tier2"))
         .copied()
         .unwrap_or(1800);
+    let hatch_secs =
+        if save.onboarding.status == "active" && !save.onboarding.factory_formal_entered {
+            8
+        } else {
+            formal_hatch_secs
+        };
     let hatch_at = slot.map(|_| now + hatch_secs as i64);
     let egg_id = new_id("egg");
     save.eggs.push(EggInstance {
@@ -204,7 +242,11 @@ pub(crate) fn push_fusion_egg(
 }
 
 /// 某物种的元素集合（config 目录 → AI 自定义物种）。
-pub(crate) fn species_elements(config: &GameConfig, save: &GameSave, species: &str) -> Result<Vec<String>, String> {
+pub(crate) fn species_elements(
+    config: &GameConfig,
+    save: &GameSave,
+    species: &str,
+) -> Result<Vec<String>, String> {
     species_info(config, save, species)
         .map(|s| s.elements.clone())
         .ok_or_else(|| format!("#unknownSpeciesNamed|species={species}"))
@@ -212,7 +254,11 @@ pub(crate) fn species_elements(config: &GameConfig, save: &GameSave, species: &s
 
 /// 该配方当前已获得的槽号集合（0 = 固定物种；1.. = 已注册 AI 变种）。
 /// 判定真源 = `dex_obtained`（曾获只数 ≥1），与图鉴一致（FusionRecipeSlots §5）。
-pub(crate) fn obtained_slots_for(save: &GameSave, recipe_key: &str, fixed_codename: &str) -> std::collections::BTreeSet<usize> {
+pub(crate) fn obtained_slots_for(
+    save: &GameSave,
+    recipe_key: &str,
+    fixed_codename: &str,
+) -> std::collections::BTreeSet<usize> {
     let mut set = std::collections::BTreeSet::new();
     let has = |code: &str| save.dex_obtained.get(code).copied().unwrap_or(0) >= 1;
     if has(fixed_codename) {
@@ -264,8 +310,14 @@ pub fn plan_fusion(
 ) -> Result<FusionPlan, String> {
     use crate::fusion_slots as fs;
     let tier = pet_a.tier;
-    let fee = config.fusion_fee_for(tier);
-    let result_tier = tier + 1;
+    let tutorial_reimbursed =
+        save.onboarding.status == "active" && save.onboarding.tutorial_fusions < 2;
+    let fee = if tutorial_reimbursed {
+        0
+    } else {
+        config.fusion_fee_for(tier)
+    };
+    let result_tier = config.fusion_result_tier(tier);
 
     let mut elements = species_elements(config, save, &pet_a.species)?;
     elements.extend(species_elements(config, save, &pet_b.species)?);
@@ -290,7 +342,11 @@ pub fn plan_fusion(
         .cloned()
         .ok_or_else(|| format!("#recipeNoFixedSpecies|recipe={recipe_key}"))?;
 
-    let registered = save.recipe_ai_slots.get(&recipe_key).map(|v| v.len()).unwrap_or(0);
+    let registered = save
+        .recipe_ai_slots
+        .get(&recipe_key)
+        .map(|v| v.len())
+        .unwrap_or(0);
     let obtained = obtained_slots_for(save, &recipe_key, &fixed);
     let a_percent = config.ai_total_chance_percent_for_count(element_count);
     let m = fs::frontier_m(fs::obtained_prefix(&obtained));
@@ -307,14 +363,22 @@ pub fn plan_fusion(
                 .get(&recipe_key)
                 .and_then(|v| v.get(slot - 1))
                 .cloned()
-                .ok_or_else(|| format!("#recipeSlotUnregistered|recipe={recipe_key}|slot={slot}"))?;
+                .ok_or_else(|| {
+                    format!("#recipeSlotUnregistered|recipe={recipe_key}|slot={slot}")
+                })?;
             (code, FusionResultKind::Reuse(slot))
         }
         // 同步路径无法生成新变种：回退 0 号固定物种（PR-2 异步路径真正生成）。
         fs::SlotOutcome::Generate { slot } => (fixed, FusionResultKind::Generate(slot)),
     };
 
-    Ok(FusionPlan { result_species, result_tier, fee, recipe_key, kind })
+    Ok(FusionPlan {
+        result_species,
+        result_tier,
+        fee,
+        recipe_key,
+        kind,
+    })
 }
 
 /// 融合掷点熵源（无 rand：now ⊕ 双亲 id 的 FNV 哈希，经 splitmix64 扩散）。
@@ -345,7 +409,14 @@ pub fn logic_fuse_pets(
     let roll = fusion_roll_value(now, id_a, id_b);
     let plan = plan_fusion(config, save, &pet_a, &pet_b, roll, false)?;
     consume_fusion_pair(save, id_a, id_b, plan.fee, &plan.recipe_key);
-    Ok(push_fusion_egg(config, save, plan.result_species, plan.result_tier, now, None))
+    Ok(push_fusion_egg(
+        config,
+        save,
+        plan.result_species,
+        plan.result_tier,
+        now,
+        None,
+    ))
 }
 
 /// AI 融合启动：先提交后生成 —— 立即消耗双亲+手续费，产出一颗挂起的
@@ -361,11 +432,11 @@ pub fn logic_start_ai_fusion(
 ) -> Result<String, String> {
     settle_all(config, save, now, today);
     let (pet_a, pet_b) = logic_validate_fusion_pair(config, save, id_a, id_b)?;
-    // 融合 2.0：配方 = 双亲元素并集；结果阶 = 亲代阶 +1；兜底 = 并集固定物种。
+    // 融合 2.0：配方 = 双亲元素并集；结果阶 = min(亲代阶+1, 封顶)；兜底 = 并集固定物种。
     let mut elements = species_elements(config, save, &pet_a.species)?;
     elements.extend(species_elements(config, save, &pet_b.species)?);
     let recipe_key = crate::fusion_slots::element_set_key(&elements);
-    let result_tier = pet_a.tier + 1;
+    let result_tier = config.fusion_result_tier(pet_a.tier);
     let fallback = config
         .species_by_recipe
         .get(&recipe_key)
@@ -383,7 +454,14 @@ pub fn logic_start_ai_fusion(
         forced_codename: None,
         provider: None,
     };
-    Ok(push_fusion_egg(config, save, fallback, result_tier, now, Some(pending)))
+    Ok(push_fusion_egg(
+        config,
+        save,
+        fallback,
+        result_tier,
+        now,
+        Some(pending),
+    ))
 }
 
 /// AI 生成成功：注册自定义物种并把挂起蛋的 species 改写成新 codename。
@@ -434,7 +512,11 @@ pub fn logic_resolve_fusion_egg(
 /// 该既有 codename，**不再新插入一个随机名重复物种**——否则本地会多出一个无 Steam def
 /// 映射的孪生物种，而孵出的宠仍绑着该槽位 def，本地↔Steam 记账永久分叉（review C#10）。
 /// 幂等注册 AI 槽；蛋不存在/无挂起融合时报错（调用方丢弃结果即可，蛋已按兜底孵出）。
-pub fn logic_reuse_fusion_egg(save: &mut GameSave, egg_id: &str, codename: &str) -> Result<(), String> {
+pub fn logic_reuse_fusion_egg(
+    save: &mut GameSave,
+    egg_id: &str,
+    codename: &str,
+) -> Result<(), String> {
     let egg_index = save
         .eggs
         .iter()

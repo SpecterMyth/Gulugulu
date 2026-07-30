@@ -4,6 +4,7 @@ import { fmt, speciesDisplayName, type BackyardStrings } from "../i18n";
 import { useT } from "../useT";
 import { SvgSprite } from "../sprites/SvgSprite";
 import { WorkBurst } from "../sprites/parts/workFx";
+import { PaperFxBurst, type PaperFxPulse } from "../ui/PaperFx";
 
 // ---------------------------------------------------------------------------
 // 后院场景内 · 孵化/融合庆典的「屏幕空间电影化揭晓」层。
@@ -180,18 +181,46 @@ export function CelebrationCinematic({ pulse, config, onSkip }: CelebrationCinem
   }, [kind, reduced]);
 
   const sparkleCount = kind === "aiNew" && !reduced ? (tier >= 6 ? 24 : tier >= 5 ? 16 : 12) : 0;
-  const sparkles = Array.from({ length: sparkleCount }, (_, index) => ({
+  const sparkles = Array.from({ length: Math.min(6, sparkleCount) }, (_, index) => ({
     id: index,
-    left: Math.round(Math.random() * 100),
-    delayMs: Math.round(Math.random() * 1200),
-    durMs: 1600 + Math.round(Math.random() * 1000),
+    left: 12 + ((index * 37 + pulse.id * 11) % 76),
+    delayMs: (index * 173 + pulse.id * 19) % 900,
+    durMs: 1700 + ((index * 211 + pulse.id * 7) % 500),
   }));
+  const fusionPalette =
+    pulse.phase === "fusionCommit"
+      ? [
+          config.species[pulse.parentA]?.colors?.[0] ?? "#FFB0C8",
+          config.species[pulse.parentB]?.colors?.[0] ?? "#B8D8FA",
+          "#FFE45C",
+          "#8FE0D0",
+          "#FFFDF4",
+        ]
+      : undefined;
+  const paperPulse: PaperFxPulse = {
+    id: pulse.id,
+    preset: pulse.phase === "fusionCommit" ? "unlock" : "reward",
+    intensity:
+      kind === "aiNew" || (pulse.phase === "fusionCommit" && pulse.mode === "ai") || tier >= 5
+        ? 3
+        : 2,
+    x: 0,
+    y: 0,
+    palette: fusionPalette,
+    seed: pulse.id,
+    durationMs: celebrationDurationFor(pulse),
+  };
 
   return (
     <div className={`cine-root cine-${kind} cine-tier-${tier}`} style={rootStyle} aria-hidden="true">
       {/* 无背景蒙板：窗口透明，压暗会露出窗口边界，故只保留加亮/粒子类特效 */}
       {hasRays && <div className="cine-rays" />}
       {pulse.phase === "hatch" && <div className="cine-flash" />}
+      {!reduced && (
+        <div className="cine-paper-burst">
+          <PaperFxBurst pulse={paperPulse} />
+        </div>
+      )}
 
       {/* 唯一可点区域：点击跳过；根层 pointer-events:none 让后院 HUD 保持可点。
           孵化 = 屏幕正中「破壳揭晓」；融合 = 只留顶部横幅（演出在世界里就地进行）。 */}

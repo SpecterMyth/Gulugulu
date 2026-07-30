@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { DaySummary, GameConfig, GameSave } from "../types";
-import { fmt, type ShellStrings } from "../i18n";
+import { fmt, type Language, type ShellStrings } from "../i18n";
 import { useT } from "../useT";
 import { isTauri } from "../tauri";
 import { isMaxLevel } from "./config";
@@ -10,7 +10,7 @@ import { fusionReady } from "./tutorial";
 import { formatReportDate, pickRoast } from "./welcomeReport";
 
 // ---------------------------------------------------------------------------
-// 欢迎回来摘要卡（OnboardingFlow.md §二·调整 4）
+// 欢迎回来摘要卡（OnboardingGuidance.md 的毕业后发现提示）
 //
 // 每天开场的仪式性入口，是所有隔夜悬念的兑现舞台。离线检测**不依赖存档字段**
 // （GameSave.lastSeenAt 仅预留给 v2，基线从不写入）：运行时以 localStorage 记录
@@ -102,26 +102,74 @@ function useYesterdaySummary(): DaySummary | null {
   return summary;
 }
 
-/** 全宽统计行（图标+标签｜数值）。用于 Token 头条 / 生成量副行 / 金币收入。 */
-function HeroStat({ icon, label, value, sub }: { icon: string; label: string; value: string; sub?: boolean }) {
+/** 一条账本行（虚线引导线连接左标签与右数值），复刻晨报单据的「记账」质感。 */
+function LedgerRow({
+  label,
+  value,
+  emphasize,
+}: {
+  label: string;
+  value: string;
+  emphasize?: boolean;
+}) {
   return (
-    <div className={sub ? "welcome-hero-stat welcome-hero-sub" : "welcome-hero-stat"}>
-      <span className="welcome-stat-label">
-        {icon} {label}
-      </span>
-      <span className="welcome-stat-val">{value}</span>
+    <div className={emphasize ? "welcome-row welcome-row-coins" : "welcome-row"}>
+      <span className={emphasize ? "welcome-coins-label" : "welcome-row-label"}>{label}</span>
+      <span className="welcome-row-dots" />
+      <span className={emphasize ? "welcome-coins-val" : "welcome-row-val"}>{value}</span>
     </div>
   );
 }
 
-/** 紧凑小格（2 列栅格里的一格）：上排图标+标签，下排数值。 */
-function StatTile({ icon, label, value }: { icon: string; label: string; value: string }) {
+/** 昨日战报正文（独立导出，便于 scripts/verify_welcome_layout.mjs 离线量版式）。
+ *  版式节奏（晨报单据 Morning Gazette）：日期分隔条 → Token 头条大字（居中） →
+ *  账本区（虚线引导线的逐行小计，金币收入作为收尾一行加重） → 吐槽气泡。 */
+export function WelcomeReport({
+  summary,
+  W,
+  lang,
+  clickCap,
+}: {
+  summary: DaySummary;
+  W: ShellStrings["welcome"];
+  lang: Language;
+  clickCap: number;
+}) {
   return (
-    <div className="welcome-tile">
-      <span className="welcome-tile-label">
-        {icon} {label}
-      </span>
-      <b className="welcome-tile-val">{value}</b>
+    <div className="welcome-report">
+      <div className="welcome-report-date">
+        <span>
+          {fmt(summary.isYesterday ? W.reportTitle : W.reportTitlePrev, {
+            date: formatReportDate(summary.date, lang),
+          })}
+        </span>
+      </div>
+
+      {/* 头条：当日消耗 Token（全卡最大数字，居中），副行是从属的「AI 真正生成」。 */}
+      <div className="welcome-hero">
+        <div className="welcome-hero-label">🔥 {W.rowTokens}</div>
+        <div className="welcome-hero-val">{formatCount(summary.tokensRaw, lang)}</div>
+        <div className="welcome-hero-note">
+          ✍️ {W.rowTokensGen} <b>{formatCount(summary.tokenBreakdown.output, lang)}</b>
+        </div>
+      </div>
+
+      <div className="welcome-ledger">
+        <LedgerRow label={`⌨️ ${W.rowKeys}`} value={formatCount(summary.keys, lang)} />
+        <LedgerRow label={`🐾 ${W.rowClicks}`} value={formatCount(summary.clicks, lang)} />
+        <LedgerRow
+          label={`🧬 ${W.rowFusions}`}
+          value={`${summary.fusions}${W.unitTimes ? ` ${W.unitTimes}` : ""}`}
+        />
+        <LedgerRow
+          label={`🥚 ${W.rowHatches}`}
+          value={`${summary.hatches}${W.unitPets ? ` ${W.unitPets}` : ""}`}
+        />
+        {/* 收尾一行加重：与「消耗」头条形成一冷一热的对仗。 */}
+        <LedgerRow label={`💰 ${W.rowCoins}`} value={`+${formatCount(summary.coinsEarned, lang)}`} emphasize />
+      </div>
+
+      <div className="welcome-roast">{pickRoast(summary, W, clickCap)}</div>
     </div>
   );
 }
@@ -186,39 +234,18 @@ export function WelcomeBackCard({
     <div className="welcome-overlay" onClick={onClose}>
       <div
         ref={cardRef}
-        className="welcome-card"
+        className="welcome-card welcome-daily"
         role="dialog"
         aria-label={W.aria}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="welcome-title">{W.title}</div>
-        <div className="welcome-sub">{fmt(W.awayFor, { duration: formatOffline(offlineMs, W) })}</div>
+        <div className="welcome-head">
+          <div className="welcome-kicker">{W.kicker}</div>
+          <div className="welcome-title">{W.title}</div>
+          <div className="welcome-sub">{fmt(W.awayFor, { duration: formatOffline(offlineMs, W) })}</div>
+        </div>
         {showReport && summary ? (
-          <div className="welcome-report">
-            <div className="welcome-report-date">
-              {fmt(summary.isYesterday ? W.reportTitle : W.reportTitlePrev, {
-                date: formatReportDate(summary.date, lang),
-              })}
-            </div>
-            <HeroStat icon="🔥" label={W.rowTokens} value={formatCount(summary.tokensRaw)} />
-            <HeroStat icon="✍️" label={W.rowTokensGen} value={formatCount(summary.tokenBreakdown.output)} sub />
-            <div className="welcome-stat-grid">
-              <StatTile icon="⌨️" label={W.rowKeys} value={formatCount(summary.keys)} />
-              <StatTile icon="🐾" label={W.rowClicks} value={formatCount(summary.clicks)} />
-              <StatTile
-                icon="🧬"
-                label={W.rowFusions}
-                value={`${summary.fusions}${W.unitTimes ? ` ${W.unitTimes}` : ""}`}
-              />
-              <StatTile
-                icon="🥚"
-                label={W.rowHatches}
-                value={`${summary.hatches}${W.unitPets ? ` ${W.unitPets}` : ""}`}
-              />
-            </div>
-            <HeroStat icon="💰" label={W.rowCoins} value={`+${formatCount(summary.coinsEarned)}`} />
-            <div className="welcome-roast">{pickRoast(summary, W, config.dailyClickCap)}</div>
-          </div>
+          <WelcomeReport summary={summary} W={W} lang={lang} clickCap={config.dailyClickCap} />
         ) : (
           <ul className="welcome-list">
             <li>⚡ {staminaText}</li>
@@ -226,7 +253,7 @@ export function WelcomeBackCard({
             <li>🎯 {fmt(W.todayGoal, { goal: goalText(save, config, W) })}</li>
           </ul>
         )}
-        <button type="button" className="welcome-cta" onClick={onClose}>
+        <button type="button" className="welcome-cta welcome-cta-daily" onClick={onClose}>
           {W.start}
         </button>
       </div>

@@ -8,7 +8,8 @@
     "mushroom": { "zh": "大菌帽蘑菇底座：头顶超大蘑菇帽的小不点" },
     "yeti": { "zh": "毛绒雪怪底座：矮墩墩蓬毛小雪怪" }
   },
-  "eyes": ["round", "happy", "sleepy"],
+  "eyes": ["round", "sparkle", "beady", "sharp", "droopy", "sleepy", "happy", "wink", "dot"],
+  "mouthStyles": ["smile", "cat", "fang", "smirk", "open", "pout", "flat"],
   "tools": {
     "laptop": "笔记本电脑",
     "fountainPen": "钢笔",

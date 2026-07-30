@@ -27,11 +27,11 @@ import { SvgSprite } from "../sprites/SvgSprite";
 import { CoinBurst } from "../sprites/parts/vfx";
 import { WorkBurst, resolveWorkFx } from "../sprites/parts/workFx";
 import { WORLD_SPAN, abs } from "./backyardShared";
-import { FarDecor, MidDecor, NearDecor } from "./BackyardDecor";
+import { FarDecor, MidDecor, NearDecor, NearLights, NearUiNotes } from "./BackyardDecor";
 import { BackyardSky } from "./BackyardSky";
 import { BackyardNightLights } from "./BackyardNightLights";
 import { BackyardAmbient } from "./BackyardAmbient";
-import { computeDayPhase, gradeToFilter, hourFromEpochSeconds } from "./dayNight";
+import { computeDayPhase, gradeToFilter, hourFromEpochSeconds, softenGrade, UI_GRADE_BRIGHTEN } from "./dayNight";
 import { DexCell, DexRecipeRow } from "./BackyardDex";
 import { BackyardDexDetail } from "./BackyardDexDetail";
 import { BackyardDexSkinDialog } from "./BackyardDexSkinDialog";
@@ -42,6 +42,9 @@ import { PitEnergyFx, PIT_XS, type PitFxKind } from "./PitEnergyFx";
 import { YardUpgradeFx } from "./YardUpgradeFx";
 import { BackyardShopPopup } from "./BackyardShopPopup";
 import { BackyardMuseumPanel } from "./BackyardMuseumPanel";
+import { BackyardTrainingPanel } from "./BackyardTrainingPanel";
+import { BackyardTrainingGround } from "./BackyardTrainingGround";
+import { TrainingModal } from "./TrainingModal";
 import { BackyardMarketPanel } from "./BackyardMarketPanel";
 import { BackyardNoticeBoard } from "./BackyardNoticeBoard";
 import { BackyardNearPetActions } from "./BackyardNearPetActions";
@@ -118,6 +121,7 @@ const PANEL_SPAWN_X: Record<string, number> = {
   market: 3970,
   notice: 2445,
   pits: 220,
+  training: -420,
 };
 const SPAWN_X = ((): number => {
   const panel = previewPanel();
@@ -153,6 +157,7 @@ function buildGroundStations(): Array<{ x: number; bottom: number; size: number 
   const out = GROUND_SPOTS.map((spot) => ({ x: spot.x, bottom: spot.bottom, size: spot.size }));
   const xs = out.map((spot) => spot.x);
   const buildingBands: Array<[number, number]> = [
+    [-580, -240], // 训练馆（世界左端装饰带，孵化区左侧）
     [1000, 1310], // 商店
     [2230, 2600], // 公告板（板体 2240..2588，含少许留白）
     [3155, 3465], // 图鉴馆
@@ -185,6 +190,13 @@ function spotForStationSlot(slot: StationSlot | undefined): StationSpot | null {
 /** 闲时踱步的单步位移与离站位的最大偏移（左右各不超过 STROLL_RANGE）。 */
 const STROLL_STEP = 42;
 const STROLL_RANGE = 64;
+
+/** 新手引导把当前操作相关的两只伙伴摆在出生点附近；额外拉开横向距离，
+ * 即使双方同时向内踱步，也不会挤成一团。 */
+const ONBOARDING_PET_X = {
+  near: 700,
+  far: 1000,
+} as const;
 
 /** 原地小动作可选状态（随机挑一个演一下）。 */
 const IDLE_ACTIONS: PetState[] = ["success", "fed"];
@@ -257,7 +269,7 @@ export type BackyardSceneProps = {
    *  返回 false（预览/覆盖层未就绪）时场景回退窗口内 CelebrationCinematic。 */
   emitCelebration?: (payload: CelebrationEmitPayload) => Promise<boolean>;
   /** 后院升级光效交给全屏覆盖层；返回 false 回退窗口内 YardUpgradeFx。 */
-  emitYardFx?: (level: number, cap: number, lang: Language) => Promise<boolean>;
+  emitYardFx?: (level: number, cap: number, lang: Language, maxed: boolean) => Promise<boolean>;
   onCollectEgg: (eggId: string) => void;
   /** #2 点孵化中的蛋 → −1s 催蛋。 */
   onPokeEgg: (eggId: string) => void;
@@ -266,16 +278,23 @@ export type BackyardSceneProps = {
   onUpgradeHatchery: () => void;
   onUpgradeYard: () => void;
   onUpgradeShop: () => void;
+  /** 训练馆：建造/升级（同一命令，后端按当前馆等级取阶梯项）。 */
+  onBuildTrainingHall: () => void;
+  onUpgradeTrainingSlots: () => void;
+  /** 收取已完成的训练（宠物阶数 +1，等级保留）。 */
+  onCollectTraining: (jobId: string) => void;
+  /** 开练：resolve = 成功（存档已由 App 刷新），reject = 就地在弹窗里报错。 */
+  onStartTraining: (petId: string, useUniversal: boolean) => Promise<void>;
   onFuse: (idA: string, idB: string) => void;
   onFollow: (petId: string) => void;
   onRelease: (petId: string) => void;
   onToast: (message: string) => void;
-  /** 新手强引导（OnboardingCoach.md）：教练文字复用角色气泡；移动/近宠回传 resolver。 */
+  /** 新手强引导（OnboardingGuidance.md）：教练文字复用角色气泡；移动/近宠回传 resolver。 */
   coachLabel?: string | null;
   /** 进后院时的一次性红点点题（fuse/collectEgg/buyEgg）；null=无待办或引导期让位。 */
   entryGuideKind?: "fuse" | "collectEgg" | "buyEgg" | null;
   onCoachMoved?: () => void;
-  onCoachYard?: (state: { nearShop: boolean; nearPetId: string | null }) => void;
+  onCoachYard?: (state: { nearShop: boolean; nearMarket: boolean; nearPetId: string | null }) => void;
 };
 
 export function BackyardScene({
@@ -307,6 +326,10 @@ export function BackyardScene({
   onUpgradeHatchery,
   onUpgradeYard,
   onUpgradeShop,
+  onBuildTrainingHall,
+  onUpgradeTrainingSlots,
+  onCollectTraining,
+  onStartTraining,
   onFuse,
   onFollow,
   onRelease,
@@ -325,6 +348,9 @@ export function BackyardScene({
     return lang === "zh" ? nameZh ?? zhFallback : speciesDisplayName(code, lang, nameZh, nameEn);
   };
   const now = useNowSeconds(true);
+  // 训练弹窗（选宠升阶）：开合与就地错误都留在后院内部，成功后由 onGameSave 刷存档。
+  const [trainingModalOpen, setTrainingModalOpen] = useState(false);
+  const [trainingError, setTrainingError] = useState<string | null>(null);
 
   // 真实时间昼夜相位（预览可用 ?tod= 覆盖）：驱动实景调色 + 天空天体 + 夜灯 + 氛围动态。
   // now 每秒更新 → 每秒重算（纯函数，值变化极小、肉眼平滑）。
@@ -474,14 +500,23 @@ export function BackyardScene({
   const fusionOriginRef = useRef<{ a: FusionRitualSprite; b: FusionRitualSprite } | null>(null);
   // 同步标志：供下面「消耗回中」effect 判断此刻是否该把相机回中延后到仪式结束。
   const fusionRitualActiveRef = useRef(false);
+  // 「已点融合、仪式尚未起演」的预备窗（值 = 点击时刻 ms）。存档更新（双亲被消耗、陪伴
+  // 回落）与庆典脉冲不保证落在同一次 React 提交里——存档先到时，「消耗回中」effect 会在
+  // 仪式起演前就把相机拽到新陪伴站位，演出整场在画外（用户实测：仪式挂在 x=853 的正确
+  // 位置，相机却已在 1475）。故从「点融合」那刻起就先把回中拦下来，不依赖 effect 次序。
+  const fusionArmedAtRef = useRef<number | null>(null);
+  // 预备窗上限：弹窗被取消 / CLI 预检卡死时，别让回中被永久拦着。
+  const FUSION_ARM_MAX_MS = 60_000;
+  const fusionArmed = () =>
+    fusionArmedAtRef.current != null && Date.now() - fusionArmedAtRef.current < FUSION_ARM_MAX_MS;
   const pendingRecenterRef = useRef<number | null>(null); // 延后的相机回中目标世界 X
   const fusionRitualTimerRef = useRef<number | null>(null);
   const fusionRitualSeenIdRef = useRef<number | null>(null); // 陈旧脉冲同样由 celebrationFresh 拦截
   const fusionRitualEndRef = useRef<() => void>(() => {}); // 迟绑真正的 endFusionRitual（定义在下方）
 
   // ── 后院升级庆典：save.yardLevel 跃升 → 播放一次屏幕级「光效」反馈（.yup-*）──
-  const YARD_UPGRADE_FX_MS = 1600; // 与 .yup-root 生命周期一致
-  const [yardUpgradeFx, setYardUpgradeFx] = useState<{ id: number; level: number; cap: number } | null>(null);
+  const YARD_UPGRADE_FX_MS = 2800; // 与 .yup-root 生命周期一致
+  const [yardUpgradeFx, setYardUpgradeFx] = useState<{ id: number; level: number; cap: number; maxed: boolean } | null>(null);
   const [yardFxViaOverlay, setYardFxViaOverlay] = useState(false);
   const yardUpgradeFxIdRef = useRef(0);
   const yardUpgradeTimerRef = useRef<number | null>(null);
@@ -532,12 +567,13 @@ export function BackyardScene({
       yardUpgradeFxIdRef.current = id;
       const level = save.yardLevel;
       const cap = yardCapacityFor(config, level);
-      setYardUpgradeFx({ id, level, cap });
+      const maxed = level >= config.yardCapacity.length;
+      setYardUpgradeFx({ id, level, cap, maxed });
       // 升级光效（150vmax 神光扇）优先满屏覆盖层，未就绪 / 预览回退窗口内。
       const toOverlay = !!emitYardFx && isTauri();
       setYardFxViaOverlay(toOverlay);
       if (toOverlay && emitYardFx) {
-        void emitYardFx(level, cap, lang).then((sent) => setYardFxViaOverlay(sent));
+        void emitYardFx(level, cap, lang, maxed).then((sent) => setYardFxViaOverlay(sent));
       }
       if (yardUpgradeTimerRef.current) window.clearTimeout(yardUpgradeTimerRef.current);
       yardUpgradeTimerRef.current = window.setTimeout(() => {
@@ -549,6 +585,23 @@ export function BackyardScene({
   }, [save.yardLevel]);
 
   const activePet = save.pets.find((pet) => pet.id === save.activePetId) ?? null;
+  const onboardingParentElement =
+    save.onboarding?.status === "active"
+      ? ["B02", "B03", "B04", "B05"].includes(save.onboarding.step)
+        ? "fire"
+        : save.onboarding.step === "D04"
+        ? "water"
+        : ["D05", "D06", "D07"].includes(save.onboarding.step)
+          ? "electric"
+          : null
+      : null;
+  const onboardingParentPetId = onboardingParentElement
+    ? save.pets.find((pet) =>
+        onboardingParentElement === "electric"
+          ? pet.species === "voltmouse" && isMaxLevel(config, pet)
+          : config.species[pet.species]?.elements.includes(onboardingParentElement),
+      )?.id ?? null
+    : null;
   // 驻留点分配（持久化，本次后院会话内稳定）：每只宠物一进场就绑定一个固定站位，
   // 离场（放生 / 融合消耗）只释放它自己那一格，绝不牵动其他伙伴——放生不再触发整体
   // 重排、也不会有伙伴滑到刚空出的坑位。新宠物取当前最低空位；水系首只优先占池塘漂浮
@@ -563,15 +616,51 @@ export function BackyardScene({
       save.pets,
       (species) => config.species[species]?.elements?.[0] === "water",
     );
-    // 落座：当前陪伴=主角不占驻留点（其格留空）；其余按各自固定站位落座。
+    // 落座：当前陪伴=主角不占驻留点（其格留空）；受训宠移到训练馆草位（见
+    // BackyardTrainingGround），也不落地面站位——避免同一只在地面与草位重复出现。
+    const training = new Set((save.trainingJobs ?? []).map((job) => job.petId));
     const result: Array<{ pet: PetInstance; spot: StationSpot }> = [];
+    const onboardingStep = save.onboarding?.status === "active" ? save.onboarding.step : null;
     for (const pet of save.pets) {
       if (pet.id === save.activePetId) continue;
-      const spot = spotForStationSlot(stationAssignRef.current.get(pet.id));
+      if (training.has(pet.id)) continue;
+      const elements = config.species[pet.species]?.elements ?? [];
+      let tutorialSpot: StationSpot | null = null;
+      if (onboardingStep === "A16" && elements.includes("fire")) {
+        tutorialSpot = { x: ONBOARDING_PET_X.near, bottom: 142, size: 88 };
+      } else if (
+        (onboardingStep === "B01" || onboardingStep === "B02") &&
+        elements.includes("normal")
+      ) {
+        tutorialSpot = { x: ONBOARDING_PET_X.near, bottom: 142, size: 88 };
+      } else if (
+        onboardingStep != null &&
+        ["B02", "B03", "B04", "B05"].includes(onboardingStep) &&
+        elements.includes("fire")
+      ) {
+        tutorialSpot = { x: ONBOARDING_PET_X.far, bottom: 142, size: 88 };
+      } else if (onboardingStep === "D04" && pet.id === onboardingParentPetId) {
+        tutorialSpot = { x: ONBOARDING_PET_X.near, bottom: 142, size: 88 };
+      } else if (
+        onboardingStep != null &&
+        ["D05", "D06", "D07"].includes(onboardingStep) &&
+        pet.id === onboardingParentPetId
+      ) {
+        tutorialSpot = { x: ONBOARDING_PET_X.far, bottom: 142, size: 88 };
+      }
+      const spot = tutorialSpot ?? spotForStationSlot(stationAssignRef.current.get(pet.id));
       if (spot) result.push({ pet, spot });
     }
     return result;
-  }, [config, save.pets, save.activePetId]);
+  }, [
+    config,
+    save.pets,
+    save.activePetId,
+    save.trainingJobs,
+    save.onboarding?.status,
+    save.onboarding?.step,
+    onboardingParentPetId,
+  ]);
 
   // rAF 循环 / 靠近检测所需的驻留伙伴快照（闲时调度与头顶气泡也读它）。
   const placedPetsRef = useRef(placedPets);
@@ -688,6 +777,7 @@ export function BackyardScene({
     shopOpen,
     museumOpen,
     marketOpen,
+    trainingOpen,
     poiSides,
     nearPetId,
     walkToPointer,
@@ -704,6 +794,42 @@ export function BackyardScene({
     spawnX: SPAWN_X,
     stageH: STAGE_H,
   });
+
+  const onboardingFusionEggId =
+    save.onboarding?.status === "active" &&
+    (save.onboarding.step === "B05" || save.onboarding.step === "D07")
+      ? [...save.eggs]
+          .reverse()
+          .find((egg) => egg.slot != null && egg.tier >= 2 && egg.shopElement == null)?.id ?? null
+      : null;
+  useEffect(() => {
+    if (!onboardingFusionEggId) return;
+    // The fusion happens near the parents, often several screens away from the hatchery.
+    // Put the result pit on camera once so a first-time player never has to hunt for a
+    // glowing target that technically exists but is clipped beyond the viewport.
+    // Stand to the right of the pits: centering directly on them lets the large active pet
+    // cover the egg and swallow the click even though the coach ring is visible.
+    centerOnWorldX(HATCHERY_CENTER_X + 160);
+  }, [centerOnWorldX, onboardingFusionEggId]);
+  useEffect(() => {
+    if (save.onboarding?.status !== "active" || save.onboarding.step !== "D05") return;
+    if (!onboardingParentPetId) return;
+    // Bring one eligible Volt Mouse into view as a fallback target. Any other max-level
+    // Volt Mouse the player reaches is equally valid.
+    centerOnWorldX(900);
+  }, [
+    centerOnWorldX,
+    onboardingParentPetId,
+    save.onboarding?.status,
+    save.onboarding?.step,
+  ]);
+  useEffect(() => {
+    if (save.onboarding?.status !== "active" || save.onboarding.step !== "G01") return;
+    // The Steam market is several screens to the right of the hatchery/notice-board route.
+    // Put it one obvious click away instead of asking a brand-new player to hold D across
+    // the whole backyard while the strong input mutex hides every unrelated destination.
+    centerOnWorldX(PANEL_SPAWN_X.market - 360);
+  }, [centerOnWorldX, save.onboarding?.status, save.onboarding?.step]);
 
   useEffect(() => {
     setConfirmRelease(false);
@@ -724,10 +850,10 @@ export function BackyardScene({
     if (!consumed || curr == null) return;
     const spot = spotForStationSlot(stationAssignRef.current.get(curr));
     if (!spot) return;
-    // 就地融合仪式进行中：先别把相机拽到新陪伴站位（否则演出会瞬间被平移出画），
-    // 把目标记下，等仪式收束时再回中。fusionRitualActiveRef 由下方 useLayoutEffect
-    // 在同一 commit（早于本 effect）同步置位，故这里读到的一定是最新值。
-    if (fusionRitualActiveRef.current) {
+    // 就地融合仪式进行中 / 已点融合但仪式还没起演：先别把相机拽到新陪伴站位（否则演出
+    // 会瞬间被平移出画），把目标记下，等仪式收束时再回中（仪式被跳过时由下方 layout
+    // effect 立刻补做）。两个标志缺一不可——存档与庆典脉冲未必同提交，只认 active 会漏。
+    if (fusionRitualActiveRef.current || fusionArmed()) {
       pendingRecenterRef.current = spot.x;
       return;
     }
@@ -757,6 +883,10 @@ export function BackyardScene({
   })();
 
   const yardCapacity = yardCapacityFor(config, save.yardLevel);
+  const yardOccupied = save.pets.filter(
+    (pet) => !(save.capacityExemptPetIds ?? []).includes(pet.id),
+  ).length;
+  const exemptPetCount = save.pets.length - yardOccupied;
   const yardMaxed = save.yardLevel >= config.yardCapacity.length;
   const yardUpgradeCost = yardMaxed ? null : config.yardUpgradeCosts[save.yardLevel - 1];
 
@@ -773,6 +903,7 @@ export function BackyardScene({
     }
     if (!fusionRitualActiveRef.current && pendingRecenterRef.current == null) return;
     fusionRitualActiveRef.current = false;
+    fusionArmedAtRef.current = null;
     setFusionRitual(null);
     setCharHidden(false);
     const target = pendingRecenterRef.current;
@@ -799,22 +930,33 @@ export function BackyardScene({
               b: { species: b.species, x: bSpot.x, bottom: bSpot.bottom, size: bSpot.size },
             }
           : null;
+      // 有快照且未减弱动效 = 稍后必有一场就地仪式 → 即刻拦下「消耗回中」，
+      // 免得存档先于庆典脉冲落地时相机提前切走、整场演出落在画外。
+      fusionArmedAtRef.current =
+        fusionOriginRef.current && !prefersReducedMotion() ? Date.now() : null;
       onFuse(idA, idB);
     },
     [save.pets, onFuse, readCharX, placedPetsRef],
   );
 
   // 融合庆典脉冲抵达 → 就地起演。用 layout effect：在浏览器绘制前同步藏主角（此刻已回落成
-  // 新陪伴，否则会有 1 帧新陪伴叠在亲代 A 旧位）并置活动标志——layout effect 总早于随后的
-  // 「消耗回中」passive effect，故那边读到标志、把相机回中延后到仪式结束。
+  // 新陪伴，否则会有 1 帧新陪伴叠在亲代 A 旧位）并置活动标志；相机回中则从「点融合」起就被
+  // fusionArmedAtRef 拦住（存档可能先于本脉冲落地），这里把预备窗交接给 active 标志。
   useLayoutEffect(() => {
     if (!celebration || celebration.id === fusionRitualSeenIdRef.current) return;
     fusionRitualSeenIdRef.current = celebration.id;
     if (celebration.phase !== "fusionCommit" || !celebrationFresh(celebration)) return;
     const origin = fusionOriginRef.current;
     fusionOriginRef.current = null;
-    // 减弱动效 / 无站位快照：退回「顶部横幅 + toast + 坑口特效」，不藏主角、不延后相机。
-    if (!origin || prefersReducedMotion()) return;
+    fusionArmedAtRef.current = null; // 预备窗结束：要么下面转为 active，要么本次不演
+    // 减弱动效 / 无站位快照：退回「顶部横幅 + toast + 坑口特效」，不藏主角，
+    // 并把预备窗里拦下的回中立刻补做（否则相机会一直停在双亲旧位）。
+    if (!origin || prefersReducedMotion()) {
+      const deferred = pendingRecenterRef.current;
+      pendingRecenterRef.current = null;
+      if (deferred != null) centerOnWorldX(deferred);
+      return;
+    }
     const slot = celebration.slot;
     const targetX = slot != null && PIT_XS[slot] != null ? PIT_XS[slot] : HATCHERY_CENTER_X;
     const durationMs = celebrationDurationFor(celebration);
@@ -834,13 +976,22 @@ export function BackyardScene({
       fusionRitualTimerRef.current = null;
       fusionRitualEndRef.current();
     }, durationMs);
-  }, [celebration]);
+  }, [celebration, centerOnWorldX]);
 
   // ---- 头顶气泡（提示 > 融合条件 > 台词） ----
 
   const fusionHintFor = (pet: PetInstance): string | null => {
     if (!activePet) return bk.hint.followFirst;
     if (activePet.tier !== pet.tier) return bk.hint.sameTier;
+    // 一阶宠可由本地先行 Fuse op 在后台补铸材料；二阶以上必须先有真实 Steam 物品。
+    // 在动作牌阶段拦住“结果回绑仍在核对”的宠，避免玩家完成确认后才撞失败弹窗。
+    if (
+      steamStatus?.mode !== "disabled" &&
+      pet.tier >= 2 &&
+      (!pet.steamItemId || !activePet.steamItemId)
+    ) {
+      return bk.hint.steamReconciling;
+    }
     if (!isMaxLevel(config, pet))
       return fmt(bk.hint.otherNotMax, {
         level: maxLevelForTier(config, pet.tier),
@@ -849,7 +1000,12 @@ export function BackyardScene({
     if (!isMaxLevel(config, activePet))
       return fmt(bk.hint.yoursNotMax, { name: speciesName(activePet.species, bk.hint.genericName) });
     const fee = fusionFeeFor(config, pet.tier);
-    if (save.coins < fee) return fmt(bk.hint.needCoins, { fee: formatCount(fee) });
+    const tutorialReimbursed =
+      save.onboarding?.status === "active" &&
+      (save.onboarding.tutorialFusions ?? 0) < 2;
+    if (save.coins < fee && !tutorialReimbursed) {
+      return fmt(bk.hint.needCoins, { fee: formatCount(fee) });
+    }
     return null;
   };
 
@@ -877,12 +1033,12 @@ export function BackyardScene({
     speechVisible,
     speechLine,
   });
-  // 教练引导文字复用角色气泡（OnboardingCoach.md §5）：coachLabel 优先于台词。
+  // 教练引导文字复用角色气泡（OnboardingGuidance.md §1.2）：coachLabel 优先于台词。
   const charBubble = coachLabel ?? charSay;
   // 把后院运行时（近商店 / 近宠）上报给 App 的 resolver；主角一移动即完成 C3。
   useEffect(() => {
-    onCoachYard?.({ nearShop: shopOpen, nearPetId });
-  }, [shopOpen, nearPetId, onCoachYard]);
+    onCoachYard?.({ nearShop: shopOpen, nearMarket: marketOpen, nearPetId });
+  }, [shopOpen, marketOpen, nearPetId, onCoachYard]);
   useEffect(() => {
     if (walking) onCoachMoved?.();
   }, [walking, onCoachMoved]);
@@ -1027,8 +1183,11 @@ export function BackyardScene({
       onClick={walkToPointer}
       style={
         {
-          // 仅布景按真实时间调色（.by-grade-scene 读取）；宠物本身颜色不受影响。
+          // 布景按真实时间调色（.by-grade-scene 读取）；宠物本身颜色不受影响。
           "--by-scene-grade": gradeToFilter(dayPhase.scene),
+          // 常驻木牌/HUD（公告板·升级牌·左下底栏）的柔化调色：同色温、只提亮保清晰，
+          // 让它们与夜色融为一体而不再突兀（.by-grade-ui / .by-soil-ui 读取）。
+          "--by-scene-grade-ui": gradeToFilter(softenGrade(dayPhase.scene, UI_GRADE_BRIGHTEN)),
         } as CSSProperties
       }
     >
@@ -1057,6 +1216,14 @@ export function BackyardScene({
         <div className="by-grade-scene">
           <NearDecor />
         </div>
+        <NearUiNotes />
+
+        {/* 发光体（篝火/路灯灯罩/营地挂灯/商店彩灯泡）：刻意不受实景调色 filter，入夜/
+            黄昏仍保暖亮 → 成为变暗画面里的「亮点」点缀。承托它们的木柱/柴堆/帐篷/灯线
+            仍在 .by-grade-scene 内随昼夜变暗，光才落在正确的暗环境里。 */}
+        <div className="by-grade-lights">
+          <NearLights />
+        </div>
 
         {/* 夜间灯光（世界锚定，不受调色 filter；白天不挂载）+ 氛围动态（萤火虫/蝴蝶/水光） */}
         {dayPhase.windowLight > 0.02 && <BackyardNightLights windowLight={dayPhase.windowLight} />}
@@ -1065,6 +1232,8 @@ export function BackyardScene({
         {/* 教练层锚点：商店 POI 世界坐标（不可见，随相机移动）——供「移动到商店」
             方向箭头判断商店此刻在主角哪一侧。SHOP_CENTER_X≈1150（useBackyardMotion）。 */}
         <div data-coach="shopPoi" aria-hidden="true" style={abs({ left: 1150, bottom: 200, width: 2, height: 2 })} />
+        <div data-coach="hatcheryPoi" aria-hidden="true" style={abs({ left: 220, bottom: 180, width: 2, height: 2 })} />
+        <div data-coach="marketPoi" aria-hidden="true" style={abs({ left: 3970, bottom: 200, width: 2, height: 2 })} />
 
         <BackyardHatcheryPits
           maxSlots={maxSlots}
@@ -1121,6 +1290,23 @@ export function BackyardScene({
           setDexOpen={setDexOpen}
         />
 
+        {/* ── 训练馆弹板（靠近显示）：馆等级 / 材料库存 / 训练位倒计时 ──
+             真正的选宠与确认走 TrainingModal（5 级阶梯 + 多槽装不进这块小板）。 */}
+        <BackyardTrainingPanel
+          trainingOpen={trainingOpen}
+          trainingSide={poiSides.training}
+          save={save}
+          config={config}
+          now={now}
+          onBuildHall={onBuildTrainingHall}
+          onUpgradeSlots={onUpgradeTrainingSlots}
+          onCollect={onCollectTraining}
+          onOpenModal={() => {
+            setTrainingModalOpen(true);
+            setTrainingError(null);
+          }}
+        />
+
         {/* ── 交易市场弹板（靠近显示）：持有伙伴 + 最贵五只的占位行情 ── */}
         <BackyardMarketPanel
           marketOpen={marketOpen}
@@ -1135,47 +1321,68 @@ export function BackyardScene({
           onOpenMarket={onOpenMarket}
         />
 
-        {/* ── 公告板：全局统计（Token / Agent 连接为主区，下方今日流水与图鉴） ── */}
-        <BackyardNoticeBoard
-          tokenStats={tokenStats}
-          save={save}
-          config={config}
-          pokedexModel={pokedexModel}
-          agentConnections={agentConnections}
-          agentConnecting={agentConnecting}
-          agentDisconnecting={agentDisconnecting}
-          onConnectAgent={onConnectAgent}
-          onDisconnectAgent={onDisconnectAgent}
-        />
+        {/* ── 公告板 + 升级后院牌：外框/升级牌各自接受柔化昼夜调色；
+             公告板内页与标题保持便签本色，避免夜间文字和语义色被染暗。 ── */}
+        <div className="by-grade-ui">
+          {/* 公告板：全局统计（Token / Agent 连接为主区，下方今日流水与图鉴） */}
+          <BackyardNoticeBoard
+            tokenStats={tokenStats}
+            save={save}
+            config={config}
+            pokedexModel={pokedexModel}
+            agentConnections={agentConnections}
+            agentConnecting={agentConnecting}
+            agentDisconnecting={agentDisconnecting}
+            onConnectAgent={onConnectAgent}
+            onDisconnectAgent={onDisconnectAgent}
+          />
 
-        {/* ── 升级后院木牌 ── */}
-        <div style={abs({ left: 2652, bottom: 150, width: 8, height: 104, borderRadius: 4, background: "#8A6437" })} />
-        <button
-          type="button"
-          className="by-upgrade-btn"
-          style={{ left: 2596, bottom: 246 }}
-          disabled={busy || yardMaxed || (yardUpgradeCost != null && save.coins < yardUpgradeCost)}
-          onClick={(event) => {
-            event.stopPropagation();
-            onUpgradeYard();
-          }}
-        >
-          {yardMaxed ? (
-            <span>{fmt(bk.scene.yardMaxed, { cap: yardCapacity })}</span>
-          ) : (
-            <>
-              <span>{fmt(bk.scene.yardUpgrade, { level: save.yardLevel + 1 })}</span>
-              <span className="by-upgrade-sub">
-                {fmt(bk.scene.yardUpgradeSub, {
-                  cost: formatCount(yardUpgradeCost ?? 0),
-                  cap: config.yardCapacity[save.yardLevel],
-                })}
-              </span>
-            </>
-          )}
-        </button>
+          {/* 升级后院建筑木牌（立柱 + 实体牌面，随环境光变化） */}
+          <div style={abs({ left: 2652, bottom: 150, width: 8, height: 104, borderRadius: 4, background: "#8A6437" })} />
+          <button
+            type="button"
+            className="by-upgrade-btn"
+            data-coach="yardUpgrade"
+            style={abs({ left: 2596, bottom: 246 })}
+            disabled={
+              busy ||
+              yardMaxed ||
+              (yardUpgradeCost != null &&
+                save.coins < yardUpgradeCost &&
+                !(save.onboarding?.status === "active" && save.onboarding.step === "A14"))
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              onUpgradeYard();
+            }}
+          >
+            {yardMaxed ? (
+              <span>{fmt(bk.scene.yardMaxed, { cap: yardCapacity })}</span>
+            ) : (
+              <>
+                <span>{fmt(bk.scene.yardUpgrade, { level: save.yardLevel + 1 })}</span>
+                <span className="by-upgrade-sub">
+                  {fmt(bk.scene.yardUpgradeSub, {
+                    cost: formatCount(yardUpgradeCost ?? 0),
+                    cap: config.yardCapacity[save.yardLevel],
+                  })}
+                </span>
+              </>
+            )}
+          </button>
+        </div>
 
         {/* ── 驻留伙伴（点击直接打工） ── */}
+        {/* ── 训练馆草位：受训宠站到门前草位做训练动作 + 倒计时（世界锚定近景层） ── */}
+        <BackyardTrainingGround
+          save={save}
+          config={config}
+          now={now}
+          activePetId={save.activePetId ?? null}
+          onCollect={onCollectTraining}
+          speciesName={speciesName}
+        />
+
         {placedPets.map(({ pet, spot }) => {
           const max = isMaxLevel(config, pet);
           const beh = behaviors[pet.id];
@@ -1190,13 +1397,44 @@ export function BackyardScene({
                 bottom: spot.bottom,
                 width: spot.size,
                 height: spot.size,
+                zIndex: pet.id === onboardingParentPetId ? 20 : undefined,
               }}
               title={
                 pet.exhausted
                   ? bk.scene.petExhaustedTitle
                   : fmt(bk.clickToWork, { name: speciesName(pet.species) })
               }
-              onClick={(event) => workClick(pet, event)}
+              onClick={(event) => {
+                const guideStep = save.onboarding?.status === "active" ? save.onboarding.step : null;
+                const guideElement =
+                  guideStep === "D04"
+                    ? "water"
+                    : guideStep === "A16"
+                      ? "fire"
+                      : guideStep === "B01" || guideStep === "B02"
+                        ? "normal"
+                        : null;
+                if (guideElement && config.species[pet.species]?.elements.includes(guideElement)) {
+                  event.stopPropagation();
+                  onFollow(pet.id);
+                  return;
+                }
+                const isFusionGuidePartner =
+                  (guideStep === "B02" &&
+                    pet.id === onboardingParentPetId &&
+                    config.species[pet.species]?.elements.includes("fire")) ||
+                  (guideStep === "D05" &&
+                    pet.species === "voltmouse" &&
+                    isMaxLevel(config, pet));
+                if (isFusionGuidePartner) {
+                  event.stopPropagation();
+                  // Clicking any eligible partner means "walk here"; the Fuse action appears
+                  // beside whichever max-level Volt Mouse the player chose.
+                  centerOnWorldX(spot.x);
+                  return;
+                }
+                workClick(pet, event);
+              }}
             >
               <span className={`by-pet-tag${max ? " is-max" : ""}`}>
                 {/* 两行名牌：① 等级 + 阶数（几阶几星） ② 名字 */}
@@ -1380,7 +1618,8 @@ export function BackyardScene({
         <div className="by-soil-chip by-soil-title">
           <span className="by-bar-name">{bk.scene.soilTitle}</span>
           <span className="by-bar-sub">
-            {fmt(bk.scene.soilSub, { level: save.yardLevel, count: save.pets.length, cap: yardCapacity })}
+            {fmt(bk.scene.soilSub, { level: save.yardLevel, count: yardOccupied, cap: yardCapacity })}
+            {exemptPetCount > 0 && <span className="by-capacity-exempt"> +{exemptPetCount} 🎁</span>}
           </span>
         </div>
         <div className="by-soil-row">
@@ -1405,6 +1644,7 @@ export function BackyardScene({
       {/* 首次进入的移动引导（一次性）：教练激活时让位，避免与 C3 键帽指引叠字（#4） */}
       {showGuide && coachLabel == null && (
         <div className="by-guide">
+          <span className="guide-sticker-sprinkles" aria-hidden="true" />
           <span className="by-guide-title">{bk.scene.guideTitle}</span>
           <span className="by-guide-sub">{bk.scene.guideSub}</span>
         </div>
@@ -1417,6 +1657,7 @@ export function BackyardScene({
           key={`yard-upgrade-${yardUpgradeFx.id}`}
           level={yardUpgradeFx.level}
           cap={yardUpgradeFx.cap}
+          maxed={yardUpgradeFx.maxed}
         />
       )}
 
@@ -1428,6 +1669,29 @@ export function BackyardScene({
           pulse={activeCelebration}
           config={config}
           onSkip={dismissCelebration}
+        />
+      )}
+
+      {/* ===== 训练弹窗（选宠升阶）：复用 welcome 卡体系，与图鉴浮层同级 ===== */}
+      {trainingModalOpen && (
+        <TrainingModal
+          save={save}
+          config={config}
+          busy={busy}
+          error={trainingError}
+          onClose={() => {
+            setTrainingModalOpen(false);
+            setTrainingError(null);
+          }}
+          onStart={(petId, useUniversal) => {
+            setTrainingError(null);
+            onStartTraining(petId, useUniversal)
+              .then(() => setTrainingModalOpen(false))
+              // 错误就地显示在弹窗里（缺料/满槽都要玩家看着列表改选，不该弹完就关）。
+              .catch((error) =>
+                setTrainingError(error instanceof Error ? error.message : String(error)),
+              );
+          }}
         />
       )}
 

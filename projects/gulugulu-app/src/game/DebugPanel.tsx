@@ -5,6 +5,7 @@ import { ReactionBurst } from "../sprites/parts/vfx";
 import { WORK_FX, WorkBurst } from "../sprites/parts/workFx";
 import type { GameBridge } from "./bridge";
 import { formatCount } from "./format";
+import { ROGUE_RUN_STORAGE_KEY, ROGUE_STORAGE_KEY } from "./factory/rogueTypes";
 
 // -----------------------------------------------------------------------------
 // 动画调试面板（计划 §四）：逐个选择 27 只角色，预览全部状态动画。
@@ -50,6 +51,7 @@ export function DebugPanel({
   onSave,
   onToast,
   onFeedTokens,
+  onOpenFactoryDemo,
 }: {
   config: GameConfig;
   save: GameSave | null;
@@ -58,6 +60,8 @@ export function DebugPanel({
   onToast: (message: string) => void;
   /** 预览模式专属：模拟 agent Token 喂食（→ 陪伴宠经验，走主舞台进食队列）。 */
   onFeedTokens?: (amount: number) => void;
+  /** Debug 专属入口：进入工厂「经典演示」沙盒（FactoryScene 不传 rogue）。 */
+  onOpenFactoryDemo?: () => void;
 }) {
   const [species, setSpecies] = useState("guluduck");
   const [petState, setPetState] = useState<PetState>("idle");
@@ -161,6 +165,22 @@ export function DebugPanel({
       .debugClearInventory()
       .then((count) => {
         onToast(count > 0 ? `已清除 ${count} 件库存物品` : "库存已空，无可清除");
+      })
+      .catch((error) => onToast(debugErrorText(error)))
+      .finally(() => setSaveBusy(false));
+  };
+
+  const debugClearFactory = () => {
+    if (saveBusy) return;
+    if (!window.confirm("确定清除 Steam 工厂排行、本地工厂历史、续局和今日工厂奖励数据？此操作不可撤销。")) return;
+    setSaveBusy(true);
+    bridge.debugClearFactoryLeaderboard()
+      .then(() => bridge.debugClearFactoryData())
+      .then((next) => {
+        window.localStorage.removeItem(ROGUE_STORAGE_KEY);
+        window.localStorage.removeItem(ROGUE_RUN_STORAGE_KEY);
+        onSave(next);
+        onToast("工厂数据与 Steam 排行成绩已清除，可以从头测试");
       })
       .catch((error) => onToast(debugErrorText(error)))
       .finally(() => setSaveBusy(false));
@@ -287,6 +307,21 @@ export function DebugPanel({
           </button>
         </div>
       </div>
+
+      {/* 工厂调试：经典演示沙盒（旧 FactoryScene，无关卡制/不产材料）。 */}
+      {onOpenFactoryDemo && (
+        <div className="debug-game">
+          <span className="debug-group-label">工厂调试</span>
+          <div className="debug-game-row">
+            <button type="button" className="is-danger" disabled={saveBusy} onClick={debugClearFactory}>
+              🧹 清除工厂数据记录
+            </button>
+            <button type="button" onClick={onOpenFactoryDemo}>
+              🛝 经典演示 Classic Sandbox
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 预览台：复用主舞台的 state/facing CSS（含 facing-left 镜像） */}
       <div className={`debug-stage state-${petState} facing-${facing}`}>

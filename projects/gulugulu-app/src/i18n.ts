@@ -9,6 +9,7 @@
 
 import { type Language } from "./i18n/core";
 import { BACKYARD, type BackyardStrings } from "./i18n/backyard";
+import { FACTORY, type FactoryStrings } from "./i18n/factory";
 import { SHELL, type ShellStrings } from "./i18n/shell";
 
 export { LANGUAGES, fmt, type Language } from "./i18n/core";
@@ -23,6 +24,7 @@ export {
   titleCaseCode,
 } from "./i18n/species";
 export type { BackyardStrings } from "./i18n/backyard";
+export type { FactoryStrings } from "./i18n/factory";
 export type { ShellStrings } from "./i18n/shell";
 
 export interface UiStrings {
@@ -38,6 +40,7 @@ export interface UiStrings {
   duckAlt: string;
   // 菜单栏 + 面板骨架
   backyard: string;
+  factory: string;
   settings: string;
   debug: string;
   back: string;
@@ -48,6 +51,8 @@ export interface UiStrings {
   keyboardCharging: string;
   randomMovement: string;
   autostart: string;
+  defaultAgent: string;
+  defaultModel: string;
   on: string;
   off: string;
   closePet: string;
@@ -64,6 +69,7 @@ const zh: UiStrings = {
   statusError: "Codex 连接需要注意",
   duckAlt: "咕噜咕噜小鸭",
   backyard: "后院",
+  factory: "工厂",
   settings: "设置",
   debug: "调试",
   back: "返回",
@@ -73,6 +79,8 @@ const zh: UiStrings = {
   keyboardCharging: "键盘充能",
   randomMovement: "随机移动",
   autostart: "开机自动启动",
+  defaultAgent: "默认 Agent",
+  defaultModel: "默认模型",
   on: "开",
   off: "关",
   closePet: "关闭宠物",
@@ -89,6 +97,7 @@ const en: UiStrings = {
   statusError: "Codex connection needs attention",
   duckAlt: "Gulugulu duck",
   backyard: "Backyard",
+  factory: "Factory",
   settings: "Settings",
   debug: "Debug",
   back: "Back",
@@ -98,6 +107,8 @@ const en: UiStrings = {
   keyboardCharging: "Keyboard charging",
   randomMovement: "Random movement",
   autostart: "Launch on startup",
+  defaultAgent: "Default agent",
+  defaultModel: "Default model",
   on: "On",
   off: "Off",
   closePet: "Close pet",
@@ -105,12 +116,12 @@ const en: UiStrings = {
 
 export const STRINGS: Record<Language, UiStrings> = { zh, en };
 
-/** 平铺基础键 + 域词表(bk=后院域,sh=壳层域)。 */
-export type AllStrings = UiStrings & { bk: BackyardStrings; sh: ShellStrings };
+/** 平铺基础键 + 域词表(bk=后院域,fa=工厂域,sh=壳层域)。 */
+export type AllStrings = UiStrings & { bk: BackyardStrings; fa: FactoryStrings; sh: ShellStrings };
 
 const ALL: Record<Language, AllStrings> = {
-  zh: { ...zh, bk: BACKYARD.zh, sh: SHELL.zh },
-  en: { ...en, bk: BACKYARD.en, sh: SHELL.en },
+  zh: { ...zh, bk: BACKYARD.zh, fa: FACTORY.zh, sh: SHELL.zh },
+  en: { ...en, bk: BACKYARD.en, fa: FACTORY.en, sh: SHELL.en },
 };
 
 /** 取某语言的词条;未知语言回退英文(与 Rust settings 默认一致)。 */

@@ -64,8 +64,37 @@ pub fn debug_add_coins(
     Ok(save)
 }
 
+/// 发放升阶材料（调试）。材料的正式产出源是工厂关卡奖励；工厂关卡制建成前，
+/// 训练馆的验收靠这条命令喂料。`material` 留空 = 每种升阶材料 + 万能券各发 `count` 个。
 #[tauri::command]
-pub fn debug_hatch_now(app: AppHandle, state: tauri::State<'_, SharedGameState>) -> Result<GameSave, String> {
+pub fn debug_grant_materials(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+    material: Option<String>,
+    count: u32,
+) -> Result<GameSave, String> {
+    ensure_debug_build()?;
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        settle_all(config, save, now_secs(), &today_string());
+        match material.as_deref().filter(|m| !m.is_empty()) {
+            Some(one) => give_material(save, one, count),
+            None => {
+                for m in &config.training_materials {
+                    give_material(save, m, count);
+                }
+                give_material(save, &config.universal_material.clone(), count);
+            }
+        }
+        Ok(())
+    })?;
+    Ok(save)
+}
+
+#[tauri::command]
+pub fn debug_hatch_now(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
     ensure_debug_build()?;
     let (_, save) = with_save(&app, state.inner(), |config, save| {
         settle_all(config, save, now_secs(), &today_string());
@@ -76,7 +105,10 @@ pub fn debug_hatch_now(app: AppHandle, state: tauri::State<'_, SharedGameState>)
 }
 
 #[tauri::command]
-pub fn debug_max_pets(app: AppHandle, state: tauri::State<'_, SharedGameState>) -> Result<GameSave, String> {
+pub fn debug_max_pets(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
     ensure_debug_build()?;
     let (_, save) = with_save(&app, state.inner(), |config, save| {
         settle_all(config, save, now_secs(), &today_string());
@@ -88,13 +120,20 @@ pub fn debug_max_pets(app: AppHandle, state: tauri::State<'_, SharedGameState>) 
 
 /// 调试：把主宠精力放空并置疲惫（验证恢复期/唤醒/键盘充能循环）。
 #[tauri::command]
-pub fn debug_drain_stamina(app: AppHandle, state: tauri::State<'_, SharedGameState>) -> Result<GameSave, String> {
+pub fn debug_drain_stamina(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
     ensure_debug_build()?;
     let (_, save) = with_save(&app, state.inner(), |config, save| {
         let now = now_secs();
         settle_all(config, save, now, &today_string());
         let active = save.active_pet_id.clone();
-        if let Some(pet) = save.pets.iter_mut().find(|p| Some(&p.id) == active.as_ref()) {
+        if let Some(pet) = save
+            .pets
+            .iter_mut()
+            .find(|p| Some(&p.id) == active.as_ref())
+        {
             pet.stamina = 0;
             pet.stamina_updated_at = now;
             pet.exhausted = true;
@@ -113,7 +152,13 @@ pub fn debug_feed_keys(
 ) -> Result<GameSave, String> {
     ensure_debug_build()?;
     let (_, save) = with_save(&app, state.inner(), |config, save| {
-        Ok(logic_feed_keys(config, save, count, now_secs(), &today_string()))
+        Ok(logic_feed_keys(
+            config,
+            save,
+            count,
+            now_secs(),
+            &today_string(),
+        ))
     })?;
     Ok(save)
 }
@@ -136,15 +181,53 @@ pub fn debug_clear_save(
     // 清档前记住上次修订号，新档取其 +1（同谱系单调，且在单机场景压过云端）。
     let prev_revision = guard.as_ref().map(|s| s.cloud_revision).unwrap_or(0);
     let (historical, token_baseline) = crate::codex_adapter::progress_snapshot(&app);
-    let mut save =
-        create_initial_save(&state.config, historical, token_baseline, now_secs(), &today_string());
+    let mut save = create_initial_save(
+        &state.config,
+        historical,
+        token_baseline,
+        now_secs(),
+        &today_string(),
+    );
     save.cloud_revision = prev_revision.saturating_add(1);
     save.cloud_force_push = true; // 连线拉阶段据此强制 PushLocal（跳过采纳），多机也不被旧云覆盖。
     persist(&app, &save)?;
     *guard = Some(save.clone());
     drop(guard); // 释放存档锁后再 kick 泵线程。
-    // 已连线则立即用清空档覆盖云端三件套；未连线由夺权标记 + 抬高的修订号在下次连线兜底。
+                 // 已连线则立即用清空档覆盖云端三件套；未连线由夺权标记 + 抬高的修订号在下次连线兜底。
     steam_state.cloud_push_now();
     Ok(save)
 }
 
+#[tauri::command]
+pub fn debug_clear_factory_data(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
+    ensure_debug_build()?;
+    let (_, save) = with_save(&app, state.inner(), |_config, save| {
+        save.materials.clear();
+        save.daily.factory_claimed_level = 0;
+        let st = &mut save.stats;
+        st.factory_best_level = 0;
+        st.factory_rogue_runs_started = 0;
+        st.factory_rogue_runs_finished = 0;
+        st.factory_rogue_rewarded_run = 0;
+        st.factory_rogue_rewarded_revenue = 0;
+        st.factory_rogue_best_revenue = 0;
+        st.factory_rogue_best_shift = 0;
+        st.factory_rogue_best_pulse = 0;
+        st.factory_rogue_best_combo = 0;
+        st.factory_rogue_best_desks = 0;
+        st.factory_rogue_max_upgrade_levels = 0;
+        st.factory_rogue_max_loadout = 0;
+        st.factory_rogue_first_kpi = false;
+        st.factory_rogue_first_card = false;
+        st.factory_rogue_first_bankruptcy = false;
+        st.factory_rogue_strike_clear = false;
+        st.factory_rogue_inspection_mask = 0;
+        st.factory_rogue_graduated = false;
+        st.factory_rogue_graduated_without_loan = false;
+        Ok(())
+    })?;
+    Ok(save)
+}

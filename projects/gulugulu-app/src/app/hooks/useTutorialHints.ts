@@ -59,7 +59,7 @@ export function useTutorialHints(
     });
   }, []);
   const tutorialHint = useMemo(() => {
-    if (!save || !gameConfig || suppressed) return null; // 强引导期间让位（OnboardingCoach.md §5）
+    if (!save || !gameConfig || suppressed) return null; // 强引导期间让位（OnboardingGuidance.md §1.2）
     return computeTutorialHint({
       save,
       config: gameConfig,

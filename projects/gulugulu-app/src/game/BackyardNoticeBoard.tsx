@@ -111,7 +111,14 @@ export function BackyardNoticeBoard({
     </div>
   );
 
-  const boardStyle = abs({ left: 2240, bottom: 208, width: 348, height: 188, borderRadius: 14, border: "4px solid #6B4520", background: "linear-gradient(180deg,#B07B44,#96622F)", boxShadow: "0 12px 22px rgba(43,26,8,0.35)", boxSizing: "border-box", cursor: "default" });
+  const boardStyle = abs({
+    left: 2240,
+    bottom: 208,
+    width: 348,
+    height: 188,
+    boxSizing: "border-box",
+    cursor: "default",
+  });
   const cornerDots = null;
 
   if (detailOpen) {
@@ -120,7 +127,8 @@ export function BackyardNoticeBoard({
     // 明细账本晚于 raw 账本上线：total 里 breakdown 之外的差额显示为「未分类」。
     const unclassified = Math.max(0, win.total - classified);
     return (
-      <div style={boardStyle} onClick={(event) => event.stopPropagation()}>
+      <div className="by-board-shell" style={boardStyle} onClick={(event) => event.stopPropagation()}>
+        <div className="by-board-frame" aria-hidden="true" />
         <div className="by-board-inner by-board-detail">
           <div className="by-detail-head">
             <button
@@ -167,7 +175,8 @@ export function BackyardNoticeBoard({
   }
 
   return (
-    <div style={boardStyle} onClick={boardClick}>
+    <div className="by-board-shell" data-coach="noticeBoard" style={boardStyle} onClick={boardClick}>
+      <div className="by-board-frame" aria-hidden="true" />
       <div className="by-board-inner">
         <div className="by-board-main">
           <span className="by-board-token" title={bk.totalTokensTitle}>🍙 {formatCount(tokenStats[range].total)}</span>
@@ -208,16 +217,15 @@ export function BackyardNoticeBoard({
           ))}
         </div>
 
-        {/* 今日互动状态：爱心额度 + 满格一瞥（从左下常驻 HUD 迁入公告板，§6.2/§6.6） */}
-        <div className="by-board-love-row">
-          <span className="by-board-love" title={bk.loveTitle}>
-            <span className="by-board-love-label">{bk.loveLabel}</span>
-            <DailyLoveMeter clicks={save.daily.clicks} cap={config.dailyClickCap} showCount />
+        {/* 底部状态并排：今日互动额度 + 固定图鉴进度。 */}
+        <div className="by-board-status-row">
+          <span className="by-board-love-row">
+            <span className="by-board-love" title={bk.loveTitle}>
+              <span className="by-board-love-label">{bk.loveLabel}</span>
+              <DailyLoveMeter clicks={save.daily.clicks} cap={config.dailyClickCap} showCount />
+            </span>
           </span>
-        </div>
-        <div className="by-board-grid">
-          <span>{bk.tokenLine}</span>
-          <span>
+          <span className="by-board-dex">
             {fmt(T.bk.dexProgress, { collected: pokedexModel.fixedCollected, total: FIXED_DEX_TOTAL })}
           </span>
         </div>

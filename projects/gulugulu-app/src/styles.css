@@ -65,6 +65,18 @@ img,
   padding: 0;
 }
 
+/* 工厂场景同后院：全出血、全屏停靠（天空透明，场景只画底部办公室） */
+.pet-shell.ui-factory {
+  gap: 0;
+  padding: 0;
+}
+
+/* 浏览器预览里工厂铺满视口（默认 is-preview 的 12px 外边距会把办公室地板挤出屏） */
+.pet-shell.is-preview.ui-factory {
+  margin: 0;
+  border-radius: 0;
+}
+
 /* Browser preview: visualize the would-be window bounds. */
 .pet-shell.is-preview {
   margin: 12px auto;
@@ -113,7 +125,7 @@ body.shot-mode .pet-shell.is-preview.ui-backyard {
   overflow: hidden;
 }
 /* 宠物/菜单小窗:右下角贴任务栏,像真实桌宠停靠位 */
-body.shot-mode .pet-shell.is-preview:not(.ui-backyard) {
+body.shot-mode .pet-shell.is-preview:not(.ui-backyard):not(.ui-factory) {
   position: absolute;
   top: auto;
   left: auto;
@@ -188,13 +200,13 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 .speech.is-visible {
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(var(--speech-drop, 0px)) scale(1);
+  transform: translateY(calc(var(--speech-drop, 0px) + var(--onboarding-speech-push, 0px))) scale(1);
 }
 
 .speech.is-hidden {
   opacity: 0;
   pointer-events: none;
-  transform: translateY(var(--speech-drop, 0px)) scale(1);
+  transform: translateY(calc(var(--speech-drop, 0px) + var(--onboarding-speech-push, 0px))) scale(1);
 }
 
 .speech::before {
@@ -415,9 +427,9 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   min-height: 32px;
   box-sizing: border-box;
   padding: 7px 8px;
-  border: 1.5px solid rgba(107, 69, 32, 0.5);
+  border: 1.5px solid #6b4520;
   border-radius: 10px;
-  background: rgba(255, 253, 246, 0.92);
+  background: #fffdf6;
   color: var(--ink);
   font: inherit;
   font-size: 12px;
@@ -429,7 +441,7 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 
 .settings-btn:hover,
 .settings-btn:focus-visible {
-  background: rgba(247, 211, 115, 0.45);
+  background: #f7d373;
   outline: none;
 }
 
@@ -437,6 +449,27 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   border-color: #b07708;
   background: var(--wood-gold);
   box-shadow: 0 0 0 2px rgba(217, 165, 20, 0.3);
+}
+
+.settings-select {
+  width: 100%;
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1.5px solid #6b4520;
+  border-radius: 10px;
+  background: #fffdf6;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-select:hover,
+.settings-select:focus-visible {
+  border-color: #b07708;
+  outline: none;
 }
 
 .settings-action {
@@ -453,15 +486,15 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 @keyframes speech-pop {
   0% {
     opacity: 0;
-    transform: translateY(calc(var(--speech-drop, 0px) + 4px)) scale(0.96, 1.04);
+    transform: translateY(calc(var(--speech-drop, 0px) + var(--onboarding-speech-push, 0px) + 4px)) scale(0.96, 1.04);
   }
   62% {
     opacity: 1;
-    transform: translateY(calc(var(--speech-drop, 0px) - 1px)) scale(1.02, 0.98);
+    transform: translateY(calc(var(--speech-drop, 0px) + var(--onboarding-speech-push, 0px) - 1px)) scale(1.02, 0.98);
   }
   100% {
     opacity: 1;
-    transform: translateY(var(--speech-drop, 0px)) scale(1);
+    transform: translateY(calc(var(--speech-drop, 0px) + var(--onboarding-speech-push, 0px))) scale(1);
   }
 }
 
@@ -783,7 +816,12 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 
 .menu-item-label {
   font-family: var(--font-display);
-  font-size: 13px;
+  /* 三键并排（后院/工厂/设置，面板态再加头像位）后每键更窄：字号收一档 +
+     禁止换行截断，总宽仍由 flex:1 均分保持不变 */
+  font-size: 12px;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .menu-badge {
@@ -814,10 +852,11 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 }
 
 .game-hud {
-  /* 3 列 × 2 行：左=Lv/精力值 · 中=精力条/经验条(1fr) · 右=爱心数/金币(定宽)。
-     右列固定宽度 = 够 4 位有效数字，金币位数变化不回推中列两条的长度。 */
+  /* 3 列 × 2 行：左=Lv/精力值 · 中=精力条/经验条(1fr) · 右=爱心数/金币。
+     右列按两行中更宽的内容统一预留空间，避免大额金币向左盖住经验条；
+     两条进度条共用同一中列，因此始终等宽。 */
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 56px;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   grid-template-rows: auto auto;
   column-gap: 9px;
   row-gap: 7px;
@@ -859,14 +898,16 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 /* 中列两条在 HUD 内满宽等高（覆盖 .energy-bar-hud 的固定宽 / .exp-bar 的 34×5） */
 .game-hud .energy-bar-hud,
 .game-hud .exp-bar {
-  width: auto;
+  width: 100%;
+  min-width: 0;
   height: 11px;
   padding: 2px;
   border-radius: 7px;
+  justify-self: stretch;
 }
 
 .hud-coins {
-  /* 金币始终单行：数值再长也不换行；定宽右列负责把它顶到右缘 */
+  /* 金币始终单行；网格右列按其实际宽度预留空间，不侵占中间进度条。 */
   justify-self: end;
   white-space: nowrap;
   display: flex;
@@ -1407,6 +1448,71 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   100% { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+.codex-upgrade-overlay {
+  z-index: 95;
+}
+
+.codex-upgrade-card {
+  width: min(360px, calc(100vw - 28px));
+  padding: 22px 20px 18px;
+  text-align: center;
+}
+
+.codex-upgrade-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 8px;
+  border: 3px solid var(--wood-border);
+  border-radius: 50%;
+  background: var(--wood-gold);
+  color: var(--ink);
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 42px;
+}
+
+.codex-upgrade-card h2 {
+  margin: 0 0 8px;
+}
+
+.codex-upgrade-card p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.codex-upgrade-commands {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.codex-upgrade-commands div {
+  display: grid;
+  gap: 3px;
+}
+
+.codex-upgrade-commands span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.codex-upgrade-commands code {
+  overflow-x: auto;
+  padding: 7px 9px;
+  border: 2px solid var(--wood-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.codex-upgrade-actions {
+  flex-direction: column;
+}
+
 .tutorial-bubble {
   position: fixed;
   left: 50%;
@@ -1445,7 +1551,7 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border: 1px dashed rgba(179, 69, 46, 0.4);
+  border: 1px solid #b3452e;
   border-radius: 10px;
 }
 
@@ -1462,9 +1568,9 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 
 .debug-game-row button {
   padding: 5px 8px;
-  border: 1.5px solid rgba(107, 69, 32, 0.55);
+  border: 1.5px solid #6b4520;
   border-radius: 8px;
-  background: rgba(255, 253, 246, 0.92);
+  background: #fffdf6;
   color: var(--ink);
   font: inherit;
   font-size: 10.5px;
@@ -1490,7 +1596,7 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   place-items: end center;
   background:
     linear-gradient(180deg, rgba(255, 253, 244, 0.6), rgba(255, 233, 173, 0.35));
-  border: 2px dashed rgba(226, 165, 44, 0.55);
+  border: 2px solid #e2a52c;
   border-radius: 14px;
   overflow: hidden;
 }
@@ -1534,9 +1640,9 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 .debug-controls button,
 .debug-states button {
   padding: 6px 4px 7px;
-  border: 1.5px solid rgba(107, 69, 32, 0.5);
+  border: 1.5px solid #6b4520;
   border-radius: 10px;
-  background: rgba(255, 253, 246, 0.92);
+  background: #fffdf6;
   font: inherit;
   font-size: 11px;
   font-weight: 700;
@@ -1579,7 +1685,7 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   padding: 6px 2px 5px;
   border: 2px solid transparent;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.7);
+  background: #fffdf6;
   font: inherit;
   font-size: 10px;
   font-weight: 700;
@@ -1638,10 +1744,12 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 
 .welcome-card {
   /* border-box：width 含 padding+border，否则内容盒 88% 再加 32px padding+6px border
-     会超出 260px 窗口，左右被裁切。 */
+     会超出 260px 窗口，左右被裁切。
+     93%（280px 窗口 → 260px 卡）比原 88% 多出 14px 内容宽——窄格里的英文长标签
+     （"Keys charged"）就靠这点余量 + 堆叠版式坐稳单行。窗口本身不变宽（宠物不位移）。 */
   box-sizing: border-box;
-  width: min(88%, 300px);
-  padding: 16px 16px 14px;
+  width: min(93%, 300px);
+  padding: 14px 15px 13px;
   border: 3px solid var(--wood-border);
   border-radius: 16px;
   background: linear-gradient(180deg, #fffdf6, #ffe9ad);
@@ -1651,11 +1759,55 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   animation: welcome-pop 0.32s cubic-bezier(0.18, 0.92, 0.28, 1.25);
 }
 
+/* 晨报单据（Morning Gazette）配色：只加在欢迎回来卡上，不影响共用 .welcome-card 壳体
+   的 FusionModal / TrainingModal / AutostartPromptCard —— 换成米白报纸纸色。 */
+.welcome-card.welcome-daily {
+  border: 0;
+  border-radius: 0;
+  background: #fffdf4;
+  box-shadow: 8px 8px 0 #d8cdb7;
+}
+
+/* 每日战报里的便签全部使用不透明的整块纸面。不要用半透明描边、高光或
+   圆角气泡，否则透明桌面窗口会让边缘看起来像一圈发灰的玻璃。 */
+.welcome-daily .welcome-kicker {
+  display: inline-block;
+  padding: 3px 9px 4px;
+  background: #ffe45c;
+  color: #6b4d00;
+}
+
+.welcome-daily .welcome-hero {
+  padding: 5px 8px 9px;
+  border: 0;
+  background: #ffe45c;
+}
+
+.welcome-daily .welcome-ledger {
+  margin-top: 0;
+  padding: 9px 8px;
+  border: 0;
+  background: #fffdf4;
+}
+
+.welcome-daily .welcome-roast {
+  border: 0;
+  border-radius: 0;
+  background: #b8d8fa;
+}
+
+.welcome-daily .welcome-roast::before {
+  color: #6f9fd2;
+}
+
 .welcome-title {
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
   color: var(--gold-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .welcome-sub {
@@ -1663,6 +1815,31 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   font-size: 11px;
   font-weight: 700;
   color: #a08256;
+}
+
+/* 欢迎卡专属卡头（FusionModal / Autostart 等共用 .welcome-title 的弹窗不受影响）：
+   标题钉死单行——"🌅 Welcome back!" 在 260px 卡里富余得很，断行只会难看。
+   晨报单据（Morning Gazette）改造：报头小字 kicker + 深墨色标题，替换原金棕大字。 */
+.welcome-kicker {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  color: #b07708;
+  white-space: nowrap;
+}
+
+.welcome-head .welcome-title {
+  margin-top: 2px;
+  color: #3b2b1d;
+  white-space: nowrap;
+}
+
+.welcome-head .welcome-sub {
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-style: italic;
+  letter-spacing: 0.1px;
+  color: #8a7355;
 }
 
 .welcome-list {
@@ -1677,16 +1854,16 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 .welcome-list li {
   padding: 6px 10px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1.5px solid rgba(107, 69, 32, 0.28);
+  background: #fffdf6;
+  border: 1.5px solid #6b4520;
   font-size: 12px;
   font-weight: 700;
   color: var(--ink);
 }
 
 .welcome-cta {
-  margin-top: 4px;
-  padding: 8px 22px;
+  margin-top: 9px;
+  padding: 9px 26px;
   border: 2.5px solid var(--wood-border);
   border-radius: 999px;
   background: linear-gradient(180deg, #b07b44, #96622f);
@@ -1694,7 +1871,9 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   font: inherit;
   font-size: 13px;
   font-weight: 800;
+  letter-spacing: 0.3px;
   cursor: pointer;
+  text-shadow: 0 1px 1px rgba(43, 26, 8, 0.35);
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.24), 0 6px 14px rgba(43, 26, 8, 0.3);
 }
 
@@ -1702,111 +1881,164 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   transform: translateY(1px);
 }
 
-/* ===== 昨日战报（WelcomeBack 昨日总结） ===== */
+/* ===== 昨日战报（WelcomeBack 昨日总结）——晨报单据 Morning Gazette 版式 =====
+   版式节奏：日期分隔条（细双线夹标签） → Token 头条（居中大字+副行） →
+   账本区（虚线引导线逐行小计，金币收入行加重收尾） → 吐槽气泡（虚线·左引号）。
+   **所有标签与数值一律 nowrap**：宽度已按最长英文串（"actually generated" /
+   "Keys charged"）留够余量，版式改动后请跑 `node scripts/verify_welcome_layout.mjs`
+   实测复核（它会在 280px 真机窗宽下逐元素断言单行 + 无溢出）。 */
 .welcome-report {
-  margin: 8px 0 4px;
+  margin: 10px 0 3px;
   display: grid;
-  gap: 5px;
+  gap: 2px;
   text-align: left;
 }
 
+/* 日期头做成「两侧实线夹住」的分隔条：把卡头与数据区分开，也给整卡一个呼吸点。 */
 .welcome-report-date {
-  margin-bottom: 1px;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--gold-ink);
-}
-
-/* Token 头条 / 生成量副行 / 金币收入：全宽两列（标签｜数值）。 */
-.welcome-hero-stat {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 10px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1.5px solid rgba(107, 69, 32, 0.28);
-}
-
-.welcome-stat-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink);
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: #3b2b1d;
   white-space: nowrap;
 }
 
-.welcome-stat-val {
+.welcome-report-date::before,
+.welcome-report-date::after {
+  content: "";
+  flex: 1 1 0;
+  height: 2px;
+  border-radius: 1px;
+  background: #3b2b1d;
+}
+
+/* Token 头条：全卡最大数字所在，居中排布仿报纸头版处理。 */
+.welcome-hero {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding-bottom: 9px;
+  text-align: center;
+}
+
+.welcome-hero-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  color: #b3502a;
+  white-space: nowrap;
+}
+
+.welcome-hero-val {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1.08;
+  color: #3b2b1d;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 副行「AI 真正生成」：从属于头条——同框内缩小淡化，不再单独占一条底。 */
+.welcome-hero-note {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8a7355;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.welcome-hero-note b {
+  font-weight: 800;
+  color: #5c4a33;
+}
+
+/* 账本区：逐行小计，虚线上下边界与卡纸区分。 */
+.welcome-ledger {
+  display: grid;
+  gap: 5px;
+  padding: 9px 1px;
+  border-top: 2px dashed #c9b08a;
+  border-bottom: 2px dashed #c9b08a;
+}
+
+.welcome-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.welcome-row-label {
+  font-weight: 700;
+  color: #5c4a33;
+  white-space: nowrap;
+}
+
+/* 虚线引导线：把标签和数值「记账式」连起来，flex-1 撑满剩余宽度。 */
+.welcome-row-dots {
+  flex: 1 1 auto;
+  min-width: 6px;
+  border-bottom: 2px dotted #c9b08a;
+  transform: translateY(-2px);
+}
+
+.welcome-row-val {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #3b2b1d;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 金币收入行：唯一加重的一行，收在账本末尾与顶部「消耗」头条一冷一热对仗。 */
+.welcome-coins-label {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--gold-ink);
+  white-space: nowrap;
+}
+
+.welcome-coins-val {
   font-family: var(--font-display);
   font-size: 15px;
   font-weight: 900;
   color: var(--gold-ink);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-/* Token 副行「AI 真正生成」：从属于头条——去底、缩进、淡化、更小。 */
-.welcome-hero-sub {
-  padding: 1px 10px 1px 22px;
-  background: transparent;
-  border: none;
-}
-.welcome-hero-sub .welcome-stat-label,
-.welcome-hero-sub .welcome-stat-val {
-  font-size: 11px;
-  color: #a08256;
-}
-
-/* 4 个小统计：2 列紧凑格。窄格里放不下的长标签（英文默认下 "Keys charged"/"Pet pokes"
-   远比中文 4 字标签宽）改为换行而非溢出被裁；grid-auto-rows:1fr 让 4 格等高，长标签换成
-   两行时短标签格也拉到同高，排面整齐。 */
-.welcome-stat-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-auto-rows: 1fr;
-  gap: 5px;
-}
-
-.welcome-tile {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 4px 9px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1.5px solid rgba(107, 69, 32, 0.22);
-}
-
-.welcome-tile-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--ink);
-  /* 允许长标签换行（去掉 nowrap）——窄格溢出会被卡片 overflow 裁掉半个词（"Pet po…"）；
-     line-height 收紧让两行标签更紧凑。 */
-  line-height: 1.15;
-}
-
-.welcome-tile-val {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--gold-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-/* 狠辣吐槽高亮框。 */
+/* 狠辣吐槽：做成便签/气泡（虚线框 + 左上引号），与上方的硬数据条明确分区。 */
 .welcome-roast {
-  margin-top: 6px;
-  padding: 7px 10px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #fff4d6, #ffe4a0);
-  border: 1.5px solid rgba(176, 123, 68, 0.5);
-  font-size: 11.5px;
+  position: relative;
+  margin-top: 3px;
+  padding: 8px 10px 8px 27px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #fffaf0, #fdedcd);
+  border: 1.5px dashed rgba(176, 123, 68, 0.55);
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.4;
   color: #7a4f1e;
   text-align: left;
+}
+
+/* 左上角的装饰引号：要够大才读得出是「引号」而不是漏排的撇号。 */
+.welcome-roast::before {
+  content: "“";
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  font-family: Georgia, "Times New Roman", var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(176, 123, 68, 0.45);
 }
 
 /* 战报卡可能偏高：仅在含战报时兜底允许内部滚动（:has 不波及 FusionModal 等共用卡）。 */
@@ -1864,8 +2096,8 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   margin: 8px 0 0;
   padding: 6px 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
-  border: 1.5px solid rgba(107, 69, 32, 0.25);
+  background: #fffdf6;
+  border: 1.5px solid #6b4520;
   font-size: 11px;
   line-height: 1.5;
   color: #7a5a33;
@@ -1900,6 +2132,94 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   padding: 8px 10px;
 }
 
+/* ---- 训练弹窗（TrainingModal，EconomyRework-TrainingHall.md §3）----
+   复用 .welcome-card/.fusion-modal-* 体系，只补一份可滚动的宠物选择列表。 */
+.train-modal {
+  max-width: 420px;
+}
+
+.train-modal-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 216px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.train-modal-pet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px 7px;
+  border: 2px solid #6b4520;
+  border-radius: 10px;
+  background: #fff7e2;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #6b4520;
+  cursor: pointer;
+}
+
+.train-modal-pet svg {
+  width: 46px;
+  height: 46px;
+}
+
+.train-modal-pet.is-selected {
+  border-color: #b07708;
+  background: linear-gradient(180deg, #ffe9ad, #f7d373);
+  box-shadow: 0 0 0 2px rgba(176, 119, 8, 0.45);
+}
+
+.train-modal-pet.is-blocked {
+  filter: grayscale(0.7);
+  opacity: 0.62;
+  cursor: default;
+}
+
+.train-modal-pet-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.train-modal-pet-meta {
+  font-variant-numeric: tabular-nums;
+  color: #8a6410;
+}
+
+.train-modal-pet-block {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #a4552f;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.train-modal-cost {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.train-modal-universal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b4520;
+  cursor: pointer;
+}
+
 /* 开机自启引导：260px 窗内两枚按钮并排，文案已精简到两字，禁止折行。 */
 .autostart-actions .welcome-cta {
   white-space: nowrap;
@@ -1915,6 +2235,29 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   cursor: default;
 }
 
+/* 晨报单据 CTA：只加在欢迎回来卡上——方角+木纹厚投影的"按压"手感，
+   不动其他弹窗共用的 .welcome-cta 药丸按钮。 */
+.welcome-cta-daily {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 0;
+  background: #ff5a78;
+  font-size: 14.5px;
+  text-shadow: none;
+  box-shadow: 0 4px 0 #c83958;
+}
+
+.welcome-cta-daily:hover {
+  filter: brightness(1.07);
+}
+
+.welcome-cta-daily:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--wood-border);
+}
+
 /* 孵化坑里的 AI 融合状态小徽标（叠在蛋上方） */
 .by-pit-fusion {
   position: absolute;
@@ -1923,7 +2266,7 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   bottom: 96px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1.5px solid rgba(60, 34, 8, 0.55);
+  border: 1.5px solid #3c2208;
   background: linear-gradient(180deg, #6d54c9, #52399f);
   color: #f3ecff;
   font-size: 10px;
@@ -1931,6 +2274,11 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 3px 8px rgba(43, 26, 8, 0.35);
+}
+
+/* 同一颗蛋同时有融合徽标时，同步徽标抬到上一行，避免两标重叠 */
+.by-pit-fusion.is-row2 {
+  bottom: 118px;
 }
 
 .by-pit-fusion.is-resolved {

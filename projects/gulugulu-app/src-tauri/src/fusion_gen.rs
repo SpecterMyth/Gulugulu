@@ -1,8 +1,12 @@
-use crate::cli_spawn::{available_providers, probe_cli, run_provider, tail_of, Provider};
+mod v2;
+
+use crate::cli_spawn::{
+    available_providers, probe_cli, run_provider, run_provider_with_schema, tail_of, Provider,
+};
 use crate::game::{
-    self, ChimeraForm, CustomPalette, CustomRig, CustomSpeciesEntry, CustomVisualSpec, CustomWorkFx,
-    EggInstance, GameSave, RigViewParts, ShapeNode, SharedGameState, SlotSpec, SpeciesSkin,
-    WorkFxParticle,
+    self, ChimeraForm, CustomPalette, CustomRig, CustomSpeciesEntry, CustomVisualSpec,
+    CustomWorkFx, EggInstance, GameSave, GeneratedDesignMeta, RigViewParts, ShapeNode,
+    SharedGameState, SlotSpec, SpeciesSkin, WorkFxParticle,
 };
 use crate::game_config::SpeciesInfo;
 use serde::{Deserialize, Serialize};
@@ -76,6 +80,9 @@ struct CatalogWorkParticle {
 struct FusionCatalog {
     rigs: BTreeMap<String, CatalogRig>,
     eyes: Vec<String>,
+    /// 待机嘴型白名单（smile/cat/fang/smirk/open/pout/flat）。加法字段，缺省空。
+    #[serde(default)]
+    mouth_styles: Vec<String>,
     tools: BTreeMap<String, String>,
     // 每件工具「打工时喷出的产物」提示（toolId → 中文一句）；拼提示词绑定粒子=工具产物。
     tool_fx_hints: BTreeMap<String, String>,
@@ -91,13 +98,21 @@ struct FusionCatalog {
 
 fn catalog() -> &'static FusionCatalog {
     static CATALOG: OnceLock<FusionCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| serde_json::from_str(FUSION_PARTS_JSON).expect("fusionParts.json is invalid"))
+    CATALOG.get_or_init(|| {
+        serde_json::from_str(FUSION_PARTS_JSON).expect("fusionParts.json is invalid")
+    })
 }
 
 /// 共享实物粒子目录的 id 集合（workFx `ref` 的校验白名单，惰性构建一次）。
 fn work_particle_ids() -> &'static BTreeSet<String> {
     static IDS: OnceLock<BTreeSet<String>> = OnceLock::new();
-    IDS.get_or_init(|| catalog().work_particles.iter().map(|w| w.id.clone()).collect())
+    IDS.get_or_init(|| {
+        catalog()
+            .work_particles
+            .iter()
+            .map(|w| w.id.clone())
+            .collect()
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +120,8 @@ fn work_particle_ids() -> &'static BTreeSet<String> {
 // ---------------------------------------------------------------------------
 
 pub struct FusionGenStateInner {
-    cli_cache: Mutex<Option<(FusionCliStatus, Instant)>>,
+    /// CLI 预检结果依赖用户首选 Agent；缓存键必须包含首选项，设置切换后不能沿用旧 provider。
+    cli_cache: Mutex<Option<(FusionCliStatus, Instant, Provider)>>,
     /// worker 唤醒信号（有新挂起蛋时 notify）。
     signal: (Mutex<bool>, Condvar),
 }
@@ -148,7 +164,8 @@ pub struct FusionStartResult {
 #[serde(rename_all = "camelCase")]
 struct FusionProgressEvent {
     egg_id: String,
-    /// queued | generating | retrying | validating | resolved | failed
+    /// queued | generating | retrying | validating | ideating | drawing | reviewing |
+    /// revising | resolved | failed
     phase: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider: Option<String>,
@@ -184,47 +201,60 @@ fn emit_progress(
 // CLI 预检（复用 cli_spawn 的解析/探测；这里只组装融合专属的 FusionCliStatus）
 // ---------------------------------------------------------------------------
 
-fn probe_all() -> FusionCliStatus {
-    match probe_cli("claude") {
-        Ok((path, version)) => FusionCliStatus {
-            available: true,
-            provider: Some("claude".to_string()),
-            version: Some(version),
-            path: Some(path.display().to_string()),
-            error: None,
-        },
-        Err(claude_error) => match probe_cli("codex") {
-            Ok((path, version)) => FusionCliStatus {
-                available: true,
-                provider: Some("codex".to_string()),
-                version: Some(version),
-                path: Some(path.display().to_string()),
-                error: None,
-            },
-            Err(codex_error) => FusionCliStatus {
-                available: false,
-                provider: None,
-                version: None,
-                path: None,
-                error: Some(format!("Claude Code：{claude_error}；Codex：{codex_error}")),
-            },
-        },
+fn provider_order(preferred: Provider) -> [Provider; 2] {
+    match preferred {
+        Provider::Claude => [Provider::Claude, Provider::Codex],
+        Provider::Codex => [Provider::Codex, Provider::Claude],
     }
 }
 
-fn check_cli_cached(state: &FusionGenState, force: bool) -> FusionCliStatus {
+fn probe_all(preferred: Provider) -> FusionCliStatus {
+    let mut claude_error: Option<String> = None;
+    let mut codex_error: Option<String> = None;
+    for provider in provider_order(preferred) {
+        match probe_cli(provider.name()) {
+            Ok((path, version)) => {
+                return FusionCliStatus {
+                    available: true,
+                    provider: Some(provider.name().to_string()),
+                    version: Some(version),
+                    path: Some(path.display().to_string()),
+                    error: None,
+                };
+            }
+            Err(error) => match provider {
+                Provider::Claude => claude_error = Some(error),
+                Provider::Codex => codex_error = Some(error),
+            },
+        }
+    }
+    FusionCliStatus {
+        available: false,
+        provider: None,
+        version: None,
+        path: None,
+        error: Some(format!(
+            "Claude Code：{}；Codex：{}",
+            claude_error.unwrap_or_else(|| "unavailable".to_string()),
+            codex_error.unwrap_or_else(|| "unavailable".to_string())
+        )),
+    }
+}
+
+fn check_cli_cached(app: &AppHandle, state: &FusionGenState, force: bool) -> FusionCliStatus {
+    let preferred = load_fusion_pref(app).agent;
     if !force {
         if let Ok(cache) = state.cli_cache.lock() {
-            if let Some((status, at)) = cache.as_ref() {
-                if at.elapsed() < CLI_CACHE_TTL {
+            if let Some((status, at, cached_preferred)) = cache.as_ref() {
+                if *cached_preferred == preferred && at.elapsed() < CLI_CACHE_TTL {
                     return status.clone();
                 }
             }
         }
     }
-    let status = probe_all();
+    let status = probe_all(preferred);
     if let Ok(mut cache) = state.cli_cache.lock() {
-        *cache = Some((status.clone(), Instant::now()));
+        *cache = Some((status.clone(), Instant::now(), preferred));
     }
     status
 }
@@ -256,6 +286,169 @@ fn fusion_model(provider: Provider) -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------
+// 用户首选 Agent / 模型（设置面板：默认 Agent + 默认模型）
+//
+// 融合是全局最重要的创作，用户可在设置里指定首选 Agent（claude/codex）与该 Agent
+// 下的模型。生成时**优先**用首选 Agent（不可用再回退另一个），首选 Agent 用用户选的
+// 模型；非首选 Agent 仍用其默认模型。`GULUGULU_FUSION_MODEL` 环境变量整体覆盖不变。
+// ---------------------------------------------------------------------------
+
+/// 各 Agent 的可选模型目录（前端下拉用；id = 传给 CLI 的模型别名，label = 展示名）。
+/// claude 用官方别名（解析到当前最新一代对应档位）；codex 列常见模型槽，另给「CLI 默认」。
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentModelOption {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentModels {
+    pub claude: Vec<AgentModelOption>,
+    pub codex: Vec<AgentModelOption>,
+}
+
+fn opt(id: &str, label: &str) -> AgentModelOption {
+    AgentModelOption {
+        id: id.to_string(),
+        label: label.to_string(),
+    }
+}
+
+/// `codex debug models` 输出里我们关心的字段（其余字段——含超大的 base_instructions——忽略）。
+#[derive(Debug, Deserialize)]
+struct CodexModelEntry {
+    slug: String,
+    #[serde(default)]
+    display_name: Option<String>,
+    /// "list" = 面向用户可选；"hide"/其它 = 内部模型，不进下拉。
+    #[serde(default)]
+    visibility: Option<String>,
+    /// 展示排序键（越小越靠前）。
+    #[serde(default)]
+    priority: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CodexModelsOutput {
+    #[serde(default)]
+    models: Vec<CodexModelEntry>,
+}
+
+/// 查询本机 codex 的可用模型（`codex debug models`）——**每个用户/装机各不相同**，
+/// 故运行时查询而非硬编码。取 visibility=="list" 的模型，按 priority 升序，slug 作为
+/// 传给 `codex exec -m` 的模型 id。首项恒为「CLI Default」（空 id = 用 codex 自身默认）。
+/// codex 未装/查询失败 → 返回 None，调用方回落到最小目录（仅 CLI Default）。
+fn query_codex_models() -> Option<Vec<AgentModelOption>> {
+    let stdout =
+        crate::cli_spawn::run_cli_query("codex", &["debug", "models"], Duration::from_secs(20))
+            .ok()?;
+    // `codex debug models` 输出纯 JSON；容忍偶发前后空白/日志，从首个 '{' 起解析。
+    let start = stdout.find('{')?;
+    let parsed: CodexModelsOutput = serde_json::from_str(stdout[start..].trim()).ok()?;
+    let mut listed: Vec<CodexModelEntry> = parsed
+        .models
+        .into_iter()
+        .filter(|m| m.visibility.as_deref() == Some("list") && !m.slug.trim().is_empty())
+        .collect();
+    if listed.is_empty() {
+        return None;
+    }
+    listed.sort_by_key(|m| m.priority.unwrap_or(i64::MAX));
+    let mut options = vec![opt("", "CLI Default")];
+    for m in listed {
+        let label = m
+            .display_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&m.slug)
+            .to_string();
+        options.push(AgentModelOption { id: m.slug, label });
+    }
+    Some(options)
+}
+
+/// codex 查询失败时的最小兜底（未装 codex / 输出异常）：只给「CLI Default」，
+/// 让用户仍能选 codex 且用其自身默认模型，不误导展示本机没有的槽。
+fn codex_models_fallback() -> Vec<AgentModelOption> {
+    vec![opt("", "CLI Default")]
+}
+
+/// 供设置面板下拉展示的两个 Agent 的可用模型。
+/// - claude：用官方稳定别名（opus/sonnet/haiku，解析到当前最新一代对应档位）；
+///   claude CLI 无「列模型」接口，别名即约定俗成的选择面。
+/// - codex：**运行时**查询本机 `codex debug models`（每装机不同），失败回落最小目录。
+/// 选到本机不支持的槽时，生成会按 provider 回退链自然降级，不会硬崩。
+#[tauri::command]
+pub fn list_agent_models() -> AgentModels {
+    AgentModels {
+        claude: vec![
+            opt("opus", "Opus"),
+            opt("sonnet", "Sonnet"),
+            opt("haiku", "Haiku"),
+        ],
+        codex: query_codex_models().unwrap_or_else(codex_models_fallback),
+    }
+}
+
+/// 用户融合首选（从设置读取）：首选 Agent + 首选模型（空=用该 Agent CLI 默认）。
+struct FusionPref {
+    agent: Provider,
+    model: Option<String>,
+}
+
+fn load_fusion_pref(app: &AppHandle) -> FusionPref {
+    let settings = crate::settings::load(app);
+    let agent = if settings.default_agent == "codex" {
+        Provider::Codex
+    } else {
+        Provider::Claude
+    };
+    let model = {
+        let m = settings.default_model.trim();
+        if m.is_empty() {
+            None
+        } else {
+            Some(m.to_string())
+        }
+    };
+    FusionPref { agent, model }
+}
+
+/// 把可用 provider 按首选 Agent 排到最前（稳定排序，保留原相对次序作回退）。
+fn order_by_pref(
+    mut providers: Vec<(Provider, PathBuf)>,
+    pref: &FusionPref,
+) -> Vec<(Provider, PathBuf)> {
+    let order = provider_order(pref.agent);
+    providers.sort_by_key(|(provider, _)| {
+        order
+            .iter()
+            .position(|candidate| candidate == provider)
+            .unwrap_or(order.len())
+    });
+    providers
+}
+
+/// 某 provider 生成用的模型：env 覆盖 > （若是首选 Agent）用户选的模型 > provider 默认。
+fn model_for(provider: Provider, pref: &FusionPref) -> Option<String> {
+    if let Ok(model) = std::env::var("GULUGULU_FUSION_MODEL") {
+        let model = model.trim().to_string();
+        if !model.is_empty() {
+            return Some(model);
+        }
+    }
+    if provider == pref.agent {
+        if let Some(model) = &pref.model {
+            return Some(model.clone());
+        }
+    }
+    fusion_model(provider)
+}
+
+// ---------------------------------------------------------------------------
 // CLI 输出校验（权威校验；TS 渲染层另有静默兜底）
 // ---------------------------------------------------------------------------
 
@@ -275,6 +468,14 @@ struct CliDesign {
     scale: Option<f64>,
     palette: Option<CustomPalette>,
     eyes: Option<String>,
+    #[serde(default)]
+    iris: Option<String>,
+    #[serde(default)]
+    mouth_style: Option<String>,
+    #[serde(default)]
+    motion_preset: Option<String>,
+    #[serde(default)]
+    reaction_profile: Option<String>,
     tool_id: Option<String>,
     #[serde(default)]
     form: Option<ChimeraFormInput>,
@@ -306,7 +507,9 @@ struct ChimeraFormInput {
 }
 
 fn clampf(v: Option<f64>, lo: f64, hi: f64, fallback: f64) -> f64 {
-    v.filter(|n| n.is_finite()).unwrap_or(fallback).clamp(lo, hi)
+    v.filter(|n| n.is_finite())
+        .unwrap_or(fallback)
+        .clamp(lo, hi)
 }
 
 fn one_of(v: &Option<String>, allowed: &[&str], fallback: &str) -> String {
@@ -325,11 +528,23 @@ const ANIMAL_BODY_PLANS: [&str; 6] = ["round", "upright", "quadruped", "long", "
 fn normalize_form(input: ChimeraFormInput) -> ChimeraForm {
     let body_plan = one_of(
         &input.body_plan,
-        &["stack", "round", "upright", "quadruped", "long", "floaty", "bighead"],
+        &[
+            "stack",
+            "round",
+            "upright",
+            "quadruped",
+            "long",
+            "floaty",
+            "bighead",
+        ],
         "stack",
     );
     // floaty 体型天然离地：强制 floating，与渲染层一致。
-    let floating = if body_plan == "floaty" { true } else { input.floating.unwrap_or(false) };
+    let floating = if body_plan == "floaty" {
+        true
+    } else {
+        input.floating.unwrap_or(false)
+    };
     ChimeraForm {
         body_plan,
         segments: clampf(input.segments, 1.0, 3.0, 1.0).round() as u8,
@@ -340,9 +555,17 @@ fn normalize_form(input: ChimeraFormInput) -> ChimeraForm {
         head_style: one_of(&input.head_style, &["merged", "perched"], "merged"),
         head_scale: clampf(input.head_scale, 0.7, 1.0, 0.8),
         leg_style: one_of(&input.leg_style, &["none", "stub", "tall"], "stub"),
-        leg_count: if clampf(input.leg_count, 2.0, 4.0, 2.0) >= 3.0 { 4 } else { 2 },
+        leg_count: if clampf(input.leg_count, 2.0, 4.0, 2.0) >= 3.0 {
+            4
+        } else {
+            2
+        },
         arm_style: one_of(&input.arm_style, &["none", "nub", "wing", "flipper"], "nub"),
-        ear_style: one_of(&input.ear_style, &["none", "round", "point", "long", "fin"], "round"),
+        ear_style: one_of(
+            &input.ear_style,
+            &["none", "round", "point", "long", "fin"],
+            "round",
+        ),
         floating,
     }
 }
@@ -357,6 +580,7 @@ struct ValidatedDesign {
     /// 设计原型（真实动植物名，customRig 路径必有；仅用于日志/评审，不入存档）。
     prototype: Option<String>,
     visual: CustomVisualSpec,
+    design_meta: Option<GeneratedDesignMeta>,
 }
 
 fn is_hex_color(value: &str) -> bool {
@@ -364,7 +588,10 @@ fn is_hex_color(value: &str) -> bool {
 }
 
 fn is_palette_token(value: &str) -> bool {
-    matches!(value, "$body" | "$deep" | "$belly" | "$accent" | "$accent2" | "$outline")
+    matches!(
+        value,
+        "$body" | "$deep" | "$belly" | "$accent" | "$accent2" | "$outline"
+    )
 }
 
 fn is_valid_color(value: &str) -> bool {
@@ -385,7 +612,9 @@ pub(crate) fn is_valid_codename(value: &str) -> bool {
 }
 
 fn has_cjk(value: &str) -> bool {
-    value.chars().any(|c| ('\u{4E00}'..='\u{9FFF}').contains(&c))
+    value
+        .chars()
+        .any(|c| ('\u{4E00}'..='\u{9FFF}').contains(&c))
 }
 
 /// 扫描文本里的所有数字并检查绝对值上界（path d / points / transform 通用）。
@@ -394,7 +623,10 @@ fn numbers_within_bounds(text: &str, bound: f64) -> bool {
         if token.is_empty() {
             return true;
         }
-        let ok = token.parse::<f64>().map(|n| n.abs() <= bound).unwrap_or(false);
+        let ok = token
+            .parse::<f64>()
+            .map(|n| n.abs() <= bound)
+            .unwrap_or(false);
         token.clear();
         ok
     }
@@ -424,12 +656,16 @@ fn is_valid_transform(value: &str) -> bool {
         return false;
     }
     while !rest.is_empty() {
-        let Some(open) = rest.find('(') else { return false };
+        let Some(open) = rest.find('(') else {
+            return false;
+        };
         let name = rest[..open].trim();
         if !matches!(name, "translate" | "rotate" | "scale") {
             return false;
         }
-        let Some(close_rel) = rest[open..].find(')') else { return false };
+        let Some(close_rel) = rest[open..].find(')') else {
+            return false;
+        };
         let close = open + close_rel;
         let inner = &rest[open + 1..close];
         if !inner
@@ -488,7 +724,31 @@ fn validate_shape_node(node: &ShapeNode, where_: &str) -> Result<(), String> {
             if !d.chars().all(|c| {
                 c.is_ascii_digit()
                     || c.is_ascii_whitespace()
-                    || matches!(c, 'M' | 'm' | 'L' | 'l' | 'H' | 'h' | 'V' | 'v' | 'C' | 'c' | 'S' | 's' | 'Q' | 'q' | 'T' | 't' | 'A' | 'a' | 'Z' | 'z' | ',' | '.' | '-')
+                    || matches!(
+                        c,
+                        'M' | 'm'
+                            | 'L'
+                            | 'l'
+                            | 'H'
+                            | 'h'
+                            | 'V'
+                            | 'v'
+                            | 'C'
+                            | 'c'
+                            | 'S'
+                            | 's'
+                            | 'Q'
+                            | 'q'
+                            | 'T'
+                            | 't'
+                            | 'A'
+                            | 'a'
+                            | 'Z'
+                            | 'z'
+                            | ','
+                            | '.'
+                            | '-'
+                    )
             }) {
                 return Err(format!("{where_}: d 含非法字符"));
             }
@@ -499,9 +759,9 @@ fn validate_shape_node(node: &ShapeNode, where_: &str) -> Result<(), String> {
         "polygon" => {
             let points = node.points.as_deref().unwrap_or("");
             if points.is_empty()
-                || !points
-                    .chars()
-                    .all(|c| c.is_ascii_digit() || c.is_ascii_whitespace() || matches!(c, ',' | '.' | '-'))
+                || !points.chars().all(|c| {
+                    c.is_ascii_digit() || c.is_ascii_whitespace() || matches!(c, ',' | '.' | '-')
+                })
                 || !numbers_within_bounds(points, COORD_BOUND)
             {
                 return Err(format!("{where_}: polygon points 非法"));
@@ -642,7 +902,11 @@ fn clamp_cosmetic_ranges(value: &mut serde_json::Value) {
 }
 
 /// custom rig：校验一个部件的节点组（数量 + 逐节点白名单）。
-fn validate_rig_part(nodes: &[ShapeNode], where_: &str, require_nonempty: bool) -> Result<usize, String> {
+fn validate_rig_part(
+    nodes: &[ShapeNode],
+    where_: &str,
+    require_nonempty: bool,
+) -> Result<usize, String> {
     if require_nonempty && nodes.is_empty() {
         return Err(format!("{where_} 不能为空"));
     }
@@ -738,7 +1002,12 @@ fn numbers_bbox(text: &str) -> Option<(f64, f64, f64, f64)> {
     if nums.len() < 2 {
         return None;
     }
-    let (mut minx, mut maxx, mut miny, mut maxy) = (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
+    let (mut minx, mut maxx, mut miny, mut maxy) = (
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    );
     for (i, &n) in nums.iter().enumerate() {
         if !n.is_finite() {
             continue;
@@ -778,7 +1047,12 @@ fn node_bbox(n: &ShapeNode) -> Option<(f64, f64, f64, f64)> {
         }
         "rect" => {
             let (x, y) = (n.x?, n.y?);
-            (x, y, x + n.width.unwrap_or(0.0), y + n.height.unwrap_or(0.0))
+            (
+                x,
+                y,
+                x + n.width.unwrap_or(0.0),
+                y + n.height.unwrap_or(0.0),
+            )
         }
         "line" => {
             let (x1, y1, x2, y2) = (n.x1?, n.y1?, n.x2?, n.y2?);
@@ -807,10 +1081,15 @@ fn check_face_hygiene(
     where_: &str,
 ) -> Result<(), String> {
     let (mouth_x, mouth_y, mouth_w) = mouth;
-    for (name, nodes) in [("muzzle", v.muzzle.as_deref()), ("head", Some(v.head.as_slice()))] {
+    for (name, nodes) in [
+        ("muzzle", v.muzzle.as_deref()),
+        ("head", Some(v.head.as_slice())),
+    ] {
         let Some(nodes) = nodes else { continue };
         for (i, n) in nodes.iter().enumerate() {
-            let Some((minx, miny, maxx, maxy)) = node_bbox(n) else { continue };
+            let Some((minx, miny, maxx, maxy)) = node_bbox(n) else {
+                continue;
+            };
             let cx = (minx + maxx) / 2.0;
             let cy = (miny + maxy) / 2.0;
             let size = ((maxx - minx) / 2.0).max((maxy - miny) / 2.0);
@@ -882,7 +1161,9 @@ fn validate_rig_view(v: &RigViewParts, where_: &str, is_side: bool) -> Result<()
     total += validate_rig_part(&v.body, &format!("{where_}.body"), false)?;
     total += validate_rig_part(&v.head, &format!("{where_}.head"), false)?;
     if v.body.is_empty() && v.head.is_empty() {
-        return Err(format!("{where_}: body 与 head 不能都为空（至少画一个主体块）"));
+        return Err(format!(
+            "{where_}: body 与 head 不能都为空（至少画一个主体块）"
+        ));
     }
     if !v.face.eye_r.is_finite() || v.face.eye_r <= 0.0 || v.face.eye_r > 40.0 {
         return Err(format!("{where_}.face.eyeR 需为正数且 ≤40"));
@@ -890,9 +1171,21 @@ fn validate_rig_view(v: &RigViewParts, where_: &str, is_side: bool) -> Result<()
     check_num(v.face.eye_dx, COORD_BOUND, &format!("{where_}.face.eyeDx"))?;
     check_num(v.face.eye_cx, COORD_BOUND, &format!("{where_}.face.eyeCx"))?;
     check_num(v.face.eye_dy, COORD_BOUND, &format!("{where_}.face.eyeDy"))?;
-    check_num(v.face.mouth_dx, COORD_BOUND, &format!("{where_}.face.mouthDx"))?;
-    check_num(v.face.mouth_dy, COORD_BOUND, &format!("{where_}.face.mouthDy"))?;
-    check_num(v.face.mouth_w, COORD_BOUND, &format!("{where_}.face.mouthW"))?;
+    check_num(
+        v.face.mouth_dx,
+        COORD_BOUND,
+        &format!("{where_}.face.mouthDx"),
+    )?;
+    check_num(
+        v.face.mouth_dy,
+        COORD_BOUND,
+        &format!("{where_}.face.mouthDy"),
+    )?;
+    check_num(
+        v.face.mouth_w,
+        COORD_BOUND,
+        &format!("{where_}.face.mouthW"),
+    )?;
     if let Some(m) = v.face.mouth.as_deref() {
         if m != "engine" && m != "beak" {
             return Err(format!("{where_}.face.mouth 只能是 \"engine\"（引擎画嘴，默认）或 \"beak\"（自带硬喙/长吻、引擎不叠嘴）"));
@@ -952,7 +1245,14 @@ fn validate_rig_view(v: &RigViewParts, where_: &str, is_side: bool) -> Result<()
     let mouth_y = v.face.mouth_dy.unwrap_or(eye_r * 1.7);
     let mouth_w = v.face.mouth_w.unwrap_or(eye_r * 2.2);
     let mouth_engine = v.face.mouth.as_deref() != Some("beak");
-    check_face_hygiene(v, &eye_centers, eye_r, (mouth_x, mouth_y, mouth_w), mouth_engine, where_)?;
+    check_face_hygiene(
+        v,
+        &eye_centers,
+        eye_r,
+        (mouth_x, mouth_y, mouth_w),
+        mouth_engine,
+        where_,
+    )?;
 
     Ok(())
 }
@@ -1024,11 +1324,15 @@ fn validate_design(raw_json: &str) -> Result<ValidatedDesign, String> {
         serde_json::from_value(value).map_err(|error| format!("JSON 结构不符：{error}"))?;
 
     // 形态：优先 AI 完全手绘的 custom rig（三视图专属 rig）；缺失才退参数化 chimera form。
-    let (rig, form_opt, custom_rig_opt, form_floating) = if let Some(mut rig_data) = design.custom_rig {
+    let (rig, form_opt, custom_rig_opt, form_floating) = if let Some(mut rig_data) =
+        design.custom_rig
+    {
         // 原型锚定硬约束：必须先声明"这是照着哪个真实动物/植物设计的"。
         let proto = design.prototype.as_deref().map(str::trim).unwrap_or("");
         if proto.is_empty() || proto.chars().count() > 12 {
-            return Err("缺少 prototype（1~12 字的真实动物/植物原型名，如\"水獭\"/\"捕蝇草\"）".to_string());
+            return Err(
+                "缺少 prototype（1~12 字的真实动物/植物原型名，如\"水獭\"/\"捕蝇草\"）".to_string(),
+            );
         }
         // 夹取过宽的引擎嘴（真机偶发 mouthW=34 → 一道大裂口）：纯观感，夹取不拒稿。
         clamp_face_mouth_w(&mut rig_data);
@@ -1038,7 +1342,9 @@ fn validate_design(raw_json: &str) -> Result<ValidatedDesign, String> {
     } else {
         // 兜底：无 custom rig 时退参数化身体；仍要求选一种动物体型（拒绝 stack 三段圆塔）。
         let form = normalize_form(
-            design.form.ok_or_else(|| "缺少 customRig 或 form（身体形态）".to_string())?,
+            design
+                .form
+                .ok_or_else(|| "缺少 customRig 或 form（身体形态）".to_string())?,
         );
         if !ANIMAL_BODY_PLANS.contains(&form.body_plan.as_str()) {
             return Err(format!(
@@ -1082,6 +1388,33 @@ fn validate_design(raw_json: &str) -> Result<ValidatedDesign, String> {
             return Err(format!("eyes 必须是 {} 之一", cat.eyes.join("/")));
         }
     }
+    if let Some(iris) = &design.iris {
+        if !(is_palette_token(iris) || is_hex_color(iris)) {
+            return Err("iris 需为调色板 token 或 #rrggbb".to_string());
+        }
+    }
+    if let Some(ms) = &design.mouth_style {
+        if !cat.mouth_styles.iter().any(|m| m == ms) {
+            return Err(format!(
+                "mouthStyle 必须是 {} 之一",
+                cat.mouth_styles.join("/")
+            ));
+        }
+    }
+    if let Some(preset) = &design.motion_preset {
+        if ![
+            "waddle", "trot", "bound", "scuttle", "slither", "float", "sway",
+        ]
+        .contains(&preset.as_str())
+        {
+            return Err("motionPreset 不在允许列表".to_string());
+        }
+    }
+    if let Some(profile) = &design.reaction_profile {
+        if !["sunny", "shy", "cool", "sleepy", "mischievous"].contains(&profile.as_str()) {
+            return Err("reactionProfile 不在允许列表".to_string());
+        }
+    }
     // 打工工具必填：粒子=工具产物，没有工具就没有产物可画。
     let tool_id = design
         .tool_id
@@ -1108,7 +1441,9 @@ fn validate_design(raw_json: &str) -> Result<ValidatedDesign, String> {
                     return Err(format!("槽位 {slot_name} 的 kind 必须是 \"custom\""));
                 }
                 if part.nodes.is_empty() || part.nodes.len() > MAX_CUSTOM_NODES {
-                    return Err(format!("槽位 {slot_name} 自定义节点数需 1~{MAX_CUSTOM_NODES}"));
+                    return Err(format!(
+                        "槽位 {slot_name} 自定义节点数需 1~{MAX_CUSTOM_NODES}"
+                    ));
                 }
                 for (index, node) in part.nodes.iter().enumerate() {
                     validate_shape_node(node, &format!("{slot_name}.nodes[{index}]"))?;
@@ -1129,7 +1464,9 @@ fn validate_design(raw_json: &str) -> Result<ValidatedDesign, String> {
     // 拒绝叠字（相邻重复字，如 咕咕 / 泡泡 / 焊焊），逼 AI 起更有辨识度的名字。
     let name_chars: Vec<char> = name_zh.chars().collect();
     if name_chars.windows(2).any(|w| w[0] == w[1]) {
-        return Err("nameZh 不要用叠字（相邻重复字，如 焊焊/泡泡），换一个更独特的名字".to_string());
+        return Err(
+            "nameZh 不要用叠字（相邻重复字，如 焊焊/泡泡），换一个更独特的名字".to_string(),
+        );
     }
     // 英文名/英文设定（默认语言=英文）：模型给了且合法就用；缺失/非法**不整只拒稿**
     // （避免徒增重试/兜底鸭），留空由 commit_design 按元素本地兜底推导，保证总有英文名。
@@ -1168,12 +1505,17 @@ fn validate_design(raw_json: &str) -> Result<ValidatedDesign, String> {
             scale,
             palette,
             eyes: design.eyes,
+            iris: design.iris,
+            mouth_style: design.mouth_style,
+            motion_preset: design.motion_preset,
+            reaction_profile: design.reaction_profile,
             tool_id: design.tool_id,
             slots,
             form: form_opt,
             custom_rig: custom_rig_opt,
             work_fx: Some(work_fx),
         },
+        design_meta: None,
     })
 }
 
@@ -1260,6 +1602,9 @@ struct PromptInputs {
     taken: BTreeSet<String>,
     /// 体型轮转种子（取自 egg_id 哈希）；同一颗蛋的重试一致、不同蛋各异。
     seed: u64,
+    recipe_key: String,
+    /// 最近 12 个 AI 设计（含配方），供 V2 做跨配方平衡与同配方加倍去重。
+    history: Vec<v2::DiversitySample>,
 }
 
 fn describe_parent(cat: &FusionCatalog, codename: &str, info: &SpeciesInfo, label: &str) -> String {
@@ -1288,6 +1633,7 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("【最重要的设计原则】你要**亲手把这只新生物的每个部件画成矢量数据**，做出一只崭新、可爱、一眼认得出\"这是某种真实动物/植物\"的二阶物种：\n");
     p.push_str("- **先锚定一个真实原型（最重要！）**：从体型指令的原型候选里选一个真实存在的动物或植物（也可选同类的其它真实物种），写进 prototype 字段；然后照着它的标志性特征作画——路人看一眼就能说出\"这是一只 XX\"。**禁止无原型的抽象团子/几何拼块**。\n");
     p.push_str("- **剪影和双亲、和固有 6 底座（鸭/狐/鼠/鲸/菇/雪怪）差异尽可能大**：大胆换一种形体（龟壳/长颈/多足/带翼/球形/尖吻…皆可），别只是把父代重新上色。\n");
+    p.push_str("- **🚫 禁止圆形拼装（本次重点整改）**：绝不许「一个大圆/椭圆当身体 + 一个圆当头」两球了事——这是最没特色的偷懒画法。body 必须用 path 画出**能表达原型的剪影**（水滴/梨形/蛋形/驼峰/纺锤/S 蛇身/伞盖/带壳带甲），轮廓要有起伏、有尖有弧；头要么与身连成一体、要么用非正圆头型（方头/尖吻/扁头/带颊）；耳/角/鳍/尾/冠等配件大胆外伸打破圆形。**剪影抹成纯黑，也要一眼认出是什么动物、什么姿态**——做不到就是不合格。\n");
     p.push_str("- 只从每个父代**各保留一点点**线索（一个主色调，或一种元素气质 火/冰/电…）。\n");
     p.push_str("- **元素越多越华丽越高阶**：这只有几种元素就配几分盛装——元素多则多加冠冕/宝石/环绕件等 decor 装饰、部件更繁复；单元素则朴素。\n");
     p.push('\n');
@@ -1298,7 +1644,7 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("你不是在拼一个抽象小怪，而是在设计一只**能印上周边、被人一眼爱上并记住**的吉祥物。三条铁律：\n");
     p.push_str("- **① 宝可梦式「一个招牌绝活」（最能出彩）**：每只必须有**一个一眼记住、就是它本体**的英雄特征来承载属性——学皮卡丘的电颊+闪电尾、小火龙的尾焰、杰尼龟的卷尾、妙蛙的背芽。**先把最主要的元素浓缩进这一个招牌**（火→尾焰/鬃火/焰纹眉、电→鼓鼓电颊/放电尖耳/锯齿闪电尾、冰→背脊冰晶/垂冰须/呵白气、草→头顶卷芽/叶片尾/花苞领、水→透明水膜鳍/水珠鬃/腮边气泡）；剪影抹成纯黑也要能读出「这是只 XX、玩 XX 属性」。多元素时**再**在招牌之外叠 decor 撑华丽，但别把元素碎成满身小贴纸、削弱主招牌。\n");
     p.push_str("- **② 数码宝贝式「穿戴感 / 个性件」**：给它一件像**装备/穿戴**、长在身上的标志物，带点角色态度——加布兽的兽皮尖角、巴达兽的翼耳、单边大螯、护额、披风、肩甲、尾环、颈铃、独角那种（放 headTop / decor / 或某一夸张附肢）。个性件让它从\"可爱团子\"升级成\"有来头的角色\"，是辨识度的第二支点。\n");
-    p.push_str("- **③ 日系治愈萌宠式「幼态萌脸 + 明确性格」**：圆滚滚 2~2.5 头身、短粗四肢、大脑袋(kemono/吉卜力/三丽鸥那种憨态)；脸走 kawaii 语法——眼往大取(eyeR 抬高)、配腮红/脸斑、五官小巧。先给它定**一句人设**（例\"胆小爱躲的火狐苗\"\"高冷冰晶鹤\"\"贪吃的草团鼠\"\"傲娇雷小兽\"），让招牌、配色、表情(eyes 选 round/happy/sleepy)、姿态都为这句人设服务。**软萌**(大眼圆脸腮红)或**酷帅**(小锐眼+浓眉+个性件)选一条走到底，别做成没脾气的中庸圆球。\n");
+    p.push_str("- **③ 日系治愈萌宠式「幼态萌脸 + 明确性格」**：圆滚滚 2~2.5 头身、短粗四肢、大脑袋(kemono/吉卜力/三丽鸥那种憨态)；脸走 kawaii 语法——眼往大取(eyeR 抬高)、配腮红/脸斑、五官小巧。先给它定**一句人设**（例\"胆小爱躲的火狐苗\"\"高冷冰晶鹤\"\"贪吃的草团鼠\"\"傲娇雷小兽\"），让招牌、配色、专属脸(按人设从 eyes 眼型 + mouthStyle 嘴型 + iris 虹膜色三档配一套，别偷懒 round+smile+黑瞳)、姿态都为这句人设服务。**软萌**(sparkle/round 大眼 + cat/open 嘴 + 腮红)或**酷帅**(sharp 锐眼 + smirk/flat 嘴 + 浓眉个性件)选一条走到底，别做成没脾气的中庸圆球。\n");
     p.push('\n');
 
     // 体型指令（按蛋轮转）：强制这一只走某个具体的动物体型 + 给出构造搭法，
@@ -1325,32 +1671,41 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("① 分体式：head 和 body 各画各的（经典头+身动物）。\n");
     p.push_str("② 一体式：整只就是一个大块（球/锥/山丘/长条）——全部画进 body，head 给空数组 []，headX/headY 直接指到主体块上\"脸\"的位置，脸就嵌在体块上（灯笼鱼/海象/史莱姆都是这种）。一体式体块大，脸也要相应放大：eyeR 取 10~13、嘴宽约 1.6~2×eyeR，并在脸周围画一块浅色（$belly）脸斑衬托表情。\n");
     p.push_str("③ 头即全身：巨大的头本身就是整只生物——主形画进 head，body 给空数组 [] 或只画一根细梗/小底座（向日葵盘/气球怪/蘑菇伞那种）。\n");
-    p.push_str("body 与 head 不许都为空。脸的位置永远由 headX/headY 决定，与 head 里有没有形状无关。\n");
+    p.push_str(
+        "body 与 head 不许都为空。脸的位置永远由 headX/headY 决定，与 head 里有没有形状无关。\n",
+    );
     p.push_str("- face：{eyeR 眼半径, eyeDx 双眼各偏移(front/lie用), eyeCx 单眼偏移(side用), eyeDy, mouthDx(side嘴前移), mouthDy, mouthW, mouth}。**引擎会在这些位置画一套随动作变化的眼和嘴**（眨眼/开心/用力/星星眼/咀嚼/蚊香眼/闭眼…），你只负责给尺寸和位置。**整张脸的表情核心（一双眼 + 一张嘴）永远归引擎；你只画它周围的点缀。**\n");
     p.push_str("  · **眼睛 100% 归引擎**：head/muzzle/decor 任何图层都**绝不能画眼珠/瞳孔/一双固定的眼**——会和会动的引擎眼重影错位（用户实测过：脸上多出一双不动的眼）。想要黑眼圈/眼罩/眼影，就画一块**比眼睛更大**的浅色或纯描边斑，让引擎的眼叠在它中间；**绝不是眼位上的深色小圆**。\n");
     p.push_str("  · **嘴二选一，别双嘴**：① 默认（mouth 省略或 =\"engine\"）= 软嘴物种，嘴整个交给引擎——你**在任何图层都别画嘴/嘴缝/笑脸/牙**；muzzle 顶多画鼻子。② mouth=\"beak\" = 硬喙/鸟嘴/尖长吻这类自带嘴型的物种，你在 muzzle/head 亲手画那只喙/吻当嘴，引擎就**不再叠嘴**（仍画会动的眼）。画了静态喙却不设 beak = 喙 + 引擎嘴的双嘴，判差。\n");
     p.push_str("  · 记住引擎眼在 (headX±eyeDx, headY+eyeDy)、软嘴在 (headX+mouthDx, headY+mouthDy) 宽 mouthW——**你画的所有五官轮廓都要避开这两处**（只有 beak 模式才故意把喙落在嘴位）。\n");
     p.push_str("- muzzle：**面部点缀层（脸的个性来源；与眼嘴同一图层、随表情一起动）**，局部(0,0)=脸中心(headX,headY)，画在 head 之上、引擎眼嘴之下。**只画『眼与嘴之外』的五官**：鼻梁/鼻头、鼻孔（眼下嘴上的一两个小点）、脸颊/腮红、胡须、眉毛（画在眼**上方**、别压到眼上）、獠牙、下颌纹。**不画眼珠、不画嘴/嘴缝/笑脸/牙**（这两样引擎画会动的版本）——唯一例外是 mouth=\"beak\" 时在这里画喙/吻当嘴。正视图 muzzle 要**左右对称、朝正前**（喙朝正下方，不是朝侧伸的侧喙）。\n");
     p.push_str("  · **凡是『贴在脸上』的点缀都画进 muzzle**（腮红/面颊红点、眉心与额头的小印记/小宝石、脸颊斑纹、胡须、眉毛）——muzzle 跟眼嘴同组，会一起做眨眼/咀嚼/点头等表情动作，整张脸才是一个会一起动的整体。**别把这些丢进 decor**（decor 不随脸动，静止的鼻嘴腮红配上会动的眼睛=脸像贴片、判差）。\n");
-    p.push_str("- eyes：基础眼型，默认 **\"round\"（可爱大圆眼，待机就靠它）**；happy=眯眼笑、sleepy=困眼会让待机变成笑脸/睡脸，除非物种性格确实如此，否则一律用 round。\n");
+    p.push_str("- **eyes（待机眼型，务必按人设挑，别永远 round）**：round=大圆眼(软萌基准) · sparkle=水汪汪闪亮眼(元气/爱撒娇) · beady=小豆眼配大眼白(呆萌/鸟类/无辜) · sharp=上挑锐眼(高冷/傲娇/酷帅) · droopy=下垂慵懒眼(温吞/佛系/发困) · sleepy=眯困眼 · happy=弯月笑眼 · wink=左睁右眨的俏皮眼 · dot=极简小点眼(蠢萌/机械感)。**批量生成时务必分散着选，别十只全 round**。\n");
+    p.push_str("- **iris（虹膜色，强烈建议填）**：眼睛瞳色，取 palette token（$accent/$deep/$accent2…）或直接写 #rrggbb（琥珀 #C8873A / 湖蓝 #3A78B5 / 翠绿 #3E9E5B / 樱粉 #E87AA0 / 紫晶 #8A6FD0…）。纯黑豆眼最廉价、最容易撞脸——给个虹膜色，眼睛立刻有神、上档次、和别的物种拉开差异。软线条眼型(happy/sleepy/wink 的笑眼)不吃虹膜，可省。\n");
+    p.push_str("- **mouthStyle（待机嘴型，软嘴物种选一个贴人设，别都 smile）**：smile=温柔弧笑 · cat=猫嘴ω(俏皮萌) · fang=咧嘴小虎牙(淘气/feisty) · smirk=坏笑歪嘴(傲娇/腹黑) · open=咧嘴大笑(元气) · pout=嘟嘟嘴(害羞/别扭) · flat=面瘫平线(高冷/毒舌)。硬喙/长吻/尖嘴仍走 face.mouth=\"beak\" 自绘当嘴、不用 mouthStyle。\n");
     p.push_str("- **脸型多样化**：眼睛大小/间距/高度随原型大胆变化——猛禽小珠眼 eyeR 7~8 配浓眉、萌兽大圆眼 12~14、锥体一体式眼距拉宽；mouthDy 随吻长调整（长吻嘴更低），软嘴 mouthW 约 1.4~2×eyeR（别宽成一道裂口，>24 会被夹回）。别只会一种默认脸。\n");
     p.push_str("- belly：肚皮浅色补丁（可选），局部(0,0) 摆到躯干锚点。\n");
     p.push_str("- armL/armR：手/翅（可选），局部(0,0)=肩点，摆到 (128∓armSpread, armY)；引擎会挥动。**对称物种只画 armL、省略 armR，引擎自动镜像到右侧**；不对称（如一只大螯）才两侧都画。\n");
     p.push_str("- legL/legR：腿/脚（可选），局部(0,0)=髋点、脚底朝 +y，摆到 (128∓legSpread, legY)；引擎会迈步。**同样：对称只画 legL，右腿自动镜像**。\n");
     p.push_str("- tail：尾（可选），局部(0,0)=尾根，摆到 tailAt={x,y,rot}；引擎会摆动。\n");
-    p.push_str("- headTop：头顶饰/耳（可选），局部(0,0)=头顶中点、向上作画(-y)，摆到 headTopAt={x,y}。\n");
+    p.push_str(
+        "- headTop：头顶饰/耳（可选），局部(0,0)=头顶中点、向上作画(-y)，摆到 headTopAt={x,y}。\n",
+    );
     p.push_str("- decor：**不贴脸的华丽装饰**（头顶冠冕、身周环绕件/光环、背甲/壳上宝石、脚下座台，用**绝对坐标**画在最上层）；元素越多画越多，撑起高阶感。decor 独立于脸、**不随表情移动**——所以**贴脸的装饰（额头/眉心印记、脸颊纹样、腮红）一律放 muzzle**，别放这里。\n");
     p.push_str("- toolAt：{x,y} 打工工具落点（缺省右脚边 190,233）。\n");
     p.push_str("体型实现提示：四足/多足把**最前一对**腿放 legL/legR（会迈步），其余腿画进 body（静态即可）；长颈/长吻把脖子/长口鼻画进 head 或 body 的形状里（headY 抬高即成长颈）；漂浮型设 customRig.floating=true（离地+小影子，通常无腿）。\n");
     p.push_str("**三视图是同一只生物的三个不同朝向，务必分清（这是最容易画错的地方）：**\n");
     p.push_str("- **front 正视图 = 正对镜头的正脸，左右对称**：喙/吻/鼻一律朝**正前下方**、居中对称（像正对你的鸭子，扁嘴朝下）；**绝不能在正脸上画一根朝侧面伸的长嘴/侧喙**——那是侧视图的画法。双眼用 face.eyeDx；两手两脚左右对称（对称件只画左侧、右侧引擎自动镜像）。\n");
     p.push_str("- **side 侧视图 = 朝右的纯侧脸剖面**：整只向右转 90°，只画这一面看得到的东西——头向右前探（headX 挪到 ~150）、喙/吻朝右伸出、**单眼**（用 face.eyeCx，别用 eyeDx）、**近侧只有一只手（放进 armR，千万别再给 armL，否则同一侧会冒出两只手）**、前后腿错开。左移由引擎自动镜像，你只需画朝右这一版。**严禁把正视图原样平移当侧面。**\n");
-    p.push_str("- **lie 睡姿 = 合理趴卧**：身体低伏贴地、头搁在身前的蜷卧构图，**绝不是把站姿压扁**。\n");
-    p.push_str("部件几何用 ShapeNode：{\"type\":\"path|circle|ellipse|rect|polygon|line\", ...几何, \"fill\":色,\"stroke\":色,\"strokeWidth\":数,\"opacity\":数}。path 的 d 只用 M/L/C/Q/A/Z（含小写）+ 数字；平涂卡通、统一深棕描边 $outline（主形 5~6、中件 3~4、细节 2~3）；颜色只能是调色板 token（$body/$deep/$belly/$accent/$accent2/$outline）或 #rrggbb；坐标 |n|≤300；每部件 ≤24 节点、单视图合计 ≤170 节点。头脸务必大而圆。\n\n");
+    p.push_str(
+        "- **lie 睡姿 = 合理趴卧**：身体低伏贴地、头搁在身前的蜷卧构图，**绝不是把站姿压扁**。\n",
+    );
+    p.push_str("部件几何用 ShapeNode：{\"type\":\"path|circle|ellipse|rect|polygon|line\", ...几何, \"fill\":色,\"stroke\":色,\"strokeWidth\":数,\"opacity\":数}。path 的 d 只用 M/L/C/Q/A/Z（含小写）+ 数字；平涂卡通、统一深棕描边 $outline（主形 5~6、中件 3~4、细节 2~3）；颜色只能是调色板 token（$body/$deep/$belly/$accent/$accent2/$outline）或 #rrggbb；坐标 |n|≤300；每部件 ≤24 节点、单视图合计 ≤170 节点。头要大(幼态占比高)，但**形状跟着原型走、别默认正圆**（方头/尖吻/扁头/带颊/带角皆可）。\n\n");
 
     p.push_str("【调色板 palette】body=身体主色 deep=阴影/深部 belly=肚皮/脸浅色 accent=第二主色 accent2=第三色(可选)。全部 #rrggbb。\n");
     p.push_str("- **主体必须 2~3 色分区，禁止单色调**：把 accent/accent2 当作**大面积的第二、第三主色**用在身体分区上——双色上下身/背腹异色/条纹/大斑块/帽壳与身异色（参考：企鹅黑白肚、蜜蜂黄黑纹、舞狮红金白）；不是只点一两个小装饰。节点 fill 也可直接写其它 #rrggbb 补色。整只一个颜色 = 不合格。\n");
     p.push_str("- **配色要有对比、别灰扑扑**：body 用饱和度够的主色，belly/脸用明显更浅的浅色兜住表情；深浅冷暖拉开层次。\n");
+    p.push_str("- **配一套「高级感」配色，别把好几种纯色随便堆一起**：① 定一个**主色相家族**（同类/邻近色，如 湖蓝→青→薄荷、砖红→珊瑚→奶橘），大面积用它的深浅两三档撑住整体；② 只留**一个高饱和撞色**做点睛（放招牌/眼睛/小装饰，别满身撞色）；③ 用 deep 在体块下缘/凹处铺**同色更深一档**当阴影、belly/上缘用更亮一档当高光，画出体积感，别整块死平涂。高级配方参考：雾蓝#7FA9C9 + 奶白#F4F7FB + 暗青#3E6B87 + 珊瑚点#F08A6B ／ 抹茶#8FB86A + 奶油#F3EED6 + 栗棕#6E4B32 + 莓红点#D8556B ／ 藕粉#E7A9B8 + 豆沙#B96B84 + 米白#F6ECEC + 金点#F0B84A。避开荧光色、脏灰色、以及五六种不相干纯色乱炖。\n");
     p.push_str("双亲元素的锚定色参考（挑一两个揉进去即可，不必全用）：\n");
     let mut hint_elements: Vec<&str> = Vec::new();
     for element in inputs
@@ -1371,7 +1726,9 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     }
     p.push('\n');
 
-    p.push_str("（不用槽位/部件目录——所有部件、尾巴、耳冠、装饰都由你在 customRig 里亲手画。）\n\n");
+    p.push_str(
+        "（不用槽位/部件目录——所有部件、尾巴、耳冠、装饰都由你在 customRig 里亲手画。）\n\n",
+    );
 
     p.push_str("【工具目录 toolId（必填）】给这只角色选一件最贴合其职业气质的打工工具（打工时握在手里）。每件后面标了它「喷出的产物」——下一段的粒子就要画这些：\n");
     for (id, name) in &cat.tools {
@@ -1391,7 +1748,9 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("  · 自绘：{\"nodes\":[ ...ShapeNode... ]} —— 你亲手画的一个 ~16px 小实物；\n");
     p.push_str("  · 复用：{\"ref\":\"<id>\"} —— 直接引用下面「现成实物粒子目录」里的一个 id（前端已内置画好，你不用画）。\n");
     p.push_str("规则：可从目录挑 1~2 个填 ref 复用；**但至少要自绘 1 个这只角色专属的新粒子填 nodes**（不能整只全靠 ref）；总数 2~3 个。\n");
-    p.push_str("现成实物粒子目录（ref 可选值，按主题：食物饮品 / 工具器物 / 自然 / 梗图文字 排列）：\n");
+    p.push_str(
+        "现成实物粒子目录（ref 可选值，按主题：食物饮品 / 工具器物 / 自然 / 梗图文字 排列）：\n",
+    );
     // 目录来自 fusionParts.json 的 workParticles（按主题排序），单一事实源 → 提示词菜单 = 校验白名单。
     for w in &cat.work_particles {
         p.push_str(&format!("- {}（{}）\n", w.id, w.hint));
@@ -1399,16 +1758,28 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("自绘 nodes 的粒子：画在以 (0,0) 为中心、±14 的局部坐标内，1~4 个节点；节点格式同自定义部件（type/几何/fill/stroke/strokeWidth）；用实物的固有色（咖啡=棕、纸=白、齿轮=铁灰、叶=绿、bug=褐绿…别用宠物体色），必须描边（1.8~2.6）。\n\n");
 
     p.push_str("【双亲资料（只作灵感，勿照抄部件）】\n");
-    p.push_str(&describe_parent(cat, &inputs.parent_a.0, &inputs.parent_a.1, "A"));
+    p.push_str(&describe_parent(
+        cat,
+        &inputs.parent_a.0,
+        &inputs.parent_a.1,
+        "A",
+    ));
     p.push('\n');
-    p.push_str(&describe_parent(cat, &inputs.parent_b.0, &inputs.parent_b.1, "B"));
+    p.push_str(&describe_parent(
+        cat,
+        &inputs.parent_b.0,
+        &inputs.parent_b.1,
+        "B",
+    ));
     p.push_str("\n\n");
 
     p.push_str("【命名与设定（中英双语，两者都必填）】\n");
     p.push_str("- nameEn：**英文名（游戏默认语言，务必用心起）**——简短专有名，1~2 个词、TitleCase、有画面感、好念（例：Frostfox / Ember Otter / Thunderquill / Lumipetal）；别直译中文名，别用元素词+动物的懒名。\n");
     p.push_str("- nameZh：2~5 个汉字的中文名，要独特、有辨识度、带点巧思（例：焰霜狸 / 雷角兽 / 温泉猴 / 醒狮 / 琉璃蜓）\n");
     p.push_str("  · 严禁叠字（相邻重复字，如 咕咕 / 泡泡 / 焊焊）；也别用「元素字+动物」的懒名。结合它的元素、职业气质或小怪癖，起个让人会心一笑的名字。\n");
-    p.push_str("- descEn：**英文设定**，一句 ≤22 词，带一个可爱的小怪癖（与中文同调性、非逐字直译）。\n");
+    p.push_str(
+        "- descEn：**英文设定**，一句 ≤22 词，带一个可爱的小怪癖（与中文同调性、非逐字直译）。\n",
+    );
     p.push_str("- desc：一句 ≤40 字的中文设定，带一个可爱的小怪癖\n");
     p.push_str("- codename：小写英文，格式 [a-z][a-z0-9]{2,15}，不能与已占用的重复：");
     let taken: Vec<&str> = inputs.taken.iter().map(String::as_str).collect();
@@ -1416,8 +1787,8 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("\n\n");
 
     p.push_str("【输出 JSON 格式（示例，一只圆头小鸟；照此结构画你自己的物种，别照抄形状）】\n");
-    p.push_str("{\"codename\":\"chimewren\",\"nameEn\":\"Chimewren\",\"nameZh\":\"铃雀\",\"prototype\":\"山雀\",\"descEn\":\"Hums the wind into little tunes; when happy, the bell on its head jingles.\",\"desc\":\"总把风声哼成小调，开心时头顶铃铛叮当响\",\"scale\":1.12,\"palette\":{\"body\":\"#7FB8E6\",\"deep\":\"#4F8FC9\",\"belly\":\"#F3FAFF\",\"accent\":\"#FFC24A\",\"accent2\":\"#E86A8E\"},\"eyes\":\"round\",\"toolId\":\"headset\",\"customRig\":{\"front\":{\"bodyY\":190,\"body\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":46,\"ry\":44,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"belly\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":12,\"rx\":24,\"ry\":24,\"fill\":\"$belly\",\"opacity\":0.9}],\"headY\":126,\"head\":[{\"type\":\"circle\",\"cx\":0,\"cy\":0,\"r\":40,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"face\":{\"eyeR\":11,\"eyeDx\":15,\"eyeDy\":-2,\"mouth\":\"beak\"},\"muzzle\":[{\"type\":\"path\",\"d\":\"M-8 10 Q0 6 8 10 L0 21 Z\",\"fill\":\"$accent\",\"stroke\":\"$outline\",\"strokeWidth\":3.5},{\"type\":\"ellipse\",\"cx\":-22,\"cy\":13,\"rx\":5,\"ry\":3.5,\"fill\":\"#F5A8B8\",\"opacity\":0.8},{\"type\":\"ellipse\",\"cx\":22,\"cy\":13,\"rx\":5,\"ry\":3.5,\"fill\":\"#F5A8B8\",\"opacity\":0.8}],\"armY\":182,\"armSpread\":46,\"armL\":[{\"type\":\"path\",\"d\":\"M0 0 q-13 4 -12 20 q6 6 12 1 q3 -11 0 -21 z\",\"fill\":\"$accent2\",\"stroke\":\"$outline\",\"strokeWidth\":5}],\"armR\":[{\"type\":\"path\",\"d\":\"M0 0 q-13 4 -12 20 q6 6 12 1 q3 -11 0 -21 z\",\"fill\":\"$accent2\",\"stroke\":\"$outline\",\"strokeWidth\":5}],\"legY\":222,\"legSpread\":16,\"legL\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":2,\"rx\":9,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"legR\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":2,\"rx\":9,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"headTop\":[{\"type\":\"path\",\"d\":\"M-11 6 L-3 -18 L3 -18 L11 6 Z\",\"fill\":\"$accent\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"tailAt\":{\"x\":86,\"y\":200,\"rot\":-14},\"tail\":[{\"type\":\"path\",\"d\":\"M0 0 q-11 3 -12 12 q11 1 14 -8 z\",\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":3}],\"decor\":[{\"type\":\"circle\",\"cx\":128,\"cy\":98,\"r\":5,\"fill\":\"$accent2\",\"stroke\":\"$outline\",\"strokeWidth\":2}]},\"side\":{\"bodyY\":190,\"headX\":150,\"body\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":48,\"ry\":42,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"belly\":[{\"type\":\"ellipse\",\"cx\":6,\"cy\":14,\"rx\":20,\"ry\":20,\"fill\":\"$belly\",\"opacity\":0.9}],\"headY\":128,\"head\":[{\"type\":\"circle\",\"cx\":0,\"cy\":0,\"r\":36,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6},{\"type\":\"path\",\"d\":\"M28 4 L44 8 L28 12 Z\",\"fill\":\"$accent\",\"stroke\":\"$outline\",\"strokeWidth\":3}],\"face\":{\"eyeR\":10,\"eyeCx\":8,\"eyeDy\":-3,\"mouth\":\"beak\"},\"legY\":222,\"legSpread\":24,\"legL\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":2,\"rx\":9,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"legR\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":2,\"rx\":9,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"armY\":184,\"armSpread\":10,\"armR\":[{\"type\":\"path\",\"d\":\"M0 0 q16 3 15 20 q-6 6 -14 1 q-3 -12 -1 -21 z\",\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":5}],\"tailAt\":{\"x\":80,\"y\":202,\"rot\":-8},\"tail\":[{\"type\":\"path\",\"d\":\"M0 0 q-14 2 -16 10 q14 0 18 -8 z\",\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":3}]},\"lie\":{\"bodyY\":208,\"headX\":100,\"body\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":54,\"ry\":24,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"belly\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":10,\"rx\":30,\"ry\":10,\"fill\":\"$belly\",\"opacity\":0.9}],\"headY\":202,\"head\":[{\"type\":\"circle\",\"cx\":0,\"cy\":0,\"r\":30,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"face\":{\"eyeR\":10,\"eyeDx\":13,\"mouthDy\":12,\"mouthW\":8},\"legY\":224,\"legSpread\":40,\"legL\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":8,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"legR\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":8,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}]}},\"workFx\":{\"particles\":[{\"ref\":\"music-note\"},{\"nodes\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":-2,\"rx\":9,\"ry\":7,\"fill\":\"#F4F8FF\",\"stroke\":\"$outline\",\"strokeWidth\":2},{\"type\":\"path\",\"d\":\"M-4 3 L2 3 L-4 9 Z\",\"fill\":\"#F4F8FF\",\"stroke\":\"$outline\",\"strokeWidth\":2}]}]}}\n");
-    p.push_str("字段说明：必填 prototype（真实动植物原型名）、customRig（front 必画；side=移动侧视、lie=趴卧睡姿，都要画；每个视图含 body/head/face/muzzle + 可选 belly/armL/armR/legL/legR/tail/headTop/decor）、toolId（打工工具）、workFx（2~3 个实物产物粒子：每个 {\"nodes\":[…]} 自绘 或 {\"ref\":\"目录id\"} 复用现成粒子，至少 1 个自绘，禁抽象元素——示例这只 = 复用 music-note + 自绘客服对话框）、palette、nameEn、nameZh、descEn、desc、codename；eyes ∈ round|happy|sleepy（可省）。**face 只给眼嘴的尺寸位置：眼睛永远归引擎、绝不自己画眼珠；嘴要么留给引擎（软脸就别画嘴）、要么 face.mouth=\"beak\" 自绘喙当嘴（引擎不再叠嘴）**；脸的个性靠 muzzle 画『眼嘴之外』的鼻/颊/须/眉。示例这只是有喙的鸟（beak 模式）；软嘴物种照默认、muzzle 别画嘴。在眼位画眼珠、软脸在嘴位画嘴线、缺 prototype、body 与 head 都为空、非法颜色、超界坐标、过多节点、workFx 全靠 ref 没有自绘 / ref 不在目录 / 同一粒子既给 nodes 又给 ref，都会被拒。实在画不出三视图时可退而输出参数化 form（含 bodyPlan 六选一），但请优先 customRig。\n");
+    p.push_str("{\"codename\":\"chimewren\",\"nameEn\":\"Chimewren\",\"nameZh\":\"铃雀\",\"prototype\":\"山雀\",\"descEn\":\"Hums the wind into little tunes; when happy, the bell on its head jingles.\",\"desc\":\"总把风声哼成小调，开心时头顶铃铛叮当响\",\"scale\":1.12,\"palette\":{\"body\":\"#7FB8E6\",\"deep\":\"#4F8FC9\",\"belly\":\"#F3FAFF\",\"accent\":\"#FFC24A\",\"accent2\":\"#E86A8E\"},\"eyes\":\"beady\",\"iris\":\"#2E5E8C\",\"toolId\":\"headset\",\"customRig\":{\"front\":{\"bodyY\":190,\"body\":[{\"type\":\"path\",\"d\":\"M0 -46 C30 -46 48 -20 44 8 C40 34 22 46 0 46 C-22 46 -40 34 -44 8 C-48 -20 -30 -46 0 -46 Z\",\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"belly\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":12,\"rx\":24,\"ry\":24,\"fill\":\"$belly\",\"opacity\":0.9}],\"headY\":126,\"head\":[{\"type\":\"path\",\"d\":\"M0 -40 C24 -40 40 -18 38 6 C36 28 20 40 0 40 C-20 40 -36 28 -38 6 C-40 -18 -24 -40 0 -40 Z\",\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"face\":{\"eyeR\":11,\"eyeDx\":15,\"eyeDy\":-2,\"mouth\":\"beak\"},\"muzzle\":[{\"type\":\"path\",\"d\":\"M-8 10 Q0 6 8 10 L0 21 Z\",\"fill\":\"$accent\",\"stroke\":\"$outline\",\"strokeWidth\":3.5},{\"type\":\"ellipse\",\"cx\":-22,\"cy\":13,\"rx\":5,\"ry\":3.5,\"fill\":\"#F5A8B8\",\"opacity\":0.8},{\"type\":\"ellipse\",\"cx\":22,\"cy\":13,\"rx\":5,\"ry\":3.5,\"fill\":\"#F5A8B8\",\"opacity\":0.8}],\"armY\":182,\"armSpread\":46,\"armL\":[{\"type\":\"path\",\"d\":\"M0 0 q-13 4 -12 20 q6 6 12 1 q3 -11 0 -21 z\",\"fill\":\"$accent2\",\"stroke\":\"$outline\",\"strokeWidth\":5}],\"armR\":[{\"type\":\"path\",\"d\":\"M0 0 q-13 4 -12 20 q6 6 12 1 q3 -11 0 -21 z\",\"fill\":\"$accent2\",\"stroke\":\"$outline\",\"strokeWidth\":5}],\"legY\":222,\"legSpread\":16,\"legL\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":2,\"rx\":9,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"legR\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":2,\"rx\":9,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"headTop\":[{\"type\":\"path\",\"d\":\"M-11 6 L-3 -18 L3 -18 L11 6 Z\",\"fill\":\"$accent\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"tailAt\":{\"x\":86,\"y\":200,\"rot\":-14},\"tail\":[{\"type\":\"path\",\"d\":\"M0 0 q-11 3 -12 12 q11 1 14 -8 z\",\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":3}],\"decor\":[{\"type\":\"circle\",\"cx\":128,\"cy\":98,\"r\":5,\"fill\":\"$accent2\",\"stroke\":\"$outline\",\"strokeWidth\":2}]},\"side\":{\"bodyY\":190,\"headX\":150,\"body\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":48,\"ry\":42,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"belly\":[{\"type\":\"ellipse\",\"cx\":6,\"cy\":14,\"rx\":20,\"ry\":20,\"fill\":\"$belly\",\"opacity\":0.9}],\"headY\":128,\"head\":[{\"type\":\"circle\",\"cx\":0,\"cy\":0,\"r\":36,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6},{\"type\":\"path\",\"d\":\"M28 4 L44 8 L28 12 Z\",\"fill\":\"$accent\",\"stroke\":\"$outline\",\"strokeWidth\":3}],\"face\":{\"eyeR\":10,\"eyeCx\":8,\"eyeDy\":-3,\"mouth\":\"beak\"},\"legY\":222,\"legSpread\":24,\"legL\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":2,\"rx\":9,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"legR\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":2,\"rx\":9,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"armY\":184,\"armSpread\":10,\"armR\":[{\"type\":\"path\",\"d\":\"M0 0 q16 3 15 20 q-6 6 -14 1 q-3 -12 -1 -21 z\",\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":5}],\"tailAt\":{\"x\":80,\"y\":202,\"rot\":-8},\"tail\":[{\"type\":\"path\",\"d\":\"M0 0 q-14 2 -16 10 q14 0 18 -8 z\",\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":3}]},\"lie\":{\"bodyY\":208,\"headX\":100,\"body\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":54,\"ry\":24,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"belly\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":10,\"rx\":30,\"ry\":10,\"fill\":\"$belly\",\"opacity\":0.9}],\"headY\":202,\"head\":[{\"type\":\"circle\",\"cx\":0,\"cy\":0,\"r\":30,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}],\"face\":{\"eyeR\":10,\"eyeDx\":13,\"mouthDy\":12,\"mouthW\":8},\"legY\":224,\"legSpread\":40,\"legL\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":8,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}],\"legR\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":0,\"rx\":8,\"ry\":5,\"fill\":\"$deep\",\"stroke\":\"$outline\",\"strokeWidth\":4}]}},\"workFx\":{\"particles\":[{\"ref\":\"music-note\"},{\"nodes\":[{\"type\":\"ellipse\",\"cx\":0,\"cy\":-2,\"rx\":9,\"ry\":7,\"fill\":\"#F4F8FF\",\"stroke\":\"$outline\",\"strokeWidth\":2},{\"type\":\"path\",\"d\":\"M-4 3 L2 3 L-4 9 Z\",\"fill\":\"#F4F8FF\",\"stroke\":\"$outline\",\"strokeWidth\":2}]}]}}\n");
+    p.push_str("字段说明：必填 prototype（真实动植物原型名）、customRig（front 必画；side=移动侧视、lie=趴卧睡姿，都要画；每个视图含 body/head/face/muzzle + 可选 belly/armL/armR/legL/legR/tail/headTop/decor）、toolId（打工工具）、workFx（2~3 个实物产物粒子：每个 {\"nodes\":[…]} 自绘 或 {\"ref\":\"目录id\"} 复用现成粒子，至少 1 个自绘，禁抽象元素——示例这只 = 复用 music-note + 自绘客服对话框）、palette、nameEn、nameZh、descEn、desc、codename；eyes ∈ round|sparkle|beady|sharp|droopy|sleepy|happy|wink|dot（按人设挑、别都 round）、iris=虹膜瞳色（palette token 或 #rrggbb，强烈建议给、告别纯黑豆眼）、mouthStyle ∈ smile|cat|fang|smirk|open|pout|flat（软嘴物种的待机嘴型、别都 smile）——三者可省但强烈建议按人设配一套；软脸物种示范：\"eyes\":\"sharp\",\"iris\":\"#C8873A\",\"mouthStyle\":\"fang\"。**face 只给眼嘴的尺寸位置：眼睛永远归引擎、绝不自己画眼珠；嘴要么留给引擎（软脸就别画嘴）、要么 face.mouth=\"beak\" 自绘喙当嘴（引擎不再叠嘴）**；脸的个性靠 muzzle 画『眼嘴之外』的鼻/颊/须/眉。示例这只是有喙的鸟（beak 模式）；软嘴物种照默认、muzzle 别画嘴。在眼位画眼珠、软脸在嘴位画嘴线、缺 prototype、body 与 head 都为空、非法颜色、超界坐标、过多节点、workFx 全靠 ref 没有自绘 / ref 不在目录 / 同一粒子既给 nodes 又给 ref，都会被拒。实在画不出三视图时可退而输出参数化 form（含 bodyPlan 六选一），但请优先 customRig。\n");
     p.push_str("⚠️ 上面示例是①分体式（圆头小鸟）——它只演示字段结构。若体型指令要求一体式/头即全身，**必须改用对应构造**（head 或 body 给 []），别照搬示例的两球结构。\n");
 
     if let Some(feedback) = feedback {
@@ -1548,7 +1919,13 @@ fn cli_english_name(
     let prompt = build_ainame_prompt(name_zh, desc_zh, elements);
     let timeout = Duration::from_secs(120);
     for (provider, path) in providers {
-        let raw = match run_provider(*provider, path, &prompt, timeout, fusion_model(*provider).as_deref()) {
+        let raw = match run_provider(
+            *provider,
+            path,
+            &prompt,
+            timeout,
+            fusion_model(*provider).as_deref(),
+        ) {
             Ok(text) => text,
             Err(_) => continue,
         };
@@ -1556,7 +1933,10 @@ fn cli_english_name(
             Ok(value) => value,
             Err(_) => continue,
         };
-        let name_en = value.get("nameEn").and_then(|v| v.as_str()).and_then(sanitize_en_name);
+        let name_en = value
+            .get("nameEn")
+            .and_then(|v| v.as_str())
+            .and_then(sanitize_en_name);
         if let Some(name_en) = name_en {
             let desc_en = value
                 .get("descEn")
@@ -1592,7 +1972,9 @@ fn spawn_ainame_upgrade(app: AppHandle, game_state: SharedGameState, codenames: 
             else {
                 continue;
             };
-            if let Some((name_en, desc_en)) = cli_english_name(&providers, &name_zh, &desc_zh, &elements) {
+            if let Some((name_en, desc_en)) =
+                cli_english_name(&providers, &name_zh, &desc_zh, &elements)
+            {
                 let saved = game::with_save(&app, &game_state, |_config, save| {
                     if let Some(entry) = save.custom_species.get_mut(&code) {
                         entry.info.name_en = name_en.clone();
@@ -1687,7 +2069,9 @@ pub fn spawn_fusion_worker(app: AppHandle, game_state: SharedGameState, gen_stat
                     let (lock, cvar) = &gen_state.signal;
                     if let Ok(mut pending) = lock.lock() {
                         if !*pending {
-                            if let Ok((guard, _)) = cvar.wait_timeout(pending, Duration::from_secs(30)) {
+                            if let Ok((guard, _)) =
+                                cvar.wait_timeout(pending, Duration::from_secs(30))
+                            {
                                 pending = guard;
                             } else {
                                 continue;
@@ -1706,12 +2090,26 @@ pub fn spawn_fusion_worker(app: AppHandle, game_state: SharedGameState, gen_stat
 /// 2）会话内自动重试：已 failed 但未到孵化期限、且尝试次数未超上限的蛋——仅在
 ///    没有 pending 蛋可做时才回捡，避免饿死新融合、也避免猛敲不稳定的 CLI。
 /// 达到孵化期限仍未成的蛋（无论 pending/failed）会按兜底 guluduck 孵出。
-fn pick_fusion_job(eggs: &mut [EggInstance], now: i64) -> Option<FusionJob> {
+fn pick_fusion_job(
+    eggs: &mut [EggInstance],
+    now: i64,
+    awaiting_steam: &BTreeSet<String>,
+) -> Option<FusionJob> {
     let mut pending_job: Option<FusionJob> = None;
     let mut retry_job: Option<FusionJob> = None;
     for egg in eggs.iter_mut() {
-        let Some(pending) = egg.pending_fusion.as_mut() else { continue };
-        let expired = egg.hatch_at.map(|hatch_at| now >= hatch_at).unwrap_or(false);
+        // 二阶本地先行融合必须等 Steam 实发 def 定槽后再调用 CLI。否则本地设计可能
+        // 抢先落到前沿槽，随后又被 Steam 的固定/其它 AI 槽覆盖，造成无效生成或重复生成。
+        if awaiting_steam.contains(&egg.id) {
+            continue;
+        }
+        let Some(pending) = egg.pending_fusion.as_mut() else {
+            continue;
+        };
+        let expired = egg
+            .hatch_at
+            .map(|hatch_at| now >= hatch_at)
+            .unwrap_or(false);
         match pending.status.as_str() {
             "pending" => {
                 if expired {
@@ -1746,7 +2144,21 @@ fn pick_fusion_job(eggs: &mut [EggInstance], now: i64) -> Option<FusionJob> {
 
 fn next_job(app: &AppHandle, game_state: &SharedGameState) -> Option<FusionJob> {
     let now = game::now_secs();
-    let result = game::with_save(app, game_state, |_config, save| Ok(pick_fusion_job(&mut save.eggs, now)));
+    let result = game::with_save(app, game_state, |_config, save| {
+        let awaiting_steam: BTreeSet<String> = save
+            .steam_outbox
+            .iter()
+            .filter_map(|op| match op {
+                crate::game::SteamOp::Fuse {
+                    applied: true,
+                    egg_id: Some(egg_id),
+                    ..
+                } => Some(egg_id.clone()),
+                _ => None,
+            })
+            .collect();
+        Ok(pick_fusion_job(&mut save.eggs, now, &awaiting_steam))
+    });
     result.ok().and_then(|(job, _)| job)
 }
 
@@ -1764,11 +2176,52 @@ fn gather_prompt_inputs(
             .ok_or_else(|| format!("#unknownParentSpecies|species={}", job.parents[1]))?;
         let mut taken: BTreeSet<String> = config.species.keys().cloned().collect();
         taken.extend(save.custom_species.keys().cloned());
+        let recipe_key = save
+            .eggs
+            .iter()
+            .find(|egg| egg.id == job.egg_id)
+            .and_then(|egg| egg.pending_fusion.as_ref())
+            .map(|pending| pending.recipe_key.clone())
+            .unwrap_or_else(|| {
+                let mut elements = parent_a.elements.clone();
+                elements.extend(parent_b.elements.iter().cloned());
+                elements.sort();
+                elements.dedup();
+                elements.join("+")
+            });
+        let mut entries: Vec<_> = save.custom_species.values().collect();
+        entries.sort_by_key(|entry| std::cmp::Reverse(entry.created_at));
+        let history = entries
+            .into_iter()
+            .filter_map(|entry| {
+                let meta = entry.design_meta.as_ref()?;
+                Some(v2::DiversitySample {
+                    recipe_key: entry.info.elements.join("+"),
+                    prototype: meta.prototype.clone(),
+                    archetype: meta.archetype.clone(),
+                    hero_feature: meta.hero_feature.clone(),
+                    palette_family: meta.palette_family.clone(),
+                    face_signature: format!(
+                        "{}+{}",
+                        entry.visual.eyes.as_deref().unwrap_or("round"),
+                        entry.visual.mouth_style.as_deref().unwrap_or("beak")
+                    ),
+                    motion_preset: format!(
+                        "{}+{}",
+                        entry.visual.motion_preset.as_deref().unwrap_or("legacy"),
+                        meta.personality
+                    ),
+                })
+            })
+            .take(12)
+            .collect();
         Ok(PromptInputs {
             parent_a: (job.parents[0].clone(), parent_a),
             parent_b: (job.parents[1].clone(), parent_b),
             taken,
             seed: hash_seed(&job.egg_id),
+            recipe_key,
+            history,
         })
     })
     .map(|(inputs, _)| inputs)
@@ -1795,7 +2248,10 @@ fn generate_codename(taken: impl Fn(&str) -> bool) -> String {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos() as u64)
             .unwrap_or(0);
-        let candidate = format!("aif{:06x}", (nanos.wrapping_add(salt.wrapping_mul(0x9E37))) & 0xFF_FFFF);
+        let candidate = format!(
+            "aif{:06x}",
+            (nanos.wrapping_add(salt.wrapping_mul(0x9E37))) & 0xFF_FFFF
+        );
         if !taken(&candidate) {
             return candidate;
         }
@@ -1825,7 +2281,12 @@ fn deterministic_slot_codename(
     let recipe_keys: Vec<String> = config.species_by_recipe.keys().cloned().collect();
     let ordered = crate::fusion_slots::multi_element_recipes_ordered(&recipe_keys);
     let ordinal = crate::fusion_slots::recipe_ordinal(&ordered, &recipe_key)?;
-    let slot_index = save.recipe_ai_slots.get(&recipe_key).map(|v| v.len()).unwrap_or(0) + 1;
+    let slot_index = save
+        .recipe_ai_slots
+        .get(&recipe_key)
+        .map(|v| v.len())
+        .unwrap_or(0)
+        + 1;
     if slot_index > crate::fusion_slots::MAX_AI_SLOTS {
         return None;
     }
@@ -1842,8 +2303,9 @@ fn commit_design(
 ) -> Result<(String, GameSave), String> {
     let now = game::now_secs();
     let (codename, save) = game::with_save(app, game_state, |config, save| {
-        let is_taken =
-            |name: &str| config.species.contains_key(name) || save.custom_species.contains_key(name);
+        let is_taken = |name: &str| {
+            config.species.contains_key(name) || save.custom_species.contains_key(name)
+        };
         // Steam 掷中的确定性槽位（forced_codename ← 已按此 def 绑定的物品）在本次生成落地前
         // 已被注册（另一路同配方融合先解析 / 他机工坊导入）→ **复用既有物种**，别退回随机名
         // 让本地物种与绑定的 Steam def 永久分叉（review C#10）。
@@ -1912,7 +2374,10 @@ fn commit_design(
             name_en,
             tier: result_tier,
             elements,
-            colors: vec![design.visual.palette.body.clone(), design.visual.palette.accent.clone()],
+            colors: vec![
+                design.visual.palette.body.clone(),
+                design.visual.palette.accent.clone(),
+            ],
             // AI 融合物种一律 chimera 身体（BODY_TO_RIG 的 chimera→chimera）。
             body: "chimera".to_string(),
             desc: design.desc.clone(),
@@ -1928,6 +2393,7 @@ fn commit_design(
             generator: generator.to_string(),
             // 本机 CLI 生成 → 出处 local（always-publish 与「分享我的皮肤」的资格依据）。
             origin: Some("local".to_string()),
+            design_meta: design.design_meta.clone(),
         };
         game::logic_resolve_fusion_egg(config, save, &job.egg_id, &codename, entry)?;
         Ok(codename)
@@ -1942,6 +2408,19 @@ fn commit_design(
 /// 校验从创意工坊下载的形象规格是否落在安全边界（节点/坐标/槽位/粒子上限），镜像
 /// `validate_design` 对 visual 的检查。防止畸形/恶意 UGC 触达渲染层。
 pub(crate) fn validate_custom_visual(visual: &CustomVisualSpec) -> Result<(), String> {
+    if visual.motion_preset.as_ref().is_some_and(|preset| {
+        ![
+            "waddle", "trot", "bound", "scuttle", "slither", "float", "sway",
+        ]
+        .contains(&preset.as_str())
+    }) {
+        return Err("motionPreset 不在允许列表".to_string());
+    }
+    if visual.reaction_profile.as_ref().is_some_and(|profile| {
+        !["sunny", "shy", "cool", "sleepy", "mischievous"].contains(&profile.as_str())
+    }) {
+        return Err("reactionProfile 不在允许列表".to_string());
+    }
     for (key, value) in [
         ("body", &visual.palette.body),
         ("deep", &visual.palette.deep),
@@ -1963,7 +2442,9 @@ pub(crate) fn validate_custom_visual(visual: &CustomVisualSpec) -> Result<(), St
     for (slot_name, value) in &visual.slots {
         if let SlotSpec::Custom(part) = value {
             if part.nodes.is_empty() || part.nodes.len() > MAX_CUSTOM_NODES {
-                return Err(format!("槽位 {slot_name} 自定义节点数需 1~{MAX_CUSTOM_NODES}"));
+                return Err(format!(
+                    "槽位 {slot_name} 自定义节点数需 1~{MAX_CUSTOM_NODES}"
+                ));
             }
             for (index, node) in part.nodes.iter().enumerate() {
                 validate_shape_node(node, &format!("{slot_name}.nodes[{index}]"))?;
@@ -2025,7 +2506,8 @@ fn commit_resolved_design(
                 source: "first".to_string(),
             },
         );
-        save.workshop_published.insert(codename.to_string(), String::new());
+        save.workshop_published
+            .insert(codename.to_string(), String::new());
         Ok(())
     })?;
     Ok(save)
@@ -2042,7 +2524,10 @@ fn try_claim_published_slot(
     if !crate::steam::integration_enabled() {
         return None;
     }
-    let steam = app.try_state::<crate::steam::SharedSteamState>()?.inner().clone();
+    let steam = app
+        .try_state::<crate::steam::SharedSteamState>()?
+        .inner()
+        .clone();
     if !steam.is_connected() {
         return None;
     }
@@ -2059,11 +2544,17 @@ fn try_claim_published_slot(
     };
     // 防御：物品的 petId 标签必须与请求槽位一致；内容大小设防线（正常几 KB）。
     if details.pet_id.as_deref() != Some(codename.as_str()) {
-        eprintln!("[workshop] claim {codename}: petId 标签不符（{:?}），放弃复用", details.pet_id);
+        eprintln!(
+            "[workshop] claim {codename}: petId 标签不符（{:?}），放弃复用",
+            details.pet_id
+        );
         return None;
     }
     if json.len() > 256 * 1024 {
-        eprintln!("[workshop] claim {codename}: 内容超限（{} bytes），放弃复用", json.len());
+        eprintln!(
+            "[workshop] claim {codename}: 内容超限（{} bytes），放弃复用",
+            json.len()
+        );
         return None;
     }
     let entry: CustomSpeciesEntry = serde_json::from_str(&json).ok()?;
@@ -2101,11 +2592,17 @@ pub fn resolve_imported_species_appearance(
         _ => return false, // 无人认领 / 查询出错 → 保持兜底。
     };
     if details.pet_id.as_deref() != Some(codename) {
-        eprintln!("[workshop] import {codename}: petId 标签不符（{:?}），放弃", details.pet_id);
+        eprintln!(
+            "[workshop] import {codename}: petId 标签不符（{:?}），放弃",
+            details.pet_id
+        );
         return false;
     }
     if json.len() > 256 * 1024 {
-        eprintln!("[workshop] import {codename}: 内容超限（{} bytes），放弃", json.len());
+        eprintln!(
+            "[workshop] import {codename}: 内容超限（{} bytes），放弃",
+            json.len()
+        );
         return false;
     }
     let entry: CustomSpeciesEntry = match serde_json::from_str(&json) {
@@ -2176,7 +2673,10 @@ pub fn spawn_import_appearance_resolver(
 /// 物种设定图 PNG 缓存目录：`app_data/species-previews/`（前端离屏渲染写入，
 /// 作创意工坊物品缩略图 SetItemPreview 用）。
 pub(crate) fn species_preview_dir(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_data_dir().ok().map(|dir| dir.join("species-previews"))
+    app.path()
+        .app_data_dir()
+        .ok()
+        .map(|dir| dir.join("species-previews"))
 }
 
 /// 某物种的设定图缓存路径（不校验存在性；codename 先过合法性防路径注入）。
@@ -2226,7 +2726,8 @@ pub(crate) fn record_workshop_published(
     preview_attached: bool,
 ) {
     let _ = game::with_save(app, game_state, |_config, save| {
-        save.workshop_published.insert(codename.to_string(), file_id_text);
+        save.workshop_published
+            .insert(codename.to_string(), file_id_text);
         if preview_attached {
             save.workshop_preview_done.insert(codename.to_string());
         }
@@ -2295,11 +2796,19 @@ pub fn attach_species_preview(
 
 /// 首发认领：把本机刚生成的形象上传创意工坊（gated + best-effort；另起线程不阻塞
 /// worker；失败仅记日志，下次启动由补传扫描重试）。
-fn publish_generated_slot(app: &AppHandle, game_state: &SharedGameState, codename: &str, name_zh: &str) {
+fn publish_generated_slot(
+    app: &AppHandle,
+    game_state: &SharedGameState,
+    codename: &str,
+    name_zh: &str,
+) {
     if !crate::steam::integration_enabled() {
         return;
     }
-    let Some(steam) = app.try_state::<crate::steam::SharedSteamState>().map(|s| s.inner().clone()) else {
+    let Some(steam) = app
+        .try_state::<crate::steam::SharedSteamState>()
+        .map(|s| s.inner().clone())
+    else {
         return;
     };
     if !steam.is_connected() {
@@ -2307,7 +2816,10 @@ fn publish_generated_slot(app: &AppHandle, game_state: &SharedGameState, codenam
     }
     // 读回刚落盘的 entry 序列化（发布的即存档里那份）。
     let entry_json = game::with_save(app, game_state, |_config, save| {
-        Ok(save.custom_species.get(codename).and_then(|e| serde_json::to_string(e).ok()))
+        Ok(save
+            .custom_species
+            .get(codename)
+            .and_then(|e| serde_json::to_string(e).ok()))
     })
     .ok()
     .and_then(|(json, _)| json);
@@ -2391,13 +2903,19 @@ pub fn spawn_workshop_backfill(
         }
         // 收集候选（持锁只做序列化，不做任何 Steam 调用）。origin 决定是否 resolve 查重。
         let candidates = match game::with_save(&app, &game_state, |_config, save| {
-            let picks = workshop_backfill_candidates(&save.custom_species, &save.workshop_published);
+            let picks =
+                workshop_backfill_candidates(&save.custom_species, &save.workshop_published);
             Ok(picks
                 .into_iter()
                 .filter_map(|codename| {
                     let entry = save.custom_species.get(&codename)?;
                     let json = serde_json::to_string(entry).ok()?;
-                    Some((codename, entry.info.name_zh.clone(), json, entry.origin.clone()))
+                    Some((
+                        codename,
+                        entry.info.name_zh.clone(),
+                        json,
+                        entry.origin.clone(),
+                    ))
                 })
                 .collect::<Vec<_>>())
         }) {
@@ -2405,7 +2923,10 @@ pub fn spawn_workshop_backfill(
             Err(_) => return,
         };
         if !candidates.is_empty() {
-            eprintln!("[workshop] backfill: {} 个存量 AI 物种待认领检查", candidates.len());
+            eprintln!(
+                "[workshop] backfill: {} 个存量 AI 物种待认领检查",
+                candidates.len()
+            );
             for (codename, name_zh, entry_json, origin) in candidates {
                 if backfill_should_resolve_first(origin.as_deref()) {
                     // 出处不明/工坊下载：先查全局——已有形象（他人抢先，或本机曾传未
@@ -2426,14 +2947,18 @@ pub fn spawn_workshop_backfill(
                         }
                         Ok(None) => {}
                         Err(error) => {
-                            eprintln!("[workshop] backfill {codename}: 查询失败（{error}），下次启动再试");
+                            eprintln!(
+                                "[workshop] backfill {codename}: 查询失败（{error}），下次启动再试"
+                            );
                             continue;
                         }
                     }
                 } else {
                     // 本机生成（origin=local）：皮肤系统 always-publish，跳过查重直接上传
                     //（生成时发布失败的补偿路径也走这里）。
-                    eprintln!("[workshop] backfill {codename}: 本机生成，直接上传（always-publish）");
+                    eprintln!(
+                        "[workshop] backfill {codename}: 本机生成，直接上传（always-publish）"
+                    );
                 }
                 let preview = species_preview_path(&app, &codename);
                 let had_preview = preview.as_deref().map_or(false, |p| p.is_file());
@@ -2453,7 +2978,9 @@ pub fn spawn_workshop_backfill(
                         );
                     }
                     Err(error) => {
-                        eprintln!("[workshop] backfill {codename}: 上传失败（{error}），下次启动再试");
+                        eprintln!(
+                            "[workshop] backfill {codename}: 上传失败（{error}），下次启动再试"
+                        );
                     }
                 }
             }
@@ -2476,7 +3003,10 @@ pub fn spawn_workshop_backfill(
             Err(_) => Vec::new(),
         };
         if !pending_previews.is_empty() {
-            eprintln!("[workshop] preview: {} 个已上传物品待补挂缩略图", pending_previews.len());
+            eprintln!(
+                "[workshop] preview: {} 个已上传物品待补挂缩略图",
+                pending_previews.len()
+            );
             // Steam 对物品更新有洪水限制（2026-07-17 实测：短窗口约 5 个更新后
             // 开始 AccessDenied 进冷却）→ 逐个间隔 60s 滴灌，剩余的下次启动续跑。
             let mut first = true;
@@ -2532,9 +3062,16 @@ pub fn cache_species_preview(
         std::fs::create_dir_all(dir).map_err(|e| format!("建预览目录失败：{e}"))?;
     }
     std::fs::write(&path, &bytes).map_err(|e| format!("写预览图失败：{e}"))?;
-    eprintln!("[workshop] preview {codename}: 设定图已缓存（{} bytes → {}）", bytes.len(), path.display());
+    eprintln!(
+        "[workshop] preview {codename}: 设定图已缓存（{} bytes → {}）",
+        bytes.len(),
+        path.display()
+    );
     // 已上传过的物品即时补挂（后台线程，不阻塞 IPC；未连接/未上传时为 no-op）。
-    if let Some(steam) = app.try_state::<crate::steam::SharedSteamState>().map(|s| s.inner().clone()) {
+    if let Some(steam) = app
+        .try_state::<crate::steam::SharedSteamState>()
+        .map(|s| s.inner().clone())
+    {
         let app = app.clone();
         let game_state = state.inner().clone();
         thread::spawn(move || {
@@ -2544,85 +3081,377 @@ pub fn cache_species_preview(
     Ok(())
 }
 
+enum GenerationCycle {
+    Resolved,
+    Exhausted(String),
+    Terminal(String),
+}
+
+fn set_active_provider(
+    app: &AppHandle,
+    game_state: &SharedGameState,
+    egg_id: &str,
+    provider_name: &str,
+) {
+    if let Ok((_, save)) = game::with_save(app, game_state, |_config, save| {
+        game::logic_set_fusion_provider(save, egg_id, provider_name);
+        Ok(())
+    }) {
+        let _ = app.emit(STATE_EVENT, save);
+    }
+}
+
+fn resolve_generated_design(
+    app: &AppHandle,
+    game_state: &SharedGameState,
+    job: &FusionJob,
+    design: &ValidatedDesign,
+    provider_name: &str,
+    attempt: u32,
+    started: Instant,
+) -> GenerationCycle {
+    match commit_design(app, game_state, job, design, provider_name) {
+        Ok((codename, save)) => {
+            let _ = app.emit(STATE_EVENT, save);
+            publish_generated_slot(app, game_state, &codename, &design.name_zh);
+            emit_progress(
+                app,
+                &job.egg_id,
+                "resolved",
+                Some(provider_name),
+                attempt,
+                Some(format!(
+                    "#fusionResolved|name={}|code={codename}",
+                    design.name_zh
+                )),
+                started,
+            );
+            GenerationCycle::Resolved
+        }
+        Err(error) => GenerationCycle::Terminal(error),
+    }
+}
+
+fn run_v2_cycle(
+    app: &AppHandle,
+    game_state: &SharedGameState,
+    job: &FusionJob,
+    inputs: &PromptInputs,
+    providers: &[(Provider, PathBuf)],
+    pref: &FusionPref,
+    started: Instant,
+) -> GenerationCycle {
+    let timeout = fusion_timeout();
+    let mut calls = 0u32;
+    let mut selected: Option<v2::ConceptCandidate> = None;
+    let mut repair: Option<(v2::QualityReport, String)> = None;
+    let mut revision_used = false;
+    let mut last_error = "V2 未生成有效概念".to_string();
+
+    for (provider, path) in providers {
+        if calls >= v2::MAX_CALLS {
+            break;
+        }
+        let provider_name = provider.name();
+        set_active_provider(app, game_state, &job.egg_id, provider_name);
+        if selected.is_none() {
+            let Some(call) = v2::take_call(&mut calls) else {
+                break;
+            };
+            emit_progress(
+                app,
+                &job.egg_id,
+                "ideating",
+                Some(provider_name),
+                call,
+                Some("#fusionIdeating".to_string()),
+                started,
+            );
+            let prompt = v2::build_concept_prompt(inputs);
+            match run_provider_with_schema(
+                *provider,
+                path,
+                &prompt,
+                timeout,
+                model_for(*provider, pref).as_deref(),
+                Some(&v2::concept_schema()),
+            ) {
+                Ok(raw) => match v2::parse_and_validate_concepts(&raw) {
+                    Ok(batch) => match v2::select_concept(&batch, inputs) {
+                        Ok(concept) => selected = Some(concept),
+                        Err(error) => {
+                            last_error =
+                                format!("#providerError|provider={provider_name}|err={error}");
+                            continue;
+                        }
+                    },
+                    Err(error) => {
+                        last_error = format!("#providerError|provider={provider_name}|err={error}");
+                        continue;
+                    }
+                },
+                Err(error) => {
+                    last_error = format!("#providerError|provider={provider_name}|err={error}");
+                    continue;
+                }
+            }
+        }
+
+        while calls < v2::MAX_CALLS {
+            let Some(call) = v2::take_call(&mut calls) else {
+                break;
+            };
+            let phase = if repair.is_some() { "revising" } else { "drawing" };
+            emit_progress(
+                app,
+                &job.egg_id,
+                phase,
+                Some(provider_name),
+                call,
+                Some(if phase == "revising" {
+                    "#fusionRevising".to_string()
+                } else {
+                    "#fusionDrawing".to_string()
+                }),
+                started,
+            );
+            let concept = selected.as_ref().expect("selected concept");
+            let prompt = v2::build_art_prompt(
+                inputs,
+                concept,
+                repair
+                    .as_ref()
+                    .map(|(report, prior)| (report, prior.as_str())),
+            );
+            let json_text = match run_provider_with_schema(
+                *provider,
+                path,
+                &prompt,
+                timeout,
+                model_for(*provider, pref).as_deref(),
+                Some(&v2::art_schema()),
+            ) {
+                Ok(text) => text,
+                Err(error) => {
+                    last_error = format!("#providerError|provider={provider_name}|err={error}");
+                    if repair.is_some() {
+                        return GenerationCycle::Exhausted(last_error);
+                    }
+                    break;
+                }
+            };
+            emit_progress(
+                app,
+                &job.egg_id,
+                "reviewing",
+                Some(provider_name),
+                call,
+                Some("#fusionReviewing".to_string()),
+                started,
+            );
+            let mut design = match validate_design(&json_text) {
+                Ok(design) => design,
+                Err(error) => {
+                    last_error = format!("#providerError|provider={provider_name}|err={error}");
+                    if revision_used {
+                        return GenerationCycle::Exhausted(last_error);
+                    }
+                    revision_used = true;
+                    repair = Some((
+                        v2::QualityReport {
+                            total_score: 0.0,
+                            silhouette: 0.0,
+                            face_readability: 0.0,
+                            pose_difference: 0.0,
+                            palette: 0.0,
+                            hero_feature: 0.0,
+                            fatal_issues: vec![format!("结构校验失败：{error}")],
+                            issues: Vec::new(),
+                        },
+                        json_text,
+                    ));
+                    continue;
+                }
+            };
+            if let Err(error) = v2::enforce_concept(&mut design, concept) {
+                last_error = format!("#providerError|provider={provider_name}|err={error}");
+                if revision_used {
+                    return GenerationCycle::Exhausted(last_error);
+                }
+                revision_used = true;
+                repair = Some((
+                    v2::QualityReport {
+                        total_score: 0.0,
+                        silhouette: 0.0,
+                        face_readability: 0.0,
+                        pose_difference: 0.0,
+                        palette: 0.0,
+                        hero_feature: 0.0,
+                        fatal_issues: vec![error],
+                        issues: Vec::new(),
+                    },
+                    json_text,
+                ));
+                continue;
+            }
+            let report = v2::assess_quality(&design, concept);
+            if report.passed() {
+                design.design_meta = Some(GeneratedDesignMeta {
+                    prompt_version: v2::PROMPT_VERSION.to_string(),
+                    prototype: concept.prototype.clone(),
+                    archetype: concept.archetype.clone(),
+                    hero_feature: concept.hero_feature.clone(),
+                    personality: concept.personality.clone(),
+                    palette_family: concept.palette_family.clone(),
+                    quality_score: report.total_score,
+                });
+                return resolve_generated_design(
+                    app,
+                    game_state,
+                    job,
+                    &design,
+                    provider_name,
+                    call,
+                    started,
+                );
+            }
+            last_error = format!(
+                "#providerError|provider={provider_name}|err={}",
+                report.feedback()
+            );
+            if revision_used {
+                return GenerationCycle::Exhausted(last_error);
+            }
+            revision_used = true;
+            repair = Some((report, json_text));
+        }
+    }
+    GenerationCycle::Exhausted(last_error)
+}
+
+fn run_v1_cycle(
+    app: &AppHandle,
+    game_state: &SharedGameState,
+    job: &FusionJob,
+    inputs: &PromptInputs,
+    providers: &[(Provider, PathBuf)],
+    pref: &FusionPref,
+    started: Instant,
+) -> GenerationCycle {
+    let timeout = fusion_timeout();
+    let mut last_error = "#fusionCliNotFound".to_string();
+    for (provider, path) in providers {
+        let provider_name = provider.name();
+        set_active_provider(app, game_state, &job.egg_id, provider_name);
+        let mut feedback: Option<String> = None;
+        for attempt in 1..=2u32 {
+            emit_progress(
+                app,
+                &job.egg_id,
+                if attempt > 1 { "retrying" } else { "generating" },
+                Some(provider_name),
+                attempt,
+                None,
+                started,
+            );
+            let prompt = build_prompt(inputs, feedback.as_deref());
+            let json_text = match run_provider(
+                *provider,
+                path,
+                &prompt,
+                timeout,
+                model_for(*provider, pref).as_deref(),
+            ) {
+                Ok(text) => text,
+                Err(error) => {
+                    last_error = format!("#providerError|provider={provider_name}|err={error}");
+                    break;
+                }
+            };
+            emit_progress(
+                app,
+                &job.egg_id,
+                "validating",
+                Some(provider_name),
+                attempt,
+                None,
+                started,
+            );
+            match validate_design(&json_text) {
+                Ok(design) => {
+                    return resolve_generated_design(
+                        app,
+                        game_state,
+                        job,
+                        &design,
+                        provider_name,
+                        attempt,
+                        started,
+                    )
+                }
+                Err(error) => {
+                    last_error = format!("#providerError|provider={provider_name}|err={error}");
+                    feedback = Some(format!(
+                        "原因：{error}\n上次输出（截断）：{}",
+                        tail_of(&json_text, 400)
+                    ));
+                }
+            }
+        }
+    }
+    GenerationCycle::Exhausted(last_error)
+}
+
 fn process_job(app: &AppHandle, game_state: &SharedGameState, job: FusionJob) {
     let started = Instant::now();
     mark_egg(app, game_state, &job.egg_id, "generating", None, true);
-    emit_progress(app, &job.egg_id, "generating", None, job.attempts + 1, None, started);
+    emit_progress(
+        app,
+        &job.egg_id,
+        "generating",
+        None,
+        job.attempts + 1,
+        None,
+        started,
+    );
 
     // 皮肤系统（SkinWorkshop.md，2026-07-18）：**本地 CLI 生成优先**——工坊已有该槽
     // 形象不再跳过生成（他人首发只是可选皮肤），只要 CLI 可用就生成自己的形象并
     // 发布；工坊复用降级为 CLI 不可用/全部失败后的兜底（见函数尾）。
     let mut last_error = "#fusionCliNotFound".to_string();
-    let providers = available_providers();
+    // 用户首选 Agent/模型优先：把首选 Agent 排到最前，首选 Agent 用用户选的模型。
+    let pref = load_fusion_pref(app);
+    let providers = order_by_pref(available_providers(), &pref);
     if !providers.is_empty() {
         match gather_prompt_inputs(app, game_state, &job) {
             Ok(inputs) => {
-                let timeout = fusion_timeout();
-                for (provider, path) in &providers {
-                    let provider_name = provider.name();
-                    // 记录当前 provider 到蛋上（前端徽标显示"Claude/Codex 生成中"）+ 刷新前端。
-                    if let Ok((_, save)) = game::with_save(app, game_state, |_config, save| {
-                        game::logic_set_fusion_provider(save, &job.egg_id, provider_name);
-                        Ok(())
-                    }) {
-                        let _ = app.emit(STATE_EVENT, save);
-                    }
-                    let mut feedback: Option<String> = None;
-                    for attempt in 1..=2u32 {
+                let cycle = if v2::enabled() {
+                    run_v2_cycle(app, game_state, &job, &inputs, &providers, &pref, started)
+                } else {
+                    run_v1_cycle(app, game_state, &job, &inputs, &providers, &pref, started)
+                };
+                match cycle {
+                    GenerationCycle::Resolved => return,
+                    GenerationCycle::Exhausted(error) => last_error = error,
+                    GenerationCycle::Terminal(error) => {
+                        mark_egg(
+                            app,
+                            game_state,
+                            &job.egg_id,
+                            "failed",
+                            Some(error.clone()),
+                            false,
+                        );
                         emit_progress(
                             app,
                             &job.egg_id,
-                            if attempt > 1 { "retrying" } else { "generating" },
-                            Some(provider_name),
-                            attempt,
+                            "failed",
                             None,
+                            job.attempts + 1,
+                            Some(error),
                             started,
                         );
-                        let prompt = build_prompt(&inputs, feedback.as_deref());
-                        let json_text = match run_provider(*provider, path, &prompt, timeout, fusion_model(*provider).as_deref()) {
-                            Ok(text) => text,
-                            Err(error) => {
-                                // provider 级失败（未登录/超时/崩溃）：纠错重试无意义，换下一个 provider。
-                                // CLI 侧错误是动态中文/系统文本 → err= 原样透传。
-                                last_error = format!("#providerError|provider={provider_name}|err={error}");
-                                break;
-                            }
-                        };
-                        emit_progress(app, &job.egg_id, "validating", Some(provider_name), attempt, None, started);
-                        match validate_design(&json_text) {
-                            Ok(design) => match commit_design(app, game_state, &job, &design, provider_name) {
-                                Ok((codename, save)) => {
-                                    let _ = app.emit(STATE_EVENT, save);
-                                    // always-publish：把本机形象上传创意工坊（即使他人已首发同槽，
-                                    // 自家皮肤也要有自己的条目供分享/上传者列表；gated + best-effort，另起线程）。
-                                    publish_generated_slot(app, game_state, &codename, &design.name_zh);
-                                    emit_progress(
-                                        app,
-                                        &job.egg_id,
-                                        "resolved",
-                                        Some(provider_name),
-                                        attempt,
-                                        // name = 中文物种名（物种名按设计保持中文），code = codename。
-                                        Some(format!("#fusionResolved|name={}|code={codename}", design.name_zh)),
-                                        started,
-                                    );
-                                    return;
-                                }
-                                Err(error) => {
-                                    // 蛋已被收走/清档等：结果只能丢弃，工坊兜底同样无意义。
-                                    mark_egg(app, game_state, &job.egg_id, "failed", Some(error.clone()), false);
-                                    emit_progress(app, &job.egg_id, "failed", Some(provider_name), attempt, Some(error), started);
-                                    return;
-                                }
-                            },
-                            Err(validation_error) => {
-                                last_error = format!("#providerError|provider={provider_name}|err={validation_error}");
-                                feedback = Some(format!(
-                                    "原因：{validation_error}\n上次输出（截断）：{}",
-                                    tail_of(&json_text, 400)
-                                ));
-                            }
-                        }
+                        return;
                     }
                 }
             }
@@ -2649,8 +3478,23 @@ fn process_job(app: &AppHandle, game_state: &SharedGameState, job: FusionJob) {
         return;
     }
 
-    mark_egg(app, game_state, &job.egg_id, "failed", Some(last_error.clone()), false);
-    emit_progress(app, &job.egg_id, "failed", None, job.attempts + 1, Some(last_error), started);
+    mark_egg(
+        app,
+        game_state,
+        &job.egg_id,
+        "failed",
+        Some(last_error.clone()),
+        false,
+    );
+    emit_progress(
+        app,
+        &job.egg_id,
+        "failed",
+        None,
+        job.attempts + 1,
+        Some(last_error),
+        started,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -2659,13 +3503,16 @@ fn process_job(app: &AppHandle, game_state: &SharedGameState, job: FusionJob) {
 
 #[tauri::command]
 pub async fn check_fusion_cli(
+    app: AppHandle,
     gen: tauri::State<'_, FusionGenState>,
     force: Option<bool>,
 ) -> Result<FusionCliStatus, String> {
     let state = gen.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || check_cli_cached(&state, force.unwrap_or(false)))
-        .await
-        .map_err(|error| error.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        check_cli_cached(&app, &state, force.unwrap_or(false))
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 /// 组装「素材」类融合拒绝消息，点名到触发的那只精灵：
@@ -2710,8 +3557,51 @@ pub async fn fuse_pets_ai(
     let gen_state = gen.inner().clone();
     let steam_state = steam.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let now = game::now_secs();
+        let today = game::today_string();
+
+        // v6 强制新手期的两次指定融合都走本地经典配方：
+        // - 不依赖 Codex / Claude 是否已连接；
+        // - 不依赖 Steam 是否已连接；
+        // - 结果确定、8 秒出蛋，避免教程被外部服务或随机 AI 结果卡死。
+        //
+        // logic_fuse_pets 会原子地校验双亲、扣除材料/费用、创建经典配方蛋并递增
+        // onboarding.tutorial_fusions；前端与后端因此共享同一条“前两次”边界。
+        {
+            let (tutorial_egg, save) = game::with_save(&app, &game_state, |config, save| {
+                let forced_tutorial = save.onboarding.status == "active"
+                    && save.onboarding.tutorial_fusions < 2;
+                if !forced_tutorial {
+                    return Ok(None);
+                }
+                let egg_id =
+                    game::logic_fuse_pets(config, save, &id_a, &id_b, now, &today)?;
+                if let Some(egg) = save.eggs.iter_mut().find(|egg| egg.id == egg_id) {
+                    if egg.hatch_at.is_some() {
+                        egg.hatch_at = Some(now + 8);
+                    }
+                }
+                save.tutorial_first_fusion_done = true;
+                let species = save
+                    .eggs
+                    .iter()
+                    .find(|egg| egg.id == egg_id)
+                    .map(|egg| egg.species.clone());
+                Ok(Some((egg_id, species)))
+            })?;
+            if let Some((egg_id, species)) = tutorial_egg {
+                let _ = app.emit(STATE_EVENT, save.clone());
+                return Ok(FusionStartResult {
+                    mode: "recipe".to_string(),
+                    save,
+                    egg_id,
+                    species,
+                });
+            }
+        }
+
         // 融合必须连接 CLI —— 即使骰子会掷到配方路径，不可用也直接拒绝。
-        let status = check_cli_cached(&gen_state, false);
+        let status = check_cli_cached(&app, &gen_state, false);
         if !status.available {
             // 探测详情（probe_all 组装的动态文本）→ err= 原样透传。
             return Err(format!(
@@ -2720,12 +3610,7 @@ pub async fn fuse_pets_ai(
             ));
         }
 
-        let now = game::now_secs();
-        let today = game::today_string();
-
-        // #4/#9 教学首融：强制经典配方 + 1min（不掷 AI）。
-        //   Steam 关（本地调试）→ 此处纯本地短路（logic_fuse_pets，不走 Steam 兑换）；
-        //   Steam 开 → 不短路，落到下方「本地先行」路径（那里强制 canonical 配方 + 1min + 烧材料同步 Steam）。
+        // 兼容旧存档：若不在 v6 强制引导内，仍保留一次首融的本地经典配方兜底。
         {
             let (first_egg, save) = game::with_save(&app, &game_state, |config, save| {
                 if save.tutorial_first_fusion_done || crate::steam::integration_enabled() {
@@ -2734,7 +3619,7 @@ pub async fn fuse_pets_ai(
                 let egg_id = game::logic_fuse_pets(config, save, &id_a, &id_b, now, &today)?;
                 if let Some(egg) = save.eggs.iter_mut().find(|e| e.id == egg_id) {
                     if egg.hatch_at.is_some() {
-                        egg.hatch_at = Some(now + 60); // 首融蛋 1 分钟孵化（特作：无论产物强制 1 分钟内孵化）
+                        egg.hatch_at = Some(now + 8); // v6 教学融合蛋固定 8 秒
                     }
                 }
                 save.tutorial_first_fusion_done = true;
@@ -2827,7 +3712,7 @@ pub async fn fuse_pets_ai(
                         .ok_or_else(|| "#missingSteamMapping".to_string())
                 };
                 let is_tutorial_first = !save.tutorial_first_fusion_done;
-                let result_tier = pet_a.tier.saturating_add(1);
+                let result_tier = config.fusion_result_tier(pet_a.tier);
                 let parents = [pet_a.species.clone(), pet_b.species.clone()];
                 // 兑换目标 def（与是否教学无关）：同物种→自 def；异物种多元素→**并集生成器 20000+**；异物种单元素→canonical。
                 // ⚠️ 异物种**必须**走并集 gen——canonical 物种 def（601-657）只带 `sp:*2` 自升阶兑换、不收跨物种材料，
@@ -2900,10 +3785,10 @@ pub async fn fuse_pets_ai(
                         config, save, &id_a, &id_b, species, now, None, pending,
                     );
                     if is_tutorial_first {
-                        // 教学首融：强制 1 分钟内孵化 + 置标志（特作节奏）。
+                        // 兼容旧存档的教学首融：强制 8 秒孵化 + 置标志。
                         if let Some(egg) = save.eggs.iter_mut().find(|e| e.id == egg_id) {
                             if egg.hatch_at.is_some() {
-                                egg.hatch_at = Some(now + 60);
+                                egg.hatch_at = Some(now + 8);
                             }
                         }
                         save.tutorial_first_fusion_done = true;
@@ -2917,6 +3802,7 @@ pub async fn fuse_pets_ai(
                         egg_def: target_def,
                         recipe_key,
                         applied: true,
+                        awaiting_result: false,
                         mat_def_a,
                         mat_def_b,
                         egg_id: Some(egg_id.clone()),
@@ -2954,6 +3840,7 @@ pub async fn fuse_pets_ai(
                     egg_def: target_def,
                     recipe_key: recipe_key.clone(),
                     applied: false,
+                    awaiting_result: false,
                     mat_def_a: 0,
                     mat_def_b: 0,
                     egg_id: None,
@@ -3093,9 +3980,19 @@ mod tests {
         let mut save = game::create_initial_save(&config, 0, BTreeMap::new(), 1000, "2026-07-07");
 
         // 目录物种 → 附 config 中文名（zh 直出），codename（en TitleCase）。
-        let zh = config.species.get("guluduck").expect("config 应含 guluduck").name_zh.clone();
+        let zh = config
+            .species
+            .get("guluduck")
+            .expect("config 应含 guluduck")
+            .name_zh
+            .clone();
         assert_eq!(
-            material_reject(&config, &save, "materialSyncing", &pet_with_species("guluduck")),
+            material_reject(
+                &config,
+                &save,
+                "materialSyncing",
+                &pet_with_species("guluduck")
+            ),
             format!("#materialSyncing|species=guluduck|nameZh={zh}")
         );
 
@@ -3108,13 +4005,23 @@ mod tests {
         .unwrap();
         save.custom_species.insert("aif0101".to_string(), entry);
         assert_eq!(
-            material_reject(&config, &save, "materialOpInProgress", &pet_with_species("aif0101")),
+            material_reject(
+                &config,
+                &save,
+                "materialOpInProgress",
+                &pet_with_species("aif0101")
+            ),
             "#materialOpInProgress|species=aif0101|nameZh=焰霜团".to_string()
         );
 
         // 未知物种（config / customSpecies 都没有）→ 省略 nameZh，退回 codename。
         assert_eq!(
-            material_reject(&config, &save, "materialNotOnSteam", &pet_with_species("no_such_species")),
+            material_reject(
+                &config,
+                &save,
+                "materialNotOnSteam",
+                &pet_with_species("no_such_species")
+            ),
             "#materialNotOnSteam|species=no_such_species".to_string()
         );
     }
@@ -3135,11 +4042,18 @@ mod tests {
         let mut published = BTreeMap::new();
         published.insert("aif0102".to_string(), "123456".to_string());
         published.insert("aif0203".to_string(), String::new());
-        assert_eq!(workshop_backfill_candidates(&species, &published), vec!["aif0101".to_string()]);
+        assert_eq!(
+            workshop_backfill_candidates(&species, &published),
+            vec!["aif0101".to_string()]
+        );
         // 无任何记录 → 全量候选，按键序稳定输出。
         assert_eq!(
             workshop_backfill_candidates(&species, &BTreeMap::new()),
-            vec!["aif0101".to_string(), "aif0102".to_string(), "aif0203".to_string()]
+            vec![
+                "aif0101".to_string(),
+                "aif0102".to_string(),
+                "aif0203".to_string()
+            ]
         );
         // 全部已处理 → 空。
         let all: BTreeMap<String, String> =
@@ -3164,13 +4078,23 @@ mod tests {
         assert!(cat.eyes.iter().any(|e| e == "happy"));
         assert!(cat.tools.contains_key("laptop"));
         // 每件工具都要有「产物」提示（拼提示词绑定粒子=工具产物；漏一件模型就没方向）。
-        assert_eq!(cat.tool_fx_hints.len(), cat.tools.len(), "toolFxHints 必须与 tools 一一对应");
+        assert_eq!(
+            cat.tool_fx_hints.len(),
+            cat.tools.len(),
+            "toolFxHints 必须与 tools 一一对应"
+        );
         for id in cat.tools.keys() {
-            assert!(cat.tool_fx_hints.contains_key(id), "工具 {id} 缺少 toolFxHints 产物提示");
+            assert!(
+                cat.tool_fx_hints.contains_key(id),
+                "工具 {id} 缺少 toolFxHints 产物提示"
+            );
         }
         for slot in ["tail", "headTop", "back", "cheeks", "marking", "platform"] {
             assert!(cat.slots.contains_key(slot), "missing slot {slot}");
-            assert!(cat.slot_geometry.contains_key(slot), "missing geometry {slot}");
+            assert!(
+                cat.slot_geometry.contains_key(slot),
+                "missing geometry {slot}"
+            );
         }
         // elementHints 推荐的部件必须真实存在于某个槽位目录里。
         for (element, hint) in &cat.element_hints {
@@ -3182,16 +4106,31 @@ mod tests {
         for (species, parts) in &cat.species_signatures {
             for part in parts {
                 let exists = cat.slots.values().any(|m| m.contains_key(part));
-                assert!(exists, "speciesSignatures.{species} 引用了不存在的部件 {part}");
+                assert!(
+                    exists,
+                    "speciesSignatures.{species} 引用了不存在的部件 {part}"
+                );
             }
         }
         // 共享实物粒子目录：36 个 id+hint，id 唯一非空 → workFx `ref` 白名单。
-        assert_eq!(cat.work_particles.len(), 36, "workParticles 应为 36 个实物粒子");
+        assert_eq!(
+            cat.work_particles.len(),
+            36,
+            "workParticles 应为 36 个实物粒子"
+        );
         for w in &cat.work_particles {
-            assert!(!w.id.is_empty() && !w.hint.is_empty(), "workParticle {} 需有 id+hint", w.id);
+            assert!(
+                !w.id.is_empty() && !w.hint.is_empty(),
+                "workParticle {} 需有 id+hint",
+                w.id
+            );
         }
         let ids = work_particle_ids();
-        assert_eq!(ids.len(), cat.work_particles.len(), "workParticles id 不得重复");
+        assert_eq!(
+            ids.len(),
+            cat.work_particles.len(),
+            "workParticles id 不得重复"
+        );
         for id in ["coffee-cup", "music-note", "gear", "bug", "check-tag"] {
             assert!(ids.contains(id), "实物粒子目录缺少 {id}");
         }
@@ -3215,25 +4154,46 @@ mod tests {
 
         // ① 旧式：全部自绘 nodes（向后兼容）→ 通过。
         let all_nodes = with(format!(r##"{{"particles":[{node},{node}]}}"##));
-        assert!(validate_design(&all_nodes).is_ok(), "全自绘 nodes（旧式）应通过");
+        assert!(
+            validate_design(&all_nodes).is_ok(),
+            "全自绘 nodes（旧式）应通过"
+        );
 
         // ② 混合：合法 ref + 自绘 nodes → 通过（满足自绘下限）；ref/nodes 各自保留。
-        let mixed = with(format!(r##"{{"particles":[{{"ref":"coffee-cup"}},{node}]}}"##));
+        let mixed = with(format!(
+            r##"{{"particles":[{{"ref":"coffee-cup"}},{node}]}}"##
+        ));
         let d = validate_design(&mixed).expect("ref + 自绘混合应通过");
         let parts = &d.visual.work_fx.as_ref().unwrap().particles;
         assert_eq!(parts.len(), 2);
-        assert_eq!(parts[0].r#ref.as_deref(), Some("coffee-cup"), "ref 粒子被保留");
+        assert_eq!(
+            parts[0].r#ref.as_deref(),
+            Some("coffee-cup"),
+            "ref 粒子被保留"
+        );
         assert!(parts[0].nodes.is_none(), "ref 粒子不带 nodes");
-        assert!(parts[1].nodes.is_some() && parts[1].r#ref.is_none(), "自绘粒子只带 nodes");
+        assert!(
+            parts[1].nodes.is_some() && parts[1].r#ref.is_none(),
+            "自绘粒子只带 nodes"
+        );
 
         // ③ 全 ref（3 个）→ 拒绝：至少要自绘 1 个。
-        let all_ref = with(r##"{"particles":[{"ref":"coffee-cup"},{"ref":"gear"},{"ref":"bug"}]}"##.to_string());
-        assert!(validate_design(&all_ref).unwrap_err().contains("自绘"), "全 ref 无自绘应被拒");
+        let all_ref = with(
+            r##"{"particles":[{"ref":"coffee-cup"},{"ref":"gear"},{"ref":"bug"}]}"##.to_string(),
+        );
+        assert!(
+            validate_design(&all_ref).unwrap_err().contains("自绘"),
+            "全 ref 无自绘应被拒"
+        );
 
         // ④ 未知 ref → 拒绝。
-        let bad_ref = with(format!(r##"{{"particles":[{{"ref":"nope-not-real"}},{node}]}}"##));
+        let bad_ref = with(format!(
+            r##"{{"particles":[{{"ref":"nope-not-real"}},{node}]}}"##
+        ));
         assert!(
-            validate_design(&bad_ref).unwrap_err().contains("不在实物粒子目录"),
+            validate_design(&bad_ref)
+                .unwrap_err()
+                .contains("不在实物粒子目录"),
             "未知 ref 应被拒"
         );
 
@@ -3241,15 +4201,26 @@ mod tests {
         let both = with(format!(
             r##"{{"particles":[{{"ref":"gear","nodes":[{{"type":"circle","cx":0,"cy":0,"r":5,"fill":"#6B4A2B","stroke":"$outline","strokeWidth":2}}]}},{node}]}}"##
         ));
-        assert!(validate_design(&both).unwrap_err().contains("二选一"), "nodes+ref 同给应被拒");
+        assert!(
+            validate_design(&both).unwrap_err().contains("二选一"),
+            "nodes+ref 同给应被拒"
+        );
 
         // ⑥ 数量下限：只有 1 个粒子 → 拒绝（需 2~3）。
         let too_few = with(format!(r##"{{"particles":[{node}]}}"##));
-        assert!(validate_design(&too_few).unwrap_err().contains("2~3"), "1 个粒子应被拒");
+        assert!(
+            validate_design(&too_few).unwrap_err().contains("2~3"),
+            "1 个粒子应被拒"
+        );
 
         // ⑦ 数量上限：4 个粒子 → 拒绝（需 2~3）。
-        let too_many = with(format!(r##"{{"particles":[{{"ref":"coffee-cup"}},{{"ref":"gear"}},{{"ref":"bug"}},{node}]}}"##));
-        assert!(validate_design(&too_many).unwrap_err().contains("2~3"), "4 个粒子应被拒");
+        let too_many = with(format!(
+            r##"{{"particles":[{{"ref":"coffee-cup"}},{{"ref":"gear"}},{{"ref":"bug"}},{node}]}}"##
+        ));
+        assert!(
+            validate_design(&too_many).unwrap_err().contains("2~3"),
+            "4 个粒子应被拒"
+        );
     }
 
     #[test]
@@ -3279,7 +4250,11 @@ mod tests {
         assert_eq!(form.leg_count, 4);
         assert!(form.floating);
         assert!(design.visual.floating, "floating 跟随 form");
-        assert_eq!(design.visual.work_fx.as_ref().unwrap().particles.len(), 2, "workFx 保留");
+        assert_eq!(
+            design.visual.work_fx.as_ref().unwrap().particles.len(),
+            2,
+            "workFx 保留"
+        );
         assert_eq!(form.body_plan, "quadruped", "bodyPlan 保留");
 
         // 缺 form → 拒绝
@@ -3299,7 +4274,9 @@ mod tests {
         assert!(validate_design(&bad_part).unwrap_err().contains("没有部件"));
 
         let bad_color = good.replace("#E8734A", "red");
-        assert!(validate_design(&bad_color).unwrap_err().contains("palette.body"));
+        assert!(validate_design(&bad_color)
+            .unwrap_err()
+            .contains("palette.body"));
 
         let bad_name = good.replace("焰霜团", "x");
         assert!(validate_design(&bad_name).unwrap_err().contains("nameZh"));
@@ -3335,7 +4312,10 @@ mod tests {
         );
         assert_eq!(derive_en_name(&[]), "Gulu Chimera");
         // 兜底名满足英文名清洗规则（可直接落 name_en）。
-        assert!(sanitize_en_name(&derive_en_name(&["water".to_string(), "grass".to_string()])).is_some());
+        assert!(
+            sanitize_en_name(&derive_en_name(&["water".to_string(), "grass".to_string()]))
+                .is_some()
+        );
     }
 
     /// 2026-07 真机 codex 返回的完整输出（汽团包）：fill:"none" 的雪花粒子曾被
@@ -3372,7 +4352,10 @@ mod tests {
             "\"head\":[{\"type\":\"circle\",\"cx\":0,\"cy\":0,\"r\":40,\"fill\":\"$body\",\"stroke\":\"$outline\",\"strokeWidth\":6}]",
             "\"head\":[]",
         );
-        assert!(validate_design(&empty_head).is_ok(), "一体式（head 空）应合法");
+        assert!(
+            validate_design(&empty_head).is_ok(),
+            "一体式（head 空）应合法"
+        );
 
         // body 与 head 都空 → 拒绝
         let both_empty = empty_body.replace(
@@ -3387,10 +4370,15 @@ mod tests {
 
         // 缺 prototype（customRig 路径必须锚定真实动植物原型）→ 拒绝
         let no_proto = raw.replace("\"prototype\":\"山雀\",", "");
-        assert!(validate_design(&no_proto).unwrap_err().contains("prototype"));
+        assert!(validate_design(&no_proto)
+            .unwrap_err()
+            .contains("prototype"));
 
         // 超粗描边（strokeWidth 12）→ 夹取到 8 通过，不拒稿（真机 codex 两例回归）
-        let thick = raw.replace("\"strokeWidth\":6}],\"headY\":126", "\"strokeWidth\":12}],\"headY\":126");
+        let thick = raw.replace(
+            "\"strokeWidth\":6}],\"headY\":126",
+            "\"strokeWidth\":12}],\"headY\":126",
+        );
         let clamped = validate_design(&thick).expect("超粗描边应被夹取而非拒绝");
         assert_eq!(
             clamped.visual.custom_rig.as_ref().unwrap().front.body[0].stroke_width,
@@ -3404,13 +4392,18 @@ mod tests {
     const HYG_BASE: &str = r##"{"codename":"hygcat","nameZh":"卫生崽","prototype":"猫","desc":"测试脸卫生的小猫","scale":1.1,"palette":{"body":"#7FB8E6","deep":"#4F8FC9","belly":"#F3FAFF","accent":"#FFC24A"},"eyes":"round","toolId":"headset","customRig":{"front":{"bodyY":190,"body":[{"type":"ellipse","cx":0,"cy":0,"rx":46,"ry":44,"fill":"$body","stroke":"$outline","strokeWidth":6}],"headY":126,"head":[{"type":"circle","cx":0,"cy":0,"r":40,"fill":"$body","stroke":"$outline","strokeWidth":6}],"face":{"eyeR":11,"eyeDx":15,"eyeDy":-2,"mouthDy":16,"mouthW":14__MOUTHMODE__}__MUZZLE__,"legL":[{"type":"ellipse","cx":0,"cy":2,"rx":9,"ry":5,"fill":"$deep"}],"legR":[{"type":"ellipse","cx":0,"cy":2,"rx":9,"ry":5,"fill":"$deep"}]}},"workFx":{"particles":[{"nodes":[{"type":"ellipse","cx":-3,"cy":6,"rx":5,"ry":4,"fill":"#7FB8E6","stroke":"$outline","strokeWidth":2}]},{"nodes":[{"type":"path","d":"M-4 -7 Q3 0 -4 7","fill":"none","stroke":"#9BD0F0","strokeWidth":2}]}]}}"##;
 
     fn hyg(muzzle: &str, mouth_mode: &str) -> String {
-        HYG_BASE.replace("__MUZZLE__", muzzle).replace("__MOUTHMODE__", mouth_mode)
+        HYG_BASE
+            .replace("__MUZZLE__", muzzle)
+            .replace("__MOUTHMODE__", mouth_mode)
     }
 
     #[test]
     fn face_hygiene_rejects_drawn_eyeball() {
         // 眼位画深色小圆 = 眼珠 → 与引擎会动的眼重影，拒。
-        let raw = hyg(r#","muzzle":[{"type":"circle","cx":-15,"cy":-2,"r":5,"fill":"$outline"}]"#, "");
+        let raw = hyg(
+            r#","muzzle":[{"type":"circle","cx":-15,"cy":-2,"r":5,"fill":"$outline"}]"#,
+            "",
+        );
         let err = validate_design(&raw).unwrap_err();
         assert!(err.contains("眼珠"), "画死的眼珠必须被拦：{err}");
     }
@@ -3418,11 +4411,23 @@ mod tests {
     #[test]
     fn face_hygiene_rejects_drawn_mouth_line_and_open_mouth_in_soft_mode() {
         // 软嘴模式在嘴位画一根横跨的笑脸线 → 拒。
-        let smile = hyg(r#","muzzle":[{"type":"path","d":"M-7 16 Q0 22 7 16","fill":"none","stroke":"$outline","strokeWidth":3}]"#, "");
-        assert!(validate_design(&smile).unwrap_err().contains("嘴"), "画死的嘴线必须被拦");
+        let smile = hyg(
+            r#","muzzle":[{"type":"path","d":"M-7 16 Q0 22 7 16","fill":"none","stroke":"$outline","strokeWidth":3}]"#,
+            "",
+        );
+        assert!(
+            validate_design(&smile).unwrap_err().contains("嘴"),
+            "画死的嘴线必须被拦"
+        );
         // 软嘴模式在嘴位画深色实心张嘴 → 拒。
-        let open = hyg(r#","muzzle":[{"type":"ellipse","cx":0,"cy":16,"rx":6,"ry":4,"fill":"$outline"}]"#, "");
-        assert!(validate_design(&open).unwrap_err().contains("嘴"), "画死的张嘴必须被拦");
+        let open = hyg(
+            r#","muzzle":[{"type":"ellipse","cx":0,"cy":16,"rx":6,"ry":4,"fill":"$outline"}]"#,
+            "",
+        );
+        assert!(
+            validate_design(&open).unwrap_err().contains("嘴"),
+            "画死的张嘴必须被拦"
+        );
     }
 
     #[test]
@@ -3432,7 +4437,11 @@ mod tests {
             r#","muzzle":[{"type":"ellipse","cx":-15,"cy":-2,"rx":16,"ry":13,"fill":"$deep","opacity":0.6},{"type":"ellipse","cx":15,"cy":-2,"rx":16,"ry":13,"fill":"$deep","opacity":0.6},{"type":"ellipse","cx":-4,"cy":7,"rx":2,"ry":1.5,"fill":"$outline"},{"type":"ellipse","cx":4,"cy":7,"rx":2,"ry":1.5,"fill":"$outline"},{"type":"path","d":"M-24 -14 Q-16 -20 -8 -16","fill":"none","stroke":"$deep","strokeWidth":3}]"#,
             "",
         );
-        assert!(validate_design(&raw).is_ok(), "眼罩/鼻孔/眉不该被误杀：{:?}", validate_design(&raw).err());
+        assert!(
+            validate_design(&raw).is_ok(),
+            "眼罩/鼻孔/眉不该被误杀：{:?}",
+            validate_design(&raw).err()
+        );
     }
 
     #[test]
@@ -3444,7 +4453,15 @@ mod tests {
         );
         let design = validate_design(&raw).expect("beak 模式自绘喙应合法");
         assert_eq!(
-            design.visual.custom_rig.as_ref().unwrap().front.face.mouth.as_deref(),
+            design
+                .visual
+                .custom_rig
+                .as_ref()
+                .unwrap()
+                .front
+                .face
+                .mouth
+                .as_deref(),
             Some("beak"),
             "mouth=beak 标志保留，渲染层据此关引擎嘴"
         );
@@ -3453,7 +4470,10 @@ mod tests {
     #[test]
     fn invalid_mouth_mode_is_rejected() {
         let raw = hyg("", r#","mouth":"smile""#);
-        assert!(validate_design(&raw).unwrap_err().contains("mouth"), "非法 mouth 取值应被拒");
+        assert!(
+            validate_design(&raw).unwrap_err().contains("mouth"),
+            "非法 mouth 取值应被拒"
+        );
     }
 
     #[test]
@@ -3461,18 +4481,31 @@ mod tests {
         // 真机偶发 mouthW=34（≈眼距）画成大裂口 → 夹到 ≤24，不拒稿。
         let raw = hyg("", "").replace("\"mouthW\":14", "\"mouthW\":34");
         let design = validate_design(&raw).expect("过宽嘴应被夹取而非拒绝");
-        let w = design.visual.custom_rig.as_ref().unwrap().front.face.mouth_w.unwrap();
+        let w = design
+            .visual
+            .custom_rig
+            .as_ref()
+            .unwrap()
+            .front
+            .face
+            .mouth_w
+            .unwrap();
         assert!(w <= 24.0 + 1e-9, "mouthW 夹到 ≤24，实得 {w}");
     }
 
     #[test]
     fn real_gen5_samples_pass_face_hygiene() {
         // 已评审通过的 5 只真机样本必须全部通过（防脸卫生守卫误杀已知良品 = 零假阳性）。
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/species_review/gen5_codex");
+        let dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../assets/species_review/gen5_codex"
+        );
         let mut checked = 0;
         for name in ["d1", "d2", "d3", "d4", "d5"] {
             let path = format!("{dir}/{name}.json");
-            let Ok(raw) = std::fs::read_to_string(&path) else { continue };
+            let Ok(raw) = std::fs::read_to_string(&path) else {
+                continue;
+            };
             checked += 1;
             assert!(
                 validate_design(&raw).is_ok(),
@@ -3490,8 +4523,16 @@ mod tests {
         let raw = r##"{"codename":"peakmound","nameZh":"峰墩崽","prototype":"海象","desc":"背着两座小山峰的大墩子","scale":1.1,"palette":{"body":"#C79A6B","deep":"#9C744B","belly":"#F4E9DA","accent":"#8FD8E8"},"eyes":"round","toolId":"snowGlobe","customRig":{"front":{"bodyY":190,"body":[{"type":"path","d":"M0 -80 Q32 -60 44 42 L-44 42 Q-32 -60 0 -80 Z","fill":"$body","stroke":"$outline","strokeWidth":6},{"type":"polygon","points":[[-28,-54],[-18,-74],[-8,-54]],"fill":"$accent","stroke":"$outline","strokeWidth":4},{"type":"polygon","points":[8,-54,18,-74,28,-54],"fill":"$accent","stroke":"$outline","strokeWidth":4}],"headY":150,"head":[],"face":{"eyeR":10,"eyeDx":14,"mouthDy":13}}},"workFx":{"particles":[{"nodes":[{"type":"circle","cx":0,"cy":0,"r":5,"fill":"#8FD8E8","stroke":"$outline","strokeWidth":2}]},{"nodes":[{"type":"path","d":"M0 -7 V7","fill":"none","stroke":"#CFEFF6","strokeWidth":2}]}]}}"##;
         let design = validate_design(raw).expect("points 数组应被转成字符串并通过校验");
         let front = &design.visual.custom_rig.as_ref().unwrap().front;
-        assert_eq!(front.body[1].points.as_deref(), Some("-28,-54 -18,-74 -8,-54"), "嵌套对数组");
-        assert_eq!(front.body[2].points.as_deref(), Some("8,-54 18,-74 28,-54"), "扁平数组");
+        assert_eq!(
+            front.body[1].points.as_deref(),
+            Some("-28,-54 -18,-74 -8,-54"),
+            "嵌套对数组"
+        );
+        assert_eq!(
+            front.body[2].points.as_deref(),
+            Some("8,-54 18,-74 28,-54"),
+            "扁平数组"
+        );
         assert!(front.head.is_empty(), "一体式（head 空）经容错后仍合法");
     }
 
@@ -3575,24 +4616,82 @@ mod tests {
         };
         // 双亲元素对轮转（配色多样）：覆盖 火/冰/草/水/电/普 的多种组合。
         let pairs: Vec<((&str, SpeciesInfo), (&str, SpeciesInfo))> = vec![
-            (("emberfox", sp("炎尾狐", "fire", "#E85D3A", "fox", "急性子奶狐，火焰尾比头高")),
-             ("frostpeng", sp("霜雪怪", "ice", "#8FD8E8", "penguin", "毛茸茸壮实小雪怪"))),
-            (("sproutcap", sp("芽菇菇", "grass", "#57B84C", "mushroom", "顶着菌帽的小不点")),
-             ("bubblefrog", sp("泡泡蛙", "water", "#2E7BD6", "frog", "爱吹水泡的圆蛙"))),
-            (("voltmouse", sp("电电鼠", "electric", "#FFD93B", "mouse", "脸颊带电的大耳鼠")),
-             ("emberfox", sp("炎尾狐", "fire", "#E85D3A", "fox", "急性子奶狐"))),
-            (("bubblefrog", sp("泡泡蛙", "water", "#2E7BD6", "frog", "爱吹水泡的圆蛙")),
-             ("frostpeng", sp("霜雪怪", "ice", "#8FD8E8", "penguin", "高冷话少小雪怪"))),
-            (("sproutcap", sp("芽菇菇", "grass", "#57B84C", "mushroom", "顶菌帽的小不点")),
-             ("voltmouse", sp("电电鼠", "electric", "#FFD93B", "mouse", "脸颊带电大耳鼠"))),
-            (("guluduck", sp("咕噜鸭", "normal", "#F5C542", "duck", "呆萌大扁嘴小鸭")),
-             ("sproutcap", sp("芽菇菇", "grass", "#57B84C", "mushroom", "顶菌帽小不点"))),
+            (
+                (
+                    "emberfox",
+                    sp(
+                        "炎尾狐",
+                        "fire",
+                        "#E85D3A",
+                        "fox",
+                        "急性子奶狐，火焰尾比头高",
+                    ),
+                ),
+                (
+                    "frostpeng",
+                    sp("霜雪怪", "ice", "#8FD8E8", "penguin", "毛茸茸壮实小雪怪"),
+                ),
+            ),
+            (
+                (
+                    "sproutcap",
+                    sp("芽菇菇", "grass", "#57B84C", "mushroom", "顶着菌帽的小不点"),
+                ),
+                (
+                    "bubblefrog",
+                    sp("泡泡蛙", "water", "#2E7BD6", "frog", "爱吹水泡的圆蛙"),
+                ),
+            ),
+            (
+                (
+                    "voltmouse",
+                    sp("电电鼠", "electric", "#FFD93B", "mouse", "脸颊带电的大耳鼠"),
+                ),
+                (
+                    "emberfox",
+                    sp("炎尾狐", "fire", "#E85D3A", "fox", "急性子奶狐"),
+                ),
+            ),
+            (
+                (
+                    "bubblefrog",
+                    sp("泡泡蛙", "water", "#2E7BD6", "frog", "爱吹水泡的圆蛙"),
+                ),
+                (
+                    "frostpeng",
+                    sp("霜雪怪", "ice", "#8FD8E8", "penguin", "高冷话少小雪怪"),
+                ),
+            ),
+            (
+                (
+                    "sproutcap",
+                    sp("芽菇菇", "grass", "#57B84C", "mushroom", "顶菌帽的小不点"),
+                ),
+                (
+                    "voltmouse",
+                    sp("电电鼠", "electric", "#FFD93B", "mouse", "脸颊带电大耳鼠"),
+                ),
+            ),
+            (
+                (
+                    "guluduck",
+                    sp("咕噜鸭", "normal", "#F5C542", "duck", "呆萌大扁嘴小鸭"),
+                ),
+                (
+                    "sproutcap",
+                    sp("芽菇菇", "grass", "#57B84C", "mushroom", "顶菌帽小不点"),
+                ),
+            ),
         ];
 
         let offset: u64 = std::env::var("GULUGULU_FUSION_SEED_OFFSET")
-            .ok().and_then(|s| s.parse().ok()).unwrap_or(0);
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
         let count: usize = std::env::var("GULUGULU_FUSION_COUNT")
-            .ok().and_then(|s| s.parse().ok()).unwrap_or(3);
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(3);
 
         let mut good = 0usize;
         for i in 0..count {
@@ -3604,23 +4703,43 @@ mod tests {
                 parent_b: (cb.to_string(), ib.clone()),
                 taken: BTreeSet::from(["guluduck".to_string()]),
                 seed: s,
+                recipe_key: format!(
+                    "{}+{}",
+                    ia.elements.first().cloned().unwrap_or_default(),
+                    ib.elements.first().cloned().unwrap_or_default()
+                ),
+                history: Vec::new(),
             };
             eprintln!("\n===== #{s} 体型={arch} 双亲={ca}+{cb} =====");
             // 与生产 process_job 一致：带校验反馈的纠错重试，提升良率（单次漏字段可救回）。
             let max_attempts: u32 = std::env::var("GULUGULU_FUSION_ATTEMPTS")
-                .ok().and_then(|s| s.parse().ok()).unwrap_or(3);
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(3);
             let mut feedback: Option<String> = None;
             let mut resolved = false;
             for attempt in 1..=max_attempts {
                 let prompt = build_prompt(&inputs, feedback.as_deref());
                 let mut json = None;
                 for (prov, prov_path) in &providers {
-                    match run_provider(*prov, prov_path, &prompt, Duration::from_secs(300), fusion_model(*prov).as_deref()) {
-                        Ok(text) => { json = Some(text); break; }
+                    match run_provider(
+                        *prov,
+                        prov_path,
+                        &prompt,
+                        Duration::from_secs(300),
+                        fusion_model(*prov).as_deref(),
+                    ) {
+                        Ok(text) => {
+                            json = Some(text);
+                            break;
+                        }
                         Err(e) => eprintln!("  尝试{attempt} {} 失败：{e}", prov.name()),
                     }
                 }
-                let Some(json) = json else { eprintln!("  ❌ 所有 CLI 失败"); break; };
+                let Some(json) = json else {
+                    eprintln!("  ❌ 所有 CLI 失败");
+                    break;
+                };
                 match validate_design(&json) {
                     Ok(design) => {
                         // 输出**校验后**的规格（已容错/夹取）+ 名字，供离线渲染忠实还原真机存档。
@@ -3634,17 +4753,26 @@ mod tests {
                         }
                         good += 1;
                         println!("GOOD#{s} {}", serde_json::to_string(&out).unwrap());
-                        eprintln!("  ✅ {}（{arch}·原型 {}·尝试{attempt}）", design.name_zh, design.prototype.as_deref().unwrap_or("?"));
+                        eprintln!(
+                            "  ✅ {}（{arch}·原型 {}·尝试{attempt}）",
+                            design.name_zh,
+                            design.prototype.as_deref().unwrap_or("?")
+                        );
                         resolved = true;
                         break;
                     }
                     Err(e) => {
                         eprintln!("  ⚠️ 尝试{attempt} 校验失败：{e}");
-                        feedback = Some(format!("原因：{e}\n上次输出（截断）：{}", tail_of(&json, 400)));
+                        feedback = Some(format!(
+                            "原因：{e}\n上次输出（截断）：{}",
+                            tail_of(&json, 400)
+                        ));
                     }
                 }
             }
-            if !resolved { eprintln!("  ❌ #{s} 最终失败"); }
+            if !resolved {
+                eprintln!("  ❌ #{s} 最终失败");
+            }
         }
         eprintln!("\n==== 成功 {good}/{count} ====");
     }
@@ -3675,24 +4803,38 @@ mod tests {
             steam_item_def: 0,
         };
         let inputs = PromptInputs {
-            parent_a: ("emberfox".to_string(), cat_species("emberfox", "炎尾狐", "fire")),
-            parent_b: ("frostpeng".to_string(), cat_species("frostpeng", "霜雪怪", "ice")),
+            parent_a: (
+                "emberfox".to_string(),
+                cat_species("emberfox", "炎尾狐", "fire"),
+            ),
+            parent_b: (
+                "frostpeng".to_string(),
+                cat_species("frostpeng", "霜雪怪", "ice"),
+            ),
             taken: BTreeSet::from(["guluduck".to_string()]),
             seed: 3,
+            recipe_key: "fire+ice".to_string(),
+            history: Vec::new(),
         };
         let prompt = build_prompt(&inputs, None);
         assert!(prompt.contains("炎尾狐"));
         assert!(prompt.contains("霜雪怪"));
         assert!(prompt.contains("guluduck"));
         assert!(prompt.contains("只输出一个 JSON 对象"));
-        assert!(prompt.contains("customRig"), "提示词以三视图 customRig 为核心");
+        assert!(
+            prompt.contains("customRig"),
+            "提示词以三视图 customRig 为核心"
+        );
         assert!(
             prompt.contains("front") && prompt.contains("side") && prompt.contains("lie"),
             "教三视图 front/side/lie"
         );
         assert!(prompt.contains("趴卧"), "睡姿是趴卧不是压扁");
         assert!(prompt.contains("差异尽可能大"), "强调剪影与双亲/底座差异大");
-        assert!(prompt.contains("本次体型 = 飞鸟带翼"), "按 seed 注入具体体型指令");
+        assert!(
+            prompt.contains("本次体型 = 飞鸟带翼"),
+            "按 seed 注入具体体型指令"
+        );
         assert!(prompt.contains("构造搭法："), "体型指令携带构造搭法");
         assert!(
             prompt.contains("一体式") && prompt.contains("头即全身"),
@@ -3706,10 +4848,16 @@ mod tests {
         assert!(prompt.contains("workFx"), "要求角色专属打工粒子");
         assert!(prompt.contains("产物"), "粒子必须绑定为所选工具的产物");
         // 实物粒子改版：菜单列出共享目录 id、给出 ref 复用语法、要求至少自绘 1 个、禁抽象元素。
-        assert!(prompt.contains("coffee-cup"), "workFx 菜单应列出共享实物粒子目录 id");
+        assert!(
+            prompt.contains("coffee-cup"),
+            "workFx 菜单应列出共享实物粒子目录 id"
+        );
         assert!(prompt.contains("外带咖啡杯"), "菜单同时给出中文 hint");
         assert!(prompt.contains("\"ref\""), "提示词展示 ref 复用形式");
-        assert!(prompt.contains("至少") && prompt.contains("自绘"), "强调自绘下限");
+        assert!(
+            prompt.contains("至少") && prompt.contains("自绘"),
+            "强调自绘下限"
+        );
         assert!(prompt.contains("严禁抽象"), "禁止抽象元素粒子");
         let retry = build_prompt(&inputs, Some("原因：form 非法"));
         assert!(retry.contains("上次输出被拒绝"));
@@ -3744,39 +4892,70 @@ mod tests {
     fn pick_fusion_job_prioritises_pending_then_retries_failed() {
         let now = 1_000i64;
         let future = now + 1_000; // 未到孵化期限
+        let unblocked = BTreeSet::new();
 
         // pending 优先于 failed 重试（即使 failed 排在前面）。
         let mut eggs = vec![
             fusion_egg("failed-1", "failed", 1, future),
             fusion_egg("pending-1", "pending", 0, future),
         ];
-        assert_eq!(pick_fusion_job(&mut eggs, now).unwrap().egg_id, "pending-1");
+        assert_eq!(
+            pick_fusion_job(&mut eggs, now, &unblocked).unwrap().egg_id,
+            "pending-1"
+        );
 
         // 没有 pending 时，回捡未超上限的 failed 蛋做会话内重试。
         let mut eggs = vec![fusion_egg("failed-1", "failed", 1, future)];
-        assert_eq!(pick_fusion_job(&mut eggs, now).unwrap().egg_id, "failed-1");
+        assert_eq!(
+            pick_fusion_job(&mut eggs, now, &unblocked).unwrap().egg_id,
+            "failed-1"
+        );
 
         // 达到重试上限的 failed 蛋不再回捡。
         let mut eggs = vec![fusion_egg("maxed", "failed", MAX_FUSION_ATTEMPTS, future)];
-        assert!(pick_fusion_job(&mut eggs, now).is_none());
+        assert!(pick_fusion_job(&mut eggs, now, &unblocked).is_none());
 
         // resolved 蛋永不回捡。
         let mut eggs = vec![fusion_egg("done", "resolved", 1, future)];
-        assert!(pick_fusion_job(&mut eggs, now).is_none());
+        assert!(pick_fusion_job(&mut eggs, now, &unblocked).is_none());
+
+        // Steam 尚未实发定槽的蛋不调用 CLI；同队列下一颗已定槽蛋可以继续。
+        let mut eggs = vec![
+            fusion_egg("awaiting-steam", "pending", 0, future),
+            fusion_egg("ready", "pending", 0, future),
+        ];
+        let blocked = BTreeSet::from(["awaiting-steam".to_string()]);
+        assert_eq!(
+            pick_fusion_job(&mut eggs, now, &blocked).unwrap().egg_id,
+            "ready"
+        );
     }
 
     #[test]
     fn pick_fusion_job_handles_hatch_deadline() {
         let now = 5_000i64;
         let past = now - 1; // 已过孵化期限
+        let unblocked = BTreeSet::new();
 
         // 过期的 pending 蛋被就地标记 failed 且不返回（等孵化兜底 guluduck）。
         let mut eggs = vec![fusion_egg("late", "pending", 0, past)];
-        assert!(pick_fusion_job(&mut eggs, now).is_none());
+        assert!(pick_fusion_job(&mut eggs, now, &unblocked).is_none());
         assert_eq!(eggs[0].pending_fusion.as_ref().unwrap().status, "failed");
 
         // 过期的 failed 蛋也不再重试（即使尝试次数没到上限）。
         let mut eggs = vec![fusion_egg("late-failed", "failed", 0, past)];
-        assert!(pick_fusion_job(&mut eggs, now).is_none());
+        assert!(pick_fusion_job(&mut eggs, now, &unblocked).is_none());
+    }
+
+    #[test]
+    fn provider_order_follows_user_preference() {
+        assert_eq!(
+            provider_order(Provider::Codex),
+            [Provider::Codex, Provider::Claude]
+        );
+        assert_eq!(
+            provider_order(Provider::Claude),
+            [Provider::Claude, Provider::Codex]
+        );
     }
 }

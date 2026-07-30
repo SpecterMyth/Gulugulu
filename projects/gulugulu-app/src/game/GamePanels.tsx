@@ -7,7 +7,7 @@ import { DailyLoveMeter, EnergyBar, ExpBar } from "./EnergyBar";
 import { formatCount } from "./format";
 import { formatCountdown } from "./useGame";
 
-export type UiMode = "pet" | "menu" | "backyard" | "settings" | "debug";
+export type UiMode = "pet" | "menu" | "backyard" | "factory" | "settings" | "debug";
 
 /** 菜单栏固定高度（styles.css .game-menubar 同值）：菜单模式窗口高度 =
  *  pet 高度 + shell 间隙 8 + 菜单栏高度，保证开菜单时角色在屏幕上纹丝不动。 */
@@ -18,6 +18,9 @@ export const WINDOW_SIZES: Record<UiMode, { w: number; h: number }> = {
   pet: { w: 280, h: 320 },
   menu: { w: 280, h: 320 + 8 + MENUBAR_HEIGHT },
   backyard: { w: 760, h: 560 },
+  // 工厂玩法：真机走 dock_factory_window 停靠整个工作区（屏顶→任务栏上沿），
+  // 此表值仅作浏览器预览/回退尺寸。
+  factory: { w: 760, h: 560 },
   // 设置面板容纳语言 + 三个开关 + 调试/关闭；panel-body 可滚动兜底。
   settings: { w: 280, h: 540 },
   debug: { w: 340, h: 560 },
@@ -25,10 +28,11 @@ export const WINDOW_SIZES: Record<UiMode, { w: number; h: number }> = {
 
 const MENU_ITEMS: Array<{
   mode: Exclude<UiMode, "pet" | "menu">;
-  labelKey: "backyard" | "settings";
+  labelKey: "backyard" | "factory" | "settings";
   icon: string;
 }> = [
   { mode: "backyard", labelKey: "backyard", icon: "🏡" },
+  { mode: "factory", labelKey: "factory", icon: "🏭" },
   { mode: "settings", labelKey: "settings", icon: "⚙️" },
 ];
 
@@ -75,8 +79,14 @@ export function MenuBar({
           <button
             key={item.mode}
             type="button"
-            className={`menu-item ${uiMode === item.mode ? "is-active" : ""}`}
-            data-coach={item.mode === "backyard" ? "menuBackyard" : undefined}
+            className={`menu-item menu-${item.mode} ${uiMode === item.mode ? "is-active" : ""}`}
+            data-coach={
+              item.mode === "backyard"
+                ? "menuBackyard"
+                : item.mode === "factory"
+                  ? "menuFactory"
+                  : undefined
+            }
             onClick={() => onSelect(item.mode)}
           >
             <span className="menu-item-icon">
@@ -213,6 +223,32 @@ export function SettingToggle({
           {offText}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** 设置面板里的下拉行：标签在上、下拉框在下（与开关行同一视觉语言）。 */
+export function SettingSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { id: string; label: string }[];
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="settings-row">
+      <span className="settings-label">{label}</span>
+      <select className="settings-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

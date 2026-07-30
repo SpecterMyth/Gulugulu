@@ -1,6 +1,13 @@
 import { type CSSProperties } from "react";
 import type { GameConfig, PetState } from "../types";
-import { OUTLINE, type Expression, type RigComponent, type RigSlots, type SpeciesVisual } from "./rigTypes";
+import {
+  OUTLINE,
+  type Expression,
+  type ReactionProfile,
+  type RigComponent,
+  type RigSlots,
+  type SpeciesVisual,
+} from "./rigTypes";
 import { getSpeciesVisual } from "./speciesTable";
 import { DuckRig } from "./rigs/duckRig";
 import { FoxRig } from "./rigs/foxRig";
@@ -55,17 +62,17 @@ function fxLevelForState(state: PetState): FxLevel {
 }
 
 /** petState → 呆萌表情（计划：每个动作不同的面部表情） */
-function expressionForState(state: PetState): Expression {
+function expressionForState(state: PetState, profile?: ReactionProfile): Expression {
   switch (state) {
     case "thinking":
       return "think";
     case "moving":
-      return "happy";
+      return profile === "cool" || profile === "sleepy" || profile === "shy" ? "normal" : "happy";
     case "working":
     case "laboring":
       return "effort";
     case "success":
-      return "star";
+      return profile === "cool" || profile === "shy" || profile === "sleepy" ? "happy" : "star";
     case "fed":
       return "munch";
     case "sleeping":
@@ -78,6 +85,8 @@ function expressionForState(state: PetState): Expression {
     case "error":
       return "dizzy";
     case "clicked":
+      if (profile === "shy" || profile === "sleepy") return "surprised";
+      if (profile === "cool") return "normal";
       return "happy";
     default:
       return "normal";
@@ -118,6 +127,7 @@ export function SvgSprite({ species, config, petState = "idle", tier, visual: vi
     `sprite-stage-${visual.stage}`,
     `fx-${fxLevel}`,
     visual.floating ? "sprite-floating" : "",
+    visual.motionPreset ? `motion-${visual.motionPreset}` : "",
     className ?? "",
   ]
     .filter(Boolean)
@@ -151,7 +161,7 @@ export function SvgSprite({ species, config, petState = "idle", tier, visual: vi
             eyes={visual.eyes}
             iris={visual.iris}
             mouthStyle={visual.mouthStyle}
-            expression={expressionForState(petState)}
+            expression={expressionForState(petState, visual.reactionProfile)}
             pose={petState === "sleeping" || petState === "exhausted" ? "lie" : "stand"}
             form={visual.form}
             rigData={visual.rigData}

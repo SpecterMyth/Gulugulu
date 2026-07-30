@@ -153,7 +153,11 @@ pub(crate) fn is_max_level(config: &GameConfig, pet: &PetInstance) -> bool {
 }
 
 /// 物种资料查询：先查静态目录，再查存档里的 AI 自定义物种。
-pub fn species_info<'a>(config: &'a GameConfig, save: &'a GameSave, species: &str) -> Option<&'a SpeciesInfo> {
+pub fn species_info<'a>(
+    config: &'a GameConfig,
+    save: &'a GameSave,
+    species: &str,
+) -> Option<&'a SpeciesInfo> {
     config
         .species
         .get(species)
@@ -231,6 +235,8 @@ pub fn logic_click_work(
 ) -> Result<ClickOutcome, String> {
     settle_all(config, save, now, today);
     let daily_clicks = save.daily.clicks;
+    let tutorial_click =
+        save.onboarding.status == "active" && save.onboarding.tutorial_work_clicks < 20;
     let pet = save
         .pets
         .iter_mut()
@@ -264,6 +270,13 @@ pub fn logic_click_work(
 
     let coins = config.click_coins_for(pet.tier, pet.level);
     let (exp_applied, leveled_up) = gain_exp(config, pet, config.click_exp_for(pet.tier));
+    if tutorial_click && save.onboarding.tutorial_work_clicks == 19 {
+        // Twenty paid clicks teach the real coin-and-experience loop before the tutorial tops up.
+        pet.level = config.max_level_for_tier(pet.tier);
+        pet.exp = 0;
+        pet.stamina = config.stamina_max;
+        pet.exhausted = false;
+    }
     let reached_max = is_max_level(config, pet); // 捕获后 pet 借用结束，方可写 save.stats
     save.coins += coins;
     save.daily.clicks += 1;
@@ -274,6 +287,13 @@ pub fn logic_click_work(
     save.stats.total_coins_earned += coins;
     if reached_max {
         save.stats.first_maxlevel_done = true;
+    }
+    if tutorial_click {
+        save.onboarding.tutorial_work_clicks = save
+            .onboarding
+            .tutorial_work_clicks
+            .saturating_add(1)
+            .min(20);
     }
     if save.daily.clicks >= config.daily_click_cap {
         save.stats.daily_cap_reached_ever = true;

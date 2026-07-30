@@ -45,7 +45,14 @@ pub fn op_locked_ids(save: &GameSave) -> BTreeSet<String> {
     let mut locked = BTreeSet::new();
     for op in &save.steam_outbox {
         match op {
-            SteamOp::Fuse { applied, pet_a, pet_b, egg_id, pet_id, .. } => {
+            SteamOp::Fuse {
+                applied,
+                pet_a,
+                pet_b,
+                egg_id,
+                pet_id,
+                ..
+            } => {
                 if *applied {
                     // 本地先行:双亲已删,锁待回绑的结果实体(蛋/宠)——收取/再融合/放生须等同步完成。
                     if let Some(e) = egg_id {
@@ -73,9 +80,9 @@ pub fn op_locked_ids(save: &GameSave) -> BTreeSet<String> {
 
 /// 该宠物是否有待发放的 MintTier1（"同步中"徽章 / 放生取消路径判定）。
 pub fn pending_mint_for(save: &GameSave, pet_id: &str) -> Option<usize> {
-    save.steam_outbox.iter().position(|op| {
-        matches!(op, SteamOp::MintTier1 { pet_id: p, .. } if p == pet_id)
-    })
+    save.steam_outbox
+        .iter()
+        .position(|op| matches!(op, SteamOp::MintTier1 { pet_id: p, .. } if p == pet_id))
 }
 
 /// 不可认领/不可导入的物品 id：本地实体（宠物/蛋）已绑定的，加上**本地先行**排队待
@@ -89,15 +96,26 @@ fn bound_item_ids(save: &GameSave) -> BTreeSet<String> {
         .iter()
         .filter_map(|p| p.steam_item_id.clone())
         .chain(save.eggs.iter().filter_map(|e| e.steam_item_id.clone()))
-        .chain(save.steam_outbox.iter().flat_map(|op| match op {
-            SteamOp::Release { item_id, applied: true, .. } => vec![item_id.clone()],
-            // 只护**已铸出**（非空）的融合材料；空 = 尚未同步 Steam，本就没有物品可护。
-            SteamOp::Fuse { applied: true, item_a, item_b, .. } => [item_a, item_b]
-                .into_iter()
-                .filter(|id| !id.is_empty())
-                .cloned()
-                .collect(),
-            _ => Vec::new(),
+        .chain(save.steam_outbox.iter().flat_map(|op| {
+            match op {
+                SteamOp::Release {
+                    item_id,
+                    applied: true,
+                    ..
+                } => vec![item_id.clone()],
+                // 只护**已铸出**（非空）的融合材料；空 = 尚未同步 Steam，本就没有物品可护。
+                SteamOp::Fuse {
+                    applied: true,
+                    item_a,
+                    item_b,
+                    ..
+                } => [item_a, item_b]
+                    .into_iter()
+                    .filter(|id| !id.is_empty())
+                    .cloned()
+                    .collect(),
+                _ => Vec::new(),
+            }
         }))
         .collect()
 }
@@ -169,6 +187,7 @@ pub fn resolve_intents(
                 item_b,
                 egg_def,
                 recipe_key,
+                awaiting_result,
                 egg_id,
                 pet_id,
                 parents,
@@ -181,8 +200,12 @@ pub fn resolve_intents(
                     // 材料尚未全部铸出（`item_x==""`）→ 泵还在 TriggerItemDrop 铸材料 → 保留 op，
                     //   不做快照对账（空 id 不在快照里，别误判成「材料已消失=兑换已发生」）。
                     // 两材料（部分）仍在 → 兑换未发生 → 保留 op 交给泵限频重试（不在这里做 Steam 调用）。
-                    // 两材料都已铸且消失 → 兑换已发生 → 找未绑定结果补绑到蛋/宠，收 op。
-                    if item_a.is_empty() || item_b.is_empty() || !materials_gone {
+                    // 两材料都已铸且消失 → 兑换可能已经发生；只有实际找到并回绑结果才能收 op。
+                    // Steam 的 GetAllItems 快照可能短暂只反映“材料已消失”、尚未反映“结果已出现”。
+                    // 旧逻辑在这个中间快照直接删 op，会制造永久未绑定宠物。
+                    if !*awaiting_result
+                        && (item_a.is_empty() || item_b.is_empty() || !materials_gone)
+                    {
                         false
                     } else {
                         let bound = bound_item_ids(save);
@@ -199,11 +222,35 @@ pub fn resolve_intents(
                                 ]
                             });
                             apply_fused_result(
-                                config, save, found.item_id, found.def, recipe_key, &parents,
-                                egg_id.as_deref(), pet_id.as_deref(), now,
+                                config,
+                                save,
+                                found.item_id,
+                                found.def,
+                                recipe_key,
+                                &parents,
+                                egg_id.as_deref(),
+                                pet_id.as_deref(),
+                                now,
                             );
+                            true
+                        } else {
+                            // 若上一轮的缺失只是瞬时不完整快照，而材料本轮重新出现，则回到可兑换态；
+                            // 否则进入纯“等待结果”态，禁止拿已经消失的材料 id 再次 ExchangeItems。
+                            let still_waiting = materials_gone;
+                            if let Some(SteamOp::Fuse {
+                                awaiting_result: state,
+                                next_retry_at,
+                                ..
+                            }) = save.steam_outbox.get_mut(index)
+                            {
+                                if *state != still_waiting {
+                                    *state = still_waiting;
+                                    *next_retry_at = 0;
+                                    changed = true;
+                                }
+                            }
+                            false
                         }
-                        true
                     }
                 } else if !materials_gone {
                     // 旧写前意图：材料（至少部分）仍在 → 兑换未发生 → 弃意图。
@@ -226,8 +273,14 @@ pub fn resolve_intents(
                                 .cloned()
                                 .unwrap_or_else(|| crate::game::FALLBACK_SPECIES.to_string());
                             apply_fusion_local(
-                                config, save, pet_a, pet_b, species, now,
-                                Some((found.item_id, found.def)), None,
+                                config,
+                                save,
+                                pet_a,
+                                pet_b,
+                                species,
+                                now,
+                                Some((found.item_id, found.def)),
+                                None,
                             );
                         } else {
                             // 双亲物种须在消耗前捕获（apply_fusion_local 会删双亲）。
@@ -239,11 +292,23 @@ pub fn resolve_intents(
                                     .unwrap_or_else(|| crate::game::FALLBACK_SPECIES.to_string())
                             };
                             let parents_arr = [species_of(pet_a), species_of(pet_b)];
-                            let (species, pending) =
-                                resolve_fused_species(config, save, found.def, recipe_key, &parents_arr, now);
+                            let (species, pending) = resolve_fused_species(
+                                config,
+                                save,
+                                found.def,
+                                recipe_key,
+                                &parents_arr,
+                                now,
+                            );
                             apply_fusion_local(
-                                config, save, pet_a, pet_b, species, now,
-                                Some((found.item_id, found.def)), pending,
+                                config,
+                                save,
+                                pet_a,
+                                pet_b,
+                                species,
+                                now,
+                                Some((found.item_id, found.def)),
+                                pending,
                             );
                         }
                     }
@@ -267,15 +332,14 @@ pub fn resolve_intents(
                         .iter()
                         .find(|i| i.def == expected_pet_def && !bound.contains(&i.item_id))
                         .or_else(|| {
-                            snapshot
-                                .iter()
-                                .find(|i| (201..=299).contains(&i.def) && !bound.contains(&i.item_id))
+                            snapshot.iter().find(|i| {
+                                (201..=299).contains(&i.def) && !bound.contains(&i.item_id)
+                            })
                         })
                         .cloned();
-                    if let (Some(granted), Some(egg_index)) = (
-                        granted,
-                        save.eggs.iter().position(|e| e.id == *egg_id),
-                    ) {
+                    if let (Some(granted), Some(egg_index)) =
+                        (granted, save.eggs.iter().position(|e| e.id == *egg_id))
+                    {
                         let species = collect_species_for(config, save, egg_index, granted.def);
                         apply_collect(
                             config,
@@ -288,7 +352,12 @@ pub fn resolve_intents(
                     true
                 }
             }
-            SteamOp::Release { pet_id, item_id, applied, .. } => {
+            SteamOp::Release {
+                pet_id,
+                item_id,
+                applied,
+                ..
+            } => {
                 if *applied {
                     // 本地先行（2026-07-18）：本地已删宠+已返还，op 只欠 ConsumeItem。
                     // 物品已从库存消失（消耗已发生 / 被交易走）→ 收工；仍在 → 保留
@@ -402,9 +471,14 @@ pub fn apply_fusion_local(
         .find(|p| p.id == pet_a || p.id == pet_b)
         .map(|p| p.tier)
         .unwrap_or(1);
-    let result_tier = parent_tier.saturating_add(1).clamp(2, 6);
-    save.coins = save.coins.saturating_sub(config.fusion_fee_for(parent_tier));
+    // 结果阶封顶（经济 v2.0）：亲代阶达 fusionMaxResultTier 时只换物种、不涨阶。
+    let result_tier = config.fusion_result_tier(parent_tier).clamp(2, 6);
+    save.coins = save
+        .coins
+        .saturating_sub(config.fusion_fee_for(parent_tier));
     save.pets.retain(|p| p.id != pet_a && p.id != pet_b);
+    save.capacity_exempt_pet_ids.remove(pet_a);
+    save.capacity_exempt_pet_ids.remove(pet_b);
     if let Some(active) = &save.active_pet_id {
         if active == pet_a || active == pet_b {
             save.active_pet_id = save.pets.first().map(|p| p.id.clone());
@@ -450,11 +524,82 @@ fn expected_result_defs(egg_def: u32) -> Vec<u32> {
     if crate::fusion_slots::is_union_gen_def(egg_def) {
         let ord = (egg_def - crate::fusion_slots::UNION_GEN_BASE) as usize;
         std::iter::once(crate::fusion_slots::fixed_item_def(ord))
-            .chain((1..=crate::fusion_slots::MAX_AI_SLOTS).map(|s| crate::fusion_slots::ai_item_def(ord, s)))
+            .chain(
+                (1..=crate::fusion_slots::MAX_AI_SLOTS)
+                    .map(|s| crate::fusion_slots::ai_item_def(ord, s)),
+            )
             .collect()
     } else {
         vec![egg_def]
     }
+}
+
+/// 认领“结果已经在 Steam、但负责回绑的旧 Fuse op 曾被过早清除”的二阶宠物。
+///
+/// 这是无损恢复：只使用库存中真实存在且尚未绑定的结果物品，不铸造、不消耗，也不会为
+/// 没有结果物品的本地宠凭空补货。正常的新流程始终由 Fuse op 自己回绑；这里只处理没有
+/// 任何 op 引用的历史孤儿。
+pub fn claim_unbound_tier2_results(
+    config: &GameConfig,
+    save: &mut GameSave,
+    snapshot: &[SnapItem],
+    now: i64,
+) -> bool {
+    let referenced: BTreeSet<String> = save
+        .steam_outbox
+        .iter()
+        .flat_map(|op| match op {
+            SteamOp::Fuse { egg_id, pet_id, .. } => egg_id
+                .iter()
+                .chain(pet_id.iter())
+                .cloned()
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        })
+        .collect();
+    let bound = bound_item_ids(save);
+    let targets: Vec<(String, String, String, u32)> = save
+        .pets
+        .iter()
+        .filter(|pet| pet.tier == 2 && pet.steam_item_id.is_none() && !referenced.contains(&pet.id))
+        .filter_map(|pet| {
+            let info = crate::game::species_info(config, save, &pet.species)?;
+            let recipe_key = crate::fusion_slots::element_set_key(&info.elements);
+            let target_def = crate::fusion_slots::ai_def_for_codename(&pet.species)
+                .or_else(|| exchange_target_def(config, &recipe_key))?;
+            Some((pet.id.clone(), pet.species.clone(), recipe_key, target_def))
+        })
+        .collect();
+
+    let mut claimed = BTreeSet::new();
+    let mut changed = false;
+    for (pet_id, species, recipe_key, target_def) in targets {
+        let expected = expected_result_defs(target_def);
+        let found = snapshot
+            .iter()
+            .find(|item| {
+                expected.contains(&item.def)
+                    && !bound.contains(&item.item_id)
+                    && !claimed.contains(&item.item_id)
+            })
+            .cloned();
+        let Some(found) = found else { continue };
+        claimed.insert(found.item_id.clone());
+        let parents = [species.clone(), species];
+        apply_fused_result(
+            config,
+            save,
+            found.item_id,
+            found.def,
+            &recipe_key,
+            &parents,
+            None,
+            Some(&pet_id),
+            now,
+        );
+        changed = true;
+    }
+    changed
 }
 
 /// 实发结果 def → 融合落定的 `(物种, 挂起生成信息)`（供 Steam 先行第三段、本地先行泵回绑、
@@ -519,16 +664,44 @@ pub fn apply_fused_result(
     pet_id: Option<&str>,
     now: i64,
 ) {
-    let (species, pending) = resolve_fused_species(config, save, granted_def, recipe_key, parents, now);
+    let (species, pending) =
+        resolve_fused_species(config, save, granted_def, recipe_key, parents, now);
     if let Some(egg_id) = egg_id {
         if let Some(egg) = save.eggs.iter_mut().find(|e| e.id == egg_id) {
             // 创建时已定案的蛋（pending_fusion 从未挂过 = 教学首融强制经典配方 / 已知 def 直接
             // 解析；AI 路径的蛋从创建到孵化 pending 恒为 Some，resolved 也只改 status）→ 只回绑
             // 物品，不改物种、不挂起生成。教学首融必须确定性孵出经典配方：并集生成器掷中 AI 槽
             // 时与下方宠分支同口径，容忍「本地经典物种 ↔ Steam 变种 def」的轻微不一致（可交易）。
-            if egg.pending_fusion.is_some() {
-                egg.species = species;
-                egg.pending_fusion = pending;
+            if let Some(existing) = egg.pending_fusion.as_ref() {
+                match pending {
+                    Some(mut authoritative) => {
+                        // Steam 只负责补上权威槽位。若 CLI 已经开始，不能把整份 pending
+                        // 替换成新的 `pending/provider=None/attempts=0`，否则 UI 会退回
+                        // “Claude/Codex 设计中”，重启后还可能把同一设计再跑一次。
+                        //
+                        // 新流程会在 Steam 定槽前阻止 worker 取走该蛋；这里仍保留合并逻辑，
+                        // 用于升级中的旧会话、崩溃恢复以及极窄的并发窗口。
+                        let resolved_same_slot = existing.status == "resolved"
+                            && authoritative.forced_codename.as_deref()
+                                == Some(egg.species.as_str());
+                        if existing.status != "resolved" || resolved_same_slot {
+                            authoritative.requested_at = existing.requested_at;
+                            authoritative.attempts = existing.attempts;
+                            authoritative.status = existing.status.clone();
+                            authoritative.last_error = existing.last_error.clone();
+                            authoritative.provider = existing.provider.clone();
+                        }
+                        if !resolved_same_slot {
+                            egg.species = species;
+                        }
+                        egg.pending_fusion = Some(authoritative);
+                    }
+                    None => {
+                        // Steam 实发固定/已注册物种：权威结果无需 AI，清掉挂起任务。
+                        egg.species = species;
+                        egg.pending_fusion = None;
+                    }
+                }
             }
             egg.steam_item_id = Some(granted_item_id);
             egg.steam_item_def = Some(granted_def);
@@ -573,17 +746,14 @@ pub fn reconcile(
     now: i64,
 ) -> ReconcileReport {
     let mut report = ReconcileReport::default();
+    report.changed |= claim_unbound_tier2_results(config, save, snapshot, now);
     report.changed |= attach_mints(save, snapshot);
 
     let locked = op_locked_ids(save);
     let snapshot_ids: BTreeSet<&str> = snapshot.iter().map(|i| i.item_id.as_str()).collect();
 
     // --- 剪除/重绑（按 def 分组，计数收敛，等级最低者出局）------------------
-    let mut defs: BTreeSet<u32> = save
-        .pets
-        .iter()
-        .filter_map(|p| p.steam_item_def)
-        .collect();
+    let mut defs: BTreeSet<u32> = save.pets.iter().filter_map(|p| p.steam_item_def).collect();
     defs.extend(snapshot.iter().map(|i| i.def));
 
     for def in defs.clone() {
@@ -679,6 +849,8 @@ pub fn reconcile(
                 push_tombstone(save, pet, now);
             }
             save.pets.retain(|p| !to_remove.contains(&p.id));
+            save.capacity_exempt_pet_ids
+                .retain(|id| !to_remove.contains(id));
             report.removed_pets += removed_pets.len();
             report.changed = true;
         }
@@ -712,7 +884,7 @@ pub fn reconcile(
             // 复用与手动导入同源的 build_imported_pet（墓碑优先复原 → cold_pet_species_tier 冷解析），
             // 对既有 101-221 段行为一致；返回 None 的 def（生成器等）自然落到 `_`。
             def if cold_pet_species_tier(config, def).is_some() => {
-                if save.pets.len() >= capacity {
+                if crate::game::occupied_pet_count(save) >= capacity {
                     report.unclaimed.push(item.clone());
                     continue;
                 }
@@ -760,6 +932,47 @@ pub fn reconcile(
             report.changed = true;
         }
     }
+    report
+}
+
+/// 后台对账入口：首融教学完成前只对账已经属于本档的绑定物品，不把 Steam
+/// 库存里的陌生物品导入。B05 完成后同一个周期任务会自动恢复完整快照。
+pub fn reconcile_respecting_onboarding(
+    config: &GameConfig,
+    save: &mut GameSave,
+    snapshot: &[SnapItem],
+    grace: &BTreeSet<String>,
+    now: i64,
+) -> ReconcileReport {
+    if crate::game::steam_inventory_import_unlocked(save) {
+        return reconcile(config, save, snapshot, grace, now);
+    }
+
+    // 先认领本档自己刚铸出的物品；它们不是“旧库存导入”，必须照常回绑。
+    let attached = attach_mints(save, snapshot);
+    let bound = bound_item_ids(save);
+    let locked = op_locked_ids(save);
+    let owned_snapshot: Vec<SnapItem> = snapshot
+        .iter()
+        .filter(|item| {
+            bound.contains(&item.item_id)
+                || locked.contains(&item.item_id)
+                || grace.contains(&item.item_id)
+        })
+        .cloned()
+        .collect();
+    let mut report = reconcile(config, save, &owned_snapshot, grace, now);
+    report.changed |= attached;
+    report.unclaimed.extend(
+        snapshot
+            .iter()
+            .filter(|item| {
+                !owned_snapshot
+                    .iter()
+                    .any(|owned| owned.item_id == item.item_id)
+            })
+            .cloned(),
+    );
     report
 }
 
@@ -824,7 +1037,13 @@ pub fn exchange_target_def(config: &GameConfig, recipe_key: &str) -> Option<u32>
 pub fn retarget_cross_species_fuse_ops(config: &GameConfig, save: &mut GameSave) -> bool {
     let mut changed = false;
     for op in &mut save.steam_outbox {
-        if let SteamOp::Fuse { applied: true, egg_def, recipe_key, .. } = op {
+        if let SteamOp::Fuse {
+            applied: true,
+            egg_def,
+            recipe_key,
+            ..
+        } = op
+        {
             if (601..=657).contains(egg_def) && recipe_key.contains('+') {
                 if let Some(correct) = exchange_target_def(config, recipe_key.as_str()) {
                     if *egg_def != correct {
@@ -844,7 +1063,11 @@ pub fn retarget_cross_species_fuse_ops(config: &GameConfig, save: &mut GameSave)
 ///   同时**取消该宠的待发放 MintTier1**（把「铸这只一阶」的责任从独立 mint 转交给 Fuse op——
 ///   否则材料被单独铸出后成为孤儿物品，会被对账当新宠回导 = 复制）。def 优先取 mint op 的 def，
 ///   否则按物种目录 def（纯本地宠）。
-pub fn take_fusion_material(config: &GameConfig, save: &mut GameSave, pet: &PetInstance) -> (String, u32) {
+pub fn take_fusion_material(
+    config: &GameConfig,
+    save: &mut GameSave,
+    pet: &PetInstance,
+) -> (String, u32) {
     if let Some(item) = &pet.steam_item_id {
         return (item.clone(), 0);
     }
@@ -877,9 +1100,11 @@ pub fn repair_unbound_tier2(config: &GameConfig, save: &mut GameSave) -> bool {
         .steam_outbox
         .iter()
         .flat_map(|op| match op {
-            SteamOp::Fuse { egg_id, pet_id, .. } => {
-                egg_id.iter().chain(pet_id.iter()).cloned().collect::<Vec<_>>()
-            }
+            SteamOp::Fuse { egg_id, pet_id, .. } => egg_id
+                .iter()
+                .chain(pet_id.iter())
+                .cloned()
+                .collect::<Vec<_>>(),
             _ => Vec::new(),
         })
         .collect();
@@ -968,6 +1193,8 @@ pub fn repair_unbound_tier2(config: &GameConfig, save: &mut GameSave) -> bool {
 
         // 本地先行：删两只材料宠（物品受 bound_item_ids 保护）+ 排后台兑换。
         save.pets.retain(|p| p.id != id_a && p.id != id_b);
+        save.capacity_exempt_pet_ids.remove(&id_a);
+        save.capacity_exempt_pet_ids.remove(&id_b);
         if let Some(active) = &save.active_pet_id {
             if active == &id_a || active == &id_b {
                 save.active_pet_id = save.pets.first().map(|p| p.id.clone());
@@ -984,6 +1211,7 @@ pub fn repair_unbound_tier2(config: &GameConfig, save: &mut GameSave) -> bool {
             egg_def: target_def,
             recipe_key,
             applied: true,
+            awaiting_result: false,
             mat_def_a: 0, // 修复用的材料恒已同步 Steam（item 非空）→ 无需铸。
             mat_def_b: 0,
             egg_id: None,
@@ -1169,7 +1397,7 @@ pub fn import_inventory_pets(
 
     let capacity = config.yard_capacity_for(save.yard_level) as usize;
     for (_, _, item) in candidates {
-        if save.pets.len() >= capacity {
+        if crate::game::occupied_pet_count(save) >= capacity {
             report.skipped_capacity += 1;
             report.unclaimed_items.push(item);
             continue;
@@ -1192,14 +1420,35 @@ pub fn import_inventory_pets(
         }
     }
 
-    // 首次导入到空后院时点亮一只主宠。
-    if save.active_pet_id.is_none() {
+    // 首次导入到空后院时点亮一只主宠。新档 A01 必须让教学蛋继续占据舞台；
+    // 否则 Steam 库存刚回填就会把蛋藏掉，强引导只允许点蛋而彻底死锁。
+    let tutorial_egg_pending = save.onboarding.status == "active"
+        && save.onboarding.step == "A01"
+        && save.eggs.iter().any(|egg| egg.hatch_kind == "tutorial");
+    if save.active_pet_id.is_none() && !tutorial_egg_pending {
         if let Some(first) = save.pets.first() {
             save.active_pet_id = Some(first.id.clone());
             report.changed = true;
         }
     }
     report
+}
+
+/// 手动导入同样遵守新手期闸门，避免从市场面板或调试入口提前绕过后台规则。
+pub fn import_inventory_pets_respecting_onboarding(
+    config: &GameConfig,
+    save: &mut GameSave,
+    snapshot: &[SnapItem],
+    now: i64,
+) -> ImportPetsReport {
+    if crate::game::steam_inventory_import_unlocked(save) {
+        import_inventory_pets(config, save, snapshot, now)
+    } else {
+        ImportPetsReport {
+            unclaimed_items: snapshot.to_vec(),
+            ..ImportPetsReport::default()
+        }
+    }
 }
 
 /// 需要向创意工坊解析形象的 AI 变种 codename：当前存档里被宠物引用、是合法 AI 槽
@@ -1325,6 +1574,7 @@ mod tests {
             egg_def: 309,
             recipe_key: "fire+ice".into(),
             applied: false,
+            awaiting_result: false,
             mat_def_a: 0,
             mat_def_b: 0,
             egg_id: None,
@@ -1340,7 +1590,11 @@ mod tests {
         assert!(save.steam_outbox.is_empty());
         assert!(save.pets.is_empty(), "双亲被消耗");
         // 融合 2.0：手续费按亲代阶（fusionFees[tier-1]），不再用旧平坦 fusion_fee。
-        assert_eq!(save.coins, 5_000 - config.fusion_fee_for(1), "手续费补扣一次（按亲代阶）");
+        assert_eq!(
+            save.coins,
+            5_000 - config.fusion_fee_for(1),
+            "手续费补扣一次（按亲代阶）"
+        );
         let egg = &save.eggs[0];
         assert_eq!(egg.species, "thermowolf");
         assert_eq!(egg.steam_item_id.as_deref(), Some("item-egg"));
@@ -1366,6 +1620,7 @@ mod tests {
             egg_def: 20_014,
             recipe_key: "normal+water".into(),
             applied: false,
+            awaiting_result: false,
             mat_def_a: 0,
             mat_def_b: 0,
             egg_id: None,
@@ -1378,7 +1633,11 @@ mod tests {
         assert!(resolve_intents(&config, &mut save, &snapshot, 3000));
         assert!(save.steam_outbox.is_empty());
         assert!(save.pets.is_empty(), "双亲被消耗");
-        let egg = save.eggs.iter().find(|e| e.steam_item_id.as_deref() == Some("item-pet")).unwrap();
+        let egg = save
+            .eggs
+            .iter()
+            .find(|e| e.steam_item_id.as_deref() == Some("item-pet"))
+            .unwrap();
         assert_eq!(egg.species, "sudsotter", "物种取实发 def（615=泡澡獭）");
         assert!(egg.pending_fusion.is_none(), "固定物种无需生成");
         assert_eq!(egg.tier, 2, "结果阶 = 亲代阶 + 1");
@@ -1399,6 +1658,7 @@ mod tests {
             egg_def: 20_014,
             recipe_key: "normal+water".into(),
             applied: false,
+            awaiting_result: false,
             mat_def_a: 0,
             mat_def_b: 0,
             egg_id: None,
@@ -1409,10 +1669,21 @@ mod tests {
         });
         let snapshot = snap(&[("item-ai", 11_403)]);
         assert!(resolve_intents(&config, &mut save, &snapshot, 3000));
-        let egg = save.eggs.iter().find(|e| e.steam_item_id.as_deref() == Some("item-ai")).unwrap();
+        let egg = save
+            .eggs
+            .iter()
+            .find(|e| e.steam_item_id.as_deref() == Some("item-ai"))
+            .unwrap();
         let pending = egg.pending_fusion.as_ref().expect("未注册 AI 槽应挂起生成");
-        assert_eq!(pending.forced_codename.as_deref(), Some("aif1403"), "生成锁定 Steam 掷中的槽");
-        assert_eq!(pending.parents, ["guluduck".to_string(), "bubblefrog".to_string()]);
+        assert_eq!(
+            pending.forced_codename.as_deref(),
+            Some("aif1403"),
+            "生成锁定 Steam 掷中的槽"
+        );
+        assert_eq!(
+            pending.parents,
+            ["guluduck".to_string(), "bubblefrog".to_string()]
+        );
     }
 
     #[test]
@@ -1433,6 +1704,7 @@ mod tests {
             egg_def: 309,
             recipe_key: "fire+ice".into(),
             applied: false,
+            awaiting_result: false,
             mat_def_a: 0,
             mat_def_b: 0,
             egg_id: None,
@@ -1530,7 +1802,12 @@ mod tests {
         assert_eq!(report.imported, 0, "手动导入也跳过待消耗物品");
 
         // 物品从快照消失(消耗已发生/被交易走)→ op 收工,本地无进一步动作。
-        assert!(resolve_intents(&config, &mut save, &snap(&[("item-keep", 101)]), 6100));
+        assert!(resolve_intents(
+            &config,
+            &mut save,
+            &snap(&[("item-keep", 101)]),
+            6100
+        ));
         assert!(save.steam_outbox.is_empty(), "op 收敛移除");
         assert_eq!(save.pets.len(), 1);
         assert_eq!(save.coins, coins_before);
@@ -1548,7 +1825,13 @@ mod tests {
         bind(&mut save, &low, "item-l", 101);
 
         // 只剩一个物品(item-h)→ 保等级最高者,其余墓碑。
-        let report = reconcile(&config, &mut save, &snap(&[("item-h", 101)]), &BTreeSet::new(), 6000);
+        let report = reconcile(
+            &config,
+            &mut save,
+            &snap(&[("item-h", 101)]),
+            &BTreeSet::new(),
+            6000,
+        );
         assert_eq!(report.removed_pets, 2);
         assert_eq!(save.pets.len(), 1);
         assert_eq!(save.pets[0].id, high);
@@ -1563,7 +1846,11 @@ mod tests {
             7000,
         );
         assert_eq!(report.imported_pets, 1);
-        let restored = save.pets.iter().find(|p| p.steam_item_id.as_deref() == Some("item-m")).unwrap();
+        let restored = save
+            .pets
+            .iter()
+            .find(|p| p.steam_item_id.as_deref() == Some("item-m"))
+            .unwrap();
         assert_eq!(restored.level, 5, "墓碑复原等级");
         assert_eq!(save.steam_tombstones.len(), 1);
     }
@@ -1578,7 +1865,13 @@ mod tests {
         bind(&mut save, &low, "item-l", 101);
 
         // 交易走了 item-h(高等级宠绑定的物品)→ 高等级宠重绑到幸存 id,低等级宠出局。
-        let report = reconcile(&config, &mut save, &snap(&[("item-l", 101)]), &BTreeSet::new(), 6000);
+        let report = reconcile(
+            &config,
+            &mut save,
+            &snap(&[("item-l", 101)]),
+            &BTreeSet::new(),
+            6000,
+        );
         assert_eq!(report.removed_pets, 1);
         assert_eq!(save.pets.len(), 1);
         assert_eq!(save.pets[0].id, high, "同 def 物品可互换,高等级保留");
@@ -1616,7 +1909,13 @@ mod tests {
             .collect();
         // 快照没有 item-fresh(陈旧快照)但在宽限集 → 不剪除;
         // item-ghost 在快照但在宽限集 → 不导入。
-        let report = reconcile(&config, &mut save, &snap(&[("item-ghost", 102)]), &grace, 6000);
+        let report = reconcile(
+            &config,
+            &mut save,
+            &snap(&[("item-ghost", 102)]),
+            &grace,
+            6000,
+        );
         assert_eq!(report.removed_pets, 0);
         assert_eq!(report.imported_pets, 0);
         assert_eq!(save.pets.len(), 1);
@@ -1627,7 +1926,13 @@ mod tests {
         let config = config();
         let mut save = fresh(&config);
         add_pet(&mut save, "guluduck", 1, 1);
-        let report = reconcile(&config, &mut save, &snap(&[("item-egg", 309)]), &BTreeSet::new(), 6000);
+        let report = reconcile(
+            &config,
+            &mut save,
+            &snap(&[("item-egg", 309)]),
+            &BTreeSet::new(),
+            6000,
+        );
         assert_eq!(report.imported_eggs, 1);
         let egg = &save.eggs[0];
         assert_eq!(egg.species, "thermowolf");
@@ -1701,7 +2006,10 @@ mod tests {
         bind(&mut save, &pet, "9990001112223334445", 101);
         queue_mint(&mut save, &pet, "guluduck", 101);
         let json = serde_json::to_string(&save).unwrap();
-        assert!(json.contains("\"steamItemId\":\"9990001112223334445\""), "物品 id 必须是字符串");
+        assert!(
+            json.contains("\"steamItemId\":\"9990001112223334445\""),
+            "物品 id 必须是字符串"
+        );
         assert!(json.contains("\"steamOutbox\""));
         assert!(json.contains("\"kind\":\"mintTier1\""));
         let back: GameSave = serde_json::from_str(&json).unwrap();
@@ -1828,7 +2136,12 @@ mod tests {
         let mut save = fresh(&config);
         assert!(save.dex_obtained.is_empty(), "初始图鉴为空");
         // 导入一只一阶(101) + 一只 AI 变种(10001=aif0001)。
-        let report = import_inventory_pets(&config, &mut save, &snap(&[("i-1", 101), ("i-ai", 10_001)]), 1000);
+        let report = import_inventory_pets(
+            &config,
+            &mut save,
+            &snap(&[("i-1", 101), ("i-ai", 10_001)]),
+            1000,
+        );
         assert_eq!(report.imported, 2);
         for pet in &save.pets {
             assert!(
@@ -1839,7 +2152,12 @@ mod tests {
         }
         // 幂等：再次导入（0 新）不膨胀图鉴计数。
         let before = save.dex_obtained.clone();
-        import_inventory_pets(&config, &mut save, &snap(&[("i-1", 101), ("i-ai", 10_001)]), 2000);
+        import_inventory_pets(
+            &config,
+            &mut save,
+            &snap(&[("i-1", 101), ("i-ai", 10_001)]),
+            2000,
+        );
         assert_eq!(save.dex_obtained, before, "反复导入不膨胀图鉴计数");
     }
 
@@ -1855,8 +2173,14 @@ mod tests {
         let list = unresolved_ai_species(&config, &save);
         assert!(list.contains(&"aif0001".to_string()));
         assert!(list.contains(&"aif0002".to_string()));
-        assert!(!list.contains(&"guluduck".to_string()), "目录物种有形象，不列");
-        assert!(!list.contains(&"bogusname".to_string()), "非 AI codename 不列");
+        assert!(
+            !list.contains(&"guluduck".to_string()),
+            "目录物种有形象，不列"
+        );
+        assert!(
+            !list.contains(&"bogusname".to_string()),
+            "非 AI codename 不列"
+        );
         assert_eq!(list.iter().filter(|c| *c == "aif0002").count(), 1, "去重");
     }
 
@@ -1896,6 +2220,7 @@ mod tests {
             egg_def: 309,
             recipe_key: "fire+ice".into(),
             applied: true,
+            awaiting_result: false,
             mat_def_a: 0,
             mat_def_b: 0,
             egg_id: Some("egg-t2".into()),
@@ -1909,16 +2234,24 @@ mod tests {
         let snapshot = snap(&[("item-keep", 101), ("mat-a", 102), ("mat-b", 106)]);
         assert!(!attach_mints(&mut save, &snapshot), "材料不被 mint 认领");
         let report = reconcile(&config, &mut save, &snapshot, &BTreeSet::new(), 6000);
-        assert_eq!(report.imported_pets, 0, "对账不回导在途材料（复制漏洞封死）");
+        assert_eq!(
+            report.imported_pets, 0,
+            "对账不回导在途材料（复制漏洞封死）"
+        );
         let report = import_inventory_pets(&config, &mut save, &snapshot, 6000);
         assert_eq!(report.imported, 0, "手动导入也跳过在途材料");
         // 未绑定结果蛋被 op 锁：收取 / 再融合须等同步完成。
         assert!(op_locked_ids(&save).contains("egg-t2"), "结果蛋被 op 锁");
         // 材料仍在 → 兑换未发生 → resolve_intents 保留 op、不动本地。
-        assert!(!resolve_intents(&config, &mut save, &snapshot, 6000), "材料在，op 保留");
+        assert!(
+            !resolve_intents(&config, &mut save, &snapshot, 6000),
+            "材料在，op 保留"
+        );
         assert_eq!(save.steam_outbox.len(), 1);
         assert!(
-            save.eggs.iter().any(|e| e.id == "egg-t2" && e.steam_item_id.is_none()),
+            save.eggs
+                .iter()
+                .any(|e| e.id == "egg-t2" && e.steam_item_id.is_none()),
             "结果蛋仍未绑定、未被剪除"
         );
     }
@@ -1948,6 +2281,7 @@ mod tests {
             egg_def: 20_014, // 并集生成器(normal+water)
             recipe_key: "normal+water".into(),
             applied: true,
+            awaiting_result: false,
             mat_def_a: 0,
             mat_def_b: 0,
             egg_id: Some("egg-t2".into()),
@@ -1968,6 +2302,175 @@ mod tests {
     }
 
     #[test]
+    fn local_fuse_waits_when_materials_gone_before_result_is_visible() {
+        // Steam 可能先在 GetAllItems 里隐藏已消耗材料，下一轮才显示兑换结果。
+        // 这个中间快照绝不能收掉 op，也绝不能再次 ExchangeItems。
+        let config = config();
+        let mut save = fresh(&config);
+        push_unbound_t2_egg(&mut save, "egg-delayed", None);
+        save.steam_outbox.push(SteamOp::Fuse {
+            op_id: "op-delayed".into(),
+            pet_a: String::new(),
+            pet_b: String::new(),
+            item_a: "mat-a".into(),
+            item_b: "mat-b".into(),
+            egg_def: 20_014,
+            recipe_key: "normal+water".into(),
+            applied: true,
+            awaiting_result: false,
+            mat_def_a: 0,
+            mat_def_b: 0,
+            egg_id: Some("egg-delayed".into()),
+            pet_id: None,
+            parents: Some(["guluduck".into(), "bubblefrog".into()]),
+            attempts: 1,
+            next_retry_at: 0,
+        });
+
+        assert!(
+            resolve_intents(&config, &mut save, &snap(&[]), 7000),
+            "进入 awaitingResult 要持久化"
+        );
+        assert_eq!(save.steam_outbox.len(), 1, "结果没出现时绝不能结单");
+        let SteamOp::Fuse {
+            awaiting_result, ..
+        } = &save.steam_outbox[0]
+        else {
+            panic!("应保留 Fuse op")
+        };
+        assert!(*awaiting_result, "必须禁止拿已消失材料重复兑换");
+        assert!(save.eggs[0].steam_item_id.is_none(), "中间快照不伪造绑定");
+
+        // 下一轮结果出现后才回绑并收单。
+        assert!(resolve_intents(
+            &config,
+            &mut save,
+            &snap(&[("item-result", 615)]),
+            7010
+        ));
+        assert!(save.steam_outbox.is_empty());
+        assert_eq!(save.eggs[0].steam_item_id.as_deref(), Some("item-result"));
+    }
+
+    #[test]
+    fn local_fuse_leaves_wait_state_if_materials_reappear() {
+        // 首轮快照本身也可能不完整；若材料随后重新出现，恢复 Exchange 可重试态。
+        let config = config();
+        let mut save = fresh(&config);
+        push_unbound_t2_egg(&mut save, "egg-transient", None);
+        save.steam_outbox.push(SteamOp::Fuse {
+            op_id: "op-transient".into(),
+            pet_a: String::new(),
+            pet_b: String::new(),
+            item_a: "mat-a".into(),
+            item_b: "mat-b".into(),
+            egg_def: 20_014,
+            recipe_key: "normal+water".into(),
+            applied: true,
+            awaiting_result: false,
+            mat_def_a: 0,
+            mat_def_b: 0,
+            egg_id: Some("egg-transient".into()),
+            pet_id: None,
+            parents: Some(["guluduck".into(), "bubblefrog".into()]),
+            attempts: 0,
+            next_retry_at: 0,
+        });
+        assert!(resolve_intents(&config, &mut save, &snap(&[]), 7000));
+        assert!(resolve_intents(
+            &config,
+            &mut save,
+            &snap(&[("mat-a", 101), ("mat-b", 104)]),
+            7010
+        ));
+        let SteamOp::Fuse {
+            awaiting_result, ..
+        } = &save.steam_outbox[0]
+        else {
+            panic!("应保留 Fuse op")
+        };
+        assert!(!*awaiting_result, "材料仍在时允许泵重新兑换");
+    }
+
+    #[test]
+    fn orphan_tier2_claims_only_a_real_unbound_result() {
+        let config = config();
+        let mut save = fresh(&config);
+        let wax = add_pet(&mut save, "waxlamb", 2, 20);
+
+        assert!(
+            !claim_unbound_tier2_results(&config, &mut save, &snap(&[]), 7000),
+            "没有 Steam 结果时不得补铸或改存档"
+        );
+        assert!(save.pets[0].steam_item_id.is_none());
+
+        assert!(claim_unbound_tier2_results(
+            &config,
+            &mut save,
+            &snap(&[("wax-result", 608)]),
+            7010
+        ));
+        let pet = save.pets.iter().find(|pet| pet.id == wax).unwrap();
+        assert_eq!(pet.steam_item_id.as_deref(), Some("wax-result"));
+        assert_eq!(pet.steam_item_def, Some(608));
+        assert!(
+            !claim_unbound_tier2_results(
+                &config,
+                &mut save,
+                &snap(&[("wax-result", 608)]),
+                7020
+            ),
+            "已绑定后重复扫描幂等"
+        );
+    }
+
+    #[test]
+    fn steam_slot_binding_preserves_active_ai_generation_state() {
+        let config = config();
+        let mut save = fresh(&config);
+        let pending = PendingFusionInfo {
+            parents: ["guluduck".into(), "bubblefrog".into()],
+            recipe_key: "normal+water".into(),
+            requested_at: 1_234,
+            attempts: 2,
+            status: "generating".into(),
+            last_error: Some("previous validation feedback".into()),
+            provider: Some("codex".into()),
+            forced_codename: None,
+        };
+        push_unbound_t2_egg(&mut save, "egg-active", Some(pending));
+
+        apply_fused_result(
+            &config,
+            &mut save,
+            "item-ai".into(),
+            11_403, // normal+water 的未注册 AI 槽 aif1403
+            "normal+water",
+            &["guluduck".into(), "bubblefrog".into()],
+            Some("egg-active"),
+            None,
+            7_000,
+        );
+
+        let egg = save.eggs.iter().find(|e| e.id == "egg-active").unwrap();
+        let pending = egg.pending_fusion.as_ref().expect("AI 槽仍应挂起");
+        assert_eq!(pending.forced_codename.as_deref(), Some("aif1403"));
+        assert_eq!(
+            pending.requested_at, 1_234,
+            "不得用 Steam 回绑时间改写排队时间"
+        );
+        assert_eq!(pending.attempts, 2, "不得清零 worker 尝试次数");
+        assert_eq!(pending.status, "generating", "不得把运行态退回 pending");
+        assert_eq!(pending.provider.as_deref(), Some("codex"));
+        assert_eq!(
+            pending.last_error.as_deref(),
+            Some("previous validation feedback")
+        );
+        assert_eq!(egg.steam_item_id.as_deref(), Some("item-ai"));
+        assert_eq!(egg.steam_item_def, Some(11_403));
+    }
+
+    #[test]
     fn decided_recipe_egg_keeps_species_when_granted_ai_slot() {
         // 教学首融特作：蛋创建时已定案经典配方（无 pending）。并集生成器兑换掷中
         // 未注册 AI 槽 def(11403=aif1403) → 只回绑物品；物种保持经典、绝不改挂 AI
@@ -1985,6 +2488,7 @@ mod tests {
             egg_def: 20_014, // 并集生成器(normal+water)
             recipe_key: "normal+water".into(),
             applied: true,
+            awaiting_result: false,
             mat_def_a: 0,
             mat_def_b: 0,
             egg_id: Some("egg-t2".into()),
@@ -2000,7 +2504,11 @@ mod tests {
         let egg = save.eggs.iter().find(|e| e.id == "egg-t2").unwrap();
         assert_eq!(egg.species, "sudsotter", "已定案蛋保留经典配方物种");
         assert!(egg.pending_fusion.is_none(), "绝不被改挂 AI 生成");
-        assert_eq!(egg.steam_item_id.as_deref(), Some("item-ai"), "变种物品仍回绑（可交易）");
+        assert_eq!(
+            egg.steam_item_id.as_deref(),
+            Some("item-ai"),
+            "变种物品仍回绑（可交易）"
+        );
         assert_eq!(egg.steam_item_def, Some(11_403));
     }
 
@@ -2054,6 +2562,10 @@ mod tests {
                     accent2: None,
                 },
                 eyes: None,
+                iris: None,
+                mouth_style: None,
+                motion_preset: None,
+                reaction_profile: None,
                 tool_id: None,
                 floating: false,
                 slots: Default::default(),
@@ -2065,6 +2577,7 @@ mod tests {
             created_at: 0,
             generator: "mock".to_string(),
             origin: Some("local".to_string()),
+            design_meta: None,
         };
         save.custom_species.insert("aif1403".into(), entry);
         save.eggs[0].species = "aif1403".into();
@@ -2086,17 +2599,30 @@ mod tests {
 
         assert!(repair_unbound_tier2(&config, &mut save));
         assert!(!save.pets.iter().any(|p| p.id == g), "材料 guluduck 已消耗");
-        assert!(!save.pets.iter().any(|p| p.id == f), "材料 frostpeng 已消耗");
+        assert!(
+            !save.pets.iter().any(|p| p.id == f),
+            "材料 frostpeng 已消耗"
+        );
         assert!(save.pets.iter().any(|p| p.id == snow), "snowcub 保留");
         assert_eq!(save.steam_outbox.len(), 1);
-        let SteamOp::Fuse { applied, pet_id, item_a, item_b, egg_def, .. } = &save.steam_outbox[0]
+        let SteamOp::Fuse {
+            applied,
+            pet_id,
+            item_a,
+            item_b,
+            egg_def,
+            ..
+        } = &save.steam_outbox[0]
         else {
             panic!("应为 Fuse op");
         };
         assert!(*applied);
         assert_eq!(pet_id.as_deref(), Some(snow.as_str()));
         let items: BTreeSet<&str> = [item_a.as_str(), item_b.as_str()].into_iter().collect();
-        assert!(items.contains("item-g") && items.contains("item-f"), "两材料物品入 op");
+        assert!(
+            items.contains("item-g") && items.contains("item-f"),
+            "两材料物品入 op"
+        );
         assert_eq!(
             *egg_def,
             exchange_target_def(&config, "ice+normal").unwrap(),
@@ -2157,6 +2683,7 @@ mod tests {
             egg_def: 613, // snowcub 自身 def
             recipe_key: "ice+normal".into(),
             applied: true,
+            awaiting_result: false,
             mat_def_a: 101,
             mat_def_b: 106,
             egg_id: Some("egg-t2".into()),
@@ -2165,7 +2692,10 @@ mod tests {
             attempts: 0,
             next_retry_at: 0,
         });
-        assert!(!resolve_intents(&config, &mut save, &snap(&[]), 7000), "材料铸造中，op 保留");
+        assert!(
+            !resolve_intents(&config, &mut save, &snap(&[]), 7000),
+            "材料铸造中，op 保留"
+        );
         assert_eq!(save.steam_outbox.len(), 1);
         // 空材料 id 不进受保护集（无物品可护）。
         assert!(bound_item_ids(&save).is_empty());
@@ -2185,6 +2715,7 @@ mod tests {
             egg_def: 611, // ❌ potturtle 自身 def（只带 sp:*2，收不了跨物种材料）
             recipe_key: "grass+normal".into(),
             applied: true,
+            awaiting_result: false,
             mat_def_a: 0,
             mat_def_b: 0,
             egg_id: None,
@@ -2194,10 +2725,36 @@ mod tests {
             next_retry_at: 999,
         });
         assert!(retarget_cross_species_fuse_ops(&config, &mut save));
-        let SteamOp::Fuse { egg_def, .. } = &save.steam_outbox[0] else { panic!() };
-        assert_eq!(*egg_def, exchange_target_def(&config, "grass+normal").unwrap());
-        assert!(crate::fusion_slots::is_union_gen_def(*egg_def), "重指向并集生成器");
+        let SteamOp::Fuse { egg_def, .. } = &save.steam_outbox[0] else {
+            panic!()
+        };
+        assert_eq!(
+            *egg_def,
+            exchange_target_def(&config, "grass+normal").unwrap()
+        );
+        assert!(
+            crate::fusion_slots::is_union_gen_def(*egg_def),
+            "重指向并集生成器"
+        );
         // 幂等：已正确 → 二次调用无变更。
         assert!(!retarget_cross_species_fuse_ops(&config, &mut save));
+    }
+
+    #[test]
+    fn onboarding_defers_inventory_until_first_fusion_is_collected() {
+        let config = config();
+        let inventory = snap(&[("steam-old-pet", 101)]);
+        let mut save = fresh(&config);
+
+        let early =
+            reconcile_respecting_onboarding(&config, &mut save, &inventory, &BTreeSet::new(), 1000);
+        assert!(save.pets.is_empty(), "A01 不得把 Steam 旧宠物导入新档");
+        assert_eq!(early.unclaimed.len(), 1, "物品留在 Steam，等待教学闸门开放");
+
+        save.onboarding.step = "B06".into(); // B05 已完成：第一颗融合蛋已收取。
+        let after_fusion =
+            reconcile_respecting_onboarding(&config, &mut save, &inventory, &BTreeSet::new(), 1001);
+        assert_eq!(after_fusion.imported_pets, 1);
+        assert_eq!(save.pets.len(), 1, "首融后后台对账自动恢复导入");
     }
 }

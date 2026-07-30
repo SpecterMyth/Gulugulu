@@ -3,7 +3,7 @@ import type { CoachDirective, CoachTarget } from "./coachTypes";
 import { CoachHand } from "./CoachHand";
 import "./coach.css";
 
-// 教练手势层（docs/gdd/OnboardingCoach.md §2/§6.2）：全窗口固定覆盖、pointer-events:none
+// 教练手势层（docs/gdd/OnboardingGuidance.md §4）：全窗口固定覆盖、pointer-events:none
 // （非阻塞，绝不挡点击）。每帧按 `data-coach` 属性查目标 DOM 屏幕位置，锚定手指/键帽/箭头/环。
 // **不渲染任何文字**——引导文案走现有对话气泡（App / charSay）。
 
@@ -18,6 +18,15 @@ const ARROW_W = 40;
 const ARROW_H = 40;
 // 生物/蛋类目标不套高亮方框（太丑，#2）；环只留给按钮类小目标帮助定位。
 const NO_RING = new Set<string>(["pet", "egg", "char", "placedPet"]);
+
+function overlapArea(
+  a: { left: number; top: number; width: number; height: number },
+  b: { left: number; top: number; width: number; height: number },
+): number {
+  const width = Math.max(0, Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left));
+  const height = Math.max(0, Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top));
+  return width * height;
+}
 
 export function CoachFx({ directive }: { directive: CoachDirective | null }) {
   const ringRef = useRef<HTMLDivElement>(null);
@@ -74,12 +83,43 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
       const showHand = gesture === "tap" || gesture === "rapidTap";
       // #3 目标贴近视口底（手指放下方会被裁切）→ 翻到目标上方、指尖朝下压住按钮。
       const pointDown = showHand && r.bottom + HAND_H > vh - 2;
-      const handTop = pointDown
+      const defaultHandTop = pointDown
         ? Math.max(2, r.top - HAND_H + 12)
         : Math.max(2, Math.min(r.bottom - 4, vh - HAND_H - 4));
-      const handLeft = Math.max(2, Math.min(cx - HAND_W / 2, vw - HAND_W - 2));
-      show(handRef.current, showHand, `translate(${handLeft}px, ${handTop}px)`);
-      handInnerRef.current?.classList.toggle("is-down", pointDown);
+      const defaultHandLeft = Math.max(2, Math.min(cx - HAND_W / 2, vw - HAND_W - 2));
+      const targetMidTop = Math.max(2, Math.min(r.top + r.height / 2 - 4, vh - HAND_H - 4));
+      const handCandidates = [
+        { left: defaultHandLeft, top: defaultHandTop, down: pointDown },
+        {
+          left: Math.max(2, Math.min(r.right - HAND_W * 0.35, vw - HAND_W - 2)),
+          top: targetMidTop,
+          down: false,
+        },
+        {
+          left: Math.max(2, Math.min(r.left - HAND_W * 0.65, vw - HAND_W - 2)),
+          top: targetMidTop,
+          down: false,
+        },
+      ];
+      const cardRect = document.querySelector(".onboarding-goal")?.getBoundingClientRect();
+      // 生物和蛋的点击点必须始终锁在目标中心。为躲卡片把手挪到目标左右，
+      // 会出现手在窗口右侧、蛋在中央的错误指向；卡片布局本身负责避让它们。
+      const lockToTargetCenter = kind != null && NO_RING.has(kind);
+      const handPosition = cardRect && !lockToTargetCenter
+        ? handCandidates.reduce((best, candidate) => {
+            const candidateOverlap = overlapArea(
+              { left: candidate.left, top: candidate.top, width: HAND_W, height: HAND_H },
+              cardRect,
+            );
+            const bestOverlap = overlapArea(
+              { left: best.left, top: best.top, width: HAND_W, height: HAND_H },
+              cardRect,
+            );
+            return candidateOverlap < bestOverlap ? candidate : best;
+          })
+        : handCandidates[0];
+      show(handRef.current, showHand, `translate(${handPosition.left}px, ${handPosition.top}px)`);
+      handInnerRef.current?.classList.toggle("is-down", handPosition.down);
 
       // #1 走位（arrow）时 ◀ A/D ▶ 固定在底部中央教「怎么移动」；keys/moveKeys 锚在目标上方。
       const isArrow = gesture === "arrow";
@@ -119,13 +159,13 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
   if (!directive) return null;
   return (
     <div className="coach-fx" aria-hidden="true">
-      <div ref={ringRef} className="coach-ring" style={{ opacity: 0 }} />
-      <div ref={handRef} className="coach-hold" style={{ opacity: 0 }}>
+      <div ref={ringRef} className="coach-ring" data-coach-fx="ring" style={{ opacity: 0 }} />
+      <div ref={handRef} className="coach-hold" data-coach-fx="hand" style={{ opacity: 0 }}>
         <div ref={handInnerRef} className={`coach-hand ${gesture === "rapidTap" ? "is-rapid" : ""}`}>
           <CoachHand />
         </div>
       </div>
-      <div ref={keysRef} className="coach-hold" style={{ opacity: 0 }}>
+      <div ref={keysRef} className="coach-hold" data-coach-fx="keys" style={{ opacity: 0 }}>
         <div className="coach-keys">
           {gesture === "moveKeys" || gesture === "arrow" ? (
             <>
@@ -138,10 +178,10 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
           )}
         </div>
       </div>
-      <div ref={edgeRef} className="coach-hold" style={{ opacity: 0 }}>
+      <div ref={edgeRef} className="coach-hold" data-coach-fx="edge-arrow" style={{ opacity: 0 }}>
         <div className="coach-arrow">➤</div>
       </div>
-      <div ref={downRef} className="coach-hold" style={{ opacity: 0 }}>
+      <div ref={downRef} className="coach-hold" data-coach-fx="down-arrow" style={{ opacity: 0 }}>
         <div className="coach-arrow-down">▼</div>
       </div>
     </div>

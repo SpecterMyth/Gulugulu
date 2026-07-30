@@ -1,17 +1,25 @@
-import { PanelShell, SettingToggle, type UiMode } from "../game/GamePanels";
+import { PanelShell, SettingSelect, SettingToggle, type UiMode } from "../game/GamePanels";
 import { type Language, LANGUAGES, t } from "../i18n";
-import type { AppSettings } from "../types";
+import type { AgentModels, AppSettings } from "../types";
+
+const AGENT_OPTIONS = [
+  { id: "claude", label: "Claude" },
+  { id: "codex", label: "Codex" },
+];
 
 type SettingsPanelProps = {
   copy: ReturnType<typeof t>;
   language: Language;
   appSettings: AppSettings | null;
+  agentModels: AgentModels;
   goBack: () => void;
   changeLanguage: (nextLanguage: Language) => void;
   handleAlwaysOnTop: (enabled: boolean) => void;
   handleKeyboardCapture: (enabled: boolean) => void;
   handleRandomMovement: (enabled: boolean) => void;
   handleAutostart: (enabled: boolean) => void;
+  handleDefaultAgent: (agent: string) => void;
+  handleDefaultModel: (model: string) => void;
   selectPanel: (mode: Exclude<UiMode, "pet" | "menu">) => void;
   closePet: () => void;
 };
@@ -20,15 +28,21 @@ export function SettingsPanel({
   copy,
   language,
   appSettings,
+  agentModels,
   goBack,
   changeLanguage,
   handleAlwaysOnTop,
   handleKeyboardCapture,
   handleRandomMovement,
   handleAutostart,
+  handleDefaultAgent,
+  handleDefaultModel,
   selectPanel,
   closePet,
 }: SettingsPanelProps) {
+  const defaultAgent = appSettings?.defaultAgent === "codex" ? "codex" : "claude";
+  const modelOptions = defaultAgent === "codex" ? agentModels.codex : agentModels.claude;
+  const defaultModel = appSettings?.defaultModel ?? "";
   return (
     <PanelShell title={copy.settings} backLabel={copy.back} onBack={goBack}>
       <div className="settings-panel">
@@ -72,6 +86,18 @@ export function SettingsPanel({
           onText={copy.on}
           offText={copy.off}
           onToggle={handleAutostart}
+        />
+        <SettingSelect
+          label={copy.defaultAgent}
+          value={defaultAgent}
+          options={AGENT_OPTIONS}
+          onChange={handleDefaultAgent}
+        />
+        <SettingSelect
+          label={copy.defaultModel}
+          value={defaultModel}
+          options={modelOptions}
+          onChange={handleDefaultModel}
         />
         <button type="button" className="settings-btn settings-action" onClick={() => selectPanel("debug")}>
           🛠 {copy.debug}

@@ -8,20 +8,24 @@ import {
   isMaxLevel,
   maxLevelForTier,
   shopUpgradeCost,
+  trainingSlotCount,
+  trainingStepFor,
   yardCapacityFor,
+  yardOccupiedCount,
 } from "./config";
 import type { UiMode } from "./GamePanels";
 import { FIXED_DEX_TOTAL } from "./pokedexData";
 
 // ---------------------------------------------------------------------------
-// 状态触发式新手引导 —— 展示预算模型（docs/gdd/OnboardingGuidance.md v1.0）
+// 毕业后状态触发式发现提示 —— 展示预算模型（docs/gdd/OnboardingGuidance.md §6）
 //
-// 由存档状态推导当前引导节点，不再是线性 tutorialStep 计数。每条引导带一个
+// v6 强制主线由 useOnboardingDirector 独占；本文件只在主线结束后由存档状态推导
+// 当前发现节点。每条引导带一个
 // `budget`（完整展示满这么多轮后永久退休，budget=1 即一次性）+ 一个持久展示键
 // `key`（默认=id，可用 opts.key 覆盖为按实例区分），计数落 localStorage（见 useTutorialHints）。
 // 另有"毕业闸"：拥有首只 2 阶（tutorialStep≥GRADUATION_STEP）后，basicCluster 的
 // 基础引导无论剩余预算一律退休——引导期正式结束。发现/晚期节点（图鉴/Steam/放生/
-// 升级）不属基础族，只看各自预算，可能毕业后才首次遇到。Rust 侧零改动。
+// 升级）不属基础族，只看各自预算，可能毕业后才首次遇到。
 // ---------------------------------------------------------------------------
 
 export type TutorialHint = {
@@ -65,12 +69,11 @@ export function expToMax(config: GameConfig, pet: PetInstance): number {
 
 /** 后院是否已凑齐"两只同阶满级"——融合前置（金币另算，红点只看配对）。 */
 export function fusionReady(config: GameConfig, save: GameSave): boolean {
-  const countByTier = new Map<number, number>();
-  for (const pet of save.pets) {
-    if (!isMaxLevel(config, pet)) continue;
-    const next = (countByTier.get(pet.tier) ?? 0) + 1;
-    if (next >= 2) return true;
-    countByTier.set(pet.tier, next);
+  const maxed = save.pets.filter((pet) => isMaxLevel(config, pet));
+  for (let i = 0; i < maxed.length; i += 1) {
+    for (let j = i + 1; j < maxed.length; j += 1) {
+      if (maxed[i].tier === maxed[j].tier && maxed[i].species !== maxed[j].species) return true;
+    }
   }
   return false;
 }
@@ -84,7 +87,11 @@ export function activePetCanFuse(config: GameConfig, save: GameSave): boolean {
   const active = save.pets.find((pet) => pet.id === save.activePetId) ?? null;
   if (!active || !isMaxLevel(config, active)) return false;
   const hasPartner = save.pets.some(
-    (pet) => pet.id !== active.id && pet.tier === active.tier && isMaxLevel(config, pet),
+    (pet) =>
+      pet.id !== active.id &&
+      pet.species !== active.species &&
+      pet.tier === active.tier &&
+      isMaxLevel(config, pet),
   );
   if (!hasPartner) return false;
   return save.coins >= fusionFeeFor(config, active.tier);
@@ -105,7 +112,9 @@ export function nextFusionGoal(
   const maxed = save.pets.filter((pet) => isMaxLevel(config, pet));
   for (let i = 0; i < maxed.length; i += 1) {
     for (let j = i + 1; j < maxed.length; j += 1) {
-      if (maxed[i].tier === maxed[j].tier) return { a: maxed[i], b: maxed[j] };
+      if (maxed[i].tier === maxed[j].tier && maxed[i].species !== maxed[j].species) {
+        return { a: maxed[i], b: maxed[j] };
+      }
     }
   }
   return null;
@@ -153,7 +162,9 @@ export function computeTutorialHint({
     opts?: { budget?: number; key?: string; basic?: boolean },
   ): TutorialHint | null => {
     const key = opts?.key ?? id;
-    const budget = opts?.budget ?? Number.POSITIVE_INFINITY;
+    // DiscoveryGuide v6 is one queue of one-shot lessons. Legacy callers may still pass a
+    // larger budget, but repeated nagging was intentionally retired.
+    const budget = 1;
     if ((shows[key] ?? 0) >= budget) return null;
     if (opts?.basic && graduated) return null;
     return { id, text, key, budget };
@@ -187,8 +198,7 @@ export function computeTutorialHint({
   // A5 精力恢复（趴下充电）。
   if (active?.exhausted) {
     const h = make("recovering", TT.recovering, {
-      budget: 3,
-      basic: true,
+      budget: 1,
     });
     if (h) return h;
   }
@@ -232,6 +242,31 @@ export function computeTutorialHint({
     if (h) return h;
   }
 
+  // T08 首次可实训：只有宠物、材料、训练费、馆等级和空槽都真的满足才提示，绝不拿
+  // 灰按钮逗玩家。未建馆时首次教学允许建馆费不足报销，因此只校验正式训练费。
+  if (save.trainingTutorialBoostClaimed !== true) {
+    const jobs = save.trainingJobs ?? [];
+    const slots = trainingSlotCount(config, save.trainingSlotLevel ?? 1);
+    const readyPet = save.pets.find((pet) => {
+      if (pet.tier !== 1 || !isMaxLevel(config, pet) || jobs.some((job) => job.petId === pet.id)) return false;
+      const step = trainingStepFor(config, pet.tier);
+      if (!step) return false;
+      const materialOk = (save.materials?.[step.material] ?? 0) >= step.count;
+      const hallOk = (save.trainingHallLevel ?? 0) === 0 || (save.trainingHallLevel ?? 0) >= pet.tier;
+      return materialOk && hallOk && save.coins >= step.coins && jobs.length < slots;
+    });
+    if (readyPet) {
+      const h = make(
+        "training-ready",
+        lang === "zh"
+          ? "升阶条件齐了：去训练馆点【开始训练】。这次晋升不吃同事，已经领先很多公司。"
+          : "A tier-up is ready: visit the Training Hall and press Start Training. This promotion eats materials, not coworkers.",
+        { budget: 1 },
+      );
+      if (h) return h;
+    }
+  }
+
   // A6 商店买第二颗蛋（凑一对好融合）。孵化屋已满时不劝买——蛋只能进库存孵不了。
   if (hasPet && save.pets.length < 2 && save.coins >= cheapestEgg && !hatcheryFull(config, save)) {
     const h = make("buy-second", TT.buySecond, {
@@ -251,7 +286,7 @@ export function computeTutorialHint({
   }
 
   // D4 放生腾位（后院满 + 有蛋待收）。
-  if (hatcheryReady && save.pets.length >= yardCapacityFor(config, save.yardLevel)) {
+  if (hatcheryReady && yardOccupiedCount(save) >= yardCapacityFor(config, save.yardLevel)) {
     const h = make("release", TT.release, { budget: 2 });
     if (h) return h;
   }

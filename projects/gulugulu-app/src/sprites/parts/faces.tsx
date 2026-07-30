@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { OUTLINE, type EyeVariant, type Expression } from "../rigTypes";
+import { OUTLINE, type EyeVariant, type Expression, type MouthStyle } from "../rigTypes";
 import { Eyes, SideEye } from "./common";
 
 // -----------------------------------------------------------------------------
@@ -160,6 +160,68 @@ function mouthShape(mx: number, my: number, w: number, expression: Expression): 
   }
 }
 
+// 待机嘴（normal 表情用）：按 mouthStyle 选嘴型，默认 smile。动画表情走 mouthShape。
+function normalMouth(mx: number, my: number, w: number, style: MouthStyle = "smile"): ReactNode {
+  switch (style) {
+    case "cat":
+      return (
+        <path
+          d={`M${mx - w * 0.5} ${my} q${w * 0.25} ${w * 0.42} ${w * 0.5} 0 q${w * 0.25} ${w * 0.42} ${w * 0.5} 0`}
+          fill="none"
+          stroke={OUTLINE}
+          strokeWidth={3.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      );
+    case "fang":
+      return (
+        <g>
+          <path d={`M${mx - w / 2} ${my} q${w / 2} ${w * 0.5} ${w} 0`} fill="none" stroke={OUTLINE} strokeWidth={4} strokeLinecap="round" />
+          <path
+            d={`M${mx - w * 0.18} ${my + w * 0.1} l${w * 0.13} 0 l${-w * 0.065} ${w * 0.3} z`}
+            fill="#fff"
+            stroke={OUTLINE}
+            strokeWidth={1.8}
+            strokeLinejoin="round"
+          />
+        </g>
+      );
+    case "smirk":
+      return (
+        <path
+          d={`M${mx - w * 0.5} ${my + w * 0.16} Q${mx} ${my + w * 0.02} ${mx + w * 0.52} ${my - w * 0.22}`}
+          fill="none"
+          stroke={OUTLINE}
+          strokeWidth={4}
+          strokeLinecap="round"
+        />
+      );
+    case "open":
+      return (
+        <g>
+          <path d={`M${mx - w * 0.4} ${my} q${w * 0.4} ${w * 0.78} ${w * 0.8} 0 z`} fill={OUTLINE} />
+          <path d={`M${mx - w * 0.2} ${my + w * 0.28} q${w * 0.2} ${w * 0.26} ${w * 0.4} 0 z`} fill="#F5917B" />
+        </g>
+      );
+    case "pout":
+      return (
+        <path
+          d={`M${mx - w * 0.22} ${my} Q${mx} ${my - w * 0.32} ${mx + w * 0.22} ${my} Q${mx} ${my + w * 0.38} ${mx - w * 0.22} ${my} Z`}
+          fill="#F5917B"
+          stroke={OUTLINE}
+          strokeWidth={2.6}
+          strokeLinejoin="round"
+        />
+      );
+    case "flat":
+      return <path d={`M${mx - w * 0.38} ${my} h${w * 0.76}`} fill="none" stroke={OUTLINE} strokeWidth={3.6} strokeLinecap="round" />;
+    case "smile":
+    default:
+      return <path d={`M${mx - w / 2} ${my} q${w / 2} ${w * 0.45} ${w} 0`} fill="none" stroke={OUTLINE} strokeWidth={4} strokeLinecap="round" />;
+  }
+}
+
 export function ExpFace({
   cx1,
   cx2,
@@ -170,6 +232,8 @@ export function ExpFace({
   mouthW = 14,
   expression = "normal",
   base = "round",
+  iris,
+  mouthStyle = "smile",
   withMouth = true,
 }: {
   cx1: number;
@@ -181,18 +245,22 @@ export function ExpFace({
   mouthW?: number;
   expression?: Expression;
   base?: EyeVariant;
+  iris?: string;
+  mouthStyle?: MouthStyle;
   withMouth?: boolean;
 }) {
   const mx = mouthX ?? (cx1 + cx2) / 2;
   return (
     <g className="part-facebits">
       {expression === "normal" ? (
-        <Eyes cx1={cx1} cx2={cx2} cy={cy} r={r} variant={base} />
+        <Eyes cx1={cx1} cx2={cx2} cy={cy} r={r} variant={base} iris={iris} />
       ) : (
         <g className={`face-eyes face-eyes-${expression}`}>{eyePair(cx1, cx2, cy, r, expression)}</g>
       )}
       {withMouth && (
-        <g className={`face-mouth face-mouth-${expression}`}>{mouthShape(mx, mouthY, mouthW, expression)}</g>
+        <g className={`face-mouth face-mouth-${expression}`}>
+          {expression === "normal" ? normalMouth(mx, mouthY, mouthW, mouthStyle) : mouthShape(mx, mouthY, mouthW, expression)}
+        </g>
       )}
     </g>
   );
@@ -207,6 +275,8 @@ export function ExpSideFace({
   mouthW = 11,
   expression = "normal",
   base = "round",
+  iris,
+  mouthStyle = "smile",
   withMouth = true,
 }: {
   cx: number;
@@ -217,13 +287,15 @@ export function ExpSideFace({
   mouthW?: number;
   expression?: Expression;
   base?: EyeVariant;
+  iris?: string;
+  mouthStyle?: MouthStyle;
   withMouth?: boolean;
 }) {
   const mx = mouthX ?? cx - r * 0.4;
   const my = mouthY ?? cy + r * 2.2;
   // 侧面复用 eyePair 的单眼版本：把双眼坐标设为同一点取其一
   const single = (() => {
-    if (expression === "normal") return <SideEye cx={cx} cy={cy} r={r} variant={base} />;
+    if (expression === "normal") return <SideEye cx={cx} cy={cy} r={r} variant={base} iris={iris} />;
     const pair = eyePair(cx, cx, cy, r, expression);
     return <g className={`face-eyes face-eyes-${expression}`}>{pair}</g>;
   })();
@@ -231,7 +303,9 @@ export function ExpSideFace({
     <g className="part-facebits">
       {single}
       {withMouth && (
-        <g className={`face-mouth face-mouth-${expression}`}>{mouthShape(mx, my, mouthW, expression)}</g>
+        <g className={`face-mouth face-mouth-${expression}`}>
+          {expression === "normal" ? normalMouth(mx, my, mouthW, mouthStyle) : mouthShape(mx, my, mouthW, expression)}
+        </g>
       )}
     </g>
   );

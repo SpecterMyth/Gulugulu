@@ -1,0 +1,133 @@
+.onboarding-goal {
+  position: fixed;
+  z-index: 10060;
+  left: 10px;
+  top: 10px;
+  width: min(520px, calc(100vw - 28px));
+  box-sizing: border-box;
+  color: #3b291f;
+  font-weight: 700;
+}
+
+.onboarding-sticker {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px 16px 15px;
+  background: #f1f0eb;
+  color: #3a3430;
+  box-shadow: 5px 6px 0 #c9c6bd;
+  transform: rotate(-0.7deg);
+  transform-origin: 50% 12%;
+}
+
+.onboarding-sticker::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: -8px;
+  width: 76px;
+  height: 16px;
+  background: rgba(255, 253, 244, 0.72);
+  box-shadow: none;
+  transform: translateX(-50%) rotate(1.8deg);
+  pointer-events: none;
+}
+
+.onboarding-goal[data-placement*="right"] .onboarding-sticker {
+  transform: rotate(0.9deg);
+}
+
+.onboarding-goal[data-placement*="left"] .onboarding-sticker {
+  transform: rotate(-1deg);
+}
+
+.onboarding-goal[data-placement^="top"] .onboarding-sticker {
+  transform: rotate(-0.55deg);
+}
+
+.onboarding-goal[data-placement$="top"] .onboarding-sticker {
+  transform: rotate(-0.55deg);
+}
+
+.onboarding-goal:not([data-placement-ready="true"]) {
+  visibility: hidden;
+}
+
+.onboarding-goal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #9a4d24;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.onboarding-goal header > span,
+.onboarding-goal header > small {
+  display: inline-flex;
+  padding: 3px 8px;
+  background: #ffb0c8;
+  box-shadow: 2px 3px 0 rgba(138, 40, 72, 0.14);
+  transform: rotate(-1.5deg);
+}
+
+.onboarding-goal header > small {
+  background: #b8d8fa;
+  color: #1e4a88;
+  transform: rotate(1.4deg);
+}
+
+.onboarding-goal p {
+  margin: 10px 3px 12px;
+  line-height: 1.45;
+}
+
+.onboarding-goal button {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 0;
+  background: #ff5a78;
+  color: #fffdf4;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b93654;
+  transform: rotate(0.3deg);
+}
+
+.onboarding-goal button:active {
+  transform: rotate(0.3deg) translateY(2px);
+  box-shadow: 0 2px 0 #b93654;
+}
+
+.onboarding-target-note {
+  margin: 0 12px;
+  padding: 5px 8px;
+  background: #e5e3dc;
+  text-align: center;
+  color: #76523d;
+  font-size: 12px;
+  transform: rotate(-0.35deg);
+}
+
+@media (max-width: 360px) {
+  .onboarding-sticker {
+    padding: 11px 13px 12px;
+  }
+
+  .onboarding-goal p {
+    margin-block: 8px 9px;
+    margin-inline: 1px;
+  }
+
+  .onboarding-goal header > span,
+  .onboarding-goal header > small {
+    padding: 2px 7px;
+  }
+
+  .onboarding-target-note {
+    padding-block: 4px;
+  }
+}

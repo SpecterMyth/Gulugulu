@@ -70,6 +70,94 @@ pub(crate) fn default_shop_level() -> u8 {
     1
 }
 
+/// 训练槽初始等级（1 槽）。旧存档 serde default 亦用此值。
+pub(crate) fn default_training_slot_level() -> u8 {
+    1
+}
+
+fn default_onboarding_version() -> u8 {
+    6
+}
+
+fn default_onboarding_status() -> String {
+    "active".to_string()
+}
+
+fn default_onboarding_step() -> String {
+    "A01".to_string()
+}
+
+fn default_factory_tutorial_version() -> u8 {
+    2
+}
+
+/// Save-backed onboarding cursor. UI presentation is derived from this state plus real save
+/// receipts; rewards and irreversible milestones are committed by the backend.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnboardingState {
+    #[serde(default = "default_onboarding_version")]
+    pub version: u8,
+    #[serde(default = "default_onboarding_status")]
+    pub status: String,
+    #[serde(default = "default_onboarding_step")]
+    pub step: String,
+    #[serde(default)]
+    pub tutorial_work_clicks: u8,
+    #[serde(default)]
+    pub tutorial_fusions: u8,
+    #[serde(default)]
+    pub starter_trio_claimed: bool,
+    #[serde(default)]
+    pub post_practice_roster_claimed: bool,
+    #[serde(default)]
+    pub factory_formal_entered: bool,
+    #[serde(default)]
+    pub agent_prompt_skipped: bool,
+    #[serde(default)]
+    pub steam_market_open_attempted: bool,
+}
+
+impl Default for OnboardingState {
+    fn default() -> Self {
+        Self {
+            version: default_onboarding_version(),
+            status: default_onboarding_status(),
+            step: default_onboarding_step(),
+            tutorial_work_clicks: 0,
+            tutorial_fusions: 0,
+            starter_trio_claimed: false,
+            post_practice_roster_claimed: false,
+            factory_formal_entered: false,
+            agent_prompt_skipped: false,
+            steam_market_open_attempted: false,
+        }
+    }
+}
+
+/// Independent compact Office Stack-Up practice cursor. It can be replayed after completion
+/// without rewinding the global onboarding route.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryTutorialState {
+    #[serde(default = "default_factory_tutorial_version")]
+    pub version: u8,
+    #[serde(default = "default_onboarding_status")]
+    pub status: String,
+    #[serde(default)]
+    pub step: String,
+}
+
+impl Default for FactoryTutorialState {
+    fn default() -> Self {
+        Self {
+            version: default_factory_tutorial_version(),
+            status: default_onboarding_status(),
+            step: "C01".to_string(),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Steam 同步状态（mirrored in src/types.ts — keep both sides in sync）
 // 设计规则见 plans/steam_trade/00-decisions.md：outbox 双职责 =
@@ -115,6 +203,10 @@ pub enum SteamOp {
         /// 本地效果(消耗双亲 + 建蛋)是否已应用(本地先行恒 true;旧写前意图缺省 false)。
         #[serde(default)]
         applied: bool,
+        /// Steam 已经不再持有两件材料，但结果物品尚未出现在库存快照中。
+        /// 此时只能继续对账等待结果，绝不能再次调用 ExchangeItems，也不能删除本 op。
+        #[serde(default)]
+        awaiting_result: bool,
         /// 材料 A 待铸的一阶宠 def(`item_a` 为空时泵 `TriggerItemDrop(shop_gen_def(1,mat_def_a))` 先铸;
         /// 已同步 Steam 材料 = 0)。
         #[serde(default)]
@@ -447,6 +539,18 @@ pub struct CustomVisualSpec {
     pub palette: CustomPalette,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eyes: Option<String>,
+    /// 眼睛虹膜色（palette token 或 #rrggbb）；缺省纯黑瞳。加法字段，向后兼容。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iris: Option<String>,
+    /// 待机嘴型（smile/cat/fang/smirk/open/pout/flat）；缺省 smile。加法字段。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mouth_style: Option<String>,
+    /// AI 宠物移动节奏预设；缺省时保持旧动画参数。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motion_preset: Option<String>,
+    /// AI 宠物互动表情性格；仅影响移动、点击、庆祝，语义状态保持统一。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reaction_profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_id: Option<String>,
     #[serde(default)]
@@ -464,6 +568,19 @@ pub struct CustomVisualSpec {
     pub work_fx: Option<CustomWorkFx>,
 }
 
+/// V2 生成设计元数据。全部为加法信息，不参与旧存档的运行时兼容。
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedDesignMeta {
+    pub prompt_version: String,
+    pub prototype: String,
+    pub archetype: String,
+    pub hero_feature: String,
+    pub personality: String,
+    pub palette_family: String,
+    pub quality_score: f64,
+}
+
 /// 存档里的一条自定义物种记录。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -479,6 +596,9 @@ pub struct CustomSpeciesEntry {
     /// 该结构同时是工坊内容文件格式：下载所得的 origin 不可信，入档前必须覆写。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
+    /// V2 概念与审美质量记录；旧条目缺省即为 V1/未知来源。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub design_meta: Option<GeneratedDesignMeta>,
 }
 
 /// 每物种可收藏的工坊皮肤上限（存档体积防线：每张皮肤是几 KB 的 CustomVisualSpec）。
@@ -544,6 +664,10 @@ pub struct DailyCounters {
     /// 今日是否有过本地时 0–4 点的打工/喂食（吐槽「熬夜」判定的当日信号）。
     #[serde(default)]
     pub night_owl: bool,
+    /// 今日已领取奖励的工厂最高关（EconomyRework-TrainingHall.md §5.2：每个自然日
+    /// 每关只领一次 → 当日重复冲榜不重复发料，只补发新突破的关卡）。
+    #[serde(default)]
+    pub factory_claimed_level: u16,
 }
 
 /// 某一本地日结束时归档的「当日战报」（WelcomeBack 昨日总结数据源）。翻日时由
@@ -618,6 +742,86 @@ pub struct LifetimeStats {
     /// 曾在**本机本地时** 0–4 点打工/喂食（chrono::Local，非 UTC）。
     #[serde(default)]
     pub night_owl: bool,
+    /// 训练馆升阶成功总次数（logic_collect_training）。
+    #[serde(default)]
+    pub total_tier_ups: u64,
+    /// 工厂历史最高通关关卡（logic_claim_factory_levels 取 max）。
+    #[serde(default)]
+    pub factory_best_level: u16,
+    // —— 《危楼打工记》Roguelike 终身统计 ——
+    // 这些字段与训练馆的 factory_best_level 完全独立。运行时写入由工厂结算命令负责；
+    // 成就层只读取这些单调计数、高水位和一次性旗标。
+    /// 累计开始的 Roguelike 工厂局数。
+    #[serde(default)]
+    pub factory_rogue_runs_started: u32,
+    /// 累计正常结束或破产结算的 Roguelike 工厂局数。
+    #[serde(default)]
+    pub factory_rogue_runs_finished: u32,
+    /// 已发放工厂营收金币的局数与该局累计营收；支持毕业后继续无限时只补发增量。
+    #[serde(default)]
+    pub factory_rogue_rewarded_run: u32,
+    #[serde(default)]
+    pub factory_rogue_rewarded_revenue: u64,
+    /// 单局历史最高总营收。
+    #[serde(default)]
+    pub factory_rogue_best_revenue: u64,
+    /// 历史最高已通过班次（含无限模式；不是“当前正在打”的班次）。
+    #[serde(default)]
+    pub factory_rogue_best_shift: u16,
+    /// 单次有效脉冲历史最高收入。
+    #[serde(default)]
+    pub factory_rogue_best_pulse: u64,
+    /// 单局历史最高连击。
+    #[serde(default)]
+    pub factory_rogue_best_combo: u32,
+    /// 单次脉冲历史最多同时接通办公桌数。
+    #[serde(default)]
+    pub factory_rogue_best_desks: u8,
+    /// 单局升级卡总等级历史高水位。
+    #[serde(default)]
+    pub factory_rogue_max_upgrade_levels: u16,
+    /// 开局阵容物种数历史高水位。
+    #[serde(default)]
+    pub factory_rogue_max_loadout: u8,
+    /// 曾首次完成一个班次并达到 KPI。
+    #[serde(default)]
+    pub factory_rogue_first_kpi: bool,
+    /// 曾在班末商店购买升级卡。
+    #[serde(default)]
+    pub factory_rogue_first_card: bool,
+    /// 曾破产结算。
+    #[serde(default)]
+    pub factory_rogue_first_bankruptcy: bool,
+    /// 曾在同一班发生至少三次罢工后仍通过该班。
+    #[serde(default)]
+    pub factory_rogue_strike_clear: bool,
+    /// 单局通过检查节点的历史见证：bit 0/1/2/3 = 第 5/10/15/20 班。
+    /// 严禁把不同局的部分 mask 做 OR；只有同一局达到 0b1111 才可持久化 0b1111。
+    #[serde(default)]
+    pub factory_rogue_inspection_mask: u8,
+    /// 曾通过第 20 班并完成毕业。
+    #[serde(default)]
+    pub factory_rogue_graduated: bool,
+    /// 曾在整局未使用贷款的前提下完成第 20 班。
+    #[serde(default)]
+    pub factory_rogue_graduated_without_loan: bool,
+}
+
+/// 一次进行中的训练（训练馆槽位占用）。到点后由 `logic_collect_training` 收取，
+/// 把宠物的 `tier` +1（**等级不清零**——训练是「还是这一只」，与融合产新个体相对）。
+/// mirrored in src/types.ts — keep both sides in sync。
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrainingJob {
+    pub id: String,
+    /// 受训宠物 id。宠物若被放生/融合消耗，收取时按「宠物已不在」丢弃该 job。
+    pub pet_id: String,
+    /// 起始阶（结果阶 = from_tier + 1）。开练瞬间快照，避免中途配置变动错算。
+    pub from_tier: u8,
+    /// 占用的训练槽序号（0 起）。
+    pub slot: u32,
+    /// 训练完成的时刻（秒）。
+    pub done_at: i64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -629,6 +833,20 @@ pub struct GameSave {
     pub eggs: Vec<EggInstance>,
     pub hatchery_level: u8,
     pub yard_level: u8,
+    /// 训练馆等级（0 = 未建造；L 级解锁「L → L+1 阶」的升阶，封顶 5）。
+    /// EconomyRework-TrainingHall.md §3.3。
+    #[serde(default)]
+    pub training_hall_level: u8,
+    /// 训练槽等级（索引进 config.trainingSlots；serde default=1 = 旧档按 1 槽）。
+    #[serde(default = "default_training_slot_level")]
+    pub training_slot_level: u8,
+    /// 进行中的训练（长度 ≤ 当前槽数）。
+    #[serde(default)]
+    pub training_jobs: Vec<TrainingJob>,
+    /// 升阶材料库存（材料 id → 数量）。唯一产出源是工厂关卡奖励
+    /// （`logic_claim_factory_levels`），唯一消耗点是训练馆开练。
+    #[serde(default)]
+    pub materials: BTreeMap<String, u32>,
     /// 商店等级 = 可售最高蛋阶（1~shopMaxLevel）。EconomyScaling.md §6.1。
     /// serde default=1：旧存档缺失时按初始商店（只卖 1 阶蛋）。
     #[serde(default = "default_shop_level")]
@@ -650,12 +868,28 @@ pub struct GameSave {
     pub last_seen_project_experience: BTreeMap<String, u64>,
     pub daily: DailyCounters,
     pub tutorial_step: u8,
-    /// 教学硬编码：是否已购买过首颗商店蛋（首购蛋固定 30s，OnboardingCoach.md §3.1）。
+    /// 教学硬编码：是否已购买过首颗商店蛋（v6 商店教学蛋 5s，OnboardingGuidance.md §2.1）。
     #[serde(default)]
     pub tutorial_first_egg_bought: bool,
-    /// 教学硬编码：是否已完成首次融合（首融必产经典配方 + 1min 孵化，OnboardingCoach.md §3.1）。
+    /// 旧存档兼容标记；v6 前两次教学融合由 onboarding.tutorial_fusions 判定并固定 8s。
     #[serde(default)]
     pub tutorial_first_fusion_done: bool,
+    /// v6 forced onboarding. Replaces localStorage-only coach completion as the authority.
+    #[serde(default)]
+    pub onboarding: OnboardingState,
+    /// Compact Office Stack-Up practice progression, independent from the global route.
+    #[serde(default)]
+    pub factory_tutorial: FactoryTutorialState,
+    /// Tutorial reward pets excluded from backyard occupancy. Stale ids are harmless; live
+    /// membership is checked against `pets`.
+    #[serde(default)]
+    pub capacity_exempt_pet_ids: std::collections::BTreeSet<String>,
+    /// One-time 1→2 training tutorial acceleration.
+    #[serde(default)]
+    pub training_tutorial_boost_claimed: bool,
+    /// One-time keyboard rescue granted after the first five recovery keys.
+    #[serde(default)]
+    pub stamina_tutorial_rescue_claimed: bool,
     pub last_seen_at: i64,
     /// AI 融合诞生的自定义物种（codename → 完整设定），随存档持久化。
     #[serde(default)]

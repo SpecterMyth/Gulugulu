@@ -17,6 +17,6 @@ export type GamePop = {
   lane: number;
   x?: number;
   y?: number;
-  /** 点击手感分层：≥10 金的飘字放大一档（OnboardingFlow §二·5）。 */
+  /** 点击手感分层：≥10 金的飘字放大一档。 */
   big?: boolean;
 };

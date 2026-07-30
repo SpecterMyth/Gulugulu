@@ -126,7 +126,7 @@ export function BackyardMarketPanel({
           {connected && (
             <button
               type="button"
-              className="by-poi-cta"
+              className="by-poi-cta by-poi-cta--import"
               onClick={(event) => {
                 event.stopPropagation();
                 onImportPets();
@@ -139,7 +139,7 @@ export function BackyardMarketPanel({
           {connected && (
             <button
               type="button"
-              className="by-poi-cta"
+              className="by-poi-cta by-poi-cta--sync"
               onClick={(event) => {
                 event.stopPropagation();
                 onSteamSync();
@@ -151,7 +151,8 @@ export function BackyardMarketPanel({
 
           <button
             type="button"
-            className="by-poi-cta"
+            className="by-poi-cta by-poi-cta--market"
+            data-coach="steamMarketOpen"
             onClick={(event) => {
               event.stopPropagation();
               onOpenMarket();

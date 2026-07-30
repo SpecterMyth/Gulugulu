@@ -20,7 +20,12 @@ pub struct TokenFeedWeights {
 
 impl Default for TokenFeedWeights {
     fn default() -> Self {
-        Self { input: 5.0, cache_create: 0.2, cache_read: 0.01, output: 2.0 }
+        Self {
+            input: 5.0,
+            cache_create: 0.2,
+            cache_read: 0.01,
+            output: 2.0,
+        }
     }
 }
 
@@ -152,10 +157,11 @@ pub struct GameConfig {
     /// 分阶蛋价乘数：T 阶蛋价 = 1 阶基价 × 此值^(阶−1)（默认 15）。
     #[serde(default = "default_egg_tier_price_multiplier")]
     pub egg_tier_price_multiplier: u64,
-    /// 商店最高等级 = 可售最高蛋阶（默认 4；5~6 阶纯融合专属）。
+    /// 商店最高等级 = 可售最高蛋阶（默认 3；4~6 阶只能靠训练馆升阶得来，
+    /// EconomyRework-TrainingHall.md §4）。
     #[serde(default = "default_shop_max_level")]
     pub shop_max_level: u8,
-    /// 商店升级费（索引 = 当前 shop_level − 1；Lv1→2 / 2→3 / 3→4）。
+    /// 商店升级费（索引 = 当前 shop_level − 1；Lv1→2 / 2→3）。
     #[serde(default)]
     pub shop_upgrade_costs: Vec<u64>,
     /// 蛋池元素数稀有度衰减分母：整数权重 w(c)=denom^(6−c)（denom=3 → falloff 1/3，
@@ -172,6 +178,45 @@ pub struct GameConfig {
     /// 服务器安全性来自材料真实消耗净 −1 + 上游水龙头窗口封顶）。超出数组 = 无上限。
     #[serde(default = "default_fusion_daily_mint_caps")]
     pub fusion_daily_mint_caps: Vec<u32>,
+    // ---- 训练馆与升阶材料（EconomyRework-TrainingHall.md §2/§3）----
+    /// 融合能达到的最高结果阶（默认 3）。亲代阶 ≥ 此值时同阶仍可融合、照常取元素
+    /// 并集，**但结果阶保持不变**——5/6 元素物种由此在 3 阶诞生，图鉴仍可满。
+    /// 阶数的 3→6 段改由训练馆承包。
+    #[serde(default = "default_fusion_max_result_tier")]
+    pub fusion_max_result_tier: u8,
+    /// 各级升阶所需材料 id（索引 = 起始阶 − 1，共 5 项：1→2 … 5→6）。
+    #[serde(default = "default_training_materials")]
+    pub training_materials: Vec<String>,
+    /// 各级升阶所需材料数量（索引同 `training_materials`）。
+    #[serde(default = "default_training_material_counts")]
+    pub training_material_counts: Vec<u32>,
+    /// 各级升阶的金币费（索引同上；与 `fusion_fees` 前五项同值——原本由高阶融合
+    /// 吸走的指数金币，改由训练馆原样吸走，水槽斜率不变）。
+    #[serde(default = "default_training_costs")]
+    pub training_costs: Vec<u64>,
+    /// 各级升阶的训练耗时（秒，索引同上；与 `hatch_seconds` tier2..6 同值）。
+    #[serde(default = "default_training_seconds")]
+    pub training_seconds: Vec<u64>,
+    /// 训练馆建造/升级费（索引 = 当前馆等级；索引 0 = 未建造→Lv1 的建造费）。
+    /// 馆等级 L 解锁「L→L+1 阶」的升阶，故满级 = 5。
+    #[serde(default = "default_training_hall_upgrade_costs")]
+    pub training_hall_upgrade_costs: Vec<u64>,
+    /// 训练槽数量阶梯（索引 = training_slot_level − 1）。
+    #[serde(default = "default_training_slots")]
+    pub training_slots: Vec<u32>,
+    /// 训练槽扩容费（索引 = 当前 training_slot_level − 1）。
+    #[serde(default = "default_training_slot_upgrade_costs")]
+    pub training_slot_upgrade_costs: Vec<u64>,
+    /// 万能券材料 id：可 1:1 替代任意一种升阶材料（工厂 26–30 关产出）。
+    #[serde(default = "default_universal_material")]
+    pub universal_material: String,
+    /// 工厂关卡上限（材料领取的 clamp 上界）。
+    #[serde(default = "default_factory_max_level")]
+    pub factory_max_level: u16,
+    /// 工厂关卡奖励材料表：第 L 关产出 `factory_reward_materials[(L−1)/5]` × 1。
+    /// 6 项 = 5 种升阶材料 + 万能券（26–30 关）。
+    #[serde(default = "default_factory_reward_materials")]
+    pub factory_reward_materials: Vec<String>,
 }
 
 impl GameConfig {
@@ -202,12 +247,16 @@ impl GameConfig {
     /// 每回复 1 点精力所需秒数（按阶放大；1 阶 3s → 10 分钟回满一管 200）。
     pub fn stamina_regen_seconds_for(&self, tier: u8) -> i64 {
         let factor = i64::try_from(self.tier_factor(tier)).unwrap_or(i64::MAX);
-        self.stamina_regen_seconds_base.max(1).saturating_mul(factor)
+        self.stamina_regen_seconds_base
+            .max(1)
+            .saturating_mul(factor)
     }
 
     /// 每 1 点精力需要的按键数（按阶放大；只喂陪伴宠，1 阶 1 键/点）。
     pub fn keys_per_stamina_for(&self, tier: u8) -> u64 {
-        self.keys_per_stamina_base.max(1).saturating_mul(self.tier_factor(tier))
+        self.keys_per_stamina_base
+            .max(1)
+            .saturating_mul(self.tier_factor(tier))
     }
 
     /// Exp for one work click: clickExpBase × 阶系数。
@@ -237,7 +286,9 @@ impl GameConfig {
     pub fn base_species_for_element(&self, element: &str) -> Option<String> {
         self.species
             .iter()
-            .find(|(_, info)| info.tier == 1 && info.elements.first().map(String::as_str) == Some(element))
+            .find(|(_, info)| {
+                info.tier == 1 && info.elements.first().map(String::as_str) == Some(element)
+            })
             .map(|(codename, _)| codename.clone())
     }
 
@@ -246,7 +297,9 @@ impl GameConfig {
     /// 与 TS 侧 config.ts::fusionResult 对称（配置一致性测试在用）。
     #[allow(dead_code)]
     pub fn fusion_result(&self, element_a: &str, element_b: &str) -> Option<String> {
-        self.fusion_table.get(&fusion_recipe_key(element_a, element_b)).cloned()
+        self.fusion_table
+            .get(&fusion_recipe_key(element_a, element_b))
+            .cloned()
     }
 
     /// 配方（元素集合）→ 0 号固定物种 codename（`speciesByRecipe`，63 键全覆盖）。
@@ -263,6 +316,18 @@ impl GameConfig {
             .copied()
             .or_else(|| self.fusion_fees.last().copied())
             .unwrap_or(self.fusion_fee)
+    }
+
+    /// 融合结果阶 = min(亲代阶 + 1, fusionMaxResultTier)。亲代阶已达上限时结果
+    /// **保持原阶**（同阶物种合成，只换物种不换段位）。上限的 0/1 异常值按 3 兜底，
+    /// 避免配置写错时把融合彻底锁死。
+    pub fn fusion_result_tier(&self, parent_tier: u8) -> u8 {
+        let cap = if self.fusion_max_result_tier < 2 {
+            default_fusion_max_result_tier()
+        } else {
+            self.fusion_max_result_tier
+        };
+        parent_tier.saturating_add(1).min(cap.max(parent_tier))
     }
 
     /// 触发 AI 变种的总概率（百分数整数），按配方元素数查表（config 权威，
@@ -313,6 +378,72 @@ impl GameConfig {
                 .max(1)
                 .saturating_pow(u32::from(tier.max(1) - 1)),
         )
+    }
+
+    /// 训练馆最高等级 = 可做的最高一级升阶（= 升阶阶梯项数，默认 5 → 封顶 5→6 阶）。
+    pub fn training_hall_max_level(&self) -> u8 {
+        self.training_material_counts.len().min(u8::MAX as usize) as u8
+    }
+
+    /// 「起始阶 T → T+1」这一级升阶的完整代价：(材料 id, 数量, 金币, 秒数)。
+    /// T 已达最高阶（无对应阶梯项）→ None。
+    pub fn training_step_for(&self, from_tier: u8) -> Option<(String, u32, u64, u64)> {
+        let idx = (from_tier as usize).checked_sub(1)?;
+        let material = self.training_materials.get(idx)?.clone();
+        let count = self.training_material_counts.get(idx).copied()?;
+        // 金币/耗时缺项时回退末项，保证材料表才是「能不能练」的唯一权威。
+        let coins = self
+            .training_costs
+            .get(idx)
+            .copied()
+            .or_else(|| self.training_costs.last().copied())
+            .unwrap_or(0);
+        let seconds = self
+            .training_seconds
+            .get(idx)
+            .copied()
+            .or_else(|| self.training_seconds.last().copied())
+            .unwrap_or(1800);
+        Some((material, count, coins, seconds))
+    }
+
+    /// 从 hall_level 升到 hall_level+1 的费用（索引 = hall_level，0 = 建造费）。
+    /// 已满级返回 None。
+    pub fn training_hall_upgrade_cost(&self, hall_level: u8) -> Option<u64> {
+        if hall_level >= self.training_hall_max_level() {
+            return None;
+        }
+        self.training_hall_upgrade_costs
+            .get(hall_level as usize)
+            .copied()
+    }
+
+    /// 当前训练槽数（索引 = slot_level − 1；越界回退末项，再回退 1）。
+    pub fn training_slot_count(&self, slot_level: u8) -> u32 {
+        self.training_slots
+            .get((slot_level.max(1) as usize).saturating_sub(1))
+            .copied()
+            .or_else(|| self.training_slots.last().copied())
+            .unwrap_or(1)
+    }
+
+    /// 从 slot_level 扩到 slot_level+1 的费用（已满返回 None）。
+    pub fn training_slot_upgrade_cost(&self, slot_level: u8) -> Option<u64> {
+        if slot_level as usize >= self.training_slots.len() {
+            return None;
+        }
+        self.training_slot_upgrade_costs
+            .get((slot_level.max(1) as usize).saturating_sub(1))
+            .copied()
+    }
+
+    /// 工厂第 `level` 关的奖励材料 id（每 5 关换一档；越界 → None）。
+    pub fn factory_reward_material(&self, level: u16) -> Option<&String> {
+        if level == 0 || level > self.factory_max_level {
+            return None;
+        }
+        self.factory_reward_materials
+            .get(((level - 1) / 5) as usize)
     }
 
     /// 商店最高等级（= 可售最高蛋阶，封顶）。
@@ -382,7 +513,70 @@ fn default_egg_tier_price_multiplier() -> u64 {
 }
 
 fn default_shop_max_level() -> u8 {
-    4
+    3
+}
+
+fn default_fusion_max_result_tier() -> u8 {
+    3
+}
+
+fn default_training_materials() -> Vec<String> {
+    [
+        "ironBadge",
+        "copperGoggles",
+        "silverHelmet",
+        "goldWrench",
+        "platinumVest",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
+fn default_training_material_counts() -> Vec<u32> {
+    vec![5, 8, 12, 18, 28]
+}
+
+fn default_training_costs() -> Vec<u64> {
+    vec![1500, 30_000, 600_000, 12_000_000, 120_000_000]
+}
+
+fn default_training_seconds() -> Vec<u64> {
+    vec![1800, 3600, 7200, 14_400, 28_800]
+}
+
+fn default_training_hall_upgrade_costs() -> Vec<u64> {
+    vec![800, 8000, 80_000, 2_000_000, 40_000_000]
+}
+
+fn default_training_slots() -> Vec<u32> {
+    vec![1, 2, 3, 4]
+}
+
+fn default_training_slot_upgrade_costs() -> Vec<u64> {
+    vec![50_000, 5_000_000, 50_000_000]
+}
+
+fn default_universal_material() -> String {
+    "goldenBadge".to_string()
+}
+
+fn default_factory_max_level() -> u16 {
+    30
+}
+
+fn default_factory_reward_materials() -> Vec<String> {
+    [
+        "ironBadge",
+        "copperGoggles",
+        "silverHelmet",
+        "goldWrench",
+        "platinumVest",
+        "goldenBadge",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
 }
 
 fn default_egg_rarity_falloff_denom() -> u64 {
@@ -443,7 +637,11 @@ pub fn is_test_mode() -> bool {
 }
 
 pub fn load_game_config() -> GameConfig {
-    let raw = if is_test_mode() { TEST_CONFIG_JSON } else { NORMAL_CONFIG_JSON };
+    let raw = if is_test_mode() {
+        TEST_CONFIG_JSON
+    } else {
+        NORMAL_CONFIG_JSON
+    };
     serde_json::from_str(raw).expect("game config JSON is invalid")
 }
 
@@ -463,8 +661,14 @@ mod tests {
             assert!(config.daily_click_cap > 0);
             assert!(config.tier_growth_factor >= 1);
             assert!(config.key_rate_cap_per_sec >= 1);
-            assert!(!config.tokens_per_exp.is_empty() && config.tokens_per_exp.iter().all(|&r| r >= 1));
-            assert_eq!(config.fusion_table.len(), 21, "legacy fusion table still 21 combos");
+            assert!(
+                !config.tokens_per_exp.is_empty() && config.tokens_per_exp.iter().all(|&r| r >= 1)
+            );
+            assert_eq!(
+                config.fusion_table.len(),
+                21,
+                "legacy fusion table still 21 combos"
+            );
             assert_eq!(
                 config.species.values().filter(|s| s.tier == 1).count(),
                 6,
@@ -477,7 +681,11 @@ mod tests {
             );
 
             // 融合 2.0：speciesByRecipe 63 键全覆盖，每值是已注册物种。
-            assert_eq!(config.species_by_recipe.len(), 63, "speciesByRecipe must cover 63 recipes");
+            assert_eq!(
+                config.species_by_recipe.len(),
+                63,
+                "speciesByRecipe must cover 63 recipes"
+            );
             for (recipe, codename) in &config.species_by_recipe {
                 assert!(
                     config.species.contains_key(codename),
@@ -497,11 +705,17 @@ mod tests {
                 let n = recipe.split('+').count();
                 hist[n] += 1;
             }
-            assert_eq!(&hist[1..=6], &[6, 15, 20, 15, 6, 1], "recipe element-count histogram");
+            assert_eq!(
+                &hist[1..=6],
+                &[6, 15, 20, 15, 6, 1],
+                "recipe element-count histogram"
+            );
             // fusionFees 6 项，aiTotalChance 覆盖 2..6 元素。
             assert_eq!(config.fusion_fees.len(), 6, "fusionFees 六阶");
             for n in 2..=6usize {
-                assert!(config.ai_total_chance_by_element_count.contains_key(&n.to_string()));
+                assert!(config
+                    .ai_total_chance_by_element_count
+                    .contains_key(&n.to_string()));
             }
             assert_eq!(config.max_level.len(), 6, "maxLevel 扩到 6 阶");
             assert_eq!(config.level_exp_factor.len(), 6, "levelExpFactor 扩到 6 阶");
@@ -511,7 +725,10 @@ mod tests {
             // Every fusion result exists in the species table, and every element
             // pair (with repetition) resolves to a result.
             for result in config.fusion_table.values() {
-                assert!(config.species.contains_key(result), "unknown fusion result {result}");
+                assert!(
+                    config.species.contains_key(result),
+                    "unknown fusion result {result}"
+                );
             }
             let elements: Vec<&String> = config.elements.keys().collect();
             for (i, a) in elements.iter().enumerate() {
@@ -581,13 +798,19 @@ mod tests {
             let mut seen = std::collections::BTreeSet::new();
             for (codename, info) in &config.species {
                 assert_ne!(info.steam_item_def, 0, "{codename} 应已映射 Steam itemdef");
-                assert!(seen.insert(info.steam_item_def), "duplicate def {}", info.steam_item_def);
+                assert!(
+                    seen.insert(info.steam_item_def),
+                    "duplicate def {}",
+                    info.steam_item_def
+                );
                 assert_eq!(
                     config.steam_def_for_species(codename),
                     Some(info.steam_item_def)
                 );
                 assert_eq!(
-                    config.species_for_steam_def(info.steam_item_def).map(|(c, _)| c.as_str()),
+                    config
+                        .species_for_steam_def(info.steam_item_def)
+                        .map(|(c, _)| c.as_str()),
                     Some(codename.as_str())
                 );
             }
@@ -622,7 +845,10 @@ mod tests {
         assert_eq!(config.stamina_regen_seconds_for(2), 15);
         assert_eq!(config.keys_per_stamina_for(1), 1);
         assert_eq!(config.keys_per_stamina_for(2), 5);
-        assert_eq!(config.stamina_regen_seconds_for(1) * config.stamina_max, 600);
+        assert_eq!(
+            config.stamina_regen_seconds_for(1) * config.stamina_max,
+            600
+        );
         // Token → 经验：按阶递减率（2026-07-21 调整）。levelExpFactor ×10/阶 会让扁平率下
         // 「吃 Token 满级」单位从 T1→T6 天然膨胀 ~11 万×，递减率把它压回约 1000×。
         assert_eq!(config.tokens_per_exp, vec![555, 210, 80, 35, 15, 5]);
@@ -632,14 +858,21 @@ mod tests {
         // 各阶满级所需加权 Token 单位 = 满级总经验 × 该阶率；验 T6/T1 倍率 ≈1000× 且单调递增。
         let units_to_max = |tier: u8| -> u64 {
             let level = u64::from(config.max_level_for_tier(tier));
-            let total_exp = config.level_exp_factor[usize::from(tier) - 1] * (level - 1) * level / 2;
+            let total_exp =
+                config.level_exp_factor[usize::from(tier) - 1] * (level - 1) * level / 2;
             total_exp * config.tokens_per_exp_for(tier)
         };
         let ladder: Vec<u64> = (1..=6).map(units_to_max).collect();
         // T6 ≈1 亿单位（中度 1000 万加权/天 ≈ 10 天满级；重度 1 亿/天 ≈ 1 天）。
-        assert_eq!(ladder, vec![99_900, 399_000, 1_566_000, 6_825_000, 29_400_000, 99_562_500]);
+        assert_eq!(
+            ladder,
+            vec![99_900, 399_000, 1_566_000, 6_825_000, 29_400_000, 99_562_500]
+        );
         let ratio = ladder[5] as f64 / ladder[0] as f64;
-        assert!((900.0..=1100.0).contains(&ratio), "T6/T1 满级单位倍率 {ratio:.0}× 应≈1000×");
+        assert!(
+            (900.0..=1100.0).contains(&ratio),
+            "T6/T1 满级单位倍率 {ratio:.0}× 应≈1000×"
+        );
         for w in ladder.windows(2) {
             assert!(w[1] > w[0], "满级单位应随阶单调递增：{ladder:?}");
         }
@@ -655,7 +888,8 @@ mod tests {
         // 点满一只 T 阶宠所需点击 = ⌈factor × (L−1)L/2 ÷ (clickExpBase × 5^(T−1))⌉。
         let clicks_to_max = |tier: u8| -> u64 {
             let level = u64::from(config.max_level_for_tier(tier));
-            let total_exp = config.level_exp_factor[usize::from(tier) - 1] * (level - 1) * level / 2;
+            let total_exp =
+                config.level_exp_factor[usize::from(tier) - 1] * (level - 1) * level / 2;
             total_exp.div_ceil(config.click_exp_for(tier))
         };
         let ladder: Vec<u64> = (1..=6).map(clicks_to_max).collect();
@@ -663,14 +897,26 @@ mod tests {
         // 每一阶都必须落在「上一阶 ×2」的 ±10% 内——断层是本次重调要根治的问题。
         for pair in ladder.windows(2) {
             let ratio = pair[1] as f64 / pair[0] as f64;
-            assert!((1.8..=2.2).contains(&ratio), "阶梯断层：{pair:?} 比值 {ratio:.2}×");
+            assert!(
+                (1.8..=2.2).contains(&ratio),
+                "阶梯断层：{pair:?} 比值 {ratio:.2}×"
+            );
         }
         // 逐击验证与 gain_exp 的实际行为一致（div_ceil 只是闭式，真源是循环）。
         for tier in 1..=6u8 {
             let mut pet = crate::game::PetInstance {
-                id: "t".into(), species: "guluduck".into(), tier, level: 1, exp: 0,
-                stamina: 0, stamina_updated_at: 0, exhausted: false,
-                key_buffer: 0, token_buffer: 0, steam_item_id: None, steam_item_def: None,
+                id: "t".into(),
+                species: "guluduck".into(),
+                tier,
+                level: 1,
+                exp: 0,
+                stamina: 0,
+                stamina_updated_at: 0,
+                exhausted: false,
+                key_buffer: 0,
+                token_buffer: 0,
+                steam_item_id: None,
+                steam_item_def: None,
             };
             let mut clicks = 0u64;
             while pet.level < config.max_level_for_tier(tier) {
@@ -686,18 +932,26 @@ mod tests {
         let config: GameConfig = serde_json::from_str(NORMAL_CONFIG_JSON).unwrap();
         // 配方 → 0 号固定物种（并集/单物种/乱序都能查）。
         assert_eq!(
-            config.species_codename_for_set(&["water".into(), "fire".into()]).map(String::as_str),
+            config
+                .species_codename_for_set(&["water".into(), "fire".into()])
+                .map(String::as_str),
             Some("steamalotl")
         );
         assert_eq!(
-            config.species_codename_for_set(&["fire".into()]).map(String::as_str),
+            config
+                .species_codename_for_set(&["fire".into()])
+                .map(String::as_str),
             Some("emberfox")
         );
         assert_eq!(
             config
                 .species_codename_for_set(&[
-                    "water".into(), "normal".into(), "ice".into(), "grass".into(),
-                    "fire".into(), "electric".into(),
+                    "water".into(),
+                    "normal".into(),
+                    "ice".into(),
+                    "grass".into(),
+                    "fire".into(),
+                    "electric".into(),
                 ])
                 .map(String::as_str),
             Some("prismkirin")
@@ -707,12 +961,12 @@ mod tests {
         assert_eq!(config.fusion_fee_for(1), 1000);
         assert_eq!(config.fusion_fee_for(5), 120_000_000);
         assert_eq!(config.fusion_fee_for(6), 2_400_000_000); // 越界钳到末项（守卫值，永不计费）
-        // AI 总概率按元素数（FusionRecipeSlots §3.2）。
+                                                             // AI 总概率按元素数（FusionRecipeSlots §3.2）。
         assert_eq!(config.ai_total_chance_percent_for_count(2), 60);
         assert_eq!(config.ai_total_chance_percent_for_count(3), 40);
         assert_eq!(config.ai_total_chance_percent_for_count(6), 5);
         assert_eq!(config.ai_total_chance_percent_for_count(1), 0); // 单元素无 AI
-        // 新物种无自带 tier、华丽度看元素数。
+                                                                    // 新物种无自带 tier、华丽度看元素数。
         assert_eq!(config.species["steamalotl"].tier, 0);
         assert_eq!(config.species["steamalotl"].element_count(), 2);
         assert_eq!(config.species["prismkirin"].element_count(), 6);
@@ -731,7 +985,10 @@ mod tests {
             for (i, cap) in config.yard_capacity.iter().enumerate() {
                 assert_eq!(*cap as usize, 3 + i, "后院容量每级 +1");
             }
-            assert_eq!(config.yard_upgrade_costs.len(), config.yard_capacity.len() - 1);
+            assert_eq!(
+                config.yard_upgrade_costs.len(),
+                config.yard_capacity.len() - 1
+            );
             // 单调递增（指数水槽）。
             for w in config.hatchery_upgrade_costs.windows(2) {
                 assert!(w[1] > w[0], "孵化屋升级费单调递增");
@@ -743,10 +1000,59 @@ mod tests {
                 assert!(w[1] > w[0], "融合费单调递增");
             }
             // 商店分阶：升级费 + 封顶。
-            assert_eq!(config.shop_max_level(), 4);
-            assert_eq!(config.shop_upgrade_costs.len(), 3);
-            assert!(config.shop_upgrade_cost(4).is_none(), "已满级无升级费");
-            assert_eq!(config.shop_upgrade_cost(1), Some(config.shop_upgrade_costs[0]));
+            assert_eq!(config.shop_max_level(), 3, "经济 v2.0：商店封顶 3 阶蛋");
+            assert_eq!(config.shop_upgrade_costs.len(), 2);
+            assert!(config.shop_upgrade_cost(3).is_none(), "已满级无升级费");
+            assert_eq!(
+                config.shop_upgrade_cost(1),
+                Some(config.shop_upgrade_costs[0])
+            );
+            // 训练馆（EconomyRework-TrainingHall.md §3）：五级升阶阶梯必须自洽。
+            assert_eq!(config.fusion_result_tier(3), 3, "融合封顶 3 阶");
+            assert_eq!(config.training_hall_max_level(), 5, "五级升阶 1→2 … 5→6");
+            assert_eq!(config.training_materials.len(), 5);
+            assert_eq!(config.training_material_counts.len(), 5);
+            assert_eq!(config.training_costs.len(), 5);
+            assert_eq!(config.training_seconds.len(), 5);
+            assert_eq!(
+                config.training_hall_upgrade_costs.len(),
+                5,
+                "索引 0 = 建造费"
+            );
+            for w in config.training_material_counts.windows(2) {
+                assert!(w[1] > w[0], "升阶材料需求逐级递增");
+            }
+            for w in config.training_costs.windows(2) {
+                assert!(w[1] > w[0], "升阶金币费逐级递增");
+            }
+            assert!(
+                config.training_step_for(6).is_none(),
+                "6 阶已达顶，无升阶项"
+            );
+            assert!(config.training_step_for(1).is_some());
+            // 关卡奖励每 5 关换一档，26–30 关产万能券。
+            assert_eq!(config.factory_reward_materials.len(), 6);
+            assert_eq!(
+                config.factory_reward_material(1),
+                config.training_materials.first()
+            );
+            assert_eq!(
+                config.factory_reward_material(5),
+                config.training_materials.first()
+            );
+            assert_eq!(
+                config.factory_reward_material(6),
+                config.training_materials.get(1)
+            );
+            assert_eq!(
+                config.factory_reward_material(30),
+                Some(&config.universal_material)
+            );
+            assert!(
+                config.factory_reward_material(31).is_none(),
+                "超出关卡上限无奖励"
+            );
+            assert!(config.factory_reward_material(0).is_none());
             // 分阶蛋价乘法：1 阶 = 基价；3 阶 = 基价 × mult²。
             let mult = config.egg_tier_price_multiplier;
             let base = *config.egg_prices.get("normal").unwrap();
@@ -758,9 +1064,19 @@ mod tests {
             assert_eq!(config.egg_rarity_weight(6), 1);
         }
         // 正式 config 的 EconomyScaling.md 锚点。
-        assert_eq!(normal.egg_price_for("fire", 4), 147_390_000, "4 阶火蛋 = 240×85³");
-        assert_eq!(normal.hatchery_upgrade_costs[6], 100_000_000, "第 8 槽 = 1 亿 ≈ D6");
+        assert_eq!(
+            normal.egg_price_for("fire", 4),
+            147_390_000,
+            "4 阶火蛋 = 240×85³"
+        );
+        assert_eq!(
+            normal.hatchery_upgrade_costs[6], 100_000_000,
+            "第 8 槽 = 1 亿 ≈ D6"
+        );
         assert_eq!(*normal.yard_capacity.last().unwrap(), 50, "后院上限 50");
-        assert_eq!(normal.shop_upgrade_costs, vec![50_000, 750_000, 11_250_000]);
+        // 经济 v2.0：商店封顶 Lv3（4 阶蛋改由训练馆升阶产出），末档升级费随之退役。
+        assert_eq!(normal.shop_upgrade_costs, vec![50_000, 750_000]);
+        // 训练馆金币阶梯与融合费同源——高阶融合原本吸走的指数金币原样转由训练馆吸走。
+        assert_eq!(normal.training_costs, normal.fusion_fees[..5].to_vec());
     }
 }

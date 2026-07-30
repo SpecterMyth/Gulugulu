@@ -26,6 +26,7 @@ export interface ShellToastStrings {
   hatchStandard: string;
   eggToSlot: string;
   eggToInventory: string;
+  tutorialEggToInventory: string;
   hatchStart: string;
   fusionRecipe: string;
   fusionAi: string;
@@ -35,6 +36,12 @@ export interface ShellToastStrings {
   hatcheryUpgraded: string;
   yardUpgraded: string;
   shopUpgraded: string;
+  trainingHallBuilt: string;
+  trainingHallUpgraded: string;
+  trainingSlotsUpgraded: string;
+  trainingStarted: string;
+  trainingCollected: string;
+  factoryReward: string;
   steamMarketFail: string;
   steamSyncing: string;
   /** 导入我的宠物:点击即时提示。 */
@@ -167,6 +174,8 @@ export interface ShellCoachStrings {
 
 /** 欢迎回来摘要卡(game/WelcomeBack.tsx)。 */
 export interface ShellWelcomeStrings {
+  /** 报头小字（Morning Gazette masthead kicker，大写字距排版）。 */
+  kicker: string;
   title: string;
   aria: string;
   /** {duration} */
@@ -240,6 +249,14 @@ export interface ShellAutostartStrings {
 }
 
 export interface ShellStrings {
+  codexUpgrade: {
+    title: string;
+    description: string;
+    upgradeLabel: string;
+    installLabel: string;
+    openGuide: string;
+    close: string;
+  };
   stamina: string;
   /** 物种名兜底(孵化揭晓找不到任何名字时)。 */
   fallbackPetName: string;
@@ -258,6 +275,14 @@ export interface ShellStrings {
 
 export const SHELL: Record<Language, ShellStrings> = {
   zh: {
+    codexUpgrade: {
+      title: "Codex CLI 需要更新",
+      description: "当前 Codex 版本不支持这次融合所需的模型。请升级；如果尚未安装，请先安装 Codex CLI，然后重新融合。",
+      upgradeLabel: "已安装：",
+      installLabel: "未安装 / 强制更新：",
+      openGuide: "打开官方安装与升级指南",
+      close: "稍后处理",
+    },
     stamina: "体力",
     fallbackPetName: "精灵",
     newSpeciesName: "新物种",
@@ -273,6 +298,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       hatchStandard: "{name} 破壳而出！",
       eggToSlot: "蛋已放进孵化槽",
       eggToInventory: "孵化槽已满，蛋放进了库存",
+      tutorialEggToInventory: "火蛋购买成功！去孵化区点空蛋坑，把它放进去孵化",
       hatchStart: "开始孵化！",
       fusionRecipe: "触发经典配方！高阶蛋已放进孵化区",
       fusionAi: "✨ AI 开始设计新物种，神秘蛋已入孵化区",
@@ -281,6 +307,12 @@ export const SHELL: Record<Language, ShellStrings> = {
       hatcheryUpgraded: "孵化屋升级成功！",
       yardUpgraded: "后院升级成功！",
       shopUpgraded: "商店升级成功！解锁了更高阶的蛋",
+      trainingHallBuilt: "训练馆落成！去把喜欢的那只练上去吧",
+      trainingHallUpgraded: "训练馆升级成功！解锁了更高一级的升阶",
+      trainingSlotsUpgraded: "训练位扩建成功！",
+      trainingStarted: "开始训练！到点回训练馆接它出师",
+      trainingCollected: "出师了！阶数 +1，等级原封不动",
+      factoryReward: "工厂打工产出 ×{count} 已入库，去训练馆升阶吧",
       steamMarketFail: "打不开 Steam 市场，稍后再试",
       steamSyncing: "正在与 Steam 同步…",
       steamImporting: "正在导入 Steam 库存宠物…",
@@ -320,7 +352,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       graduation:
         "🎉 第一只 2 阶诞生！图鉴 {collected}/{total}——敲键盘回精力、AI 的 Token 喂我涨经验、点我打工赚金币，晚上融合早上收蛋，明天见",
       collectEgg: "蛋发光啦，点它抱走新伙伴！",
-      recovering: "我趴下充电啦～挂机 / 敲键盘 都在回精力⚡",
+      recovering: "我没坏，只是学会拒绝加班了。先随便按 5 个键领应急电量；以后挂机 / 敲键盘都能回精力⚡",
       capFull: "今日的爱点满💛 现在都是纯摸摸，明天再一起攒经验",
       fusionReady: "两只满级同阶凑齐！后院走到一起就能融合——可能出经典配方，也可能 AI 现场造新种",
       expDiffEnough: "还差 {clicks} 下就满级，点满它！",
@@ -370,6 +402,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       skip: "跳过教程",
     },
     welcome: {
+      kicker: "咕噜噜日报",
       title: "🌅 欢迎回来！",
       aria: "欢迎回来",
       awayFor: "你离开了约 {duration}",
@@ -449,6 +482,15 @@ export const SHELL: Record<Language, ShellStrings> = {
     },
   },
   en: {
+    codexUpgrade: {
+      title: "Update Codex CLI",
+      description:
+        "Your current Codex version does not support the model needed for this fusion. Update it, or install Codex CLI if it is not installed, then try the fusion again.",
+      upgradeLabel: "Already installed:",
+      installLabel: "Install / force update:",
+      openGuide: "Open official setup guide",
+      close: "Not now",
+    },
     stamina: "Stamina",
     fallbackPetName: "Sprite",
     newSpeciesName: "New species",
@@ -464,6 +506,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       hatchStandard: "{name} hatched!",
       eggToSlot: "Egg tucked into a hatchery slot",
       eggToInventory: "Hatchery slots full — egg stored in inventory",
+      tutorialEggToInventory: "Fire Egg purchased! Head to an empty pit and place it to start hatching",
       hatchStart: "Incubation started!",
       fusionRecipe: "Classic recipe triggered! High-tier egg is in the hatchery",
       fusionAi: "✨ AI is designing a new species — mystery egg is incubating",
@@ -472,6 +515,12 @@ export const SHELL: Record<Language, ShellStrings> = {
       hatcheryUpgraded: "Hatchery upgraded!",
       yardUpgraded: "Backyard upgraded!",
       shopUpgraded: "Shop upgraded! Higher-tier eggs unlocked",
+      trainingHallBuilt: "Training Hall built! Go level up your favourite",
+      trainingHallUpgraded: "Training Hall upgraded! A higher tier-up is unlocked",
+      trainingSlotsUpgraded: "Training slot added!",
+      trainingStarted: "Training started — come back to graduate them",
+      trainingCollected: "Graduated! Tier +1, level untouched",
+      factoryReward: "Factory shift paid out ×{count} materials — go tier up at the Training Hall",
       steamMarketFail: "Couldn't open the Steam market — try again later",
       steamSyncing: "Syncing with Steam…",
       steamImporting: "Importing pets from your Steam inventory…",
@@ -511,7 +560,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       graduation:
         "🎉 First tier-2 born! Dex {collected}/{total} — type for energy, AI tokens feed me EXP, click me for coins, fuse at night, collect at dawn. See you tomorrow",
       collectEgg: "The egg's glowing — tap it to scoop up your new buddy!",
-      recovering: "Recharging belly-down~ idling / typing both restore energy ⚡",
+      recovering: "Not broken—just refusing overtime. Press any 5 keys for the one-time rescue; after that, idling or typing restores energy ⚡",
       capFull: "Today's love is maxed 💛 pure pets for now — more EXP tomorrow",
       fusionReady: "Two maxed same-tier pals! Walk them together in the yard to fuse — classic recipe, or the AI invents a new species",
       expDiffEnough: "Only {clicks} clicks to max — finish it!",
@@ -561,6 +610,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       skip: "Skip tutorial",
     },
     welcome: {
+      kicker: "THE GULUGULU DAILY",
       title: "🌅 Welcome back!",
       aria: "Welcome back",
       awayFor: "You were away for about {duration}",

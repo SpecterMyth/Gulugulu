@@ -27,6 +27,10 @@ const FIRE = "255,150,60";
 
 /** 各建筑窗户 / 门 / 路灯 / 篝火的点位（世界坐标，与 NearDecor 立面对齐）。 */
 const LIGHTS: LightSpec[] = [
+  // —— 训练馆：两扇侧窗 + 门内溢光（世界 x≈-420，孵化区左侧）——
+  { x: -507, bottom: 233, r: 42, color: WARM, core: { w: 36, h: 28, radius: 5 } },
+  { x: -331, bottom: 233, r: 42, color: WARM, core: { w: 36, h: 28, radius: 5 } },
+  { x: -420, bottom: 196, r: 56, color: WARM_DEEP, core: { w: 82, h: 60, radius: "40px 40px 3px 3px" } },
   // —— 小院（cottage）两扇窗 ——
   { x: 625, bottom: 204, r: 46, color: WARM, core: { w: 26, h: 34, radius: "3px 3px 5px 5px" } },
   { x: 685, bottom: 206, r: 46, color: WARM, core: { w: 30, h: 32, radius: "3px 3px 5px 5px" } },

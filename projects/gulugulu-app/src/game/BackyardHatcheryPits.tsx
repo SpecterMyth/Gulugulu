@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { GameConfig, GameSave, EggInstance } from "../types";
 import { fmt, speciesDisplayName } from "../i18n";
 import { useT } from "../useT";
@@ -6,6 +7,7 @@ import { abs } from "./backyardShared";
 import { eggHatchInfo } from "./config";
 import { formatCount } from "./format";
 import { formatCountdown } from "./useGame";
+import { emitPaperFx } from "../ui/PaperFx";
 
 // ---------------------------------------------------------------------------
 // 孵化区：蛋坑（真实存档驱动）+ 栅栏边的待孵化蛋。
@@ -49,6 +51,41 @@ export function BackyardHatcheryPits({
 }: BackyardHatcheryPitsProps) {
   const { lang, T } = useT();
   const bk = T.bk.hatchery;
+  const pitRefs = useRef(new Map<number, HTMLDivElement>());
+  const prevSlotCountRef = useRef(slotCount);
+  const prevEggSlotsRef = useRef(new Map(save.eggs.map((egg) => [egg.id, egg.slot])));
+
+  useEffect(() => {
+    const previous = prevSlotCountRef.current;
+    if (slotCount > previous) {
+      const unlockedSlot = slotCount - 1;
+      emitPaperFx({
+        preset: "unlock",
+        intensity: slotCount >= maxSlots ? 3 : 2,
+        anchor: pitRefs.current.get(unlockedSlot),
+        label: lang === "zh" ? "孵化坑解锁" : "HATCH PIT UNLOCKED",
+        dedupeKey: `hatchery-slot:${slotCount}`,
+      });
+    }
+    prevSlotCountRef.current = slotCount;
+  }, [lang, maxSlots, slotCount]);
+
+  useEffect(() => {
+    const previous = prevEggSlotsRef.current;
+    for (const egg of save.eggs) {
+      const priorSlot = previous.get(egg.id);
+      if (egg.slot != null && priorSlot == null && previous.has(egg.id)) {
+        emitPaperFx({
+          preset: "place",
+          intensity: 1,
+          anchor: pitRefs.current.get(egg.slot),
+          seed: egg.id.length * 2654435761,
+          dedupeKey: `place-egg:${egg.id}:${egg.slot}`,
+        });
+      }
+    }
+    prevEggSlotsRef.current = new Map(save.eggs.map((egg) => [egg.id, egg.slot]));
+  }, [save.eggs]);
   // 本地先行融合的二阶蛋：未绑定 Steam 物品 + 有 applied Fuse op（后台正在烧材料 + 铸造结果并同步 Steam）。
   const syncingEggIds = new Set<string>();
   for (const op of save.steamOutbox ?? []) {
@@ -62,7 +99,7 @@ export function BackyardHatcheryPits({
     const nameEn = config.species[code]?.nameEn;
     return lang === "zh" ? nameZh ?? "?" : speciesDisplayName(code, lang, nameZh, nameEn);
   };
-  // 教练锚点：后院里教练用 {kind:"egg"} 指向的那颗蛋（C5 收二号蛋 / C8 收首融蛋）。
+  // 教练锚点：后院里教练用 {kind:"egg"} 指向当前流程要求收取的那颗蛋。
   // 优先已可收取的；否则最靠前坑里的一颗。只标这一颗，避免 CoachFx 锚到错误的蛋。
   let coachEggId: string | null = null;
   for (let i = 0; i < slotCount; i += 1) {
@@ -84,17 +121,31 @@ export function BackyardHatcheryPits({
           const isNext = slotIndex === slotCount;
           const cost = config.hatcheryUpgradeCosts[slotIndex - 1];
           const affordable = cost != null && save.coins >= cost;
+          const tutorialUnlock =
+            isNext && save.onboarding?.status === "active" && save.onboarding.step === "A10";
+          const canUnlock = affordable || tutorialUnlock;
           return (
             <div
               key={`pit-${slotIndex}`}
-              className={`by-pit is-locked ${isNext && affordable && !busy ? "is-actionable" : ""}`}
+              ref={(node) => {
+                if (node) pitRefs.current.set(slotIndex, node);
+                else pitRefs.current.delete(slotIndex);
+              }}
+              className={`by-pit is-locked ${isNext && canUnlock && !busy ? "is-actionable" : ""}`}
+              data-coach={isNext ? "hatcheryUpgrade" : undefined}
               style={{ left: pitX, bottom: 106 }}
               role="button"
               title={isNext ? bk.unlockThisTitle : bk.unlockPrevTitle}
               onClick={(event) => {
                 event.stopPropagation();
                 if (!isNext || busy) return;
-                if (!affordable) {
+                if (!canUnlock) {
+                  emitPaperFx({
+                    preset: "failure",
+                    intensity: 1,
+                    anchor: event.currentTarget,
+                    dedupeKey: `hatchery-short:${slotIndex}`,
+                  });
                   onToast(fmt(bk.needCoinsUnlock, { cost: formatCount(cost) }));
                   return;
                 }
@@ -117,7 +168,12 @@ export function BackyardHatcheryPits({
           return (
             <div
               key={`pit-${slotIndex}`}
+              ref={(node) => {
+                if (node) pitRefs.current.set(slotIndex, node);
+                else pitRefs.current.delete(slotIndex);
+              }}
               className={`by-pit ${canPlace ? "is-actionable" : ""}`}
+              data-coach={canPlace ? "emptyPit" : undefined}
               style={{ left: pitX, bottom: 106 }}
               role="button"
               title={canPlace ? bk.placeEggTitle : bk.emptyPitTitle}
@@ -149,6 +205,10 @@ export function BackyardHatcheryPits({
         return (
           <div
             key={`pit-${slotIndex}`}
+            ref={(node) => {
+              if (node) pitRefs.current.set(slotIndex, node);
+              else pitRefs.current.delete(slotIndex);
+            }}
             className={`by-pit ${ready && !busy ? "is-actionable" : ""}`}
             style={{ left: pitX, bottom: 106 }}
             role="button"
@@ -191,7 +251,7 @@ export function BackyardHatcheryPits({
               </span>
             )}
             {syncingEggIds.has(egg.id) && (
-              <span className="by-pit-fusion" title={bk.syncingTitle}>
+              <span className={`by-pit-fusion ${fusion ? "is-row2" : ""}`} title={bk.syncingTitle}>
                 {bk.syncing}
               </span>
             )}

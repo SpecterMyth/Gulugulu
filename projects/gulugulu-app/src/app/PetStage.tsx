@@ -83,6 +83,7 @@ export function PetStage({
         ref={duckFacingRef}
         className={`duck-facing ${finisherClass}`}
         data-coach={activePet ? "pet" : stageEgg ? "egg" : undefined}
+        data-onboarding-pet-drag={activePet ? "" : undefined}
         onPointerCancel={handlePointerCancel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

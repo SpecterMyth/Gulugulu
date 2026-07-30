@@ -63,6 +63,13 @@ const mk = (o = {}) => ({
   ...o,
 });
 
+// ── 0. 全局数值显示（最多 3 位有效数字）──
+console.log("[0] formatCount 三位有效数字");
+eq(formatCount(363_800, "zh"), "36.4万", "中文万位缩写保留 3 位有效数字");
+eq(formatCount(48_840, "zh"), "4.88万", "中文小数缩写保留 3 位有效数字");
+eq(formatCount(1_847_000_000, "zh"), "18.5亿", "中文亿位缩写保留 3 位有效数字");
+eq(formatCount(387_500, "en"), "388K", "英文缩写保留 3 位有效数字");
+
 // ── 1. 分档边界（raw token → T0..T5）──
 console.log("[1] roastTier 边界");
 eq(roastTier(0), 0, "0 → T0");

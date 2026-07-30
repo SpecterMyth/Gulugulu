@@ -38,6 +38,7 @@ export function SpeechBubble({
           ))}
         </span>
       )}
+      {bubbleIsHint && <span className="guide-sticker-sprinkles" aria-hidden="true" />}
       <span>{bubbleText ?? lastBubbleTextRef.current}</span>
     </section>
   );

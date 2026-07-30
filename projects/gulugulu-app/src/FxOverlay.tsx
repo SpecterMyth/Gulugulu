@@ -14,6 +14,7 @@ import { YardUpgradeFx } from "./game/YardUpgradeFx";
 import { LanguageContext } from "./useT";
 import type { Language } from "./i18n";
 import type { GameConfig, CustomSpeciesEntry } from "./types";
+import { PaperFxBurst, paperFxNodeCount, type PaperFxOverlayPayload, type PaperFxPulse } from "./ui/PaperFx";
 // 庆典/升级光效的样式（.cine-* / .yup-*）在 backyard.css。fx 子窗口不渲染 BackyardScene，
 // 显式引入以自足（Vite 去重；即便未来 BackyardScene 改懒加载，本覆盖层样式也不缺）。
 import "./game/backyard.css";
@@ -98,15 +99,17 @@ type FxYardPayload = {
   level: number;
   cap: number;
   lang: Language;
+  maxed: boolean;
   appRect?: OverlayRect;
 };
 
-type OverlayYard = { id: number; level: number; cap: number; lang: Language; appRect: OverlayRect };
+type OverlayYard = { id: number; level: number; cap: number; lang: Language; maxed: boolean; appRect: OverlayRect };
+type OverlayPaper = PaperFxOverlayPayload & { id: number };
 
 /** 覆盖 screen 模式粒子的最长滞空（dur 0.9+0.55 + delay 0.08 ≈ 1.53s）。 */
 const BURST_LIFETIME_MS = 1700;
 /** 后院升级光效生命周期（与 .yup-root 一致，见 YardUpgradeFx / BackyardScene）。 */
-const YARD_FX_LIFETIME_MS = 1600;
+const YARD_FX_LIFETIME_MS = 2800;
 
 /** 一批飞行项的最长滞空（用于整组自动回收）。 */
 function flightGroupLifetime(flights: Array<Omit<Flight, "id">>): number {
@@ -148,6 +151,7 @@ export function FxOverlay() {
   const [flightGroups, setFlightGroups] = useState<OverlayFlightGroup[]>([]);
   const [cines, setCines] = useState<OverlayCine[]>([]);
   const [yards, setYards] = useState<OverlayYard[]>([]);
+  const [papers, setPapers] = useState<OverlayPaper[]>([]);
   const idRef = useRef(0);
   const nextId = (): number => (idRef.current += 1);
 
@@ -207,10 +211,36 @@ export function FxOverlay() {
 
     const unlistenYard = listen<FxYardPayload>("fx://yardfx", (event) => {
       if (disposed) return;
-      const { level, cap, lang, appRect } = event.payload;
+      const { level, cap, lang, maxed, appRect } = event.payload;
       const id = nextId();
-      setYards((list) => [...list.slice(-3), { id, level, cap, lang, appRect: appRect ?? fallbackRect() }]);
+      setYards((list) => [...list.slice(-3), { id, level, cap, lang, maxed, appRect: appRect ?? fallbackRect() }]);
       track(() => setYards((list) => list.filter((item) => item.id !== id)), YARD_FX_LIFETIME_MS);
+    });
+
+    const unlistenPaper = listen<PaperFxOverlayPayload>("fx://paper", (event) => {
+      if (disposed) return;
+      const id = nextId();
+      const paper = { ...event.payload, id };
+      setPapers((list) => {
+        const base =
+          paper.intensity === 3
+            ? list.filter((item) => item.intensity !== 3)
+            : list;
+        const next = [...base.slice(-4), paper];
+        let nodes = next.reduce(
+          (sum, item) => sum + paperFxNodeCount(item.intensity, Boolean(item.label)),
+          0,
+        );
+        while (next.length > 1 && nodes > 96) {
+          const removed = next.shift();
+          if (removed) nodes -= paperFxNodeCount(removed.intensity, Boolean(removed.label));
+        }
+        return next;
+      });
+      track(
+        () => setPapers((list) => list.filter((item) => item.id !== id)),
+        paper.durationMs + 120,
+      );
     });
 
     // 就绪握手：挂载即广播一次 fx://ready。但这是一次性事件——主窗若此刻没在听
@@ -230,12 +260,18 @@ export function FxOverlay() {
       void unlistenFlight.then((dispose) => dispose());
       void unlistenCine.then((dispose) => dispose());
       void unlistenYard.then((dispose) => dispose());
+      void unlistenPaper.then((dispose) => dispose());
       void unlistenPing.then((dispose) => dispose());
     };
   }, []);
 
   return (
     <div className="fx-overlay" aria-hidden="true">
+      <div className="paper-fx-overlay">
+        {papers.map((paper) => (
+          <PaperFxBurst key={`paper-${paper.id}`} pulse={paper as PaperFxPulse} />
+        ))}
+      </div>
       {bursts.map((burst) => {
         const emitter =
           resolveWorkFx(burst.species, burst.toolId, burst.customFx)?.emitter ?? { x: 128, y: 128 };
@@ -302,7 +338,7 @@ export function FxOverlay() {
       {yards.map((yard) => (
         <AnchoredFx key={`yard-${yard.id}`} rect={yard.appRect}>
           <LanguageContext.Provider value={yard.lang}>
-            <YardUpgradeFx level={yard.level} cap={yard.cap} />
+            <YardUpgradeFx level={yard.level} cap={yard.cap} maxed={yard.maxed} />
           </LanguageContext.Provider>
         </AnchoredFx>
       ))}

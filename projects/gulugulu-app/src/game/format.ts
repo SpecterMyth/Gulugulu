@@ -1,4 +1,4 @@
-// 数值缩写显示（EconomyScaling.md §0）：中文 万/亿，其它语言 k/m/b，最多 4 位有效数字。
+// 数值缩写显示（EconomyScaling.md §0）：中文 万/亿，其它语言 k/m/b，最多 3 位有效数字。
 // 所有面向玩家的金额/经验/Token 显示都走 formatCount，指数经济下才可读。
 // 语言默认取当前 UI 语言（localStorage `gulugulu.language`，随设置切换实时生效）。
 
@@ -14,11 +14,11 @@ function currentLang(): Lang {
   }
 }
 
-/** 保留 ≤4 位有效数字并去掉多余尾随零（5.250→"5.25"、9531.25→"9531"）。 */
-function sig4(n: number): string {
+/** 保留 ≤3 位有效数字并去掉多余尾随零（5.250→"5.25"、953.125→"953"）。 */
+function sig3(n: number): string {
   if (!Number.isFinite(n)) return "0";
   if (n === 0) return "0";
-  return String(Number(n.toPrecision(4)));
+  return String(Number(n.toPrecision(3)));
 }
 
 /**
@@ -34,13 +34,13 @@ export function formatCount(value: number, lang: Lang = currentLang()): string {
   let body: string;
   if (lang === "zh") {
     if (v < 1e4) body = String(Math.round(v));
-    else if (v < 1e8) body = `${sig4(v / 1e4)}万`;
-    else body = `${sig4(v / 1e8)}亿`;
+    else if (v < 1e8) body = `${sig3(v / 1e4)}万`;
+    else body = `${sig3(v / 1e8)}亿`;
   } else {
     if (v < 1e3) body = String(Math.round(v));
-    else if (v < 1e6) body = `${sig4(v / 1e3)}K`;
-    else if (v < 1e9) body = `${sig4(v / 1e6)}M`;
-    else body = `${sig4(v / 1e9)}B`;
+    else if (v < 1e6) body = `${sig3(v / 1e3)}K`;
+    else if (v < 1e9) body = `${sig3(v / 1e6)}M`;
+    else body = `${sig3(v / 1e9)}B`;
   }
   return neg ? `-${body}` : body;
 }

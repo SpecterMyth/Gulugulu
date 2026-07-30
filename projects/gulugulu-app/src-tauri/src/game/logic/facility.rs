@@ -15,10 +15,13 @@ pub fn logic_upgrade_hatchery(
         .hatchery_upgrade_costs
         .get(level - 1)
         .ok_or_else(|| "#missingUpgradeCost".to_string())?;
-    if save.coins < cost {
+    let reimbursed = save.onboarding.status == "active" && save.hatchery_level == 1;
+    if save.coins < cost && !reimbursed {
         return Err("#notEnoughCoins".to_string());
     }
-    save.coins -= cost;
+    if !reimbursed {
+        save.coins -= cost;
+    }
     save.hatchery_level += 1;
     Ok(())
 }
@@ -38,10 +41,13 @@ pub fn logic_upgrade_yard(
         .yard_upgrade_costs
         .get(level - 1)
         .ok_or_else(|| "#missingUpgradeCost".to_string())?;
-    if save.coins < cost {
+    let reimbursed = save.onboarding.status == "active" && save.yard_level == 1;
+    if save.coins < cost && !reimbursed {
         return Err("#notEnoughCoins".to_string());
     }
-    save.coins -= cost;
+    if !reimbursed {
+        save.coins -= cost;
+    }
     save.yard_level += 1;
     Ok(())
 }
@@ -79,13 +85,16 @@ pub(crate) fn release_refund_for(
             .map(|elements| config.equivalent_egg_price_for_elements(&elements, pet.tier))
             .unwrap_or(0),
     };
-    Ok((equivalent as f64 * config.release_refund_rate).floor() as u64
-        + config.release_refund_per_level * pet.level as u64)
+    Ok(
+        (equivalent as f64 * config.release_refund_rate).floor() as u64
+            + config.release_refund_per_level * pet.level as u64,
+    )
 }
 
 /// 应用放生（无最后一只守卫——守卫在调用方；意图回放时物品已消耗，必须执行）。
 pub(crate) fn apply_release(save: &mut GameSave, pet_id: &str, refund: u64) {
     save.pets.retain(|p| p.id != pet_id);
+    save.capacity_exempt_pet_ids.remove(pet_id);
     if save.active_pet_id.as_deref() == Some(pet_id) {
         save.active_pet_id = save.pets.first().map(|p| p.id.clone());
     }

@@ -65,6 +65,7 @@ pub(crate) struct KeyBatcher {
     rate_window: u64,
     counted_in_window: u64,
     counted: u64,
+    spaces: u64,
     fx_labels: Vec<&'static str>,
 }
 
@@ -76,6 +77,7 @@ impl KeyBatcher {
             rate_window: 0,
             counted_in_window: 0,
             counted: 0,
+            spaces: 0,
             fx_labels: Vec::new(),
         }
     }
@@ -100,6 +102,9 @@ impl KeyBatcher {
         }
         self.counted_in_window += 1;
         self.counted += 1;
+        if vk == 0x20 {
+            self.spaces += 1;
+        }
         if self.fx_labels.len() < FX_LABELS_PER_BATCH_MAX {
             self.fx_labels.push(vk_label(vk));
         }
@@ -118,6 +123,10 @@ impl KeyBatcher {
     /// 取走累计计数（1s 入账节拍调用）。
     pub(crate) fn take_counted(&mut self) -> u64 {
         std::mem::take(&mut self.counted)
+    }
+
+    pub(crate) fn take_spaces(&mut self) -> u64 {
+        std::mem::take(&mut self.spaces)
     }
 }
 
@@ -272,9 +281,16 @@ mod platform {
             let mut last_feed = Instant::now();
             loop {
                 thread::sleep(Duration::from_millis(250));
-                let labels = batcher().lock().map(|mut b| b.drain_fx()).unwrap_or_default();
+                let labels = batcher()
+                    .lock()
+                    .map(|mut b| b.drain_fx())
+                    .unwrap_or_default();
                 if !labels.is_empty() {
                     let _ = app.emit("game://keys", KeyFxEvent { labels });
+                }
+                let spaces = batcher().lock().map(|mut b| b.take_spaces()).unwrap_or(0);
+                for _ in 0..spaces.min(4) {
+                    let _ = app.emit("factory://drop", ());
                 }
                 if last_feed.elapsed() >= Duration::from_secs(1) {
                     last_feed = Instant::now();

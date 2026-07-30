@@ -3,10 +3,14 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AchievementUnlock,
   AgentConnections,
+  AgentModels,
   AppSettings,
   ClickWorkResult,
   DynamicQuote,
   EnergyFeedOutcome,
+  FactoryLeaderboardResult,
+  FactoryLeaderboardStatus,
+  FactoryRogueAchievementSnapshot,
   FusionCliStatus,
   FusionProgress,
   FusionStartResult,
@@ -27,13 +31,25 @@ import { isTauri } from "../tauri";
 import { isTestConfigRequested, localGameConfig } from "./config";
 import { MockGameEngine } from "./mockEngine";
 
+/** 「默认模型」下拉的兜底目录（预览模式 + Rust list_agent_models 调用失败时用）。
+ *  claude 用稳定别名；codex 的真实模型由 Rust 运行时查询本机 `codex debug models`
+ *  得到（每装机不同），这里只留「CLI Default」不硬编码本机没有的槽。 */
+export const FALLBACK_AGENT_MODELS: AgentModels = {
+  claude: [
+    { id: "opus", label: "Opus" },
+    { id: "sonnet", label: "Sonnet" },
+    { id: "haiku", label: "Haiku" },
+  ],
+  codex: [{ id: "", label: "CLI Default" }],
+};
+
 export interface GameBridge {
   getConfig(): Promise<GameConfigPayload>;
   getState(): Promise<GameSave>;
   clickWork(petId: string): Promise<ClickWorkResult>;
   buyEgg(element: string, tier: number): Promise<GameSave>;
   placeEgg(eggId: string, slot: number): Promise<GameSave>;
-  /** 催蛋：点击孵化中的蛋，孵化时间 −1s（OnboardingCoach.md #2）。 */
+  /** 催蛋：点击孵化中的蛋，孵化时间 −1s（OnboardingGuidance.md）。 */
   pokeEgg(eggId: string): Promise<GameSave>;
   collectHatched(eggId: string): Promise<GameSave>;
   fusePets(idA: string, idB: string): Promise<GameSave>;
@@ -52,14 +68,39 @@ export interface GameBridge {
   upgradeHatchery(): Promise<GameSave>;
   upgradeYard(): Promise<GameSave>;
   upgradeShop(): Promise<GameSave>;
+  /** 训练馆：建造/升级（EconomyRework-TrainingHall.md §3）。 */
+  buildTrainingHall(): Promise<GameSave>;
+  /** 训练馆：扩建训练槽。 */
+  upgradeTrainingSlots(): Promise<GameSave>;
+  /** 开始训练一只宠物（升一阶）；useUniversal = 允许用万能券补足短缺材料。 */
+  startTraining(petId: string, useUniversal: boolean): Promise<GameSave>;
+  /** 收取已完成的训练（宠物阶数 +1，等级保留）。 */
+  collectTraining(jobId: string): Promise<GameSave>;
+  /** 领取工厂关卡奖励（每自然日每关一次；与来源无关，工厂建成后由其调用）。 */
+  claimFactoryLevels(maxLevel: number): Promise<GameSave>;
+  /** 合并 Roguelike 工厂成就统计绝对快照；重复提交幂等。 */
+  recordFactoryRogueAchievementSnapshot(snapshot: FactoryRogueAchievementSnapshot): Promise<GameSave>;
   releasePet(petId: string): Promise<ReleasePetResult>;
   setActivePet(petId: string): Promise<GameSave>;
   advanceTutorial(step: number): Promise<GameSave>;
+  /** v6 强引导：原子确认当前步骤并推进到下一步。重复回执幂等，越序回执拒绝。 */
+  advanceOnboarding(completedStep: string): Promise<GameSave>;
+  /** 真实第一班教学的兼容步骤回执。 */
+  advanceFactoryTutorial(completedStep: string): Promise<GameSave>;
+  /** AI 连接明确选择稍后；不等待 CLI。 */
+  skipOnboardingAgent(): Promise<GameSave>;
+  claimStaminaTutorialRescue(): Promise<GameSave>;
   /** 应用设置（键盘充能/总在最前/随机移动/语言）。与托盘菜单共用单一真源。 */
   getSettings(): Promise<AppSettings>;
   setAlwaysOnTop(enabled: boolean): Promise<AppSettings>;
   setRandomMovement(enabled: boolean): Promise<AppSettings>;
   setLanguage(language: string): Promise<AppSettings>;
+  /** AI 融合首选 Agent（"claude" | "codex"）。 */
+  setDefaultAgent(agent: string): Promise<AppSettings>;
+  /** AI 融合首选模型（首选 Agent 下的模型别名；空串 = CLI 默认模型）。 */
+  setDefaultModel(model: string): Promise<AppSettings>;
+  /** 两个 Agent 的可用模型目录（「默认模型」下拉数据源）。 */
+  listAgentModels(): Promise<AgentModels>;
   /** 开机自动启动开关（Tauri：写系统注册项；预览：仅内存态）。 */
   setAutostart(enabled: boolean): Promise<AppSettings>;
   /** 「开机自启」引导弹窗展示一次后调用：计数 +1（封顶 3）。返回新设置快照。 */
@@ -86,6 +127,11 @@ export interface GameBridge {
   getSteamStatus(): Promise<SteamStatus>;
   /** 订阅 steam://status。Returns unsubscribe. */
   onSteamStatus(handler: (status: SteamStatus) => void): () => void;
+  /** 真实新局结算后提交工厂最高营收；旧 localStorage 战绩不得调用。 */
+  recordFactoryLeaderboardResult(result: FactoryLeaderboardResult): Promise<FactoryLeaderboardStatus>;
+  /** 读取本人工厂最高营收榜的本地 outbox / Steam 排名状态。 */
+  getFactoryLeaderboardStatus(): Promise<FactoryLeaderboardStatus>;
+  onFactoryLeaderboardStatus(handler: (status: FactoryLeaderboardStatus) => void): () => void;
   /** 订阅 achievement://unlocked（成就解锁；前端庆祝 toast + 宠物欢呼）。Returns unsubscribe. */
   onAchievementUnlocked(handler: (payload: AchievementUnlock) => void): () => void;
   /** 手动触发一轮 Steam 同步(outbox 巡检 + 对账)。 */
@@ -123,6 +169,8 @@ export interface GameBridge {
   debugMaxPets(): Promise<GameSave>;
   /** Debug (调试 panel): wipe the save back to the initial state. */
   debugClearSave(): Promise<GameSave>;
+  debugClearFactoryData(): Promise<GameSave>;
+  debugClearFactoryLeaderboard(): Promise<void>;
   /** Debug (调试 panel): drain the active pet to 0 stamina. */
   debugDrainStamina(): Promise<GameSave>;
   /** Debug (调试 panel): simulate a batch of key presses. */
@@ -213,6 +261,24 @@ class TauriBridge implements GameBridge {
   upgradeShop() {
     return invoke<GameSave>("upgrade_shop");
   }
+  buildTrainingHall() {
+    return invoke<GameSave>("build_training_hall");
+  }
+  upgradeTrainingSlots() {
+    return invoke<GameSave>("upgrade_training_slots");
+  }
+  startTraining(petId: string, useUniversal: boolean) {
+    return invoke<GameSave>("start_training", { petId, useUniversal });
+  }
+  collectTraining(jobId: string) {
+    return invoke<GameSave>("collect_training", { jobId });
+  }
+  claimFactoryLevels(maxLevel: number) {
+    return invoke<GameSave>("claim_factory_levels", { maxLevel });
+  }
+  recordFactoryRogueAchievementSnapshot(snapshot: FactoryRogueAchievementSnapshot) {
+    return invoke<GameSave>("record_factory_rogue_achievement_snapshot", { snapshot });
+  }
   releasePet(petId: string) {
     return invoke<ReleasePetResult>("release_pet", { petId });
   }
@@ -221,6 +287,18 @@ class TauriBridge implements GameBridge {
   }
   advanceTutorial(step: number) {
     return invoke<GameSave>("advance_tutorial", { step });
+  }
+  advanceOnboarding(completedStep: string) {
+    return invoke<GameSave>("advance_onboarding", { completedStep });
+  }
+  advanceFactoryTutorial(completedStep: string) {
+    return invoke<GameSave>("advance_factory_tutorial", { completedStep });
+  }
+  skipOnboardingAgent() {
+    return invoke<GameSave>("skip_onboarding_agent");
+  }
+  claimStaminaTutorialRescue() {
+    return invoke<GameSave>("claim_stamina_tutorial_rescue");
   }
   getSettings() {
     return invoke<AppSettings>("get_settings");
@@ -233,6 +311,15 @@ class TauriBridge implements GameBridge {
   }
   setLanguage(language: string) {
     return invoke<AppSettings>("set_language", { language });
+  }
+  setDefaultAgent(agent: string) {
+    return invoke<AppSettings>("set_default_agent", { agent });
+  }
+  setDefaultModel(model: string) {
+    return invoke<AppSettings>("set_default_model", { model });
+  }
+  listAgentModels() {
+    return invoke<AgentModels>("list_agent_models");
   }
   setAutostart(enabled: boolean) {
     return invoke<AppSettings>("set_autostart", { enabled });
@@ -339,6 +426,24 @@ class TauriBridge implements GameBridge {
       dispose?.();
     };
   }
+  recordFactoryLeaderboardResult(result: FactoryLeaderboardResult) {
+    return invoke<FactoryLeaderboardStatus>("record_factory_leaderboard_result", { result });
+  }
+  getFactoryLeaderboardStatus() {
+    return invoke<FactoryLeaderboardStatus>("get_factory_leaderboard_status");
+  }
+  onFactoryLeaderboardStatus(handler: (status: FactoryLeaderboardStatus) => void) {
+    let disposed = false;
+    let dispose: (() => void) | undefined;
+    void listen<FactoryLeaderboardStatus>("factory://leaderboard", (event) => handler(event.payload)).then((fn) => {
+      if (disposed) fn();
+      else dispose = fn;
+    });
+    return () => {
+      disposed = true;
+      dispose?.();
+    };
+  }
   steamSyncNow() {
     return invoke<void>("steam_sync_now");
   }
@@ -391,6 +496,12 @@ class TauriBridge implements GameBridge {
   debugClearSave() {
     return invoke<GameSave>("debug_clear_save");
   }
+  debugClearFactoryData() {
+    return invoke<GameSave>("debug_clear_factory_data");
+  }
+  debugClearFactoryLeaderboard() {
+    return invoke<void>("debug_clear_factory_leaderboard");
+  }
   debugDrainStamina() {
     return invoke<GameSave>("debug_drain_stamina");
   }
@@ -441,6 +552,8 @@ class MockBridge implements GameBridge {
     // 预览模式无系统注册项：自启态与引导计数仅存内存（供 UI / 弹窗流程演示）。
     autostart: false,
     autostartPromptCount: 0,
+    defaultAgent: "claude",
+    defaultModel: "opus",
   };
   private pendingLabels: string[] = [];
   private pendingCount = 0;
@@ -578,6 +691,24 @@ class MockBridge implements GameBridge {
   upgradeShop() {
     return this.run(() => this.engine.upgradeShop());
   }
+  buildTrainingHall() {
+    return this.run(() => this.engine.buildTrainingHall());
+  }
+  upgradeTrainingSlots() {
+    return this.run(() => this.engine.upgradeTrainingSlots());
+  }
+  startTraining(petId: string, useUniversal: boolean) {
+    return this.run(() => this.engine.startTraining(petId, useUniversal));
+  }
+  collectTraining(jobId: string) {
+    return this.run(() => this.engine.collectTraining(jobId));
+  }
+  claimFactoryLevels(maxLevel: number) {
+    return this.run(() => this.engine.claimFactoryLevels(maxLevel));
+  }
+  recordFactoryRogueAchievementSnapshot(snapshot: FactoryRogueAchievementSnapshot) {
+    return this.run(() => this.engine.recordFactoryRogueAchievementSnapshot(snapshot));
+  }
   releasePet(petId: string) {
     return this.run(() => this.engine.releasePet(petId));
   }
@@ -586,6 +717,18 @@ class MockBridge implements GameBridge {
   }
   advanceTutorial(step: number) {
     return this.run(() => this.engine.advanceTutorial(step));
+  }
+  advanceOnboarding(completedStep: string) {
+    return this.run(() => this.engine.advanceOnboarding(completedStep));
+  }
+  advanceFactoryTutorial(completedStep: string) {
+    return this.run(() => this.engine.advanceFactoryTutorial(completedStep));
+  }
+  skipOnboardingAgent() {
+    return this.run(() => this.engine.skipOnboardingAgent());
+  }
+  claimStaminaTutorialRescue() {
+    return this.run(() => this.engine.claimStaminaTutorialRescue());
   }
   private emitSettings() {
     for (const handler of this.settingsHandlers) handler({ ...this.appSettings });
@@ -607,6 +750,19 @@ class MockBridge implements GameBridge {
     this.appSettings.language = language;
     this.emitSettings();
     return Promise.resolve({ ...this.appSettings });
+  }
+  setDefaultAgent(agent: string) {
+    this.appSettings.defaultAgent = agent === "codex" ? "codex" : "claude";
+    this.emitSettings();
+    return Promise.resolve({ ...this.appSettings });
+  }
+  setDefaultModel(model: string) {
+    this.appSettings.defaultModel = model.trim();
+    this.emitSettings();
+    return Promise.resolve({ ...this.appSettings });
+  }
+  listAgentModels() {
+    return Promise.resolve(FALLBACK_AGENT_MODELS);
   }
   setAutostart(enabled: boolean) {
     this.appSettings.autostart = enabled;
@@ -675,6 +831,28 @@ class MockBridge implements GameBridge {
     } satisfies SteamStatus);
   }
   onSteamStatus() {
+    return () => {};
+  }
+  private factoryLeaderboardUnavailable(): FactoryLeaderboardStatus {
+    return {
+      apiName: "LB_FACTORY_BEST_REVENUE",
+      scoreUnit: 1,
+      localBestRevenue: null,
+      steamScore: null,
+      pending: false,
+      globalRank: null,
+      leaderboardAvailable: false,
+      lastError: null,
+    };
+  }
+  recordFactoryLeaderboardResult(_result: FactoryLeaderboardResult) {
+    // 网页预览不上传、不落 outbox。
+    return Promise.resolve(this.factoryLeaderboardUnavailable());
+  }
+  getFactoryLeaderboardStatus() {
+    return Promise.resolve(this.factoryLeaderboardUnavailable());
+  }
+  onFactoryLeaderboardStatus() {
     return () => {};
   }
   onAchievementUnlocked() {
@@ -754,6 +932,12 @@ class MockBridge implements GameBridge {
   }
   debugClearSave() {
     return this.run(() => this.engine.reset());
+  }
+  debugClearFactoryData() {
+    return this.run(() => this.engine.reset());
+  }
+  debugClearFactoryLeaderboard() {
+    return Promise.resolve();
   }
   debugDrainStamina() {
     return this.run(() => this.engine.drainStamina());

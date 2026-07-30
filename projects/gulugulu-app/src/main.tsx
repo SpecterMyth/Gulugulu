@@ -7,6 +7,8 @@ import { isTauri } from "./tauri";
 import { applyPreviewBootstrap } from "./preview/shotParams";
 import "@fontsource/zcool-kuaile/index.css";
 import "./styles.css";
+import "./ui/paperTheme.css";
+import "./ui/paperFx.css";
 
 // 预览截图引导(?lang/?seed/?shot):必须先于 bridge/mock 引擎的惰性初始化写入
 // localStorage;Tauri 真机是空操作。

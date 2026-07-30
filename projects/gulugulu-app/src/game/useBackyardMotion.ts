@@ -25,6 +25,8 @@ const PET_NEAR_RANGE = 150;
 /** 图鉴馆 / 交易市场建筑中心与感应半径（紧贴公告板右侧的功能区簇） */
 const MUSEUM_X = 3310;
 const MARKET_X = 4030;
+/** 训练馆建筑中心（世界左端装饰带，孵化区左侧；与 NearDecor 立面 -580..-260 对齐）。 */
+const TRAINING_X = -420;
 const POI_RANGE = 200;
 /** 三个视差层整体下沉量：把土层剖面压缩到只露 76px（正好两行按钮），
  *  角色/布景/面板全部随之贴近窗口底边。 */
@@ -45,7 +47,12 @@ type PlacedPet = {
   spot: { x: number; bottom: number; size: number; float?: boolean };
 };
 
-type PoiSides = { shop: "left" | "right"; museum: "left" | "right"; market: "left" | "right" };
+type PoiSides = {
+  shop: "left" | "right";
+  museum: "left" | "right";
+  market: "left" | "right";
+  training: "left" | "right";
+};
 
 export type UseBackyardMotionInput = {
   onWalkingChange: (walking: boolean) => void;
@@ -77,9 +84,10 @@ export function useBackyardMotion({
   const [shopOpen, setShopOpen] = useState(false);
   const [museumOpen, setMuseumOpen] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
+  const [trainingOpen, setTrainingOpen] = useState(false);
   // 面板开在建筑相对主角的另一侧（靠近瞬间按主角方位定侧，贴地展开不再被窗顶裁切）
   const [poiSides, setPoiSides] = useState<PoiSides>(
-    { shop: "right", museum: "right", market: "right" },
+    { shop: "right", museum: "right", market: "right", training: "right" },
   );
   const [nearPetId, setNearPetId] = useState<string | null>(null);
   // 视口尺寸（跟随用户拉伸窗口）：高度决定整体缩放，宽度决定画卷可见范围
@@ -91,6 +99,7 @@ export function useBackyardMotion({
   const shopOpenRef = useRef(false);
   const museumOpenRef = useRef(false);
   const marketOpenRef = useRef(false);
+  const trainingOpenRef = useRef(false);
   const nearPetRef = useRef<string | null>(null);
   const onWalkingChangeRef = useRef(onWalkingChange);
 
@@ -223,6 +232,16 @@ export function useBackyardMotion({
         }
       }
 
+      const nearTraining = Math.abs(motion.charX - TRAINING_X) < POI_RANGE;
+      if (nearTraining !== trainingOpenRef.current) {
+        trainingOpenRef.current = nearTraining;
+        setTrainingOpen(nearTraining);
+        if (nearTraining) {
+          const side = motion.charX < TRAINING_X ? "right" : "left";
+          setPoiSides((prev) => (prev.training === side ? prev : { ...prev, training: side }));
+        }
+      }
+
       let bestId: string | null = null;
       let bestDistance = PET_NEAR_RANGE;
       for (const { pet, spot } of placedPetsRef.current) {
@@ -307,6 +326,7 @@ export function useBackyardMotion({
     shopOpen,
     museumOpen,
     marketOpen,
+    trainingOpen,
     poiSides,
     nearPetId,
     walkToPointer,

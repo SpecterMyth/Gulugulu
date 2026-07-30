@@ -221,6 +221,9 @@ export type RigComponent = (props: RigProps) => ReactNode;
 
 export const OUTLINE = "#3B2B1D";
 
+export type MotionPreset = "waddle" | "trot" | "bound" | "scuttle" | "slither" | "float" | "sway";
+export type ReactionProfile = "sunny" | "shy" | "cool" | "sleepy" | "mischievous";
+
 /** 每个物种一行的视觉声明（计划 §2.2 speciesTable）。 */
 export type SpeciesVisual = {
   /** rig 注册表键：六个动物底座/chimera 用 RigKind 字面量；
@@ -235,6 +238,10 @@ export type SpeciesVisual = {
   iris?: string;
   /** 待机嘴型（默认 smile）。 */
   mouthStyle?: MouthStyle;
+  /** AI 宠物专属移动节奏；缺省保持旧动画。 */
+  motionPreset?: MotionPreset;
+  /** 仅影响移动、点击、庆祝的表情选择。 */
+  reactionProfile?: ReactionProfile;
   /** 工具 id（parts/tools.tsx 注册表键） */
   toolId?: string;
   /** 槽位覆盖（默认件在各 rig 内部）；接收调色板与当前视图

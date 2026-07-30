@@ -25,7 +25,7 @@ import { breakdownTotal, EMPTY_BREAKDOWN } from "./types";
 import { isTauri } from "./tauri";
 import { elementName, fmt, type Language, localizeGameMessage, speciesDisplayName, t } from "./i18n";
 import { LanguageContext } from "./useT";
-import { previewFx, previewPetState, previewUiMode } from "./preview/shotParams";
+import { previewFactoryShot, previewFx, previewPetState, previewUiMode } from "./preview/shotParams";
 import { useGame, useNowSeconds } from "./game/useGame";
 import {
   MenuBar,
@@ -34,6 +34,7 @@ import {
   type UiMode,
 } from "./game/GamePanels";
 import { BackyardScene } from "./game/BackyardScene";
+import { FactoryHub, type FactoryVariant } from "./game/factory/FactoryHub";
 import type { CelebrationPayload, CelebrationPulse, HatchBranch } from "./game/CelebrationCinematic";
 import { celebrationDurationFor } from "./game/CelebrationCinematic";
 import { rememberFusionEgg, shouldPromptAutostart, takeFusionEgg } from "./app/autostartNudge";
@@ -65,6 +66,7 @@ import { type GamePop, type PopKind, POP_ICONS } from "./app/pops";
 import { SettingsPanel } from "./app/SettingsPanel";
 import { SpeechBubble } from "./app/SpeechBubble";
 import { useAppSettings } from "./app/hooks/useAppSettings";
+import { useClickThrough } from "./app/hooks/useClickThrough";
 import { useCodexStatus } from "./app/hooks/useCodexStatus";
 import { useDynamicQuotes } from "./app/hooks/useDynamicQuotes";
 import { useEggCountdown } from "./app/hooks/useEggCountdown";
@@ -76,9 +78,11 @@ import { useSpeechDrop } from "./app/hooks/useSpeechDrop";
 import { useSteamStatus } from "./app/hooks/useSteamStatus";
 import { useSpeciesPreviews } from "./app/hooks/useSpeciesPreviews";
 import { useTutorialHints } from "./app/hooks/useTutorialHints";
-import { useOnboardingCoach } from "./app/coach/useOnboardingCoach";
 import { CoachFx } from "./app/coach/CoachFx";
+import { OnboardingGoal } from "./app/onboarding/OnboardingGoal";
+import { useOnboardingDirector } from "./app/onboarding/useOnboardingDirector";
 import { useWelcomeBack } from "./app/hooks/useWelcomeBack";
+import { emitPaperFx, PaperFxProvider } from "./ui/PaperFx";
 
 const DRAG_THRESHOLD_PX = 4;
 const AUTONOMOUS_MOVE_DELAY_MS = 18_000;
@@ -98,6 +102,11 @@ const WELCOME_WINDOW_MAX_H = 680;
  *  否则该过渡值（= 上一面板的窗口高，调试 560 / 菜单 428）会被下面的 dock
  *  逻辑读回，造成"从调试进后院比从主界面进更大"。key 升到 v2 丢弃旧脏值。 */
 const BACKYARD_HEIGHT_KEY = "gulugulu.backyardHeight.v2";
+
+/** 后院开点击穿透后，沿窗口四边保留的实心带（逻辑 px）：后院是 resizable 的无边框
+ *  停靠窗，靠 OS 边框热区拖上沿改高，而那圈热区正压在透明天空上——不留带子就再也
+ *  拉不动了。取 8px（> Win11 无边框窗的 ~4-6px 边框热区）。 */
+const BACKYARD_RESIZE_GRIP_PX = 8;
 
 function storedBackyardHeight(): number {
   try {
@@ -165,12 +174,20 @@ export default function App() {
 
   // --- game state ---
   const { bridge, config: gameConfig, save, setSave } = useGame();
+  // 稳定回调里读当前存档快照（工厂奖励入库前后 diff 材料数，不吃 save 依赖）。
+  const saveRef = useRef<typeof save>(save);
+  saveRef.current = save;
   // 预览截图 rig:?ui= 指定初始面板(仅 !isTauri 生效,见 preview/shotParams)。
   const initialUiMode = (previewUiMode() as UiMode | null) ?? "pet";
   const [uiMode, setUiMode] = useState<UiMode>(initialUiMode);
   const uiModeRef = useRef<UiMode>(initialUiMode);
+  // 工厂模式变体:菜单进入=rogue(危楼打工记);Debug「经典演示」进入=demo(经典沙盒)。
+  const [factoryVariant, setFactoryVariant] = useState<FactoryVariant>(() =>
+    previewFactoryShot() == null ? "rogue" : "demo",
+  );
   const [gameBusy, setGameBusy] = useState(false);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const [codexUpgradeOpen, setCodexUpgradeOpen] = useState(false);
   const toastIdRef = useRef(0);
   const [welcomeOffline, setWelcomeOffline] = useWelcomeBack();
   // 欢迎卡实测内容高度（由卡片报上来），用于把窗口临时增高到不截断昨日战报。
@@ -206,6 +223,7 @@ export default function App() {
   // 菜单闲置自动收起：一段时间没有任何输入就回到只有角色的状态。
   useEffect(() => {
     if (uiMode !== "menu") return;
+    if (save?.onboarding?.status === "active") return;
     let timer = window.setTimeout(() => setUiMode("pet"), MENU_IDLE_HIDE_MS);
     const reset = () => {
       window.clearTimeout(timer);
@@ -218,7 +236,7 @@ export default function App() {
       window.removeEventListener("pointerdown", reset);
       window.removeEventListener("keydown", reset);
     };
-  }, [uiMode]);
+  }, [uiMode, save?.onboarding?.status]);
 
   const activePet = useMemo(
     () => save?.pets.find((pet) => pet.id === save.activePetId) ?? null,
@@ -241,7 +259,7 @@ export default function App() {
   const stageEggReady =
     stageEgg?.slot != null && stageEgg.hatchAt != null && stageNow >= stageEgg.hatchAt;
 
-  // —— 新手强引导教练（docs/gdd/OnboardingCoach.md）。放在游戏动作回调之前，
+  // —— 新手强引导教练（docs/gdd/OnboardingGuidance.md）。放在游戏动作回调之前，
   //    以便回调里调用 markSwitched/markDone 等（稳定 useCallback）。——
   // hatcheryReady 需要一个**独立于 stageEgg 的实时秒针**：stageNow 只在 stageEgg 非空
   // （即无在养宠）时才跑 1s interval，有在养宠时冻结在挂载值 → 有宠期间后院孵化红点与
@@ -253,29 +271,61 @@ export default function App() {
   const hatcheryReady =
     save != null &&
     save.eggs.some((egg) => egg.slot != null && egg.hatchAt != null && yardNow >= egg.hatchAt);
-  const [yardCoach, setYardCoach] = useState<{ nearShop: boolean; nearPetId: string | null }>({
+  const [yardCoach, setYardCoach] = useState<{
+    nearShop: boolean;
+    nearMarket: boolean;
+    nearPetId: string | null;
+  }>({
     nearShop: false,
+    nearMarket: false,
     nearPetId: null,
   });
   // 融合确认弹窗（fusePets 打开）—— 提前声明供教练 resolver 判「弹窗已开 → 指向开始融合」（#8）。
   const [fusionPair, setFusionPair] = useState<{ a: PetInstance; b: PetInstance } | null>(null);
-  const coach = useOnboardingCoach({
+  const coach = useOnboardingDirector({
+    bridge,
     save,
     config: gameConfig,
     uiMode,
-    hatcheryReady,
-    nearShop: yardCoach.nearShop,
     nearPetId: yardCoach.nearPetId,
-    exhausted: activePet?.exhausted ?? false,
+    nearShop: yardCoach.nearShop,
+    nearMarket: yardCoach.nearMarket,
     fusionModalOpen: fusionPair != null,
-    lang: language,
+    setSave,
   });
-  const { markMoved, markSwitched, markCeDone, markDone } = coach;
-  // 首次拥有二阶宠（收下融合结果）→ 永久退休教练：C8「回主界面看融出了啥」只在第一次融合后出现一次，
-  // 后续融合不再提示（即使把二阶宠放生也不复活，markDone 幂等地锁死）。
+  const markMoved = useCallback(() => {}, []);
+  const markSwitched = useCallback(() => {}, []);
+  const markCeDone = useCallback(() => {}, []);
+  const staminaRescueKeysRef = useRef(0);
+  const staminaRescuePendingRef = useRef(false);
   useEffect(() => {
-    if (save?.pets.some((pet) => pet.tier >= 2)) markDone();
-  }, [save, markDone]);
+    if (!activePet?.exhausted || save?.staminaTutorialRescueClaimed) {
+      staminaRescueKeysRef.current = 0;
+      staminaRescuePendingRef.current = false;
+      return;
+    }
+    if (save?.onboarding?.status !== "completed") return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Meta" || event.key === "Control" || event.key === "Alt" || event.key === "Shift") return;
+      staminaRescueKeysRef.current += 1;
+      if (staminaRescueKeysRef.current < 5 || staminaRescuePendingRef.current) return;
+      staminaRescuePendingRef.current = true;
+      void bridge
+        .claimStaminaTutorialRescue()
+        .then(setSave)
+        .finally(() => {
+          staminaRescuePendingRef.current = false;
+        });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    activePet?.exhausted,
+    bridge,
+    save?.onboarding?.status,
+    save?.staminaTutorialRescueClaimed,
+    setSave,
+  ]);
 
   // SVG rig 是唯一舞台：有主宠即渲染 SVG 精灵（PNG 自定义头像方案已下线）。
   const isSvgStage = activePet != null;
@@ -426,6 +476,7 @@ export default function App() {
     emitFoodFlight,
     emitCelebration,
     emitYardFx,
+    emitPaperFx: emitPaperFxOverlay,
     workBursts,
   } = useFxOverlay(uiMode, activePetSpecies);
   const { speechDrop, speechRef } = useSpeechDrop(uiMode, activePetSpecies, petState, duckFacingRef);
@@ -480,8 +531,16 @@ export default function App() {
     [applyLanguage, bridge],
   );
 
-  const { appSettings, handleAlwaysOnTop, handleKeyboardCapture, handleRandomMovement, handleAutostart } =
-    useAppSettings(bridge, applyLanguage, languageRef);
+  const {
+    appSettings,
+    agentModels,
+    handleAlwaysOnTop,
+    handleKeyboardCapture,
+    handleRandomMovement,
+    handleAutostart,
+    handleDefaultAgent,
+    handleDefaultModel,
+  } = useAppSettings(bridge, applyLanguage, languageRef);
   // 引导弹窗的判定读最新设置（自启态 + 已展示次数），避免把 appSettings 塞进 collectEgg 依赖。
   const appSettingsRef = useRef(appSettings);
   useEffect(() => {
@@ -648,8 +707,11 @@ export default function App() {
   // 只有用户输入才重置计时——宠物自动漫步 / Agent 活动 / 喂食演出都不算"操作"。
   // 捕获阶段监听 window：后院内各面板会对 click 调 stopPropagation，用捕获可确保
   // 每次真实交互都能重置计时，不被子层吞掉。
+  // 工厂玩法（危楼打工记）不参与此闲置返回：局内常有静置观察（限时墙钟/垒塔），
+  // 5 分钟被踢回主界面会打断整局；退出改由玩家主动点「离开」，进度走本地续局存档承接。
   useEffect(() => {
     if (uiMode !== "backyard") return;
+    if (save?.onboarding?.status === "active") return;
     let timer = window.setTimeout(goBack, BACKYARD_IDLE_RETURN_MS);
     const reset = () => {
       window.clearTimeout(timer);
@@ -662,11 +724,34 @@ export default function App() {
       window.removeEventListener("pointerdown", reset, { capture: true });
       window.removeEventListener("keydown", reset, { capture: true });
     };
-  }, [uiMode, goBack]);
+  }, [uiMode, goBack, save?.onboarding?.status]);
 
   const selectPanel = useCallback((mode: Exclude<UiMode, "pet" | "menu">) => {
+    // 从菜单进工厂一律走 roguelike 局(《危楼打工记》);经典演示只有 Debug 才进得去。
+    if (mode === "factory") setFactoryVariant("rogue");
     setUiMode(mode);
   }, []);
+
+  // Debug 面板专属:直接进入「经典演示」沙盒(FactoryScene 不传 rogue)。
+  // 复用 uiMode==="factory" 的整套窗口停靠;onBack 走 goBack 回主界面。
+  const openFactoryDemo = useCallback(() => {
+    setFactoryVariant("demo");
+    setUiMode("factory");
+  }, []);
+
+  const completeFirstFactoryShiftTutorial = useCallback(async () => {
+    const current = saveRef.current?.onboarding?.step;
+    if (current == null || !current.startsWith("C")) return;
+    // 局内 C02～C11 由真实状态机驱动“点这里”；进入第二班是一条权威回执，
+    // 后端据此原子完成整段并发放首班奖励，不伪造教学点击。
+    await coach.complete("C12");
+  }, [coach.complete]);
+
+  const handleFormalFactoryStart = useCallback(() => {
+    if (saveRef.current?.onboarding?.step === "E02") {
+      void coach.complete("E02");
+    }
+  }, [coach.complete]);
 
   // 纯抚摸模式（日额度用尽）提示只说一次/会话，避免连点刷屏。
   const capNoticedRef = useRef(false);
@@ -734,15 +819,26 @@ export default function App() {
                     : fmt(shOf().pop.milestoneHits, { n: clicksIntoBar });
               pushPop(label, "levelup", at);
               if (isActive) spawnWorkBurst(14, true);
+              emitPaperFx({
+                intensity: 1,
+                preset: "milestone",
+                anchor: at,
+                eventId: `work:${petId}:${result.save.daily.clicks}:segment`,
+              });
             }
             if (result.becameExhausted) {
-              // 大终结技 + 收工结算横幅：「满工收工！本管 🪙+N ✨+N」。
-              showToastMsg(
-                fmt(shOf().toast.barDone, {
-                  coins: formatNumber(totals.coins),
-                  exp: formatNumber(totals.exp),
-                }),
-              );
+              const completedLabel = fmt(shOf().toast.barDone, {
+                coins: formatNumber(totals.coins),
+                exp: formatNumber(totals.exp),
+              });
+              emitPaperFx({
+                intensity: 2,
+                preset: "milestone",
+                anchor: at,
+                label: completedLabel,
+                eventId: `work:${petId}:${result.save.daily.clicks}:bar`,
+                crossWindow: true,
+              });
               barTotalsRef.current.delete(petId);
             }
           }
@@ -755,7 +851,14 @@ export default function App() {
             } else if (!capCelebratedRef.current) {
               capCelebratedRef.current = true;
               spawnReactionBurst();
-              showToastMsg(shOf().toast.capCelebrate);
+              emitPaperFx({
+                intensity: 2,
+                preset: "milestone",
+                anchor: at,
+                label: shOf().toast.capCelebrate,
+                eventId: `work-cap:${result.save.daily.date}`,
+                crossWindow: true,
+              });
             }
           }
 
@@ -833,20 +936,16 @@ export default function App() {
           const payload: CelebrationPayload = { phase: "hatch", branch, tier, name, species, slot };
           fireCelebration(payload);
           // 融合领新宠：收取核销登记过的融合蛋 id → 判定来源；等庆典演出走完再引导开机自启。
-          if (takeFusionEgg(eggId)) {
+          if (takeFusionEgg(eggId) && next.onboarding?.status !== "active") {
             const delayMs = celebrationDurationFor({ ...payload, id: 0, at: Date.now() }) + 400;
             window.setTimeout(maybePromptAutostart, delayMs);
           }
-          showToastMsg(
-            branch === "aiNew"
-              ? fmt(shOf().toast.hatchAiNew, { name })
-              : branch === "fallback"
-                ? fmt(shOf().toast.hatchFallback, { name })
-                : fmt(shOf().toast.hatchStandard, { name }),
-          );
           dispatchLocalEvent("agent_work_finish");
         })
-        .catch((error) => showToastMsg(errorMessage(error)))
+        .catch((error) => {
+          showToastMsg(errorMessage(error));
+          emitPaperFx({ intensity: 1, preset: "failure", eventId: `hatch-collect-failed:${eggId}:${Date.now()}` });
+        })
         .finally(() => setGameBusy(false));
     },
     [
@@ -871,13 +970,28 @@ export default function App() {
         .then((next) => {
           setSave(next);
           const latest = next.eggs[next.eggs.length - 1];
-          showToastMsg(latest?.slot != null ? shOf().toast.eggToSlot : shOf().toast.eggToInventory);
-          pushPop(`-${formatNumber(gameConfig ? eggPriceFor(gameConfig, element, tier) : 0)}`, "coin-dim");
+          const tutorialFireInInventory =
+            next.onboarding?.status === "active" &&
+            element === "fire" &&
+            tier === 1 &&
+            latest?.slot == null;
+          showToastMsg(
+            latest?.slot != null
+              ? shOf().toast.eggToSlot
+              : tutorialFireInInventory
+                ? shOf().toast.tutorialEggToInventory
+                : shOf().toast.eggToInventory,
+          );
+          const spent = Math.max(0, save.coins - next.coins);
+          if (spent > 0) pushPop(`-${formatNumber(spent)}`, "coin-dim");
         })
-        .catch((error) => showToastMsg(errorMessage(error)))
+        .catch((error) => {
+          showToastMsg(errorMessage(error));
+          emitPaperFx({ intensity: 1, preset: "failure", eventId: `buy-egg-failed:${element}:${tier}:${Date.now()}` });
+        })
         .finally(() => setGameBusy(false));
     },
-    [bridge, gameConfig, pushPop, save, setSave, shOf, showToastMsg],
+    [bridge, pushPop, save, setSave, shOf, showToastMsg],
   );
 
   const placeEgg = useCallback(
@@ -973,10 +1087,24 @@ export default function App() {
     [fireCelebration, fusionPair, gameConfig, setSave, shOf, showToastMsg],
   );
 
-  useFusionProgress(bridge, showToastMsg);
+  const showCodexUpgradeGuide = useCallback(() => setCodexUpgradeOpen(true), []);
+  useFusionProgress(bridge, showToastMsg, showCodexUpgradeGuide);
   useAchievementUnlocks(bridge, showToastMsg, dispatchPetEvent);
 
   useDynamicQuotes(bridge);
+
+  // 点击穿透：三种「透明区远大于画面」的界面都开——桌宠小窗（只有精灵是画出来的）、
+  // 后院底部横条、工厂整屏（天空全透明）。菜单/设置/调试不开：那里「点窗口空白处 =
+  // 返回上一层」（见 handleShellPointerDown），穿透会把那个交互吃掉；后院/工厂的场景
+  // 铺满整个 shell，不存在那块空白。
+  // 后院是 resizable 停靠窗（拖上沿改高），OS 边框热区压在透明天空上 → 留一圈实心带。
+  useClickThrough(
+    // 强引导已经用输入互斥只放行当前目标；此时不要再让透明窗口的像素级
+    // 穿透与目标抢首个 pointerdown（A01 的蛋在边缘像素上尤其容易被穿掉）。
+    !coach.active && (uiMode === "pet" || uiMode === "backyard" || uiMode === "factory"),
+    dragRef,
+    uiMode === "backyard" ? BACKYARD_RESIZE_GRIP_PX : 0,
+  );
 
   const steamStatus = useSteamStatus(bridge, setSave, showToastMsg);
   // 自定义物种设定图离屏渲染缓存（创意工坊缩略图；Tauri 专属 best-effort）。
@@ -1007,6 +1135,12 @@ export default function App() {
           setSave(next);
           markSwitched(); // 教练 C5：切换过陪伴
           showToastMsg(shOf().toast.following);
+          emitPaperFx({
+            intensity: 1,
+            preset: "place",
+            anchor: duckFacingRef.current,
+            eventId: `follow:${petId}`,
+          });
         })
         .catch((error) => showToastMsg(errorMessage(error)))
         .finally(() => setGameBusy(false));
@@ -1020,9 +1154,11 @@ export default function App() {
       .upgradeHatchery()
       .then((next) => {
         setSave(next);
-        showToastMsg(shOf().toast.hatcheryUpgraded);
       })
-      .catch((error) => showToastMsg(errorMessage(error)))
+      .catch((error) => {
+        showToastMsg(errorMessage(error));
+        emitPaperFx({ intensity: 1, preset: "failure", eventId: `hatchery-upgrade-failed:${Date.now()}` });
+      })
       .finally(() => setGameBusy(false));
   }, [bridge, setSave, shOf, showToastMsg]);
 
@@ -1032,9 +1168,11 @@ export default function App() {
       .upgradeYard()
       .then((next) => {
         setSave(next);
-        showToastMsg(shOf().toast.yardUpgraded);
       })
-      .catch((error) => showToastMsg(errorMessage(error)))
+      .catch((error) => {
+        showToastMsg(errorMessage(error));
+        emitPaperFx({ intensity: 1, preset: "failure", eventId: `yard-upgrade-failed:${Date.now()}` });
+      })
       .finally(() => setGameBusy(false));
   }, [bridge, setSave, shOf, showToastMsg]);
 
@@ -1044,20 +1182,134 @@ export default function App() {
       .upgradeShop()
       .then((next) => {
         setSave(next);
-        showToastMsg(shOf().toast.shopUpgraded);
       })
-      .catch((error) => showToastMsg(errorMessage(error)))
+      .catch((error) => {
+        showToastMsg(errorMessage(error));
+        emitPaperFx({ intensity: 1, preset: "failure", eventId: `shop-upgrade-failed:${Date.now()}` });
+      })
       .finally(() => setGameBusy(false));
   }, [bridge, setSave, shOf, showToastMsg]);
 
+  // ---- 训练馆（EconomyRework-TrainingHall.md §3）----
+  // 建造与升级共用一个命令（后端按当前馆等级取阶梯项），toast 按是否首建区分。
+  const buildTrainingHall = useCallback(() => {
+    setGameBusy(true);
+    bridge
+      .buildTrainingHall()
+      .then((next) => {
+        setSave(next);
+      })
+      .catch((error) => {
+        showToastMsg(errorMessage(error));
+        emitPaperFx({ intensity: 1, preset: "failure", eventId: `training-hall-failed:${Date.now()}` });
+      })
+      .finally(() => setGameBusy(false));
+  }, [bridge, setSave, shOf, showToastMsg]);
+
+  const upgradeTrainingSlots = useCallback(() => {
+    setGameBusy(true);
+    bridge
+      .upgradeTrainingSlots()
+      .then((next) => {
+        setSave(next);
+      })
+      .catch((error) => {
+        showToastMsg(errorMessage(error));
+        emitPaperFx({ intensity: 1, preset: "failure", eventId: `training-slots-failed:${Date.now()}` });
+      })
+      .finally(() => setGameBusy(false));
+  }, [bridge, setSave, shOf, showToastMsg]);
+
+  /** 开练：成功 resolve（存档已刷新），失败把原始 `#xxx` 消息抛回弹窗就地显示。 */
+  const startTraining = useCallback(
+    (petId: string, useUniversal: boolean) => {
+      setGameBusy(true);
+      return bridge
+        .startTraining(petId, useUniversal)
+        .then((next) => {
+          setSave(next);
+          showToastMsg(shOf().toast.trainingStarted);
+        })
+        .catch((error) => {
+          emitPaperFx({ intensity: 1, preset: "failure", eventId: `training-start-failed:${petId}:${Date.now()}` });
+          throw error;
+        })
+        .finally(() => setGameBusy(false));
+    },
+    [bridge, setSave, shOf, showToastMsg],
+  );
+
+  const collectTraining = useCallback(
+    (jobId: string) => {
+      setGameBusy(true);
+      bridge
+        .collectTraining(jobId)
+        .then((next) => {
+          setSave(next);
+        })
+        .catch((error) => showToastMsg(errorMessage(error)))
+        .finally(() => setGameBusy(false));
+    },
+    [bridge, setSave, shOf, showToastMsg],
+  );
+
+  // 工厂关卡奖励 → 训练材料（EconomyRework-TrainingHall.md §5.2）。工厂 rogue 清班时
+  // 上报「今日已通到第几关」；后端每日每关限领、单调幂等，故重复上报同一关只发一次。
+  // 不设 gameBusy（工厂内高频 tick，busy 会误锁后院操作）；出错静默（不打断打工）。
+  const claimFactoryLevels = useCallback(
+    (maxLevel: number) => {
+      const before = { ...(saveRef.current?.materials ?? {}) };
+      return bridge
+        .claimFactoryLevels(maxLevel)
+        .then((next) => {
+          const gainedByMaterial: Record<string, number> = {};
+          for (const [material, count] of Object.entries(next.materials ?? {})) {
+            const gained = count - (before[material] ?? 0);
+            if (gained > 0) gainedByMaterial[material] = gained;
+          }
+          // 连续清班时让下一次领取立刻以这份回包为基线，不等 React 下一轮渲染。
+          saveRef.current = next;
+          setSave(next);
+          const gained = Object.values(gainedByMaterial).reduce((sum, count) => sum + count, 0);
+          if (gained > 0) {
+            const materialNames = t(languageRef.current).bk.training.materialNames;
+            const materialDetails = Object.entries(gainedByMaterial)
+              .map(([material, count]) => `${materialNames[material] ?? material} ×${count}`)
+              .join(" · ");
+            emitPaperFx({
+              intensity: 2,
+              preset: "reward",
+              label:
+                languageRef.current === "zh"
+                  ? `材料到账：${materialDetails}`
+                  : `MATERIALS RECEIVED: ${materialDetails}`,
+              eventId: `factory-material:${maxLevel}:${Object.entries(gainedByMaterial).join("|")}`,
+              crossWindow: true,
+            });
+          }
+          return gainedByMaterial;
+        })
+        .catch(() => ({}));
+    },
+    [bridge, setSave, shOf, showToastMsg],
+  );
+
   // 后院交易所建筑入口：打开 Steam 交易市场（后续接入具体物品页）。
   const openSteamMarket = useCallback(() => {
-    if (isTauri()) {
-      void invoke("open_steam_market").catch(() => showToastMsg(shOf().toast.steamMarketFail));
+    const launch = () => {
+      if (isTauri()) {
+        void invoke("open_steam_market").catch(() => showToastMsg(shOf().toast.steamMarketFail));
+        return;
+      }
+      window.open("https://steamcommunity.com/market/search?appid=4956830", "_blank", "noopener");
+    };
+    if (saveRef.current?.onboarding?.step === "G03") {
+      // 先落盘，再外跳：双击、浏览器拦截或进程被关闭都不会重开第二页。
+      void coach.complete("G03").then(launch).catch(() => showToastMsg(shOf().toast.steamMarketFail));
       return;
     }
-    window.open("https://steamcommunity.com/market/search?appid=4956830", "_blank", "noopener");
-  }, [shOf, showToastMsg]);
+    launch();
+  }, [coach.complete, shOf, showToastMsg]);
 
   // 导入我的宠物：读整份 Steam 库存，未绑定宠物物品填后院空位（高阶优先）。
   // 存档更新经 game://state 回推；这里只负责即时提示 + 结果文案。
@@ -1067,14 +1319,23 @@ export default function App() {
     bridge
       .steamImportPets()
       .then(({ imported, skippedCapacity }) => {
-        if (imported > 0 && skippedCapacity > 0) {
-          showToastMsg(fmt(toast.steamImportDonePartial, { imported, skipped: skippedCapacity }));
-        } else if (imported > 0) {
-          showToastMsg(fmt(toast.steamImportDone, { imported }));
-        } else if (skippedCapacity > 0) {
+        if (imported === 0 && skippedCapacity > 0) {
           showToastMsg(fmt(toast.steamImportFull, { skipped: skippedCapacity }));
-        } else {
+        } else if (imported === 0) {
           showToastMsg(toast.steamImportNone);
+        }
+        if (imported > 0) {
+          const importLabel =
+            skippedCapacity > 0
+              ? fmt(toast.steamImportDonePartial, { imported, skipped: skippedCapacity })
+              : fmt(toast.steamImportDone, { imported });
+          emitPaperFx({
+            intensity: 2,
+            preset: "reward",
+            label: importLabel,
+            eventId: `steam-import:${Date.now()}:${imported}`,
+            crossWindow: true,
+          });
         }
       })
       .catch((error) => showToastMsg(errorMessage(error)));
@@ -1245,6 +1506,11 @@ export default function App() {
       void invoke("dock_backyard_window", { height: storedBackyardHeight() }).catch(() => undefined);
       return;
     }
+    if (uiMode === "factory") {
+      // 工厂停靠：铺满整个工作区（屏顶→任务栏上沿），天空透明、飞机贴屏顶巡航。
+      void invoke("dock_factory_window").catch(() => undefined);
+      return;
+    }
     // 欢迎卡打开时，把窗口临时增高到能完整容纳整张卡——否则 280×320 小窗会把昨日战报
     // 拦腰截断成内部滚动条（还挤窄右列）。卡片是 position:fixed 覆盖层、铺满整窗，所以只需
     // 放大 OS 窗口即可显示全部内容；<main>/windowSize 不动，宠物不位移。关闭后 welcomeOffline→
@@ -1325,7 +1591,7 @@ export default function App() {
 
   // Celebrate every active-pet level-up on the stage (clicks, idle ticks and
   // token feeds all funnel through save changes). Reaching a tier's max level is
-  // upgraded to a "★Lv MAX" celebration (OnboardingFlow §二·2); yard pets that
+  // upgraded to a "★Lv MAX" celebration (OnboardingGuidance §2.2); yard pets that
   // hit max off-stage get an environmental toast instead ("静默满级=环境奖励").
   const watchedLevelRef = useRef<{ id: string; level: number } | null>(null);
   const maxSeenRef = useRef<Set<string> | null>(null);
@@ -1365,17 +1631,33 @@ export default function App() {
     const watched = watchedLevelRef.current;
     if (watched && watched.id === active.id && active.level > watched.level) {
       if (isMaxLevel(gameConfig, active)) {
-        pushPop(shOf().pop.maxLevel, "levelmax");
-        spawnReactionBurst();
         triggerFinisher();
-        setSpeechLine(shOf().speech.maxLevelFuse);
-        setSpeechVisible(true);
+        emitPaperFx({
+          intensity: 3,
+          preset: "max",
+          anchor: duckFacingRef.current,
+          eventId: `pet-max:${active.id}:${active.level}`,
+          palette: [
+            ...(gameConfig.species[active.species]?.colors ?? []).slice(0, 2),
+            "#FFE45C",
+            "#FFB0C8",
+            "#8FE0D0",
+            "#FFFDF4",
+          ],
+          crossWindow: true,
+        });
       } else {
         pushPop("Lv UP!", "levelup");
+        emitPaperFx({
+          intensity: 1,
+          preset: "level",
+          anchor: duckFacingRef.current,
+          eventId: `pet-level:${active.id}:${active.level}`,
+        });
       }
     }
     watchedLevelRef.current = { id: active.id, level: active.level };
-  }, [save, gameConfig, pushPop, shOf, showToastMsg, spawnReactionBurst, triggerFinisher]);
+  }, [save, gameConfig, pushPop, shOf, showToastMsg, triggerFinisher]);
 
   // Autonomous wandering (only while the plain pet is showing)。纯散步——
   // 2026-07-21 机制修订：漫游不再有任何拾取/回复（原漫游零食已移除）。
@@ -1570,6 +1852,12 @@ export default function App() {
     }
 
     if (uiMode === "pet") {
+      const onboardingStep = saveRef.current?.onboarding?.step;
+      if (activePet && (onboardingStep === "A02" || onboardingStep === "A03")) {
+        triggerPetReaction(false);
+        workOn(activePet.id);
+        return;
+      }
       // SVG 舞台：点击反馈走叠加层，不打断当前动画。
       if (activePet) triggerPetReaction();
       openMenu();
@@ -1599,6 +1887,51 @@ export default function App() {
   };
 
   const copy = t(language);
+
+  const coachFxDirective = useMemo(() => {
+    const directive = coach.directive;
+    if (!directive?.targetKey) return null;
+    const separator = directive.targetKey.indexOf(":");
+    return {
+      step: directive.step,
+      gesture: directive.gesture,
+      ring: directive.ring,
+      label: directive.label,
+      target: separator < 0
+        ? { kind: directive.targetKey }
+        : {
+            kind: directive.targetKey.slice(0, separator),
+            petId: directive.targetKey.slice(separator + 1),
+          },
+    };
+  }, [coach.directive]);
+
+  const handleOnboardingAction = useCallback(() => {
+    const step = saveRef.current?.onboarding?.step;
+    if (!step) return;
+    if (step === "D08") {
+      setUiMode("menu");
+      void coach.complete(step);
+      return;
+    }
+    if (step === "F03a") {
+      void coach.skipAgent();
+      return;
+    }
+    if (coach.directive?.action === "navigate" && coach.directive.requiredMode) {
+      setUiMode(coach.directive.requiredMode);
+    }
+    void coach.complete(step);
+  }, [coach.complete, coach.directive, coach.skipAgent]);
+
+  const recoverOnboardingRoute = useCallback(() => {
+    const directive = coach.directive;
+    if (!directive?.requiredMode) return;
+    if (directive.requiredMode === "factory") {
+      setFactoryVariant("rogue");
+    }
+    setUiMode(directive.requiredMode);
+  }, [coach.directive]);
 
   const visibleTutorialHint = useTutorialHints(save, gameConfig, uiMode, advanceTutorial, {
     hatcheryReady,
@@ -1640,8 +1973,8 @@ export default function App() {
   // 气泡区，互不叠加；浮动 pill 只保留给没有气泡区的界面（后院/调试）。
   const stageToast = showStage ? toast : null;
   const stageHint = showStage ? visibleTutorialHint : null;
-  // 教练引导文字复用同一气泡（OnboardingCoach.md §5）：toast > 教练 > 轻引导 > 台词。
-  const stageCoach = showStage ? coach.directive?.label ?? null : null;
+  // 教练引导文字复用同一气泡（OnboardingGuidance.md §1.2）：toast > 教练 > 轻引导 > 台词。
+  const stageCoach = null;
   const bubbleText = stageToast?.text ?? stageCoach ?? stageHint?.text ?? (speechVisible ? speechLine : null);
   const bubbleIsHint = stageToast == null && (stageCoach != null || stageHint != null);
   if (bubbleText != null) lastBubbleTextRef.current = bubbleText;
@@ -1662,11 +1995,12 @@ export default function App() {
     // 语言上下文根：App 持有 language 状态，全部 uiMode 渲染路径（舞台/菜单/后院/
     // 设置/调试/浮层）都在 Provider 内，任意深度组件可用 useT() 取词。
     <LanguageContext.Provider value={language}>
+    <PaperFxProvider remote={emitPaperFxOverlay}>
     <main
-      className={`pet-shell state-${petState} facing-${movementDirection} ui-${uiMode} ${isTauri() ? "" : "is-preview"}`}
+      className={`pet-shell ${uiMode === "debug" ? "" : "paper-app"} state-${petState} facing-${movementDirection} ui-${uiMode} ${isTauri() ? "" : "is-preview"}`}
       style={
-        uiMode === "backyard"
-          ? // 停靠模式：窗口尺寸由用户拉伸决定，内容始终铺满
+        uiMode === "backyard" || uiMode === "factory"
+          ? // 停靠模式：窗口尺寸由停靠命令/用户拉伸决定，内容始终铺满
             { width: "100%", height: "100%" }
           : { width: windowSize.w, height: windowSize.h }
       }
@@ -1684,13 +2018,13 @@ export default function App() {
         />
       )}
 
-      {/* 新手强引导手势层（全窗口固定覆盖、非阻塞）+ 跳过入口 */}
-      <CoachFx directive={coach.directive} />
-      {coach.active && (
-        <button type="button" className="coach-skip" onClick={markDone}>
-          {copy.sh.coach.skip}
-        </button>
-      )}
+      {/* 存档驱动的唯一强引导层：一个目标、一张目标卡；主线不可整段跳过。 */}
+      <CoachFx directive={coachFxDirective} />
+      <OnboardingGoal
+        directive={coach.directive}
+        onAction={handleOnboardingAction}
+        onRecover={recoverOnboardingRoute}
+      />
 
       {/* 连击累计读数（点击游戏爽快感）：置于对话气泡上方的窗口顶部，
           避开宠物身上的打工粒子/飞金特效，不再与它们叠加。 */}
@@ -1769,14 +2103,31 @@ export default function App() {
             onUpgradeHatchery={upgradeHatchery}
             onUpgradeYard={upgradeYard}
             onUpgradeShop={upgradeShop}
+            onBuildTrainingHall={buildTrainingHall}
+            onUpgradeTrainingSlots={upgradeTrainingSlots}
+            onCollectTraining={collectTraining}
+            onStartTraining={startTraining}
             onFuse={fusePets}
             onFollow={followPet}
             onRelease={releasePet}
             onToast={showToastMsg}
-            coachLabel={coach.directive?.label ?? null}
+            coachLabel={null}
             entryGuideKind={entryGuideKind}
             onCoachMoved={markMoved}
             onCoachYard={setYardCoach}
+          />
+        )
+      ) : uiMode === "factory" ? (
+        gameReady && (
+          <FactoryHub
+            save={save}
+            config={gameConfig}
+            variant={factoryVariant}
+            onBack={goBack}
+            onClaimFactoryLevels={claimFactoryLevels}
+            onSave={setSave}
+            onFirstShiftComplete={completeFirstFactoryShiftTutorial}
+            onFormalStart={handleFormalFactoryStart}
           />
         )
       ) : uiMode === "settings" ? (
@@ -1785,12 +2136,15 @@ export default function App() {
             copy={copy}
             language={language}
             appSettings={appSettings}
+            agentModels={agentModels}
             goBack={goBack}
             changeLanguage={changeLanguage}
             handleAlwaysOnTop={handleAlwaysOnTop}
             handleKeyboardCapture={handleKeyboardCapture}
             handleRandomMovement={handleRandomMovement}
             handleAutostart={handleAutostart}
+            handleDefaultAgent={handleDefaultAgent}
+            handleDefaultModel={handleDefaultModel}
             selectPanel={selectPanel}
             closePet={closePet}
           />
@@ -1805,6 +2159,7 @@ export default function App() {
               onSave={setSave}
               onToast={showToastMsg}
               onFeedTokens={bridge.debugFeedTokens ? debugFeed : undefined}
+              onOpenFactoryDemo={openFactoryDemo}
             />
           </PanelShell>
         )
@@ -1857,9 +2212,12 @@ export default function App() {
         autostartPromptOpen={autostartPromptOpen}
         onAutostartAccept={acceptAutostart}
         onAutostartDecline={declineAutostart}
+        codexUpgradeOpen={codexUpgradeOpen}
+        onCodexUpgradeClose={() => setCodexUpgradeOpen(false)}
       />
 
     </main>
+    </PaperFxProvider>
     </LanguageContext.Provider>
   );
 }

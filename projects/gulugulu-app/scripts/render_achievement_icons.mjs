@@ -1,4 +1,4 @@
-// 离线渲染 41 枚 Steam 成就图标（解锁彩色 + 未解锁灰锁两态，256×256 PNG）。
+// 离线渲染 48 枚 Steam 成就图标（解锁彩色 + 未解锁灰锁两态，256×256 PNG）。
 // 无字体依赖：全部矢量字形。**同系列的更高档成就用更华丽的 emblem 表现**（放射光芒 /
 // 宝石环 / 桂冠 / 王冠 / 更丰富的场景），而非叠点数。风格沿用精灵描边 #3B2B1D + 平涂 + 圆角。
 // 跑法（projects/gulugulu-app 下）：
@@ -23,6 +23,16 @@ const CAT = {
   A: ["#7BD07A", "#3E8E3A"], B: ["#5A9BEA", "#1E5AA8"], C: ["#9B7BE0", "#5B3EA0"],
   D: ["#3FC7B4", "#1E8E80"], E: ["#7C86EE", "#4048B8"], F: ["#F4B857", "#D2892A"],
   G: ["#F0C64A", "#C79320"], H: ["#EE7BB0", "#C43F82"], I: ["#4B4A7E", "#2A294B"],
+  J: ["#FF9F43", "#B85C18"],
+};
+// 解锁态背景严格按实际解锁难度分为五档：白 → 绿 → 蓝 → 紫 → 橙。
+// 白色不是纯白，避免 Steam 浅色界面里丢失边缘；锁定态仍统一为灰色。
+const DIFFICULTY_COL = {
+  white: ["#F7F3E8", "#CFC7B5"],
+  green: ["#78D889", "#2F914D"],
+  blue: ["#62AEEF", "#2868B5"],
+  purple: ["#B184E8", "#7041AE"],
+  orange: ["#FFB04F", "#D66A20"],
 };
 
 // —— 基础绘制 ——
@@ -80,6 +90,51 @@ const GLYPH = {
   owl: (f) => P("M28 30 L24 16 L38 26 M72 30 L76 16 L62 26", f, 3) + P("M50 24 C74 24 78 50 78 62 A28 28 0 0 1 22 62 C22 50 26 24 50 24 Z", f) + C_(40, 50, 11, "#fff") + C_(60, 50, 11, "#fff") + C_(40, 50, 4.5, OUT, 0) + C_(60, 50, 4.5, OUT, 0) + P("M46 62 L50 68 L54 62 Z", "#FFD93B", 2),
   farewell: (f) => P("M40 78 V46 C40 42 46 42 46 46 V40 C46 36 52 36 52 40 V42 C52 38 58 38 58 42 V44 C58 40 64 40 64 44 V64 C64 74 58 80 50 80 Z", f) + starPath(70, 26, 9, 4, "#FFF3B0", 2) + starPath(30, 30, 7, 3, "#FFF3B0", 2),
   heart: (f) => P("M50 80 C20 58 20 34 34 28 C44 24 50 34 50 38 C50 34 56 24 66 28 C80 34 80 58 50 80 Z", f),
+  // 工厂统一视觉：工牌、工资单、办公桌、KPI、罢工牌、账单与毕业章。
+  workbadge: (f, lv = 1) => (lv >= 2 ? rays(50, 50, 14, 30, 48, "#FFE0B2") + laurel("#FFD54F") : "")
+    + `<path d="M38 18 Q50 8 62 18 L58 34 H42 Z" fill="none" stroke="${OUT}" stroke-width="5"/>`
+    + RECT(22, 30, 56, 52, 8, f) + C_(50, 48, 9, "#FFCC80", 3)
+    + `<path d="M34 70 H66" stroke="${OUT}" stroke-width="4" stroke-linecap="round"/>`
+    + (lv >= 2 ? crown(50, 24, "#FFD54F") : ""),
+  perk: (f) => RECT(21, 27, 58, 52, 8, f) + P("M21 42 H79 V54 H21 Z", "#FFD180", 3)
+    + starPath(66, 25, 11, 4.5, "#FFF3B0", 2.5),
+  shift: (f, lv = 1) => RECT(20, 22, 60, 62, 8, "#fff")
+    + P("M20 22 H80 V38 H20 Z", f)
+    + [0, 1, 2, 3].slice(0, Math.min(4, lv)).map((i) => C_(32 + (i % 2) * 28, 52 + Math.floor(i / 2) * 19, 6, f, 2.5)).join("")
+    + (lv >= 4 ? crown(50, 18, "#FFD54F") : ""),
+  graduation: (f) => P("M14 40 L50 22 L86 40 L50 58 Z", f)
+    + P("M30 50 V68 Q50 84 70 68 V50 L50 62 Z", "#fff")
+    + `<path d="M82 42 V68" stroke="${OUT}" stroke-width="4"/><circle cx="82" cy="72" r="5" fill="#FFD54F" stroke="${OUT}" stroke-width="2"/>`,
+  overtime: (f) => C_(50, 50, 34, "#fff") + C_(50, 50, 27, f, 3)
+    + `<path d="M50 31 V51 L66 61" fill="none" stroke="${OUT}" stroke-width="5" stroke-linecap="round"/>`
+    + rays(50, 50, 10, 37, 46, "#FFE0B2"),
+  revenue: (f, lv = 1) => rays(50, 50, 8 + lv * 2, 27, 42 + lv * 2, "#FFE0B2")
+    + C_(50, 52, 29, f) + P("M36 54 Q50 37 66 34 M36 54 H49 V68 H66", "#fff", 4)
+    + (lv >= 3 ? crown(50, 22, "#FFD54F") : ""),
+  pulse: (f, lv = 1) => (lv >= 2 ? rays(50, 51, 16, 30, 49, "#FFE0B2") + gemRing(50, 51, 39, "#FFD54F", 8) : "")
+    + RECT(15, 28, 70, 48, 8, "#fff")
+    + `<path d="M20 54 H34 L41 36 L50 68 L59 45 L66 54 H80" fill="none" stroke="${f}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`
+    + C_(76, 28, 10, "#FFD54F", 2.5)
+    + (lv >= 2 ? crown(50, 18, "#FFD54F") : ""),
+  desks: (f, lv = 1) => [0, 1, 2, 3, 4, 5].slice(0, lv >= 2 ? 6 : 3)
+    .map((i) => RECT(17 + (i % 3) * 23, 25 + Math.floor(i / 3) * 34, 20, 20, 4, i % 2 ? "#fff" : f, 2.5)).join("")
+    + `<path d="M16 82 H84" stroke="${OUT}" stroke-width="5" stroke-linecap="round"/>`,
+  roster: (f) => [25, 50, 75].map((x) => C_(x, 34, 10, f, 3)).join("")
+    + [20, 44, 68].map((x) => P(`M${x} 78 Q${x + 6} 52 ${x + 12} 78 Z`, "#fff", 3)).join(""),
+  upgrade: (f, lv = 1) => (lv >= 2 ? rays(52, 50, 14, 28, 48, "#FFE0B2") : "")
+    + [0, 1, 2, 3].slice(0, lv >= 2 ? 4 : 3).map((i) => RECT(12 + i * 16, 62 - i * 13, 27, 22, 5, i >= 2 ? "#FFD54F" : f, 3)).join("")
+    + P("M76 55 V22 M64 34 L76 22 L88 34", "#fff", 4)
+    + (lv >= 2 ? crown(76, 18, "#FFD54F") : ""),
+  strike: (f) => P("M21 26 H79 V68 H21 Z", f) + `<path d="M29 40 H71 M29 53 H62" stroke="${OUT}" stroke-width="5" stroke-linecap="round"/>`
+    + P("M43 68 L35 84 M57 68 L65 84", "#fff", 4),
+  bankrupt: (f) => C_(50, 50, 33, f) + `<path d="M35 29 L58 48 L45 58 L66 76" fill="none" stroke="${OUT}" stroke-width="7" stroke-linecap="round"/>`
+    + P("M20 77 L80 22", "#fff", 6),
+  audit: (f) => RECT(23, 20, 54, 66, 7, "#fff") + RECT(38, 14, 24, 14, 5, f, 3)
+    + [40, 57, 74].map((y) => `<path d="M31 ${y} L37 ${y + 6} L46 ${y - 5} M52 ${y} H69" fill="none" stroke="${OUT}" stroke-width="4" stroke-linecap="round"/>`).join(""),
+  combo: (f) => P("M42 18 L73 18 L58 43 H78 L36 84 L45 54 H24 Z", f)
+    + [0, 1, 2].map((i) => C_(22 + i * 28, 76, 7, "#FFD54F", 2)).join(""),
+  debtfree: (f) => RECT(20, 20, 60, 66, 7, "#fff") + `<path d="M32 36 H67 M32 49 H58 M31 67 L42 77 L69 55" fill="none" stroke="${OUT}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`
+    + C_(76, 25, 10, f, 2.5),
 
   // —— 系列字形：华丽度随档位递增 ——
   // 图鉴：小册 → 书+书签星 → 光芒书+双宝石 → 桂冠王冠辉光大典（B 蓝）。
@@ -128,19 +183,37 @@ const GLYPH = {
   },
 };
 
-// —— 41 枚成就 → (分组, 字形, 档位) ——
+// —— 48 枚成就 → (分组, 字形, 字形档位, 难度色阶)；复用的 17 枚也切换为 J 工厂视觉。 ——
 const A = [
-  ["ACH_FIRST_HATCH", "A", "egg"], ["ACH_FIRST_MAXLEVEL", "A", "star"], ["ACH_FIRST_FUSION", "A", "fusion", 0],
-  ["ACH_DEX_10", "B", "book", 1], ["ACH_DEX_25", "B", "book", 2], ["ACH_DEX_45", "B", "book", 3], ["ACH_DEX_ALL63", "B", "book", 4],
-  ["ACH_ALL_ELEMENTS", "B", "ring6"], ["ACH_FIRST_PENTA", "B", "penta"], ["ACH_FLAGSHIP_KIRIN", "B", "prism"],
-  ["ACH_TIER3", "C", "tier", 3], ["ACH_TIER4", "C", "tier", 4], ["ACH_TIER5", "C", "tier", 5], ["ACH_TIER6_APEX", "C", "tier", 6],
-  ["ACH_FUSE_10", "D", "fusion", 1], ["ACH_FUSE_50", "D", "fusion", 2], ["ACH_FUSE_200", "D", "fusion", 3],
-  ["ACH_AI_FIRST", "E", "chip"], ["ACH_AI_COLLECT_5", "E", "aicollect", 1], ["ACH_AI_COLLECT_20", "E", "aicollect", 2], ["ACH_AI_LADDER_5", "E", "ladder"],
-  ["ACH_TOKENS_1M", "F", "tokens", 1], ["ACH_TOKENS_50M", "F", "tokens", 2], ["ACH_TOKENS_1B", "F", "tokens", 3], ["ACH_KEYS_100K", "F", "keycap"],
-  ["ACH_COINS_1M", "G", "coin"], ["ACH_HATCHERY_MAX", "G", "incubator"], ["ACH_YARD_MAX", "G", "fence"], ["ACH_SHOP_MAX", "G", "shop"], ["ACH_FULL_HOUSE", "G", "house"],
-  ["ACH_WORKSHOP_IMPORT", "H", "hanger"], ["ACH_WORKSHOP_WEAR", "H", "wear"], ["ACH_WORKSHOP_PUBLISH", "H", "publish", 1], ["ACH_WORKSHOP_PUBLISH_5", "H", "publish", 2], ["ACH_WORKSHOP_COLLECT_5", "H", "wardrobe"],
-  ["ACH_STREAK_7", "I", "streak", 1], ["ACH_STREAK_30", "I", "streak", 2], ["ACH_NIGHT_OWL", "I", "owl"], ["ACH_FAREWELL", "I", "farewell"], ["ACH_LOVED", "I", "heart"], ["ACH_TREASURY", "I", "treasure"],
+  ["ACH_FIRST_HATCH", "A", "egg", undefined, "white"], ["ACH_FIRST_MAXLEVEL", "A", "star", undefined, "green"], ["ACH_FIRST_FUSION", "A", "fusion", 0, "white"],
+  ["ACH_DEX_10", "B", "book", 1, "green"], ["ACH_DEX_25", "J", "workbadge", undefined, "white"], ["ACH_DEX_45", "J", "shift", 1, "green"], ["ACH_DEX_ALL63", "B", "book", 4, "orange"],
+  ["ACH_ALL_ELEMENTS", "J", "desks", 1, "green"], ["ACH_FIRST_PENTA", "J", "audit", undefined, "purple"], ["ACH_FLAGSHIP_KIRIN", "B", "prism", undefined, "orange"],
+  ["ACH_TIER3", "C", "tier", 3, "green"], ["ACH_TIER4", "J", "shift", 2, "blue"], ["ACH_TIER5", "J", "shift", 3, "purple"], ["ACH_TIER6_APEX", "C", "tier", 6, "orange"],
+  ["ACH_FUSE_10", "D", "fusion", 1, "green"], ["ACH_FUSE_50", "J", "workbadge", 2, "purple"], ["ACH_FUSE_200", "D", "fusion", 3, "orange"],
+  ["ACH_AI_FIRST", "E", "chip", undefined, "white"], ["ACH_AI_COLLECT_5", "J", "perk", undefined, "white"], ["ACH_AI_COLLECT_20", "E", "aicollect", 2, "purple"], ["ACH_AI_LADDER_5", "J", "upgrade", 2, "purple"],
+  ["ACH_TOKENS_1M", "F", "tokens", 1, "blue"], ["ACH_TOKENS_50M", "J", "revenue", 1, "green"], ["ACH_TOKENS_1B", "F", "tokens", 3, "orange"], ["ACH_KEYS_100K", "F", "keycap", undefined, "blue"],
+  ["ACH_COINS_1M", "G", "coin", undefined, "blue"], ["ACH_HATCHERY_MAX", "J", "graduation", undefined, "purple"], ["ACH_YARD_MAX", "J", "overtime", undefined, "purple"], ["ACH_SHOP_MAX", "J", "desks", 2, "blue"], ["ACH_FULL_HOUSE", "J", "roster", undefined, "green"],
+  ["ACH_WORKSHOP_IMPORT", "H", "hanger", undefined, "white"], ["ACH_WORKSHOP_WEAR", "J", "strike", undefined, "blue"], ["ACH_WORKSHOP_PUBLISH", "H", "publish", 1, "blue"], ["ACH_WORKSHOP_PUBLISH_5", "J", "bankrupt", undefined, "white"], ["ACH_WORKSHOP_COLLECT_5", "J", "pulse", 2, "orange"],
+  ["ACH_STREAK_7", "I", "streak", 1, "green"], ["ACH_STREAK_30", "I", "streak", 2, "purple"], ["ACH_NIGHT_OWL", "I", "owl", undefined, "white"], ["ACH_FAREWELL", "I", "farewell", undefined, "white"], ["ACH_LOVED", "I", "heart", undefined, "blue"], ["ACH_TREASURY", "I", "treasure", undefined, "orange"],
+  ["ACH_FACTORY_CLOCK_IN", "J", "workbadge", undefined, "white"], ["ACH_FACTORY_FIRST_PULSE", "J", "pulse", undefined, "white"], ["ACH_FACTORY_ENDLESS_30", "J", "shift", 4, "orange"],
+  ["ACH_FACTORY_REVENUE_II", "J", "revenue", 2, "purple"], ["ACH_FACTORY_REVENUE_III", "J", "revenue", 3, "orange"], ["ACH_FACTORY_COMBO_10", "J", "combo", undefined, "blue"],
+  ["ACH_FACTORY_DEBT_FREE", "J", "debtfree", undefined, "purple"],
 ];
+
+if (A.length !== 48 || new Set(A.map(([id]) => id)).size !== 48) {
+  throw new Error(`achievement icon catalog must contain 48 unique IDs (got ${A.length})`);
+}
+const factoryIconCount = A.filter(([, category]) => category === "J").length;
+if (factoryIconCount !== 24) {
+  throw new Error(`factory icon catalog must contain 24 IDs (got ${factoryIconCount})`);
+}
+const difficultyCounts = Object.fromEntries(Object.keys(DIFFICULTY_COL).map((tier) => [
+  tier,
+  A.filter((a) => a[4] === tier).length,
+]));
+if (Object.values(difficultyCounts).some((count) => count === 0) || Object.values(difficultyCounts).reduce((a, b) => a + b, 0) !== A.length) {
+  throw new Error(`every achievement must have one of five difficulty tiers: ${JSON.stringify(difficultyCounts)}`);
+}
 
 function glyphMarkup(a, locked) {
   const [, , g, arg] = a;
@@ -152,7 +225,7 @@ function glyphMarkup(a, locked) {
 const lockBadge = () => C_(210, 210, 30, "#2A2A33", 5) + RECT(198, 204, 24, 20, 4, "#E8E8EE", 3) + `<path d="M203 204 V198 A7 7 0 0 1 217 198 V204" fill="none" stroke="#E8E8EE" stroke-width="4"/>`;
 
 function iconSvg(a, locked) {
-  const [c0, c1] = locked ? ["#7A7A82", "#42424B"] : CAT[a[1]];
+  const [c0, c1] = locked ? ["#7A7A82", "#42424B"] : DIFFICULTY_COL[a[4]];
   const uid = a[0] + (locked ? "_L" : "");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
   <defs><linearGradient id="bg_${uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c0}"/><stop offset="1" stop-color="${c1}"/></linearGradient>
@@ -172,10 +245,16 @@ for (const a of A) {
   writeFileSync(join(outDir, `${a[0]}_locked.png`), png(iconSvg(a, true)));
   count += 2;
 }
+writeFileSync(join(outDir, "_difficulty_manifest.json"), JSON.stringify({
+  order: ["white", "green", "blue", "purple", "orange"],
+  colors: DIFFICULTY_COL,
+  counts: difficultyCounts,
+  achievements: A.map(([id, , , , difficulty]) => ({ id, difficulty })),
+}, null, 2) + "\n");
 
-// 接触表（QA）：前 41 解锁 + 后 8 未解锁样例。
+// 接触表（QA）：48 枚解锁 + 48 枚未解锁，逐项核对两态。
 const COLS = 8, CELL = 96, PAD = 6;
-const items = [...A.map((a) => [a, false]), ...A.slice(0, 8).map((a) => [a, true])];
+const items = [...A.map((a) => [a, false]), ...A.map((a) => [a, true])];
 const rows = Math.ceil(items.length / COLS);
 let cells = "";
 items.forEach(([a, lk], i) => {
@@ -184,4 +263,4 @@ items.forEach(([a, lk], i) => {
 });
 writeFileSync(join(outDir, "_contact_sheet.png"), new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${COLS * CELL}" height="${rows * CELL}" viewBox="0 0 ${COLS * CELL} ${rows * CELL}"><rect width="100%" height="100%" fill="#1b1b22"/>${cells}</svg>`, { fitTo: { mode: "width", value: COLS * CELL } }).render().asPng());
 
-console.log(`✓ rendered ${count} icons (${A.length} achieved + ${A.length} locked) + contact sheet → ${outDir}`);
+console.log(`✓ rendered ${count} icons (${A.length} achieved + ${A.length} locked) + contact sheet; tiers ${JSON.stringify(difficultyCounts)} → ${outDir}`);

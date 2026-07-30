@@ -1,4 +1,4 @@
-import type { GameConfig } from "../types";
+import type { GameConfig, GameSave } from "../types";
 import normalConfig from "./config.json";
 import testConfig from "./config.test.json";
 import { elementSetKey, aiTotalChancePercent } from "./fusionSlots";
@@ -16,6 +16,12 @@ export const localGameConfig: GameConfig = (isTestConfigRequested
 
 export function speciesInfo(config: GameConfig, species: string) {
   return config.species[species];
+}
+
+/** Backyard occupancy excludes the six post-first-shift onboarding reward pets. */
+export function yardOccupiedCount(save: GameSave): number {
+  const exempt = new Set(save.capacityExemptPetIds ?? []);
+  return save.pets.filter((pet) => !exempt.has(pet.id)).length;
 }
 
 export function expToNext(config: GameConfig, tier: number, level: number): number {
@@ -89,6 +95,18 @@ export function fusionFeeFor(config: GameConfig, parentTier: number): number {
   return config.fusionFee;
 }
 
+/** 融合能达到的最高结果阶（默认 3；镜像 fusion_max_result_tier）。 */
+export function fusionMaxResultTier(config: GameConfig): number {
+  const cap = config.fusionMaxResultTier ?? 3;
+  return cap < 2 ? 3 : cap;
+}
+
+/** 融合结果阶 = min(亲代阶+1, 封顶)（镜像 fusion_result_tier）。亲代阶已达上限时
+ *  结果**保持原阶**——同阶物种合成，只换物种不换段位。 */
+export function fusionResultTier(config: GameConfig, parentTier: number): number {
+  return Math.min(parentTier + 1, Math.max(fusionMaxResultTier(config), parentTier));
+}
+
 /** 触发 AI 变种的总概率（百分数整数），按元素数查表（config 权威，缺项回退硬编码表）。 */
 export function aiTotalChancePercentFor(config: GameConfig, elementCount: number): number {
   const p = config.aiTotalChanceByElementCount?.[String(elementCount)];
@@ -124,15 +142,66 @@ export function equivalentEggPriceForInfo(
   return baseSum * Math.pow(eggTierMult(config), Math.max(0, tier - 1));
 }
 
-/** 商店最高等级 = 可售最高蛋阶（默认 4；镜像 shop_max_level）。 */
+/** 商店最高等级 = 可售最高蛋阶（默认 3；镜像 shop_max_level）。 */
 export function shopMaxLevel(config: GameConfig): number {
-  return Math.max(1, config.shopMaxLevel ?? 4);
+  return Math.max(1, config.shopMaxLevel ?? 3);
 }
 
 /** 从 shopLevel 升到 +1 的费用（索引 = shopLevel−1；已满级返回 null；镜像 shop_upgrade_cost）。 */
 export function shopUpgradeCost(config: GameConfig, shopLevel: number): number | null {
   if (shopLevel >= shopMaxLevel(config)) return null;
   return config.shopUpgradeCosts?.[shopLevel - 1] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// 训练馆（EconomyRework-TrainingHall.md §3）——全部镜像 Rust GameConfig 的同名方法。
+// ---------------------------------------------------------------------------
+
+/** 「起始阶 T → T+1」这一级升阶的完整代价；T 已达最高阶 → null。 */
+export type TrainingStep = { material: string; count: number; coins: number; seconds: number };
+
+export function trainingStepFor(config: GameConfig, fromTier: number): TrainingStep | null {
+  const idx = fromTier - 1;
+  const material = config.trainingMaterials?.[idx];
+  const count = config.trainingMaterialCounts?.[idx];
+  if (material == null || count == null) return null;
+  const costs = config.trainingCosts ?? [];
+  const secs = config.trainingSeconds ?? [];
+  return {
+    material,
+    count,
+    coins: costs[idx] ?? costs[costs.length - 1] ?? 0,
+    seconds: secs[idx] ?? secs[secs.length - 1] ?? 1800,
+  };
+}
+
+/** 训练馆最高等级 = 升阶阶梯项数（默认 5 → 封顶 5→6 阶）。 */
+export function trainingHallMaxLevel(config: GameConfig): number {
+  return config.trainingMaterialCounts?.length ?? 5;
+}
+
+/** 从 hallLevel 升到 +1 的费用（索引 = hallLevel，0 = 建造费）；已满级 → null。 */
+export function trainingHallUpgradeCost(config: GameConfig, hallLevel: number): number | null {
+  if (hallLevel >= trainingHallMaxLevel(config)) return null;
+  return config.trainingHallUpgradeCosts?.[hallLevel] ?? null;
+}
+
+/** 当前训练槽数（索引 = slotLevel − 1；越界回退末项，再回退 1）。 */
+export function trainingSlotCount(config: GameConfig, slotLevel: number): number {
+  const slots = config.trainingSlots ?? [1];
+  return slots[Math.max(1, slotLevel) - 1] ?? slots[slots.length - 1] ?? 1;
+}
+
+/** 从 slotLevel 扩到 +1 的费用；已满 → null。 */
+export function trainingSlotUpgradeCost(config: GameConfig, slotLevel: number): number | null {
+  const slots = config.trainingSlots ?? [1];
+  if (Math.max(1, slotLevel) >= slots.length) return null;
+  return config.trainingSlotUpgradeCosts?.[Math.max(1, slotLevel) - 1] ?? null;
+}
+
+/** 万能券材料 id（可 1:1 替代任意升阶材料）。 */
+export function universalMaterial(config: GameConfig): string {
+  return config.universalMaterial ?? "goldenBadge";
 }
 
 /** 蛋池按元素数的整数权重 w(c)=denom^(6−c)（镜像 egg_rarity_weight）。 */
