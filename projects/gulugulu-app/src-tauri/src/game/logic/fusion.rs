@@ -507,6 +507,59 @@ pub fn logic_resolve_fusion_egg(
     Ok(())
 }
 
+/// AI 设计可能在蛋被领取后才完成。Steam 已定槽的宠物会先以确定性 codename
+/// 孵出；此处既可解析仍存在的蛋，也可给已领取的同身份宠物补上物种形象。
+pub fn logic_resolve_fusion_target(
+    config: &GameConfig,
+    save: &mut GameSave,
+    egg_id: &str,
+    recipe_key: &str,
+    codename: &str,
+    entry: CustomSpeciesEntry,
+) -> Result<(), String> {
+    if save.eggs.iter().any(|egg| egg.id == egg_id) {
+        return logic_resolve_fusion_egg(config, save, egg_id, codename, entry);
+    }
+    let Some(pet_index) = save.pets.iter().position(|pet| {
+        pet.pending_fusion.as_ref().is_some_and(|pending| {
+            pending.recipe_key == recipe_key
+                && pending.forced_codename.as_deref().is_none_or(|forced| forced == codename)
+        })
+    }) else {
+        return Err("#eggGone".to_string());
+    };
+    if config.species.contains_key(codename) {
+        return Err(format!("#codenameTaken|codename={codename}"));
+    }
+    if !save.custom_species.contains_key(codename) {
+        save.custom_species.insert(codename.to_string(), entry);
+    }
+    register_ai_slot(save, recipe_key, codename);
+    save.pets[pet_index].species = codename.to_string();
+    save.pets[pet_index].pending_fusion = None;
+    Ok(())
+}
+
+pub fn logic_reuse_fusion_target(
+    save: &mut GameSave,
+    egg_id: &str,
+    recipe_key: &str,
+    codename: &str,
+) -> Result<(), String> {
+    if save.eggs.iter().any(|egg| egg.id == egg_id) {
+        return logic_reuse_fusion_egg(save, egg_id, codename);
+    }
+    let Some(pet_index) = save.pets.iter().position(|pet| {
+        pet.pending_fusion.as_ref().is_some_and(|pending| pending.recipe_key == recipe_key)
+    }) else {
+        return Err("#eggGone".to_string());
+    };
+    register_ai_slot(save, recipe_key, codename);
+    save.pets[pet_index].species = codename.to_string();
+    save.pets[pet_index].pending_fusion = None;
+    Ok(())
+}
+
 /// 复用既有物种解析融合蛋：Steam 掷中的确定性槽位（`forced_codename`）在本次生成
 /// 落地前已被注册（另一路同配方融合先解析 / 他机工坊导入了同一槽）时，把蛋直接解析成
 /// 该既有 codename，**不再新插入一个随机名重复物种**——否则本地会多出一个无 Steam def
@@ -562,12 +615,11 @@ pub fn logic_mark_fusion_egg(
     error: Option<String>,
     bump_attempt: bool,
 ) -> Result<(), String> {
-    let egg = save
-        .eggs
-        .iter_mut()
-        .find(|e| e.id == egg_id)
-        .ok_or_else(|| "#eggGone".to_string())?;
-    let Some(pending) = egg.pending_fusion.as_mut() else {
+    let pending = save.eggs.iter_mut().find(|e| e.id == egg_id)
+        .and_then(|egg| egg.pending_fusion.as_mut())
+        .or_else(|| save.pets.iter_mut().find(|p| p.id == egg_id)
+            .and_then(|pet| pet.pending_fusion.as_mut()));
+    let Some(pending) = pending else {
         return Err("#eggNoPendingFusion".to_string());
     };
     if pending.status == "resolved" {

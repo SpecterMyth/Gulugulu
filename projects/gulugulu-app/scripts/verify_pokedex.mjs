@@ -55,22 +55,35 @@ ok(
 ok(model.recipes[56].elementCount === 6, `末行元素数 6（实得 ${model.recipes[56].elementCount}）`);
 ok(model.recipes[56].fixed === "prismkirin", `末行固定=prismkirin（实得 ${model.recipes[56].fixed}）`);
 
-// fire+water 行：slot0=steamalotl 已收集(曾获1)，slot1=aiffw1 已收集，slot2=神秘且概率 30%，slot3+ 锁定。
+// Steam 全局静态 11 槽池：2 元素 A=60%，各槽固定为
+// slot0=40%、slot1=30%、slot2=15%、slot3=7.5%…slot9/10 各 0.1171875%。
+// 已收集槽不显概率徽章，但不改变其余槽的底层静态权重。
 const fw = model.recipes.find((r) => r.key === "fire+water");
 ok(fw != null, "存在 fire+water 配方行");
 ok(fw.slots[0].codename === "steamalotl" && fw.slots[0].collected && fw.slots[0].everCount === 1, "fire+water 0 号=steamalotl 已收集 ×1");
 ok(fw.slots[1].codename === "aiffw1" && fw.slots[1].collected, "fire+water 1 号=aiffw1 已收集");
 ok(fw.slots[2].mystery === true && !fw.slots[2].collected, "fire+water 2 号=神秘未收集");
-ok(Math.abs(fw.slots[2].probability - 30) < 0.01, `fire+water 2 号概率=30%（实得 ${fw.slots[2].probability}）`);
-ok(fw.slots[3].locked === true && fw.slots[3].probability === 0, "fire+water 3 号锁定、概率 0");
+ok(Math.abs(fw.slots[2].probability - 15) < 0.01, `fire+water 2 号静态概率=15%（实得 ${fw.slots[2].probability}）`);
+ok(
+  fw.slots[3].mystery === true && Math.abs(fw.slots[3].probability - 7.5) < 0.01,
+  `fire+water 3 号从首日起在静态池中、概率=7.5%（实得 ${fw.slots[3].probability}）`,
+);
+ok(!("locked" in fw.slots[3]), "Steam 静态池槽位不再暴露 per-user locked 状态");
 
-// 全新配方（electric+fire，dex 无）：0 号概率=40%、1 号概率=60%（e=2 m=1）。
+// 全新配方（electric+fire，dex 无）也使用同一个完整静态池，与收集进度无关。
 const ef = model.recipes.find((r) => r.key === "electric+fire");
 ok(ef != null, "存在 electric+fire 配方行");
 ok(Math.abs(ef.slots[0].probability - 40) < 0.01, `electric+fire 0 号=40%（实得 ${ef.slots[0].probability}）`);
-ok(Math.abs(ef.slots[1].probability - 60) < 0.01, `electric+fire 1 号=60%（实得 ${ef.slots[1].probability}）`);
+ok(Math.abs(ef.slots[1].probability - 30) < 0.01, `electric+fire 1 号=30%（实得 ${ef.slots[1].probability}）`);
 ok(ef.slots[1].mystery === true, "electric+fire 1 号未生成=神秘");
-ok(ef.slots[2].locked === true, "electric+fire 2 号锁定（需先集齐 0/1）");
+ok(
+  ef.slots[2].mystery === true && Math.abs(ef.slots[2].probability - 15) < 0.01,
+  `electric+fire 2 号从首日起在静态池中、概率=15%（实得 ${ef.slots[2].probability}）`,
+);
+ok(
+  Math.abs(ef.slots.reduce((sum, slot) => sum + slot.probability, 0) - 100) < 0.0001,
+  "全新配方 11 槽静态概率之和=100%",
+);
 
 // 博物馆速览：高阶→低阶，maxCells 溢出 +x。
 const mus = M.museumThumbs(model, config, 2);
@@ -111,4 +124,4 @@ if (failures > 0) {
   console.error(`\n✗ pokedex model: ${failures} assertion(s) failed`);
   process.exit(1);
 }
-console.log("✓ pokedexData model: all assertions pass (63 recipes, ladder probabilities, museum overflow)");
+console.log("✓ pokedexData model: all assertions pass (63 fixed species, global static slot probabilities, museum overflow)");

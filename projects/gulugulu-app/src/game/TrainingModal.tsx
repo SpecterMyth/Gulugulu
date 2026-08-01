@@ -6,6 +6,7 @@ import { SvgSprite } from "../sprites/SvgSprite";
 import { formatCount } from "./format";
 import { formatCountdown } from "./useGame";
 import { isMaxLevel, trainingSlotCount, trainingStepFor, universalMaterial } from "./config";
+import { trainingMaterialIcon, trainingMaterialText } from "./trainingMaterialUi";
 
 // ---------------------------------------------------------------------------
 // 训练弹窗：选一只伙伴升阶（EconomyRework-TrainingHall.md §3）。
@@ -90,8 +91,10 @@ export function TrainingModal({
         aria-label={bk.pickTitle}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="welcome-title">{bk.pickTitle}</div>
-        <div className="welcome-sub">{bk.pickHint}</div>
+        <header className="train-modal-head">
+          <div className="welcome-title">{bk.pickTitle}</div>
+          <div className="welcome-sub">{bk.pickHint}</div>
+        </header>
 
         {eligible.length === 0 && candidates.length > 0 && (
           <p className="fusion-modal-note">{bk.noEligible}</p>
@@ -111,7 +114,10 @@ export function TrainingModal({
               }}
             >
               <SvgSprite species={pet.species} config={config} petState="idle" tier={pet.tier} />
-              <span className="train-modal-pet-name">{nameOf(pet)}</span>
+              <span className="train-modal-pet-name">
+                <span>{nameOf(pet)}</span>
+                <b>Lv{pet.level}</b>
+              </span>
               {/* 有升阶目标才显示阶梯箭头；顶阶宠的「已达最高阶」交给下面的 block 行，不重复 */}
               {step && (
                 <span className="train-modal-pet-meta">
@@ -133,14 +139,23 @@ export function TrainingModal({
 
         {current?.step && (
           <div className="train-modal-cost" data-coach="trainingCosts">
-            <span className="by-pill">
-              {bk.materialNames[current.step.material] ?? current.step.material}{" "}
+            <span
+              className="train-modal-cost-material"
+              title={trainingMaterialText(
+                bk.materialNames[current.step.material] ?? current.step.material,
+              )}
+            >
+              <span className="train-modal-cost-icon" aria-hidden="true">
+                {trainingMaterialIcon(current.step.material)}
+              </span>
               <b>
                 {Math.min(current.step.count, save.materials?.[current.step.material] ?? 0)}/
                 {current.step.count}
               </b>
             </span>
-            <span className="by-pill">{fmt(bk.costCoins, { cost: formatCount(current.step.coins) })}</span>
+            <span className="by-pill">
+              {fmt(bk.costCoins, { cost: formatCount(current.step.coins) })}
+            </span>
             <span className="by-pill is-light">
               {fmt(bk.costTime, { time: formatCountdown(current.step.seconds) })}
             </span>

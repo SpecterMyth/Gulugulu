@@ -11,16 +11,25 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
-/// 「开机自启」引导弹窗的最多展示次数（首融/二融/三融后各一次，之后永不再弹）。
+/// 「开机自启」引导弹窗的历史展示次数上限；当前由两个明确里程碑触发。
 pub const AUTOSTART_PROMPT_MAX: u32 = 3;
 
 /// 与 `src/types.ts` 的 `AppSettings` 逐字段镜像（camelCase）。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    /// 键盘充能：全局键盘钩子把打字换成精力（InteractionEconomy §5）。
-    #[serde(default = "default_true")]
+    /// 键盘充能：全局键盘钩子把按键次数换成精力（InteractionEconomy §5）。
+    ///
+    /// 这是设备级隐私同意：新安装/旧文件缺字段时必须关闭；已有文件里明确保存的
+    /// true/false 原样保留，升级不能替用户重新开启。
+    #[serde(default)]
     pub keyboard_capture: bool,
+    /// 后台动态台词是否可以调用玩家已登录的 Claude/Codex CLI。
+    ///
+    /// 与 AI 融合偏好相互独立；新安装以及旧版本设置文件都默认关闭，只有用户在
+    /// 设置页明确开启后 worker 才能启动。关闭后不影响内置静态台词。
+    #[serde(default)]
+    pub dynamic_quote_ai: bool,
     /// 桌宠窗口在非后院模式下总在最前。
     #[serde(default = "default_true")]
     pub always_on_top: bool,
@@ -35,8 +44,8 @@ pub struct AppSettings {
     /// 与实际注册态对账，`set_autostart` 写入后回填实际态。
     #[serde(default)]
     pub autostart: bool,
-    /// 「融合成功领取新宠 → 引导开机自启」弹窗已展示次数（0..=AUTOSTART_PROMPT_MAX）。
-    /// 用户加入自启后不再弹；无论如何到上限后永不再弹。
+    /// 「里程碑 → 引导开机自启」弹窗已展示次数（0..=AUTOSTART_PROMPT_MAX）。
+    /// 仅保留兼容/观测用途；前端是否提示以实际 `autostart` 状态为准。
     #[serde(default)]
     pub autostart_prompt_count: u32,
     /// AI 融合首选 Agent（`"claude"` | `"codex"`）。融合生成时优先用它（不可用再回退另一个）。
@@ -52,7 +61,8 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            keyboard_capture: true,
+            keyboard_capture: false,
+            dynamic_quote_ai: false,
             always_on_top: true,
             random_movement: true,
             language: default_language(),
@@ -261,8 +271,7 @@ pub fn reconcile_autostart(app: &AppHandle) {
     crate::steam_autostart::sync(registered && crate::steam::integration_enabled());
 }
 
-/// 「开机自启」引导弹窗展示一次后调用：计数 +1（封顶 AUTOSTART_PROMPT_MAX），
-/// 顺带对账当前自启态。前端据 `autostart_prompt_count` 与 `autostart` 决定是否再弹。
+/// 「开机自启」引导弹窗展示一次后调用：记录历史次数（封顶），并顺带对账当前自启态。
 #[tauri::command]
 pub fn note_autostart_prompt_shown(app: AppHandle) -> AppSettings {
     let actual = os_autostart_enabled(&app);
@@ -348,4 +357,60 @@ pub fn set_default_agent(app: AppHandle, agent: String) -> AppSettings {
 pub fn set_default_model(app: AppHandle, model: String) -> AppSettings {
     let trimmed = model.trim().to_string();
     update(&app, |s| s.default_model = trimmed)
+}
+
+#[cfg(test)]
+mod privacy_setting_tests {
+    use super::AppSettings;
+
+    #[test]
+    fn fresh_install_requires_explicit_external_capability_consent() {
+        let settings = AppSettings::default();
+        assert!(!settings.keyboard_capture);
+        assert!(!settings.dynamic_quote_ai);
+    }
+
+    #[test]
+    fn legacy_settings_do_not_gain_new_permissions() {
+        let settings: AppSettings = serde_json::from_str(
+            r#"{
+                "alwaysOnTop": true,
+                "randomMovement": true,
+                "language": "en"
+            }"#,
+        )
+        .expect("legacy settings should still deserialize");
+
+        assert!(!settings.keyboard_capture);
+        assert!(!settings.dynamic_quote_ai);
+    }
+
+    #[test]
+    fn explicit_existing_keyboard_choice_is_preserved() {
+        let enabled: AppSettings = serde_json::from_str(r#"{"keyboardCapture":true}"#)
+            .expect("existing enabled preference should deserialize");
+        let disabled: AppSettings = serde_json::from_str(r#"{"keyboardCapture":false}"#)
+            .expect("existing disabled preference should deserialize");
+
+        assert!(enabled.keyboard_capture);
+        assert!(!disabled.keyboard_capture);
+        assert!(!enabled.dynamic_quote_ai);
+        assert!(!disabled.dynamic_quote_ai);
+    }
+
+    #[test]
+    fn explicit_dynamic_quote_consent_roundtrips() {
+        let settings: AppSettings =
+            serde_json::from_str(r#"{"keyboardCapture":false,"dynamicQuoteAi":true}"#)
+                .expect("explicit dynamic quote consent should deserialize");
+        let serialized = serde_json::to_value(&settings).expect("settings should serialize");
+
+        assert!(settings.dynamic_quote_ai);
+        assert_eq!(
+            serialized
+                .get("dynamicQuoteAi")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+    }
 }

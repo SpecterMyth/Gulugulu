@@ -50,7 +50,7 @@ const RARITY_EDGE: Record<string, string> = {
 const TILTS = [-3, 0, 3];
 const PRICECUT_TIER_COLORS = ["#8BCF73", "#62C7AE", "#65AEEA", "#8E91E8", "#D486D5", "#F29A63"];
 
-/** 展示价:稀有度基价 ×1.5^当前已持有级× 当班 KPI(与逻辑层同一公式源)。 */
+/** 展示价:稀有度基价 ×3^当前已持有级× 当班 KPI(与逻辑层同一公式源)。 */
 function displayPrice(def: CardDef, kpi: number, ownedLv: number): number {
   const rate = CARD_PRICE_RATE[def.rarity] ?? 0.06;
   return Math.max(1, Math.round(rate * kpi * Math.pow(CARD_LEVEL_PRICE_MULTIPLIER, ownedLv)));

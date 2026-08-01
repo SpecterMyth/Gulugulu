@@ -102,6 +102,21 @@
   box-shadow: 0 2px 0 #b93654;
 }
 
+.onboarding-goal .onboarding-skip {
+  min-height: 28px;
+  margin-top: 9px;
+  background: transparent;
+  color: #76523d;
+  font-size: 11px;
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.onboarding-goal .onboarding-skip:active {
+  box-shadow: none;
+}
+
 .onboarding-target-note {
   margin: 0 12px;
   padding: 5px 8px;
@@ -110,6 +125,23 @@
   color: #76523d;
   font-size: 12px;
   transform: rotate(-0.35deg);
+}
+
+.factory-guide-drop-key {
+  position: fixed;
+  z-index: 10004;
+  left: 50%;
+  bottom: 68px;
+  transform: translateX(-50%) rotate(-1deg);
+  padding: 7px 14px;
+  border: 2px solid rgba(55, 48, 43, 0.78);
+  background: #fffdf4;
+  color: #3a3430;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: 3px 4px 0 rgba(55, 48, 43, 0.3);
+  pointer-events: none;
 }
 
 @media (max-width: 360px) {

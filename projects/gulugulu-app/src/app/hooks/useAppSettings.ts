@@ -2,19 +2,21 @@ import { type RefObject, useCallback, useEffect, useState } from "react";
 import { FALLBACK_AGENT_MODELS, type GameBridge } from "../../game/bridge";
 import type { Language } from "../../i18n";
 import type { AgentModels, AppSettings } from "../../types";
+import { setDynamicQuotes } from "../speech";
 
 type UseAppSettingsResult = {
   appSettings: AppSettings | null;
   agentModels: AgentModels;
   handleAlwaysOnTop: (enabled: boolean) => void;
   handleKeyboardCapture: (enabled: boolean) => void;
+  handleDynamicQuoteAi: (enabled: boolean) => void;
   handleRandomMovement: (enabled: boolean) => void;
   handleAutostart: (enabled: boolean) => void;
   handleDefaultAgent: (agent: string) => void;
   handleDefaultModel: (model: string) => void;
 };
 
-/** 设备/隐私设置（键盘充能/总在最前/随机移动/语言）：托盘与设置面板共享的真源。 */
+/** 设备/隐私设置（外部能力同意/总在最前/随机移动/语言）：Rust/预览桥与设置面板共享真源。 */
 export function useAppSettings(
   bridge: GameBridge,
   applyLanguage: (nextLanguage: Language) => void,
@@ -62,7 +64,7 @@ export function useAppSettings(
     };
   }, [bridge, applyLanguage]);
 
-  // 三个开关：乐观更新本地 state（即时反馈）+ 落 Rust（持久化 + 广播 + 同步托盘）。
+  // 开关：乐观更新本地 state（即时反馈）+ 落桥（持久化/预览内存 + settings 事件回填）。
   const handleAlwaysOnTop = useCallback(
     (enabled: boolean) => {
       setAppSettings((prev) => (prev ? { ...prev, alwaysOnTop: enabled } : prev));
@@ -74,6 +76,15 @@ export function useAppSettings(
     (enabled: boolean) => {
       setAppSettings((prev) => (prev ? { ...prev, keyboardCapture: enabled } : prev));
       void bridge.setKeyboardCapture(enabled).catch(() => undefined);
+    },
+    [bridge],
+  );
+  const handleDynamicQuoteAi = useCallback(
+    (enabled: boolean) => {
+      setAppSettings((prev) => (prev ? { ...prev, dynamicQuoteAi: enabled } : prev));
+      // 撤回立即回到纯静态台词；Rust/Mock 的空 quotes://ready 事件再做幂等回填。
+      if (!enabled) setDynamicQuotes([]);
+      void bridge.setDynamicQuoteAi(enabled).catch(() => undefined);
     },
     [bridge],
   );
@@ -123,6 +134,7 @@ export function useAppSettings(
     agentModels,
     handleAlwaysOnTop,
     handleKeyboardCapture,
+    handleDynamicQuoteAi,
     handleRandomMovement,
     handleAutostart,
     handleDefaultAgent,

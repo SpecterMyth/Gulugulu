@@ -570,7 +570,7 @@ fn normalize_form(input: ChimeraFormInput) -> ChimeraForm {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct ValidatedDesign {
     codename_hint: Option<String>,
     name_zh: String,
@@ -1774,7 +1774,7 @@ fn build_prompt(inputs: &PromptInputs, feedback: Option<&str>) -> String {
     p.push_str("\n\n");
 
     p.push_str("【命名与设定（中英双语，两者都必填）】\n");
-    p.push_str("- nameEn：**英文名（游戏默认语言，务必用心起）**——简短专有名，1~2 个词、TitleCase、有画面感、好念（例：Frostfox / Ember Otter / Thunderquill / Lumipetal）；别直译中文名，别用元素词+动物的懒名。\n");
+    p.push_str("- nameEn：**英文名（游戏默认语言，务必用心起）**——默认只用一个不含空格的英文单词，TitleCase、有画面感、好念；鼓励把意象、习性或声音拼接成自然的新词（例：Frostfox / Thunderquill / Lumipetal）。除非单词式名字明显无法表达角色，否则不要使用两个或更多单词；别直译中文名，别用元素词+动物的懒名。\n");
     p.push_str("- nameZh：2~5 个汉字的中文名，要独特、有辨识度、带点巧思（例：焰霜狸 / 雷角兽 / 温泉猴 / 醒狮 / 琉璃蜓）\n");
     p.push_str("  · 严禁叠字（相邻重复字，如 咕咕 / 泡泡 / 焊焊）；也别用「元素字+动物」的懒名。结合它的元素、职业气质或小怪癖，起个让人会心一笑的名字。\n");
     p.push_str(
@@ -1808,6 +1808,9 @@ struct FusionJob {
     egg_id: String,
     parents: [String; 2],
     attempts: u32,
+    recipe_key: String,
+    forced_codename: Option<String>,
+    result_tier: u8,
 }
 
 pub fn notify_worker(state: &FusionGenState) {
@@ -1886,8 +1889,10 @@ short English flavour line.\n\
 - Chinese name: {name_zh}\n\
 - Chinese flavour: {desc_zh}\n\
 - Elements: {}\n\
-Rules: nameEn = 1-2 words, TitleCase, memorable, easy to say; NOT a literal translation, NOT \
-\"element + animal\". descEn = one sentence <= 22 words with a cute quirk.\n\
+Rules: nameEn should be ONE TitleCase word with no spaces, memorable and easy to say; prefer a \
+natural coined compound that blends imagery, quirks, habits, or sounds. Use multiple words only \
+when a one-word proper name clearly cannot work. NOT a literal translation, NOT \"element + animal\". \
+descEn = one sentence <= 22 words with a cute quirk.\n\
 Output ONE JSON object only, no markdown, no explanation: {{\"nameEn\":\"...\",\"descEn\":\"...\"}}",
         elements.join("+")
     )
@@ -1999,12 +2004,47 @@ fn spawn_ainame_upgrade(app: AppHandle, game_state: SharedGameState, codenames: 
 pub fn spawn_fusion_worker(app: AppHandle, game_state: SharedGameState, gen_state: FusionGenState) {
     thread::spawn(move || {
         // 启动恢复：崩溃遗留的 generating / 上轮 failed → pending，重扫重试。
-        let recovered = game::with_save(&app, &game_state, |_config, save| {
+        let recovered = game::with_save(&app, &game_state, |config, save| {
             let mut changed = false;
             for egg in &mut save.eggs {
                 if let Some(pending) = egg.pending_fusion.as_mut() {
                     if pending.status == "generating" || pending.status == "failed" {
                         pending.status = "pending".to_string();
+                        changed = true;
+                    }
+                }
+            }
+            for pet in &mut save.pets {
+                // Repair saves produced by older builds: they claimed an aifXXXX
+                // pet but discarded the egg's pending task. The codename encodes
+                // its recipe, which is enough to restore correct gameplay data
+                // and queue a fresh design attempt.
+                if pet.pending_fusion.is_none()
+                    && !config.species.contains_key(&pet.species)
+                    && !save.custom_species.contains_key(&pet.species)
+                {
+                    if let Some(recipe_key) = game::recipe_key_for_ai_codename(config, &pet.species) {
+                        if let Some(fallback) = config.species_by_recipe.get(&recipe_key).cloned() {
+                            let forced_codename = pet.species.clone();
+                            pet.species = fallback.clone();
+                            pet.pending_fusion = Some(crate::game::PendingFusionInfo {
+                                parents: [fallback.clone(), fallback],
+                                recipe_key,
+                                requested_at: game::now_secs(),
+                                attempts: 0,
+                                status: "pending".to_string(),
+                                last_error: None,
+                                forced_codename: Some(forced_codename),
+                                provider: None,
+                            });
+                            changed = true;
+                        }
+                    }
+                }
+                if let Some(pending) = pet.pending_fusion.as_mut() {
+                    if pending.status != "resolved" {
+                        pending.status = "pending".to_string();
+                        pending.attempts = 0;
                         changed = true;
                     }
                 }
@@ -2122,6 +2162,9 @@ fn pick_fusion_job(
                         egg_id: egg.id.clone(),
                         parents: pending.parents.clone(),
                         attempts: pending.attempts,
+                        recipe_key: pending.recipe_key.clone(),
+                        forced_codename: pending.forced_codename.clone(),
+                        result_tier: egg.tier,
                     });
                 }
             }
@@ -2132,6 +2175,9 @@ fn pick_fusion_job(
                         egg_id: egg.id.clone(),
                         parents: pending.parents.clone(),
                         attempts: pending.attempts,
+                        recipe_key: pending.recipe_key.clone(),
+                        forced_codename: pending.forced_codename.clone(),
+                        result_tier: egg.tier,
                     });
                 }
             }
@@ -2157,7 +2203,26 @@ fn next_job(app: &AppHandle, game_state: &SharedGameState) -> Option<FusionJob> 
                 _ => None,
             })
             .collect();
-        Ok(pick_fusion_job(&mut save.eggs, now, &awaiting_steam))
+        if let Some(job) = pick_fusion_job(&mut save.eggs, now, &awaiting_steam) {
+            return Ok(Some(job));
+        }
+        let job = save.pets.iter().find_map(|pet| {
+            let pending = pet.pending_fusion.as_ref()?;
+            if pending.status != "pending"
+                && !(pending.status == "failed" && pending.attempts < MAX_FUSION_ATTEMPTS)
+            {
+                return None;
+            }
+            Some(FusionJob {
+                egg_id: pet.id.clone(),
+                parents: pending.parents.clone(),
+                attempts: pending.attempts,
+                recipe_key: pending.recipe_key.clone(),
+                forced_codename: pending.forced_codename.clone(),
+                result_tier: pet.tier,
+            })
+        });
+        Ok(job)
     });
     result.ok().and_then(|(job, _)| job)
 }
@@ -2268,16 +2333,11 @@ fn deterministic_slot_codename(
     save: &crate::game::GameSave,
     job: &FusionJob,
 ) -> Option<String> {
-    let pending = save
-        .eggs
-        .iter()
-        .find(|e| e.id == job.egg_id)
-        .and_then(|e| e.pending_fusion.as_ref())?;
     // Steam 掷中的槽位优先（全局池可乱序掷中非前沿槽，生成必须落到该槽）。
-    if let Some(forced) = pending.forced_codename.as_ref() {
+    if let Some(forced) = job.forced_codename.as_ref() {
         return Some(forced.clone());
     }
-    let recipe_key = pending.recipe_key.clone();
+    let recipe_key = job.recipe_key.clone();
     let recipe_keys: Vec<String> = config.species_by_recipe.keys().cloned().collect();
     let ordered = crate::fusion_slots::multi_element_recipes_ordered(&recipe_keys);
     let ordinal = crate::fusion_slots::recipe_ordinal(&ordered, &recipe_key)?;
@@ -2309,15 +2369,9 @@ fn commit_design(
         // Steam 掷中的确定性槽位（forced_codename ← 已按此 def 绑定的物品）在本次生成落地前
         // 已被注册（另一路同配方融合先解析 / 他机工坊导入）→ **复用既有物种**，别退回随机名
         // 让本地物种与绑定的 Steam def 永久分叉（review C#10）。
-        let forced_taken = save
-            .eggs
-            .iter()
-            .find(|e| e.id == job.egg_id)
-            .and_then(|e| e.pending_fusion.as_ref())
-            .and_then(|p| p.forced_codename.clone())
-            .filter(|c| is_taken(c));
+        let forced_taken = job.forced_codename.clone().filter(|c| is_taken(c));
         if let Some(existing) = forced_taken {
-            game::logic_reuse_fusion_egg(save, &job.egg_id, &existing)?;
+            game::logic_reuse_fusion_target(save, &job.egg_id, &job.recipe_key, &existing)?;
             return Ok(existing);
         }
         // 全局确定性槽位 codename 优先（Steam itemdef / 创意工坊 petId 主键）；被占或非
@@ -2334,12 +2388,8 @@ fn commit_design(
         // **阶数 = 蛋的结果阶**（亲代阶 +1）。旧实现只取双亲首元素（最多 2 个）并硬编码
         // tier=2，会让三阶以上 AI 变种的 info 与自身 codename 反推的配方/阶数长期打架
         // （错的每日上限桶、错的 Steam 兑换目标 def、v5 backfill 落错槽）。
-        let pending_egg = save.eggs.iter().find(|e| e.id == job.egg_id);
-        let recipe_key = pending_egg
-            .and_then(|e| e.pending_fusion.as_ref())
-            .map(|p| p.recipe_key.clone())
-            .filter(|k| !k.is_empty());
-        let result_tier = pending_egg.map(|e| e.tier).unwrap_or(2);
+        let recipe_key = (!job.recipe_key.is_empty()).then(|| job.recipe_key.clone());
+        let result_tier = job.result_tier;
         let elements: Vec<String> = match recipe_key {
             Some(key) => key.split('+').map(str::to_string).collect(),
             // 兜底（正常不会走到：job 恒来自一颗带 pending_fusion 的蛋）——退回双亲首元素并集。
@@ -2395,7 +2445,14 @@ fn commit_design(
             origin: Some("local".to_string()),
             design_meta: design.design_meta.clone(),
         };
-        game::logic_resolve_fusion_egg(config, save, &job.egg_id, &codename, entry)?;
+        game::logic_resolve_fusion_target(
+            config,
+            save,
+            &job.egg_id,
+            &job.recipe_key,
+            &codename,
+            entry,
+        )?;
         Ok(codename)
     })?;
     Ok((codename, save))
@@ -2488,7 +2545,14 @@ fn commit_resolved_design(
         if config.species.contains_key(codename) {
             return Err(format!("与目录物种撞名：{codename}"));
         }
-        game::logic_resolve_fusion_egg(config, save, &job.egg_id, codename, entry.clone())?;
+        game::logic_resolve_fusion_target(
+            config,
+            save,
+            &job.egg_id,
+            &job.recipe_key,
+            codename,
+            entry.clone(),
+        )?;
         let file_id = details.meta.published_file_id;
         // 皮肤入库失败（封顶等）不阻断 resolve——形象本体已在 custom_species。
         let _ = game::logic_install_skin(
@@ -3147,6 +3211,10 @@ fn run_v2_cycle(
     let mut repair: Option<(v2::QualityReport, String)> = None;
     let mut revision_used = false;
     let mut last_error = "V2 未生成有效概念".to_string();
+    // Quality is a preference, not a terminal condition.  Keep the best
+    // structurally valid/renderable design so the egg can still resolve when
+    // every revision misses the aesthetic gate.
+    let mut best_valid: Option<(ValidatedDesign, f64, String, u32)> = None;
 
     for (provider, path) in providers {
         if calls >= v2::MAX_CALLS {
@@ -3235,7 +3303,7 @@ fn run_v2_cycle(
                 Err(error) => {
                     last_error = format!("#providerError|provider={provider_name}|err={error}");
                     if repair.is_some() {
-                        return GenerationCycle::Exhausted(last_error);
+                        break;
                     }
                     break;
                 }
@@ -3254,7 +3322,7 @@ fn run_v2_cycle(
                 Err(error) => {
                     last_error = format!("#providerError|provider={provider_name}|err={error}");
                     if revision_used {
-                        return GenerationCycle::Exhausted(last_error);
+                        break;
                     }
                     revision_used = true;
                     repair = Some((
@@ -3276,7 +3344,7 @@ fn run_v2_cycle(
             if let Err(error) = v2::enforce_concept(&mut design, concept) {
                 last_error = format!("#providerError|provider={provider_name}|err={error}");
                 if revision_used {
-                    return GenerationCycle::Exhausted(last_error);
+                    break;
                 }
                 revision_used = true;
                 repair = Some((
@@ -3295,16 +3363,27 @@ fn run_v2_cycle(
                 continue;
             }
             let report = v2::assess_quality(&design, concept);
+            design.design_meta = Some(GeneratedDesignMeta {
+                prompt_version: v2::PROMPT_VERSION.to_string(),
+                prototype: concept.prototype.clone(),
+                archetype: concept.archetype.clone(),
+                hero_feature: concept.hero_feature.clone(),
+                personality: concept.personality.clone(),
+                palette_family: concept.palette_family.clone(),
+                quality_score: report.total_score,
+            });
+            if best_valid
+                .as_ref()
+                .map_or(true, |(_, score, _, _)| report.total_score > *score)
+            {
+                best_valid = Some((
+                    design.clone(),
+                    report.total_score,
+                    provider_name.to_string(),
+                    call,
+                ));
+            }
             if report.passed() {
-                design.design_meta = Some(GeneratedDesignMeta {
-                    prompt_version: v2::PROMPT_VERSION.to_string(),
-                    prototype: concept.prototype.clone(),
-                    archetype: concept.archetype.clone(),
-                    hero_feature: concept.hero_feature.clone(),
-                    personality: concept.personality.clone(),
-                    palette_family: concept.palette_family.clone(),
-                    quality_score: report.total_score,
-                });
                 return resolve_generated_design(
                     app,
                     game_state,
@@ -3320,11 +3399,22 @@ fn run_v2_cycle(
                 report.feedback()
             );
             if revision_used {
-                return GenerationCycle::Exhausted(last_error);
+                break;
             }
             revision_used = true;
             repair = Some((report, json_text));
         }
+    }
+    if let Some((design, _score, provider_name, call)) = best_valid {
+        return resolve_generated_design(
+            app,
+            game_state,
+            job,
+            &design,
+            &provider_name,
+            call,
+            started,
+        );
     }
     GenerationCycle::Exhausted(last_error)
 }
@@ -3779,7 +3869,10 @@ pub async fn fuse_pets_ai(
                             config, save, target_def, &recipe_key, &parents, now,
                         )
                     };
-                    let mode = if pending.is_some() { "ai" } else { "recipe" }.to_string();
+                    // 并集生成器尚未返回实发 def，此时只是“等待 Steam 掷槽”，并不等于
+                    // 已触发 AI。此前返回 ai 会让前端每次都提示「AI 开始设计」，造成
+                    // 固定配方概率失效的假象；真正的 ai/recipe 结论由回绑结果决定。
+                    let mode = if pending.is_some() { "pending" } else { "recipe" }.to_string();
                     let display = if pending.is_some() { None } else { Some(species.clone()) };
                     let egg_id = crate::steam_sync::apply_fusion_local(
                         config, save, &id_a, &id_b, species, now, None, pending,
@@ -3966,6 +4059,7 @@ mod tests {
             stamina: 100,
             stamina_updated_at: 1000,
             exhausted: false,
+            pending_fusion: None,
             key_buffer: 0,
             token_buffer: 0,
             steam_item_id: None,
@@ -4821,6 +4915,8 @@ mod tests {
         assert!(prompt.contains("霜雪怪"));
         assert!(prompt.contains("guluduck"));
         assert!(prompt.contains("只输出一个 JSON 对象"));
+        assert!(prompt.contains("默认只用一个不含空格的英文单词"));
+        assert!(prompt.contains("拼接成自然的新词"));
         assert!(
             prompt.contains("customRig"),
             "提示词以三视图 customRig 为核心"

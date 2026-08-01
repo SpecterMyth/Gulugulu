@@ -10,7 +10,7 @@ import {
   elementReachBonus,
   valueAtLevel,
 } from "./rogueConfig";
-import { absorbSet, buildAdjacency, deskPaths } from "./rogueGraph";
+import { absorbSet, buildAdjacency, deskPaths, type Adjacency } from "./rogueGraph";
 import type {
   BodyLike,
   DeskLike,
@@ -32,8 +32,29 @@ export type PulseCtx = {
   stateOf?: (uid: number) => RogueBodyState | undefined;
   opts?: {
     stickOverride?: (a: BodyLike, b: BodyLike) => boolean | null;
+    /** 候选落点批量评分时复用的完整邻接图（已包含吸收继承连接）。 */
+    adjacency?: Adjacency;
   };
 };
+
+/** 构建计分使用的完整连接图，并合入一般系吸收后继承的逻辑连接。 */
+export function buildPulseAdjacency(
+  bodies: BodyLike[],
+  stateOf?: (uid: number) => RogueBodyState | undefined,
+  stickOverride?: (a: BodyLike, b: BodyLike) => boolean | null,
+): Adjacency {
+  const adj = buildAdjacency(bodies, { stickOverride });
+  for (const body of bodies) {
+    for (const targetUid of stateOf?.(body.uid)?.absorbedLinks ?? []) {
+      if (!adj.has(targetUid) || targetUid === body.uid) continue;
+      const own = adj.get(body.uid)!;
+      const target = adj.get(targetUid)!;
+      if (!own.includes(targetUid)) own.push(targetUid);
+      if (!target.includes(body.uid)) target.push(body.uid);
+    }
+  }
+  return adj;
+}
 
 export function normalTagsForCards(cards: Record<string, number>): RogueElement[] {
   void cards;
@@ -55,6 +76,11 @@ export function pulseTeamUids(
 export const PULSE_TRIGGER_MAX = 12;
 /** 单个技能触发最多同时落到的可见角色数，与 RoguePulseFx 的演出预算一致。 */
 export const PULSE_TRIGGER_TARGET_MAX = 5;
+
+/** 物理接桌数 → 实际计分次数。 */
+export function deskScoreMultiplier(deskCount: number): number {
+  return [0, 1, 2, 4, 8, 12, 16][Math.min(6, Math.max(0, Math.round(deskCount)))] ?? 0;
+}
 
 /**
  * 聚光 = 实际团队 + 确实得到可见演出/额外计分的角色。
@@ -160,11 +186,20 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
         absorbSum: 0,
         absorbUids: [],
         chips: 0,
+        elementMult: 1,
+        synergyCardMult: 1,
+        jobMult: 1,
+        rhythmMult: 1,
+        individualMult: 1,
+        teamMult: 1,
+        networkMult: 1,
+        statusMult: 1,
         skillMult: 1,
         synergyMult: 1,
         comboMult: 1,
         desks: [],
         deskCount: 0,
+        deskScoreMult: 0,
         deskPaths: {},
         total: 0,
         contributors: [],
@@ -179,18 +214,8 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
   const lvl = (id: string) => cards[id] ?? 0;
   const has = (body: BodyLike, element: string) => body.elements.includes(element);
   const stickOverride = ctx.opts?.stickOverride ?? stickOverrideForCards(cards) ?? undefined;
-  const adj = buildAdjacency(bodies, { stickOverride });
-  // 【吸收】会移除一个真实物理体，但把它原有的连接转移给吞噬者。
-  for (const body of bodies) {
-    const inherited = ctx.stateOf?.(body.uid)?.absorbedLinks ?? [];
-    for (const targetUid of inherited) {
-      if (!adj.has(targetUid) || targetUid === body.uid) continue;
-      const own = adj.get(body.uid)!;
-      const target = adj.get(targetUid)!;
-      if (!own.includes(targetUid)) own.push(targetUid);
-      if (!target.includes(body.uid)) target.push(body.uid);
-    }
-  }
+  const adj = ctx.opts?.adjacency
+    ?? buildPulseAdjacency(bodies, ctx.stateOf, stickOverride);
 
   let reach = (meta[self.species]?.reach ?? 2) + elementReachBonus(self.elements, cards);
   const superconductLevel = lvl("syn.superconduct");
@@ -210,14 +235,16 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     const target = byUid.get(targetUid);
     if (target == null) continue;
     const state = ctx.stateOf?.(targetUid);
-    let value = ctx.effBase(targetUid);
+    const targetBase = ctx.effBase(targetUid);
+    let exploitationBonus = 0;
     if (emberLevel > 0 && has(target, "fire") && has(self, "fire")) {
-      value *= valueAtLevel(CARD_PARAMS["fire.ember"].asAbsorbed, emberLevel);
+      exploitationBonus += valueAtLevel(CARD_PARAMS["fire.ember"].asAbsorbed, emberLevel) - 1;
     }
     if (coldRotationLevel > 0 && state?.frozen) {
       const mass = Math.max(1, state.sizeLevel ?? 1);
-      value *= 1 + valueAtLevel(CARD_PARAMS["syn.coldRotation"].perMass, coldRotationLevel) * (mass - 1);
+      exploitationBonus += valueAtLevel(CARD_PARAMS["syn.coldRotation"].perMass, coldRotationLevel) * (mass - 1);
     }
+    const value = targetBase * (1 + exploitationBonus);
     absorbSum += value;
     absorbedValues.push({ uid: targetUid, species: target.species, value });
   }
@@ -244,7 +271,9 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
   let pathEdges = Object.values(paths).reduce((sum, path) => sum + Math.max(0, path.length - 1), 0);
   const usedDepth = absorbUids.length;
 
-  let skillMult = 1;
+  let elementBonus = 0;
+  let synergyBonus = 0;
+  let jobBonus = 0;
   const burstLevel = lvl("fire.burst");
   if (burstLevel > 0 && has(self, "fire")) {
     triggers.push({
@@ -276,33 +305,36 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     }
   }
   if (sameLevel > 0 && has(self, "water") && sameCount > 0) {
-    skillMult *= Math.pow(valueAtLevel(CARD_PARAMS["water.same"].perTeamSame, sameLevel), sameCount);
+    const countedSame = Math.min(CARD_PARAMS["water.same"].countCap, sameCount);
+    elementBonus += Math.pow(
+      valueAtLevel(CARD_PARAMS["water.same"].perTeamSame, sameLevel),
+      countedSame,
+    ) - 1;
   }
   const gluttonyLevel = lvl("normal.gluttony");
   if (gluttonyLevel > 0 && has(self, "normal")) {
     const mass = Math.max(1, ctx.stateOf?.(self.uid)?.sizeLevel ?? 1);
     if (mass > 1) {
-      skillMult *= 1 + valueAtLevel(CARD_PARAMS["normal.gluttony"].perSize, gluttonyLevel) * (mass - 1);
+      elementBonus += valueAtLevel(CARD_PARAMS["normal.gluttony"].perSize, gluttonyLevel) * (mass - 1);
       triggers.push({ kind: "gluttony", sourceUid: uid, value: mass });
     }
   }
   const overloadLevel = lvl("electric.overload");
   if (overloadLevel > 0 && has(self, "electric") && usedDepth > 0) {
-    skillMult *= 1 + valueAtLevel(CARD_PARAMS["electric.overload"].perDepth, overloadLevel) * usedDepth;
+    elementBonus += valueAtLevel(CARD_PARAMS["electric.overload"].perDepth, overloadLevel) * usedDepth;
     triggers.push({ kind: "overload", sourceUid: uid, value: usedDepth });
   }
   const parallelLevel = lvl("electric.parallel");
   if (parallelLevel > 0 && has(self, "electric") && deskElements.length > 1) {
     const connectedDeskCount = deskElements.length;
     const extraDeskCount = connectedDeskCount - 1;
-    skillMult *= 1
-      + valueAtLevel(CARD_PARAMS["electric.parallel"].perExtraDesk, parallelLevel) * extraDeskCount;
+    elementBonus += valueAtLevel(CARD_PARAMS["electric.parallel"].perExtraDesk, parallelLevel) * extraDeskCount;
     // 演出显示真实桌数，而不是经过二次换算的“分流点”。
     triggers.push({ kind: "parallel", sourceUid: uid, value: connectedDeskCount });
   }
   const inductionLevel = lvl("electric.induction");
   if (inductionLevel > 0 && has(self, "electric") && pathEdges > 0) {
-    skillMult *= 1 + valueAtLevel(CARD_PARAMS["electric.induction"].perLink, inductionLevel) * pathEdges;
+    elementBonus += valueAtLevel(CARD_PARAMS["electric.induction"].perLink, inductionLevel) * pathEdges;
     triggers.push({ kind: "induction", sourceUid: uid, value: pathEdges, persistent: true });
   }
   const overstaffLevel = lvl("ice.overstaff");
@@ -313,7 +345,7 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     }).length;
     const counted = freePopulation;
     if (counted > 0) {
-      skillMult *= 1 + valueAtLevel(CARD_PARAMS["ice.overstaff"].per, overstaffLevel) * counted;
+      elementBonus += valueAtLevel(CARD_PARAMS["ice.overstaff"].per, overstaffLevel) * counted;
       triggers.push({ kind: "overstaff", sourceUid: uid, value: counted, persistent: true });
     }
   }
@@ -323,7 +355,7 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     const connectedCount = connected.length;
     const connectedBonus = valueAtLevel(CARD_PARAMS["grass.crowd"].perConnected, crowdLevel)
       * connectedCount;
-    skillMult *= 1 + connectedBonus;
+    elementBonus += connectedBonus;
     triggers.push({ kind: "lush", sourceUid: uid, targetUids: connected, value: connectedCount, persistent: true });
   }
   const heightLevel = lvl("grass.height");
@@ -332,7 +364,7 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
       CARD_PARAMS["grass.height"].cap,
       Object.values(paths).reduce((sum, path) => sum + path.length, 0),
     );
-    skillMult *= 1 + valueAtLevel(CARD_PARAMS["grass.height"].perLayer, heightLevel) * Math.max(0, height - 1);
+    elementBonus += valueAtLevel(CARD_PARAMS["grass.height"].perLayer, heightLevel) * Math.max(0, height - 1);
     triggers.push({ kind: "height", sourceUid: uid, targetUids: connected, value: height, persistent: true });
   }
 
@@ -342,29 +374,30 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     ["attr.dual", selfTier === 2, valueAtLevel(CARD_PARAMS["attr.dual"].mult, lvl("attr.dual"))],
     ["attr.slash", selfTier === 3, valueAtLevel(CARD_PARAMS["attr.slash"].mult, lvl("attr.slash"))],
   ];
-  for (const [id, match, mult] of attrChecks) if (lvl(id) > 0 && match) skillMult *= mult;
+  for (const [id, match, mult] of attrChecks) {
+    if (lvl(id) > 0 && match) jobBonus += Math.max(0, mult - 1);
+  }
   const hexLevel = lvl("attr.hex");
   if (hexLevel > 0 && selfTier >= CARD_PARAMS["attr.hex"].minCount) {
-    skillMult *= 1 + valueAtLevel(CARD_PARAMS["attr.hex"].perElement, hexLevel) * selfTier;
+    jobBonus += valueAtLevel(CARD_PARAMS["attr.hex"].perElement, hexLevel) * selfTier;
   }
   const balanceLevel = lvl("attr.balance");
   if (balanceLevel > 0) {
     const tiers = new Set(bodies.filter((body) => body.settled).map((body) => tierCountOf(meta, body)));
-    if (tiers.size >= 6) skillMult *= valueAtLevel(CARD_PARAMS["attr.balance"].mult, balanceLevel);
+    if (tiers.size >= 6) jobBonus += valueAtLevel(CARD_PARAMS["attr.balance"].mult, balanceLevel) - 1;
   }
 
-  let synergyMult = 1;
   const arcLevel = lvl("syn.arcIgnite");
   if (arcLevel > 0 && has(self, "fire") && deskElements.includes("electric") && deskElements.length > 1) {
     const extraDesks = deskElements.length - 1;
-    synergyMult *= 1 + valueAtLevel(CARD_PARAMS["syn.arcIgnite"].perDesk, arcLevel) * extraDesks;
+    synergyBonus += valueAtLevel(CARD_PARAMS["syn.arcIgnite"].perDesk, arcLevel) * extraDesks;
     triggers.push({ kind: "arcIgnite", sourceUid: uid, value: extraDesks });
   }
   const steamBurstLevel = lvl("syn.steamBurst");
   if (steamBurstLevel > 0 && has(self, "fire")) {
     const waterSame = sameNameUids.filter((targetUid) => has(byUid.get(targetUid)!, "water")).length;
     if (waterSame > 0) {
-      synergyMult *= 1 + valueAtLevel(CARD_PARAMS["syn.steamBurst"].perSame, steamBurstLevel) * waterSame;
+      synergyBonus += valueAtLevel(CARD_PARAMS["syn.steamBurst"].perSame, steamBurstLevel) * waterSame;
       triggers.push({ kind: "steamBurst", sourceUid: uid, targetUids: sameNameUids, value: waterSame });
     }
   }
@@ -372,15 +405,14 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
   if (iceMirrorLevel > 0 && has(self, "water")) {
     const frozenSame = sameNameUids.filter((targetUid) => ctx.stateOf?.(targetUid)?.frozen === true);
     if (frozenSame.length > 0) {
-      synergyMult *= 1
-        + valueAtLevel(CARD_PARAMS["syn.iceMirror"].perFrozenSame, iceMirrorLevel) * frozenSame.length;
+      synergyBonus += valueAtLevel(CARD_PARAMS["syn.iceMirror"].perFrozenSame, iceMirrorLevel) * frozenSame.length;
       triggers.push({ kind: "iceMirror", sourceUid: uid, targetUids: frozenSame, value: frozenSame.length });
     }
   }
   if (superconductLevel > 0 && has(self, "electric")) {
     const frozenInTeam = absorbUids.filter((targetUid) => ctx.stateOf?.(targetUid)?.frozen === true);
     if (frozenInTeam.length > 0) {
-      synergyMult *= 1 + valueAtLevel(CARD_PARAMS["syn.superconduct"].perFrozen, superconductLevel) * frozenInTeam.length;
+      synergyBonus += valueAtLevel(CARD_PARAMS["syn.superconduct"].perFrozen, superconductLevel) * frozenInTeam.length;
       triggers.push({ kind: "superconduct", sourceUid: uid, targetUids: frozenInTeam, persistent: true });
     }
   }
@@ -392,7 +424,7 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
       generated.length * valueAtLevel(CARD_PARAMS["syn.bionet"].generatedWeight, bionetLevel),
     );
     if (count > 0) {
-      synergyMult *= 1 + valueAtLevel(CARD_PARAMS["syn.bionet"].perGenerated, bionetLevel) * count;
+      synergyBonus += valueAtLevel(CARD_PARAMS["syn.bionet"].perGenerated, bionetLevel) * count;
       triggers.push({ kind: "bionet", sourceUid: uid, targetUids: generated, value: count, persistent: true });
     }
   }
@@ -405,7 +437,7 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
       return sum + Math.max(1, ctx.stateOf?.(targetUid)?.sizeLevel ?? 1);
     }, 0);
     if (relayMass > 0) {
-      synergyMult *= 1 + valueAtLevel(CARD_PARAMS["syn.lightningrod"].perMass, lightningrodLevel) * relayMass;
+      synergyBonus += valueAtLevel(CARD_PARAMS["syn.lightningrod"].perMass, lightningrodLevel) * relayMass;
       triggers.push({ kind: "lightningrod", sourceUid: uid, value: relayMass });
     }
   }
@@ -413,8 +445,7 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
   if (fireDispatchLevel > 0 && has(self, "fire") && has(self, "normal")) {
     const mass = Math.max(1, ctx.stateOf?.(self.uid)?.sizeLevel ?? 1);
     if (mass > 1) {
-      synergyMult *= 1
-        + valueAtLevel(CARD_PARAMS["syn.fireDispatch"].perMass, fireDispatchLevel) * (mass - 1);
+      synergyBonus += valueAtLevel(CARD_PARAMS["syn.fireDispatch"].perMass, fireDispatchLevel) * (mass - 1);
       triggers.push({ kind: "fireDispatch", sourceUid: uid, value: mass });
     }
   }
@@ -451,8 +482,7 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
       crossEdges,
     );
     if (countedEdges > 0) {
-      synergyMult *= 1
-        + valueAtLevel(CARD_PARAMS["syn.permafrost"].perCrossEdge, frostrootLevel) * countedEdges;
+      synergyBonus += valueAtLevel(CARD_PARAMS["syn.permafrost"].perCrossEdge, frostrootLevel) * countedEdges;
       triggers.push({
         kind: "permafrost",
         sourceUid: uid,
@@ -464,12 +494,27 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
   }
 
   const cp = comboParams(cards);
-  const comboMult = withCombo ? 1 + Math.min(cp.per * Math.max(0, ctx.comboStacks), cp.cap) : 1;
+  const elementMult = 1 + Math.max(0, elementBonus);
+  const synergyCardMult = 1 + Math.max(0, synergyBonus);
+  const jobMult = 1 + Math.max(0, jobBonus);
+  const rhythmMult = withCombo ? 1 + Math.min(cp.per * Math.max(0, ctx.comboStacks), cp.cap) : 1;
+  // 旧字段继续提供兼容映射，避免存量结算快照和 UI 读取失败。
+  const individualMult = jobMult;
+  const teamMult = elementMult;
+  const networkMult = synergyCardMult;
+  const statusMult = 1;
+  const skillMult = elementMult * jobMult;
+  const synergyMult = synergyCardMult;
+  const comboMult = rhythmMult;
   const deskCount = deskElements.length;
+  const deskScoreMult = deskScoreMultiplier(deskCount);
+  const allScoreMult = elementMult * synergyCardMult * jobMult * rhythmMult;
   // A connected desk is a complete scoring pass. Round one pass first, then
   // repeat it once per desk so the credited amount matches the visible ×N.
-  const scorePerPass = deskCount === 0 ? 0 : Math.round(chips * skillMult * synergyMult * comboMult);
-  const total = scorePerPass * deskCount;
+  const scorePerPass = deskCount === 0
+    ? 0
+    : Math.round(chips * allScoreMult);
+  const total = scorePerPass * deskScoreMult;
   const raw = total;
 
   const weights = [
@@ -503,13 +548,14 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     if (burstLevel > 0 && has(self, "fire")) {
       const repeats = valueAtLevel(CARD_PARAMS["fire.burst"].repeats, burstLevel);
       for (let repeat = 0; repeat < repeats; repeat++) {
-        if (total > 0) extras.push({ kind: "fireBurst", uid: self.uid, amount: total });
+        const amount = Math.round(base * allScoreMult) * deskScoreMult;
+        if (amount > 0) extras.push({ kind: "fireBurst", uid: self.uid, amount });
       }
     }
     if (wildfireLevel > 0 && has(self, "fire")) {
       const spread = triggers.find((trigger) => trigger.kind === "wildfire")?.targetUids ?? [];
       for (const targetUid of spread) {
-        const amount = Math.round(ctx.effBase(targetUid) * comboMult * deskCount);
+        const amount = Math.round(ctx.effBase(targetUid) * allScoreMult) * deskScoreMult;
         if (amount > 0) extras.push({ kind: "wildfire", uid: targetUid, amount });
       }
     }
@@ -517,7 +563,11 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     if (thermalLevel > 0 && has(self, "fire")) {
       const targets = absorbUids.filter((targetUid) => ctx.stateOf?.(targetUid)?.frozen === true);
       for (const targetUid of targets) {
-        const amount = Math.round(ctx.effBase(targetUid) * valueAtLevel(CARD_PARAMS["syn.thermalShock"].echo, thermalLevel));
+        const amount = Math.round(
+          ctx.effBase(targetUid)
+          * valueAtLevel(CARD_PARAMS["syn.thermalShock"].echo, thermalLevel)
+          * allScoreMult,
+        ) * deskScoreMult;
         if (amount > 0) extras.push({ kind: "echo", uid: targetUid, amount });
       }
       if (targets.length > 0) triggers.push({ kind: "thermalShock", sourceUid: uid, targetUids: targets });
@@ -533,8 +583,10 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
       });
       for (const targetUid of targets) {
         const amount = Math.round(
-          ctx.effBase(targetUid) * valueAtLevel(CARD_PARAMS["syn.short"].burst, shortLevel),
-        );
+          ctx.effBase(targetUid)
+          * valueAtLevel(CARD_PARAMS["syn.short"].burst, shortLevel)
+          * allScoreMult,
+        ) * deskScoreMult;
         if (amount > 0) extras.push({ kind: "shortCircuit", uid: targetUid, amount });
       }
       if (targets.length > 0) {
@@ -551,11 +603,20 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
       absorbSum,
       absorbUids: absorbUids.slice(),
       chips,
+      elementMult,
+      synergyCardMult,
+      jobMult,
+      individualMult,
+      teamMult,
+      networkMult,
+      statusMult,
+      rhythmMult,
       skillMult,
       synergyMult,
       comboMult,
       desks: deskElements,
       deskCount,
+      deskScoreMult,
       deskPaths: paths,
       total,
       contributors,

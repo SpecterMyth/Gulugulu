@@ -38,6 +38,7 @@ fn add_pet_at_tier(
         stamina: config.stamina_max,
         stamina_updated_at: 1000,
         exhausted: false,
+        pending_fusion: None,
         key_buffer: 0,
         token_buffer: 0,
         steam_item_id: None,
@@ -2064,6 +2065,38 @@ fn ai_fusion_resolve_rejects_taken_codename_and_missing_egg() {
 }
 
 #[test]
+fn ai_fusion_design_can_land_after_authoritative_pet_was_collected() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.eggs.clear();
+    save.coins = 10_000;
+    let max1 = config.max_level_for_tier(1);
+    let a = add_pet(&mut save, &config, "emberfox", max1);
+    let b = add_pet(&mut save, &config, "frostpeng", max1);
+    let egg_id = logic_start_ai_fusion(&config, &mut save, &a, &b, 1000, "2026-07-07").unwrap();
+    logic_hatch_now(&mut save, 1000);
+    let pet_id = logic_collect_hatched(&config, &mut save, &egg_id, 2000, "2026-07-07").unwrap();
+    save.pets.iter_mut().find(|pet| pet.id == pet_id).unwrap().species = "aif0101".into();
+
+    logic_resolve_fusion_target(
+        &config,
+        &mut save,
+        &egg_id,
+        "fire+ice",
+        "aif0101",
+        sample_custom_entry(["emberfox", "frostpeng"]),
+    )
+    .unwrap();
+
+    assert!(save.custom_species.contains_key("aif0101"));
+    assert_eq!(
+        save.recipe_ai_slots.get("fire+ice").map(Vec::as_slice),
+        Some(["aif0101".to_string()].as_slice())
+    );
+    assert_eq!(save.pets.iter().find(|pet| pet.id == pet_id).unwrap().species, "aif0101");
+}
+
+#[test]
 fn releasing_custom_species_pet_refunds_by_entry_info() {
     let config = test_config();
     let mut save = fresh_save(&config);
@@ -2082,6 +2115,7 @@ fn releasing_custom_species_pet_refunds_by_entry_info() {
         stamina: config.stamina_max,
         stamina_updated_at: 1000,
         exhausted: false,
+        pending_fusion: None,
         key_buffer: 0,
         token_buffer: 0,
         steam_item_id: None,
@@ -2163,6 +2197,21 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
         .iter()
         .all(|pet| pet.level == config.max_level_for_tier(1)));
     assert_eq!(occupied_pet_count(&save), 3, "首批三只照常占容量");
+    assert!(
+        crate::steam_sync::migration_sweep(&config, &mut save),
+        "新手赠送宠必须进入与普通一阶孵化相同的 Steam 铸造队列"
+    );
+    assert_eq!(
+        save.steam_outbox
+            .iter()
+            .filter(|op| matches!(op, SteamOp::MintTier1 { .. }))
+            .count(),
+        3
+    );
+    assert!(
+        !crate::steam_sync::migration_sweep(&config, &mut save),
+        "重复登记不能重复铸造 Steam 资产"
+    );
 
     let after_trio = save.pets.len();
     logic_advance_onboarding(&config, &mut save, "B05", 2001).unwrap();
@@ -2183,9 +2232,24 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
     assert_eq!(occupied_pet_count(&save), 3, "六只首班礼包忽略后院上限");
     assert!(save.onboarding.post_practice_roster_claimed);
     assert_eq!(save.factory_tutorial.status, "completed");
+    assert!(
+        crate::steam_sync::migration_sweep(&config, &mut save),
+        "首班礼包也必须按一阶孵化登记 Steam"
+    );
+    assert_eq!(
+        save.steam_outbox
+            .iter()
+            .filter(|op| matches!(op, SteamOp::MintTier1 { .. }))
+            .count(),
+        9
+    );
 
     logic_advance_onboarding(&config, &mut save, "C12", 3001).unwrap();
     assert_eq!(save.pets.len(), after_trio + 6, "首班礼包同样幂等");
+    assert!(
+        !crate::steam_sync::migration_sweep(&config, &mut save),
+        "礼包重复回执不能重复登记 Steam"
+    );
 }
 
 #[test]
@@ -2406,4 +2470,50 @@ fn complete_onboarding_receipt_simulation_has_no_dead_end_or_double_grant() {
     assert_eq!(save.capacity_exempt_pet_ids.len(), 6);
     assert!(save.onboarding.factory_formal_entered);
     assert!(save.onboarding.steam_market_open_attempted);
+}
+
+#[test]
+fn claimed_pending_design_keeps_recipe_identity_and_can_fuse() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    let recipe_key = "fire+water".to_string();
+    let fallback = config.species_by_recipe[&recipe_key].clone();
+    let egg_id = "egg_pending_design".to_string();
+    let egg_index = save.eggs.len();
+    save.eggs.push(EggInstance {
+        id: egg_id.clone(),
+        species: "aif0701".to_string(),
+        tier: 2,
+        hatch_kind: "tier2".to_string(),
+        slot: Some(0),
+        hatch_at: Some(1),
+        pending_fusion: Some(PendingFusionInfo {
+            parents: ["emberfox".to_string(), "bubblefrog".to_string()],
+            recipe_key: recipe_key.clone(),
+            requested_at: 0,
+            attempts: 2,
+            status: "failed".to_string(),
+            last_error: Some("offline".to_string()),
+            forced_codename: Some("aif0701".to_string()),
+            provider: None,
+        }),
+        steam_item_id: None,
+        steam_item_def: None,
+        shop_element: None,
+    });
+
+    let claimed_id = apply_collect(&config, &mut save, egg_index, 1000, None);
+    assert_eq!(claimed_id, egg_id, "design task identity must survive claiming");
+    let claimed = save.pets.iter().find(|pet| pet.id == claimed_id).unwrap();
+    assert_eq!(claimed.species, fallback, "pending pet uses the fixed recipe form");
+    assert!(claimed.pending_fusion.is_some(), "design task must remain persisted");
+
+    let partner = add_pet_at_tier(
+        &mut save,
+        &config,
+        &config.species_by_recipe["electric+grass"],
+        2,
+        config.max_level_for_tier(2),
+    );
+    assert!(logic_validate_fusion_pair(&config, &save, &claimed_id, &partner).is_ok());
 }

@@ -166,6 +166,69 @@ fn a6_a7_exchange_primitives() {
     eprintln!("[smoke] === A6/A7 全部通过 ===");
 }
 
+/// 线上融合概率抽样：跨多条二元素/三元素配方反复走真实 ExchangeItems，统计 Steam
+/// 实发的 0 号固定槽与 AI 槽。GenerateItems 只铸测试材料，所有结果在末尾 Consume 清理。
+#[test]
+#[ignore = "真机统计：60 次并集融合抽样，需 Steam 客户端 + 开发者账号"]
+fn fusion_probability_distribution() {
+    struct Recipe {
+        name: &'static str,
+        target: u32,
+        mats: [u32; 2],
+        fixed: u32,
+        ai: std::ops::RangeInclusive<u32>,
+        trials: usize,
+    }
+
+    let recipes = [
+        // 二元素：理论固定 40% / AI 60%。
+        Recipe { name: "electric+ice", target: 20_002, mats: [103, 106], fixed: 603, ai: 10_201..=10_210, trials: 10 },
+        Recipe { name: "fire+normal", target: 20_007, mats: [102, 101], fixed: 608, ai: 10_701..=10_710, trials: 10 },
+        Recipe { name: "normal+water", target: 20_014, mats: [101, 104], fixed: 615, ai: 11_401..=11_410, trials: 10 },
+        // 三元素：理论固定 60% / AI 40%。材料用一个二元素固定种 + 剩余一元素。
+        Recipe { name: "electric+fire+grass", target: 20_015, mats: [601, 105], fixed: 616, ai: 11_501..=11_510, trials: 10 },
+        Recipe { name: "electric+ice+water", target: 20_023, mats: [603, 104], fixed: 624, ai: 12_301..=12_310, trials: 10 },
+        Recipe { name: "fire+grass+water", target: 20_027, mats: [606, 104], fixed: 628, ai: 12_701..=12_710, trials: 10 },
+    ];
+
+    let mut s = Smoke::init();
+    let mut by_elements = [(0usize, 0usize), (0usize, 0usize)]; // (fixed, ai): 2e / 3e
+    for (recipe_index, recipe) in recipes.iter().enumerate() {
+        let mut fixed = 0usize;
+        let mut ai = 0usize;
+        for trial in 1..=recipe.trials {
+            let mats = [s.generate(&[recipe.mats[0]]), s.generate(&[recipe.mats[1]])].concat();
+            let a = ids_by_def(&mats, recipe.mats[0]);
+            let b = ids_by_def(&mats, recipe.mats[1]);
+            let outcome = s.exchange(recipe.target, &[a[0], b[0]]);
+            let items = match outcome {
+                OpOutcome::Granted(items) if !items.is_empty() => items,
+                other => panic!("{} 第 {trial} 次兑换失败：{other:?}", recipe.name),
+            };
+            let def = items[0].def;
+            if def == recipe.fixed {
+                fixed += 1;
+            } else if recipe.ai.contains(&def) {
+                ai += 1;
+            } else {
+                panic!("{} 第 {trial} 次返回越池 def={def}", recipe.name);
+            }
+            eprintln!("[prob] {} {trial:02}/{} -> def={def} ({})", recipe.name, recipe.trials, if def == recipe.fixed { "fixed" } else { "ai" });
+        }
+        let bucket = if recipe_index < 3 { 0 } else { 1 };
+        by_elements[bucket].0 += fixed;
+        by_elements[bucket].1 += ai;
+        eprintln!("[prob] {} 汇总 fixed={fixed}/{} ai={ai}/{}", recipe.name, recipe.trials, recipe.trials);
+    }
+    s.consume_cleanup();
+
+    let [(fixed2, ai2), (fixed3, ai3)] = by_elements;
+    eprintln!("[prob] === 二元素 fixed={fixed2}/{} ({:.1}%)，理论 40% ===", fixed2 + ai2, fixed2 as f64 * 100.0 / (fixed2 + ai2) as f64);
+    eprintln!("[prob] === 三元素 fixed={fixed3}/{} ({:.1}%)，理论 60% ===", fixed3 + ai3, fixed3 as f64 * 100.0 / (fixed3 + ai3) as f64);
+    assert!(fixed2 > 0, "30 次二元素融合竟无固定结果");
+    assert!(fixed3 > 0, "30 次三元素融合竟无固定结果");
+}
+
 /// 多元素 tag 值匹配试验：`set:fire+water*2`（对角配方，tag 值含 '+'）。
 /// 真机 E2E 发现 t2 融合(需匹配多元素 set: 值)一律 k_EResultFail,而单元素值全通过
 /// —— 怀疑 '+' 在 Steam 运行时 tag 匹配中失效。生成两只 90005(set:fire+water)

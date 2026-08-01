@@ -46,6 +46,7 @@ export function RogueSummary({
   leaderboardStatus,
   onRetry,
   onExit,
+  onLeaderboard,
 }: {
   run: RogueRunApi;
   view: RunView;
@@ -56,6 +57,7 @@ export function RogueSummary({
   leaderboardStatus: FactoryLeaderboardStatus | null;
   onRetry: () => void;
   onExit: () => void;
+  onLeaderboard: () => void;
 }) {
   const { lang, T } = useT();
   const R = FACTORY_ROGUE[lang];
@@ -248,17 +250,25 @@ export function RogueSummary({
             <span>{fmt("{label} {v}", { label: R.sumBestShift, v: records.bestShift })}</span>
             <span>{fmt("{label} {v}", { label: R.sumRuns, v: records.runs })}</span>
           </div>
-          {leaderboardStatus?.leaderboardAvailable && leaderboardStatus.globalRank != null ? (
-            <div className="fr-sum-steam-rank">
+          {leaderboardStatus?.globalRank != null ? (
+            <button type="button" className="fr-sum-steam-rank" onClick={onLeaderboard}>
               <span aria-hidden="true">STEAM</span>
               <strong>{fmt(R.steamGlobalRank, { rank: leaderboardStatus.globalRank })}</strong>
-            </div>
+              <small>{lang === "zh" ? "点击查看全球榜" : "View leaderboard"}</small>
+            </button>
           ) : leaderboardStatus?.pending ? (
-            <div className="fr-sum-steam-rank is-syncing">
+            <button type="button" className="fr-sum-steam-rank is-syncing" onClick={onLeaderboard}>
               <span aria-hidden="true">STEAM</span>
               <strong>{R.steamSyncing}</strong>
-            </div>
-          ) : null}
+              <small>{lang === "zh" ? "点击查看全球榜" : "View leaderboard"}</small>
+            </button>
+          ) : (
+            <button type="button" className="fr-sum-steam-rank" onClick={onLeaderboard}>
+              <span aria-hidden="true">STEAM</span>
+              <strong>{lang === "zh" ? "Steam 全球第 — 名" : "Steam global rank —"}</strong>
+              <small>{lang === "zh" ? "点击查看全球榜" : "View leaderboard"}</small>
+            </button>
+          )}
         </aside>
         </div>
 

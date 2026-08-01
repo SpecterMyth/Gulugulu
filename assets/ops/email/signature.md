@@ -18,7 +18,7 @@
 ```
 —
 Mobi Studio · makers of Gulugulu
-Free Steam desktop pet for AI-assisted coding
+$1.99 Steam desktop pet for AI-assisted coding · Aug 18
 github.com/SpecterMyth/Gulugulu · gulugulu@mobigames.cn
 ```
 
@@ -27,7 +27,7 @@ github.com/SpecterMyth/Gulugulu · gulugulu@mobigames.cn
 ```
 —
 Mobi Studio · 咕噜咕噜 Gulugulu
-陪你写代码的免费 Steam 桌宠
+陪你写代码的 Steam 桌宠 · $1.99 · 8 月 18 日上线
 github.com/SpecterMyth/Gulugulu · gulugulu@mobigames.cn
 ```
 

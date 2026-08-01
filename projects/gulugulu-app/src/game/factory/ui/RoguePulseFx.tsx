@@ -551,7 +551,7 @@ export const RoguePulseFx = forwardRef<
           spawnPillar(d, at, elColor(el));
         }
         flashSpeedlines();
-        spawnJackpotText(`×${a.bd.deskCount}!`, at);
+        spawnJackpotText(`×${a.bd.deskScoreMult ?? a.bd.deskCount}!`, at);
       }
       // 彩虹档(当前 ≥10⁴)另配全屏速度线(04 §3 表)
       if (a.tier >= 4) later(d0, () => flashSpeedlines());

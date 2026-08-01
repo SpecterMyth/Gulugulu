@@ -10,7 +10,7 @@
 |---|---|
 | 服务器名 | `Gulugulu` |
 | 图标 | `server-icon-512.png` |
-| 服务器描述（开启社区功能后填） | `Desktop pet that reacts to your AI coding agent — hatch, fuse AI-designed species, trade on Steam. EN / 中文` |
+| 服务器描述（开启社区功能后填） | `$1.99 Steam desktop pet launching Aug 18 — reacts to your AI coding agent; hatch and fuse AI-designed species. EN / 中文` |
 
 创建后建议顺手开启：**社区功能**（Server Settings → Enable Community，选 #welcome-rules 为规则频道）——解锁公告频道与更好的反滥用默认值。
 
@@ -54,7 +54,7 @@
 ## 欢迎消息（#welcome-rules 顶部或欢迎屏幕）
 
 ```
-Welcome to Gulugulu! 🐣 A free Steam desktop pet that levels up while your AI coding agent works.
+Welcome to Gulugulu! 🐣 A $1.99 Steam desktop pet launching Aug 18. It levels up while your AI coding agent works.
 Read the rules above, then show off your pets in #pet-showcase. 中文玩家请到 🇨🇳 中文区！
 ```
 

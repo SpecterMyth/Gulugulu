@@ -1,4 +1,5 @@
-import type { SpeciesInfo } from "../types";
+import type { GameConfig, SpeciesInfo } from "../types";
+import { aiDefForCodename, multiElementRecipesOrdered } from "../game/fusionSlots";
 import {
   OUTLINE,
   type RigKind,
@@ -443,7 +444,11 @@ export const SPECIES_VISUALS: Record<string, SpeciesVisual> = {
 
 /** 查找链：**皮肤选择覆盖**（SkinWorkshop.md，仅 AI 物种会命中）→ 本表（6 一阶+
  *  旧二阶）→ species2 包（融合 2.0 新物种）→ AI 自定义注册表 → config 数据兜底。 */
-export function getSpeciesVisual(species: string, info: SpeciesInfo | undefined): SpeciesVisual {
+export function getSpeciesVisual(
+  species: string,
+  info: SpeciesInfo | undefined,
+  config?: GameConfig,
+): SpeciesVisual {
   const skin = getSkinOverride(species);
   if (skin) {
     if (skin.visual) return skin.visual;
@@ -460,6 +465,18 @@ export function getSpeciesVisual(species: string, info: SpeciesInfo | undefined)
   if (pack) return pack;
   const custom = getCustomVisual(species);
   if (custom) return custom;
+  // Steam 已定槽、AI 设计尚未落地：物种身份仍是 aifXXYY，但临时形象应取该配方
+  // 的 0 号固定宠物。不能走下面的通用未知物种兜底，否则会显示黄色鸭子。
+  const aiDef = aiDefForCodename(species);
+  if (aiDef != null && config) {
+    const ordinal = Math.floor((aiDef - 10_000) / 100);
+    const recipe = multiElementRecipesOrdered(Object.keys(config.speciesByRecipe ?? {}))[ordinal];
+    const fixed = recipe ? config.speciesByRecipe?.[recipe] : undefined;
+    if (fixed && fixed !== species) {
+      const fixedVisual = SPECIES_VISUALS[fixed] ?? VISUALS2[fixed];
+      if (fixedVisual) return fixedVisual;
+    }
+  }
   const colors = info?.colors ?? ["#F5C542"];
   return {
     rig: BODY_TO_RIG[info?.body ?? "duck"] ?? "duck",

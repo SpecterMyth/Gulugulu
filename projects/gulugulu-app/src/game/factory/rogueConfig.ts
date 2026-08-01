@@ -20,30 +20,31 @@ export const KPI_RATE_LATE = 1.46;
 
 /**
  * 标准 20 班 KPI 权威表。
- * 第 1~5 班从 80 平滑增长到 1000，第 6~10 班再平滑增长到 1 万；
- * 第 10 班起约按 ×2.154 快速增长，
+ * 第 1~5 班从 80 按约 ×2.236 增长到 2000；
+ * 第 5~10 班按约 ×1.585 增长到 2 万；
+ * 第 10~19 班按约 ×1.995 增长到 1000 万，
  * 第 19 班锚定 1000 万，第 20 班终局锚定 5000 万。
  */
 export const KPI_BY_SHIFT = [
   0,
   80,
-  150,
-  280,
-  530,
-  1_000,
-  1_600,
-  2_500,
-  4_000,
-  6_300,
-  10_000,
-  21_544,
-  46_416,
-  100_000,
-  215_443,
-  464_159,
-  1_000_000,
-  2_154_435,
-  4_641_589,
+  179,
+  400,
+  894,
+  2_000,
+  3_170,
+  5_024,
+  7_962,
+  12_619,
+  20_000,
+  39_895,
+  79_579,
+  158_740,
+  316_645,
+  631_623,
+  1_259_921,
+  2_513_211,
+  5_013_193,
   10_000_000,
   50_000_000,
 ] as const;
@@ -100,7 +101,12 @@ export const RUSH_TRICKLE_RATE = 0; // 赶工必须主动投放，不再挂机�
  */
 export const POWER_THROW_LIMIT = 12;
 export const FINAL_POWER_THROW_LIMIT = 20; // 第 20 班复合检查：20 投
-export const WIND_RATIO = 0.65; // 大风日:横向风加速度 = 空投横速的 ±65%，一次下落即可看出明显偏航
+/**
+ * 大风日横向风加速度倍率。
+ * 标准 560px 高场景里，宠物从吊挂点自由落到地面时，相对无风轨迹横移约 174px；
+ * 桌面和墙体碰撞仍会按实际几何提前截断轨迹。
+ */
+export const WIND_RATIO = 6.25;
 export const WIND_FLIP_MS = 20_000;
 
 /** 第 20 班 audit 同时承载赶工、限电和大风三条规则。 */
@@ -151,15 +157,16 @@ export function hirePrice(args: {
 }
 
 // ---- 大风 -------------------------------------------------------------------
-/** 空投横速近似值(px/s):大风日横向风加速度 = ±此值 × WIND_RATIO。 */
+/** 风力基准(px/s²)：大风日横向风加速度 = ±此值 × WIND_RATIO。 */
 export const WIND_DROP_SPEED = 240;
 
 // ---- 脉冲常量 ---------------------------------------------------------------
 
 /** 每只被传导/压榨咕噜默认贡献 100% 有效基础分。 */
 export const ABSORB_FACTOR = 1;
-export const COMBO_PER_STACK = 0.03;
-export const COMBO_CAP = 0.3;
+/** 连击每层 +20%，最高提供 +400%（即节奏池 5×）。 */
+export const COMBO_PER_STACK = 0.2;
+export const COMBO_CAP = 4;
 export const STRIKE_LINE_DEFAULT = 3;
 /** 下标 = 元素数/工种；多元素以更低基础分换取接多桌与连携空间。 */
 export const BASE_VALUE_BY_TIER = [0, 15, 12, 9, 6, 4, 3] as const;
@@ -174,8 +181,8 @@ export function baseValueForTier(tierCount: number): number {
 
 export const SHOP_PICKS = 3;
 export const CARD_PRICE_RATE: Record<string, number> = { common: 0.07, rare: 0.12, epic: 0.2 };
-/** 同名卡每升一级，下一次购买价变为上一级的 1.5 倍。 */
-export const CARD_LEVEL_PRICE_MULTIPLIER = 1.5;
+/** 同名卡每升一级，下一次购买价变为上一级的 3 倍。 */
+export const CARD_LEVEL_PRICE_MULTIPLIER = 3;
 export const SHOP_REROLL_RATE = 0.07;
 /** 班末商店的下一次刷新价：基础价随该维度已刷新次数逐次翻倍。 */
 export function shopRerollCost(kpi: number, rerollCount: number): number {
@@ -183,15 +190,18 @@ export function shopRerollCost(kpi: number, rerollCount: number): number {
 }
 /** 跳过一维返 8% KPI：没钱时连续跳过仍能换来下一维的一张普通强化。 */
 export const SHOP_SKIP_REFUND_RATE = 0.08;
-/** 贷款:立得 100% 当前 KPI 本金;其后 3 班各还本金 35%，总还款 105%。 */
-export const LOAN_GAIN_RATE = 1;
+/** 贷款:立得 300% 当前 KPI 本金;其后 3 班各还本金 35%，总还款 105%。 */
+export const LOAN_GAIN_RATE = 3;
 export const LOAN_REPAY_RATE = 0.35;
 export const LOAN_TOTAL_REPAY_RATE = 1.05;
 export const LOAN_SHIFTS = 3;
 
 // ---- 卡牌数值参数（在售卡全部与 CARD_DEFS 对齐；末尾保留少量旧存档只读参数） ----
 
-/** 卡牌等级表统一读取；所有非一次性数值卡最多展示到 Lv.5。 */
+/** 生长、冻结、吸收共用的 Lv.1~5 基础触发率。 */
+const CORE_TRIGGER_CHANCE = [0.1, 0.2, 0.3, 0.4, 0.6] as const;
+
+/** 卡牌等级表统一读取；个别卡（六边形津贴、补招聘）可超过 Lv.5。 */
 export function valueAtLevel(values: readonly number[], level: number): number {
   const index = Math.min(values.length, Math.max(1, Math.round(level))) - 1;
   return values[index];
@@ -199,55 +209,55 @@ export function valueAtLevel(values: readonly number[], level: number): number {
 
 export const CARD_PARAMS = {
   // 维度一 · 火
-  "fire.burst": { repeats: [1, 2, 4, 8, 16] },
+  "fire.burst": { repeats: [1, 3, 6, 10, 15] },
   "fire.ember": { asAbsorbed: [2, 4, 8, 16, 32] },
   "fire.wildfire": { spread: [2, 4, 8, 16, 32] },
   "fire.chain": { reachBonus: [1, 3, 6, 12, 20] }, // 火链:火宠连通链
   // 电
-  "electric.overload": { perDepth: [0.25, 0.5, 1, 2, 4] },
+  "electric.overload": { perDepth: [0.25, 0.6, 1.5, 4, 8] },
   "electric.wire": { reachBonus: [2, 5, 9, 14, 20] }, // 导线:电宠吸取层数（元素特色溢价）
   // 分流显示真实连通桌数；并联只奖励第一张之外的桌，按固定比例线性增长。
-  "electric.parallel": { perExtraDesk: [0.5, 1, 2, 4, 8] },
-  "electric.induction": { perLink: [0.1, 0.2, 0.4, 0.8, 1.6] },
+  "electric.parallel": { perExtraDesk: [0.5, 1.2, 3, 8, 16] },
+  "electric.induction": { perLink: [0.1, 0.25, 0.6, 1.5, 3.2] },
   // 冰
   "ice.freezeprice": { priceMult: [0.9, 0.75, 0.6, 0.4, 0.2] },
-  "ice.freeze": { chance: [0.3, 0.5, 0.7, 0.9, 1] },
-  "ice.overstaff": { per: [0.2, 0.5, 1, 2, 4] },
+  "ice.freeze": { chance: CORE_TRIGGER_CHANCE },
+  "ice.overstaff": { per: [0.2, 0.5, 1.2, 3, 8] },
   "ice.chain": { reachBonus: [1, 3, 6, 12, 20] }, // 冰桥:冰宠连通链
   // 水
   "water.fourday": { line: [5, 7, 9, 12, 16], strikeBonus: [2, 4, 8, 16, 32] },
-  "water.same": { perTeamSame: [1.1, 1.2, 1.35, 1.6, 2] },
+  "water.same": { perTeamSame: [1.1, 1.25, 1.6, 2.2, 3], countCap: 10 },
   "water.convert": { targets: [1, 2, 3, 5, 8] },
   "water.chain": { reachBonus: [1, 3, 6, 12, 20] }, // 水道:水宠连通链
   // 草
-  "grass.grow": { chance: [0.17, 0.35, 0.6, 0.82, 1] },
+  "grass.grow": { chance: CORE_TRIGGER_CHANCE },
   // 繁茂 = 当前连成一片的咕噜数，每只提供固定加成，不再每 5 只跳一档。
-  "grass.crowd": { perConnected: [0.08, 0.18, 0.4, 0.8, 1.6] },
-  "grass.height": { perLayer: [0.1, 0.22, 0.45, 1, 2], cap: 34 },
+  "grass.crowd": { perConnected: [0.08, 0.2, 0.5, 1.2, 3.2] },
+  "grass.height": { perLayer: [0.1, 0.25, 0.6, 1.5, 4], cap: 34 },
   "grass.chain": { reachBonus: [1, 3, 6, 12, 20] }, // 藤链:草宠连通链
   // 一般
-  "normal.absorb": { chance: [0.3, 0.6, 1, 1, 1], targets: [1, 1, 1, 2, 3] },
-  "normal.gluttony": { perSize: [0.5, 1, 2, 4, 8] },
+  "normal.absorb": { chance: CORE_TRIGGER_CHANCE, targets: [1, 1, 1, 2, 3] },
+  "normal.gluttony": { perSize: [0.5, 1.2, 3, 8, 16] },
   "normal.emperor": { grow: [1, 2, 3, 5, 8] },
   "normal.chain": { reachBonus: [1, 3, 6, 10, 15] }, // 人脉:一般宠连通链
   // 维度二 · 属性数 + 编制/财务混合池
-  "attr.pure": { mult: [1.65, 2.5, 4.5, 8, 14], count: 1 },
-  "attr.dual": { mult: [1.65, 2.5, 4.5, 8, 14], count: 2 },
-  "attr.slash": { mult: [2, 3.5, 7, 12, 21], count: 3 },
-  "attr.hex": { perElement: [0.5, 1, 2, 4, 8], minCount: 4 },
-  "attr.balance": { mult: [5, 10, 20, 40, 80] }, // 六工种各≥1在场
+  "attr.pure": { mult: [2, 4, 8, 16, 40], count: 1 },
+  "attr.dual": { mult: [2, 4, 8, 16, 40], count: 2 },
+  "attr.slash": { mult: [2, 4, 10, 25, 60], count: 3 },
+  "attr.hex": { perElement: [1, 2, 4, 6, 10, 20], minCount: 4 },
+  "attr.balance": { mult: [5, 8, 12, 20, 28] }, // 六工种各≥1在场
   // 维度三 · 两系连携。全部为史诗品质：Lv.1 立即形成跨系构筑，Lv.5 解锁巅峰规则。
-  "syn.arcIgnite": { perDesk: [0.5, 1, 2, 4, 8] },
+  "syn.arcIgnite": { perDesk: [0.5, 1, 3, 8, 20] },
   "syn.thermalShock": { echo: [3, 6, 12, 24, 60] },
-  "syn.steamBurst": { perSame: [1, 2, 4, 8, 16] },
+  "syn.steamBurst": { perSame: [1, 1.5, 2.5, 4, 6] },
   "syn.greenhouse": { chance: [0.5, 0.7, 0.85, 1, 1], growCopies: [1, 1, 1, 1, 2] },
-  "syn.fireDispatch": { perMass: [1, 2, 4, 8, 16] },
-  "syn.superconduct": { perFrozen: [0.5, 1, 2, 4, 8] },
+  "syn.fireDispatch": { perMass: [1, 2, 4, 7, 12] },
+  "syn.superconduct": { perFrozen: [0.5, 1, 2, 3.5, 6] },
   "syn.short": { burst: [3, 6, 12, 24, 60] },
-  "syn.bionet": { perGenerated: [0.3, 0.6, 1.2, 2.5, 6], cap: 12, generatedWeight: [1, 1, 1, 1, 2] },
-  "syn.lightningrod": { perMass: [0.5, 1, 2, 4, 8] },
-  "syn.iceMirror": { perFrozenSame: [1, 2, 4, 8, 16] },
-  "syn.permafrost": { perCrossEdge: [0.25, 0.5, 1, 2.5, 6], cap: [4, 6, 8, 12, 99], componentAtMax: true },
+  "syn.bionet": { perGenerated: [0.3, 0.7, 1.5, 4, 10], cap: 12, generatedWeight: [1, 1, 1, 1, 2] },
+  "syn.lightningrod": { perMass: [0.5, 1, 2.5, 6, 12] },
+  "syn.iceMirror": { perFrozenSame: [1, 1.5, 2.5, 4, 6] },
+  "syn.permafrost": { perCrossEdge: [0.25, 0.35, 0.5, 0.8, 1.25], cap: [4, 6, 8, 12, 99], componentAtMax: true },
   "syn.coldRotation": { perMass: [0.5, 1, 2, 4, 8] },
   "syn.irrigation": { chanceMult: [2, 4, 8, 16, 32], growCopies: [1, 1, 1, 1, 3] },
   "syn.badge": { mult: [2, 4, 8, 16, 32] },
@@ -419,7 +429,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: "attr.pure", dim: 2, rarity: "common", maxLevel: 5 },
   { id: "attr.dual", dim: 2, rarity: "common", maxLevel: 5 },
   { id: "attr.slash", dim: 2, rarity: "rare", maxLevel: 5 },
-  { id: "attr.hex", dim: 2, rarity: "rare", maxLevel: 5 },
+  { id: "attr.hex", dim: 2, rarity: "rare", maxLevel: 6 },
   { id: "attr.balance", dim: 2, rarity: "epic", maxLevel: 5 },
   {
     id: "syn.arcIgnite",

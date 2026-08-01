@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { useT } from "../../useT";
 import type { OnboardingDirective } from "./onboardingSteps";
 import { placeOnboardingCard } from "./onboardingPlacement";
 import "./onboarding.css";
@@ -7,11 +8,15 @@ export function OnboardingGoal({
   directive,
   onAction,
   onRecover,
+  onSkip,
 }: {
   directive: OnboardingDirective | null;
   onAction: () => void;
   onRecover: () => void;
+  /** Optional main-route escape hatch. App should pass director.skipMain after confirmation. */
+  onSkip?: () => void;
 }) {
+  const { lang } = useT();
   const goalRef = useRef<HTMLElement>(null);
   const [targetPresent, setTargetPresent] = useState(false);
 
@@ -41,6 +46,25 @@ export function OnboardingGoal({
       }
 
       const goalRect = goal.getBoundingClientRect();
+      if (directive.gesture === "drop") {
+        // 投放目标会随运输机持续移动。便签若参与目标避让，就会在飞机巡航时
+        // 反复换边、上下跳动；投放步骤固定在屏幕中央，只让手势追踪飞机。
+        const left = Math.max(14, (window.innerWidth - goalRect.width) / 2);
+        const top = Math.max(14, (window.innerHeight - goalRect.height) / 2);
+        const nextLayout = `${Math.round(left)}:${Math.round(top)}:screen-middle`;
+        if (nextLayout !== previousLayout) {
+          previousLayout = nextLayout;
+          goal.style.left = `${left}px`;
+          goal.style.top = `${top}px`;
+          goal.dataset.placement = "screen-middle";
+        }
+        goal.dataset.targetOverlap = "false";
+        goal.dataset.speechOverlap = "false";
+        goal.dataset.placementReady = "true";
+        raf = requestAnimationFrame(position);
+        return;
+      }
+
       const targetRect = target?.getBoundingClientRect();
       const guideFx = Array.from(document.querySelectorAll<HTMLElement>("[data-coach-fx]"))
         .filter((element) => Number.parseFloat(element.style.opacity || "0") > 0.01)
@@ -162,7 +186,7 @@ export function OnboardingGoal({
         element.style.removeProperty("--onboarding-speech-push");
       });
     };
-  }, [directive?.step, directive?.targetKey]);
+  }, [directive?.step, directive?.targetKey, directive?.gesture]);
 
   if (!directive) return null;
   const showAction = directive.action !== "target";
@@ -177,14 +201,26 @@ export function OnboardingGoal({
         <p>{directive.label}</p>
         {showAction ? (
           <button type="button" data-onboarding-allow onClick={onAction}>
-            {directive.cta ?? "知道了"}
+            {directive.cta ?? (lang === "zh" ? "知道了" : "Got it")}
           </button>
         ) : !targetPresent ? (
           <button type="button" data-onboarding-allow onClick={onRecover}>
-            带我回正确位置
+            {lang === "zh" ? "带我回正确位置" : "Take me to the right place"}
           </button>
         ) : (
-          <div className="onboarding-target-note">只做发光的这一步</div>
+          <div className="onboarding-target-note">
+            {lang === "zh" ? "建议先做发光的这一步" : "Try the highlighted step first"}
+          </div>
+        )}
+        {onSkip && (
+          <button
+            type="button"
+            className="onboarding-skip"
+            data-onboarding-allow
+            onClick={onSkip}
+          >
+            {lang === "zh" ? "跳过整个新手引导" : "Skip onboarding"}
+          </button>
         )}
       </div>
     </section>

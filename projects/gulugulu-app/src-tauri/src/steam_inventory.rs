@@ -29,6 +29,26 @@ fn inventory() -> *mut steamworks_sys::ISteamInventory {
     unsafe { steamworks_sys::SteamAPI_SteamInventory_v003() }
 }
 
+/// Inventory calls can finish with the generic `k_EResultFail` when Steam was
+/// closed, signed out, or lost its connection after the call started.  In that
+/// case the generic inventory error is not actionable, so check the client and
+/// user session again before choosing the message shown to the player.
+fn steam_session_connected() -> bool {
+    if !unsafe { steamworks_sys::SteamAPI_IsSteamRunning() } {
+        return false;
+    }
+    let user = unsafe { steamworks_sys::SteamAPI_SteamUser_v023() };
+    !user.is_null() && unsafe { steamworks_sys::SteamAPI_ISteamUser_BLoggedOn(user) }
+}
+
+fn failed_result_message(status: steamworks_sys::EResult, session_connected: bool) -> String {
+    if !session_connected {
+        "#steamNotConnected".to_string()
+    } else {
+        format!("#steamInventoryOpFailed|err={status:?}")
+    }
+}
+
 const INVALID_RESULT: steamworks_sys::SteamInventoryResult_t = -1;
 
 fn issue(
@@ -195,12 +215,37 @@ pub fn wait_result(
         }
         if status != steamworks_sys::EResult::k_EResultPending {
             destroy_result(handle);
-            return OpOutcome::Failed(format!("#steamInventoryOpFailed|err={status:?}"));
+            return OpOutcome::Failed(failed_result_message(
+                status,
+                steam_session_connected(),
+            ));
         }
         if started.elapsed() > timeout {
             destroy_result(handle);
             return OpOutcome::Uncertain;
         }
         std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::failed_result_message;
+    use steamworks_sys::EResult;
+
+    #[test]
+    fn disconnected_session_gets_actionable_message() {
+        assert_eq!(
+            failed_result_message(EResult::k_EResultFail, false),
+            "#steamNotConnected"
+        );
+    }
+
+    #[test]
+    fn connected_session_keeps_inventory_failure_detail() {
+        assert_eq!(
+            failed_result_message(EResult::k_EResultFail, true),
+            "#steamInventoryOpFailed|err=k_EResultFail"
+        );
     }
 }

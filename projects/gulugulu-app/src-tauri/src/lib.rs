@@ -424,10 +424,12 @@ pub fn run() {
             let fusion_state = app.state::<fusion_gen::FusionGenState>().inner().clone();
             fusion_gen::spawn_fusion_worker(app_handle.clone(), game_state.clone(), fusion_state);
 
-            // 动态台词后台生成：连接 Claude/Codex 后预生成一批双语吐槽台词，
-            // 落盘 gulugulu-quotes.json 并推 quotes://ready。
-            let quote_state = app.state::<quote_gen::QuoteGenState>().inner().clone();
-            quote_gen::spawn_quote_worker(app_handle.clone(), quote_state);
+            // 动态台词会调用玩家自己的 Claude/Codex CLI，只有明确同意后才创建
+            // provider worker。新安装以及旧版缺字段的设置都默认关闭。
+            if settings::load(app.handle()).dynamic_quote_ai {
+                let quote_state = app.state::<quote_gen::QuoteGenState>().inner().clone();
+                quote_gen::spawn_quote_worker(app_handle.clone(), quote_state);
+            }
 
             // Steam 集成：init 失败 → unavailable 优雅降级（GitHub 分发版照常跑）。
             let steam_state = app.state::<steam::SharedSteamState>().inner().clone();
@@ -461,6 +463,7 @@ pub fn run() {
             agent_conn::disconnect_agent,
             quote_gen::get_dynamic_quotes,
             quote_gen::regenerate_quotes,
+            quote_gen::set_dynamic_quote_ai,
             skins::select_species_skin,
             skins::list_skin_uploaders,
             skins::install_species_skin,
@@ -518,6 +521,7 @@ pub fn run() {
             steam::steam_confirm_rebind,
             steam_leaderboard::record_factory_leaderboard_result,
             steam_leaderboard::get_factory_leaderboard_status,
+            steam_leaderboard::get_factory_leaderboard,
             steam_leaderboard::debug_clear_factory_leaderboard,
             steam_market::steam_market_prices,
             steam::debug_steam_generate_items,
@@ -536,4 +540,12 @@ pub fn run() {
                 cli_spawn::kill_all_live_children();
             }
         });
+}
+
+#[cfg(all(test, not(debug_assertions)))]
+mod release_boundary_tests {
+    #[test]
+    fn debug_commands_remain_rejected_in_release_tests() {
+        assert!(crate::game::ensure_debug_build().is_err());
+    }
 }

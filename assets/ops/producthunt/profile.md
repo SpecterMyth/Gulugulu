@@ -8,7 +8,7 @@ PH 是「真人 maker」文化：注册的是**你的个人 maker 账号**，产
 | 名字 | `SpecterMyth`（或你惯用的对外名） |
 | 头像 | 你的个人头像，或 `avatar-mobi-240.png`（工作室 Logo）/ `avatar-240.png`（鸭头）均可 |
 | Headline（≤40 字符） | `Raising a Steam desktop pet with Claude` |
-| About | `Solo dev at Mobi Studio building Gulugulu — a free Steam desktop pet that reacts while your AI coding agent works. Claude does half the job.` |
+| About | `Solo dev at Mobi Studio building Gulugulu — a $1.99 Steam desktop pet launching Aug 18. It reacts while your AI coding agent works.` |
 | 链接 | GitHub `https://github.com/SpecterMyth/Gulugulu` + X 账号 |
 
 ## 注册后注意

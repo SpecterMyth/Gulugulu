@@ -29,12 +29,52 @@ export const WINDOW_SIZES: Record<UiMode, { w: number; h: number }> = {
 const MENU_ITEMS: Array<{
   mode: Exclude<UiMode, "pet" | "menu">;
   labelKey: "backyard" | "factory" | "settings";
-  icon: string;
 }> = [
-  { mode: "backyard", labelKey: "backyard", icon: "🏡" },
-  { mode: "factory", labelKey: "factory", icon: "🏭" },
-  { mode: "settings", labelKey: "settings", icon: "⚙️" },
+  { mode: "backyard", labelKey: "backyard" },
+  { mode: "factory", labelKey: "factory" },
+  { mode: "settings", labelKey: "settings" },
 ];
+
+/** 菜单便签顶部的大幅矢量插画。保持纯 SVG，避免不同系统的 emoji 字形差异。 */
+function MenuItemIcon({ mode }: { mode: (typeof MENU_ITEMS)[number]["mode"] }) {
+  if (mode === "backyard") {
+    return (
+      <svg className="menu-item-svg" viewBox="0 0 72 48" aria-hidden="true">
+        <path className="menu-icon-ground" d="M5 40.5c9-5.4 16.1-1.2 24.1-3.7 9.3-3 19-2.2 37.9 3.7v4.2H5z" />
+        <circle className="menu-icon-sun" cx="57" cy="10" r="5.5" />
+        <path className="menu-icon-tree" d="M11.5 29.5V42m-6.1-17c0-4.7 3-8.4 6.6-8.4s6.6 3.7 6.6 8.4c0 4.5-2.9 7.3-6.6 7.3S5.4 29.5 5.4 25Z" />
+        <path className="menu-icon-house" d="M22 24.5 37 12l15 12.5V42H22z" />
+        <path className="menu-icon-roof" d="m19.5 25.5 17.5-15 17.5 15M42.5 17v-5.5h6v10.2" />
+        <path className="menu-icon-door" d="M33 42V29h8v13m-15-13h4m14 0h4" />
+        <path className="menu-icon-fence" d="M53 31v12m8-12v12m-11-8.5h16m-16 5h16" />
+      </svg>
+    );
+  }
+
+  if (mode === "factory") {
+    return (
+      <svg className="menu-item-svg" viewBox="0 0 72 48" aria-hidden="true">
+        <path className="menu-icon-smoke" d="M18 10.5c-3.9-1-4.2-5.3-.7-6.6 1.2-.4 2.6-.2 3.4.7.6-2.2 4-2.4 5.1-.5 1.2 2-.3 4.5-2.6 4.8" />
+        <path className="menu-icon-smoke" d="M38 10c-3.2-1.2-3.1-5.3.2-6.3 1.6-.5 3.2.4 3.8 1.8 1.1-1.3 3.6-.6 3.8 1.2.2 1.6-1 2.8-2.5 3" />
+        <path className="menu-icon-stack" d="M14 10h10l1.3 27H12.7zM34 10h10l1.3 27H32.7z" />
+        <path className="menu-icon-factory" d="M5 44V25l15 8v-8l15 8v-8l15 8v-8l17 9v10z" />
+        <path className="menu-icon-window" d="M11 35h5v4h-5zm13 0h5v4h-5zm13 0h5v4h-5zm13 0h5v4h-5z" />
+        <path className="menu-icon-factory-line" d="M5 44h62M13.5 15h11m8.5 0h11" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="menu-item-svg" viewBox="0 0 72 48" aria-hidden="true">
+      <path
+        className="menu-icon-gear"
+        d="m40.2 6.3 1.4 5.2c1.3.5 2.5 1.2 3.6 2.1l5.2-1.5 4.2 7.2-3.9 3.8c.2.7.2 1.4.2 2.1s0 1.4-.2 2.1l3.9 3.8-4.2 7.2-5.2-1.5c-1.1.9-2.3 1.6-3.6 2.1l-1.4 5.2h-8.4l-1.4-5.2a15 15 0 0 1-3.6-2.1l-5.2 1.5-4.2-7.2 3.9-3.8a11 11 0 0 1 0-4.2l-3.9-3.8 4.2-7.2 5.2 1.5c1.1-.9 2.3-1.6 3.6-2.1l1.4-5.2z"
+      />
+      <circle className="menu-icon-gear-core" cx="36" cy="25.2" r="8.2" />
+      <path className="menu-icon-spark" d="M59 6v8M55 10h8M10 32v7M6.5 35.5h7" />
+    </svg>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Menu bar + HUD — 木质吊牌（handoff 设计语言）
@@ -90,7 +130,7 @@ export function MenuBar({
             onClick={() => onSelect(item.mode)}
           >
             <span className="menu-item-icon">
-              {item.icon}
+              <MenuItemIcon mode={item.mode} />
               {item.mode === "backyard" && backyardBadge && <span className="menu-badge" />}
             </span>
             <span className="menu-item-label">{copy[item.labelKey]}</span>
@@ -164,6 +204,7 @@ export function PanelShell({
   subtitle,
   backLabel,
   onBack,
+  onTitleClick,
   children,
 }: {
   title: string;
@@ -171,6 +212,8 @@ export function PanelShell({
   /** 返回按钮的无障碍标签（双语）。缺省回退当前语言词条。 */
   backLabel?: string;
   onBack: () => void;
+  /** 可选的标题点击入口；设置页用它承载隐藏的调试解锁手势。 */
+  onTitleClick?: () => void;
   children: React.ReactNode;
 }) {
   const { T } = useT();
@@ -180,7 +223,13 @@ export function PanelShell({
         <button type="button" className="panel-back" onClick={onBack} aria-label={backLabel ?? T.back}>
           ←
         </button>
-        <span className="panel-title">{title}</span>
+        {onTitleClick ? (
+          <button type="button" className="panel-title panel-title-button" onClick={onTitleClick}>
+            {title}
+          </button>
+        ) : (
+          <span className="panel-title">{title}</span>
+        )}
         {subtitle && <span className="panel-subtitle">{subtitle}</span>}
       </header>
       <div className="panel-body">{children}</div>

@@ -2,6 +2,7 @@ use crate::cli_spawn::{available_providers, run_provider};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -85,6 +86,10 @@ pub struct QuoteGenStateInner {
     cache: Mutex<Vec<DynamicQuote>>,
     /// worker 唤醒信号（regenerate 时 notify）。
     signal: (Mutex<bool>, Condvar),
+    /// 当前用户是否允许调用本机 Claude/Codex CLI。撤回后 worker 只等待，不再发起调用。
+    enabled: AtomicBool,
+    /// 防止设置开关反复开启时重复创建 provider worker。
+    worker_started: AtomicBool,
 }
 
 pub type QuoteGenState = Arc<QuoteGenStateInner>;
@@ -93,11 +98,16 @@ pub fn new_state() -> QuoteGenState {
     Arc::new(QuoteGenStateInner {
         cache: Mutex::new(Vec::new()),
         signal: (Mutex::new(false), Condvar::new()),
+        enabled: AtomicBool::new(false),
+        worker_started: AtomicBool::new(false),
     })
 }
 
 fn quotes_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_data_dir().ok().map(|dir| dir.join(QUOTES_FILE))
+    app.path()
+        .app_data_dir()
+        .ok()
+        .map(|dir| dir.join(QUOTES_FILE))
 }
 
 fn load_cached(app: &AppHandle) -> Vec<DynamicQuote> {
@@ -132,13 +142,47 @@ fn persist(app: &AppHandle, store: &QuoteStore) {
 /// Command：读已缓存的动态台词（前端挂载时拉取一次）。
 #[tauri::command]
 pub fn get_dynamic_quotes(state: tauri::State<'_, QuoteGenState>) -> Vec<DynamicQuote> {
-    state.cache.lock().map(|cache| cache.clone()).unwrap_or_default()
+    state
+        .cache
+        .lock()
+        .map(|cache| cache.clone())
+        .unwrap_or_default()
 }
 
 /// Command（调试面板）：强制重新生成一批动态台词。
 #[tauri::command]
 pub fn regenerate_quotes(state: tauri::State<'_, QuoteGenState>) {
     notify_worker(&state);
+}
+
+/// 独立的动态台词 AI 同意开关。
+///
+/// 首次开启才创建 provider worker；关闭会立即阻止新的 provider 调用、清空本次
+/// 进程的动态池并向前端推空列表，让内置静态台词继续工作。磁盘缓存保留，重新同意
+/// 时可以复用，但没有同意时不会读取或展示。
+#[tauri::command]
+pub fn set_dynamic_quote_ai(
+    app: AppHandle,
+    state: tauri::State<'_, QuoteGenState>,
+    enabled: bool,
+) -> crate::settings::AppSettings {
+    if !enabled {
+        // 先撤权再做磁盘/事件工作，避免慢 I/O 窗口里又发起一次 provider 调用。
+        state.enabled.store(false, Ordering::SeqCst);
+        notify_worker(&state);
+        if let Ok(mut cache) = state.cache.lock() {
+            cache.clear();
+        }
+        let _ = app.emit(QUOTES_EVENT, Vec::<DynamicQuote>::new());
+    }
+
+    let settings = crate::settings::update(&app, |s| s.dynamic_quote_ai = enabled);
+    if enabled {
+        state.enabled.store(true, Ordering::SeqCst);
+        spawn_quote_worker(app, state.inner().clone());
+    }
+
+    settings
 }
 
 fn notify_worker(state: &QuoteGenState) {
@@ -199,14 +243,26 @@ fn parse_quotes(raw: &str) -> Vec<DynamicQuote> {
     let Ok(value) = serde_json::from_str::<Value>(raw) else {
         return Vec::new();
     };
-    let items = value.get("quotes").and_then(Value::as_array).cloned().unwrap_or_default();
+    let items = value
+        .get("quotes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     let mut out = Vec::new();
     for item in &items {
-        let lang = item.get("lang").and_then(Value::as_str).unwrap_or("").trim();
+        let lang = item
+            .get("lang")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
         if lang != "zh" && lang != "en" {
             continue;
         }
-        let text = item.get("text").and_then(Value::as_str).unwrap_or("").trim();
+        let text = item
+            .get("text")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
         if text.is_empty() || text.chars().count() > MAX_TEXT_CHARS {
             continue;
         }
@@ -222,7 +278,11 @@ fn parse_quotes(raw: &str) -> Vec<DynamicQuote> {
             })
             .unwrap_or_default();
         // 至少留一个能被状态命中的 tag，否则动态句只会在"任意回退"时才出现。
-        let tags = if tags.is_empty() { vec!["meme".to_string()] } else { tags };
+        let tags = if tags.is_empty() {
+            vec!["meme".to_string()]
+        } else {
+            tags
+        };
         out.push(DynamicQuote {
             id: format!("dyn-{:03}", out.len() + 1),
             lang: lang.to_string(),
@@ -259,6 +319,12 @@ fn attempt(prompt: &str) -> GenOutcome {
 }
 
 pub fn spawn_quote_worker(app: AppHandle, state: QuoteGenState) {
+    state.enabled.store(true, Ordering::SeqCst);
+    if state.worker_started.swap(true, Ordering::SeqCst) {
+        notify_worker(&state);
+        return;
+    }
+
     // 先把上次缓存灌进内存并推给前端（秒开时用旧梗兜底，新批到达后替换）。
     let cached = load_cached(&app);
     if !cached.is_empty() {
@@ -271,8 +337,17 @@ pub fn spawn_quote_worker(app: AppHandle, state: QuoteGenState) {
     thread::spawn(move || {
         let prompt = build_prompt();
         loop {
+            if !state.enabled.load(Ordering::SeqCst) {
+                wait_for_signal(&state, None);
+                continue;
+            }
+
             match attempt(&prompt) {
                 GenOutcome::Generated(quotes, provider) => {
+                    // provider 运行期间也可能撤回同意。结果必须丢弃，且不得落盘/推送。
+                    if !state.enabled.load(Ordering::SeqCst) {
+                        continue;
+                    }
                     if let Ok(mut cache) = state.cache.lock() {
                         *cache = quotes.clone();
                     }
@@ -300,4 +375,17 @@ pub fn spawn_quote_worker(app: AppHandle, state: QuoteGenState) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod consent_tests {
+    use super::*;
+
+    #[test]
+    fn provider_worker_is_dormant_until_consent() {
+        let state = new_state();
+        assert!(!state.enabled.load(Ordering::SeqCst));
+        assert!(!state.worker_started.load(Ordering::SeqCst));
+        assert!(state.cache.lock().expect("quote cache").is_empty());
+    }
 }

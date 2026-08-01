@@ -869,6 +869,7 @@ mod tests {
             stamina: config.stamina_max,
             stamina_updated_at: 1000,
             exhausted: false,
+            pending_fusion: None,
             key_buffer: 0,
             token_buffer: 0,
             steam_item_id: None,

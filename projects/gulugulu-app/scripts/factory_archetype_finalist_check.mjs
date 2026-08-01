@@ -12,6 +12,11 @@ import {
 import { writeFileSync } from "node:fs";
 
 const runs = Math.max(30, Number.parseInt(process.argv[2] ?? "50", 10) || 50);
+function cliValue(flag) {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
 const defaultRouteIds = [
   "attr_high_color",
   "pair_fire_water",
@@ -25,9 +30,12 @@ const defaultRouteIds = [
   "triple_grass_electric_ice",
   "triple_electric_ice_normal",
 ];
+const requestedRouteIds = cliValue("--routes")?.split(",").filter(Boolean);
 const routeIds = process.argv.includes("--all-routes")
   ? ARCHETYPE_ROUTES.map((route) => route.id)
-  : defaultRouteIds;
+  : requestedRouteIds?.length > 0 ? requestedRouteIds : defaultRouteIds;
+const seedText = cliValue("--seed") ?? "0xc001d00d";
+const routeSeed = Number.parseInt(seedText, seedText.startsWith("0x") ? 16 : 10) >>> 0;
 
 function hashText(value) {
   let hash = 0x811c9dc5;
@@ -44,7 +52,7 @@ for (const id of routeIds) {
   const results = Array.from({ length: runs }, (_, index) =>
     simulate(
       "expert",
-      (0xc001_d00d ^ hashText(id) ^ Math.imul(index + 1, 0x9e37_79b1)) >>> 0,
+      (routeSeed ^ hashText(id) ^ Math.imul(index + 1, 0x9e37_79b1)) >>> 0,
       route,
       { trackContributions: false, fastMode: false },
     ));
@@ -79,6 +87,7 @@ const output = {
     runsPerRoute: runs,
     routes: routeIds.length,
     totalRuns: runs * routeIds.length,
+    seed: `0x${routeSeed.toString(16)}`,
     fastMode: false,
     trackContributions: false,
   },

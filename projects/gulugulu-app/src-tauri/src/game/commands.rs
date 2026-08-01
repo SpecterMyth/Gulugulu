@@ -695,12 +695,32 @@ pub fn advance_tutorial(
 pub fn advance_onboarding(
     app: AppHandle,
     state: tauri::State<'_, SharedGameState>,
+    steam: tauri::State<'_, crate::steam::SharedSteamState>,
     completed_step: String,
 ) -> Result<GameSave, String> {
     let now = now_secs();
-    let (_, save) = with_save(&app, state.inner(), |config, save| {
-        logic_advance_onboarding(config, save, &completed_step, now)
+    let steam_enabled = crate::steam::integration_enabled();
+    let (has_pending_hatches, save) = with_save(&app, state.inner(), |config, save| {
+        logic_advance_onboarding(config, save, &completed_step, now)?;
+
+        // Onboarding rewards are created directly as max-level pets instead of passing
+        // through collect_hatched_blocking. Register every unbound tier-1 reward with the
+        // same MintTier1/TriggerItemDrop hatch path used by ordinary tier-1 eggs.
+        if steam_enabled {
+            crate::steam_sync::migration_sweep(config, save);
+        }
+        Ok(steam_enabled
+            && save
+                .steam_outbox
+                .iter()
+                .any(|op| matches!(op, SteamOp::MintTier1 { .. })))
     })?;
+    if has_pending_hatches {
+        // Each onboarding receipt nudges the single-flight pump. The gifts therefore hatch
+        // into Steam during the guide instead of waiting for the next 60-second sweep (or
+        // being first discovered only after an app restart).
+        steam.kick_sync();
+    }
     Ok(save)
 }
 

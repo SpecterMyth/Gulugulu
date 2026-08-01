@@ -49,6 +49,7 @@ export interface UiStrings {
   language: string;
   alwaysOnTop: string;
   keyboardCharging: string;
+  dynamicQuoteAi: string;
   randomMovement: string;
   autostart: string;
   defaultAgent: string;
@@ -69,14 +70,15 @@ const zh: UiStrings = {
   statusError: "Codex 连接需要注意",
   duckAlt: "咕噜咕噜小鸭",
   backyard: "后院",
-  factory: "工厂",
+  factory: "上班",
   settings: "设置",
   debug: "调试",
   back: "返回",
   backToPet: "回到宠物",
   language: "语言",
   alwaysOnTop: "总在最前",
-  keyboardCharging: "键盘充能",
+  keyboardCharging: "允许全局键盘充能（只计次数，不保存或上传输入内容）",
+  dynamicQuoteAi: "允许 AI 生成后台台词（会调用已登录的 Claude/Codex，可能消耗额度）",
   randomMovement: "随机移动",
   autostart: "开机自动启动",
   defaultAgent: "默认 Agent",
@@ -97,14 +99,15 @@ const en: UiStrings = {
   statusError: "Codex connection needs attention",
   duckAlt: "Gulugulu duck",
   backyard: "Backyard",
-  factory: "Factory",
+  factory: "Work",
   settings: "Settings",
   debug: "Debug",
   back: "Back",
   backToPet: "Back to pet",
   language: "Language",
   alwaysOnTop: "Always on top",
-  keyboardCharging: "Keyboard charging",
+  keyboardCharging: "Allow global keyboard charging (counts presses; never saves or uploads input)",
+  dynamicQuoteAi: "Allow AI background quotes (uses signed-in Claude/Codex and may consume quota)",
   randomMovement: "Random movement",
   autostart: "Launch on startup",
   defaultAgent: "Default agent",

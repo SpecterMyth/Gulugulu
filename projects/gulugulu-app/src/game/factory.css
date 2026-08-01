@@ -308,6 +308,11 @@
   animation: fac-hero-pop 0.32s cubic-bezier(0.2, 1.5, 0.4, 1);
   filter: drop-shadow(0 0 16px rgba(255, 240, 200, 0.5));
 }
+.fac-hero-pet-scale {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 78%;
+}
 /* 连通角色很多时仍把所有角色作为彩色主角覆盖在压暗画布上，但第 9 只起
    停止骨骼与粒子动画。外层高亮/入场 pop 保留，避免视觉上像被排除出结算。 */
 .fac-hero-pet.is-static .svg-sprite,
@@ -733,8 +738,9 @@
   left: 50%;
   bottom: calc(100% - 4px);
   transform: translateX(-50%);
+  box-sizing: border-box;
   width: max-content;
-  max-width: min(440px, 80vw);
+  max-width: min(440px, calc(100vw - 32px));
   padding: 7px 18px 9px;
   color: #fff7e7;
   background: #d31f2b;
@@ -743,12 +749,26 @@
   box-shadow: 0 5px 0 #78111a, 0 0 24px rgba(255, 28, 42, .8);
   font-size: clamp(28px, 5vw, 52px);
   font-weight: 1000;
-  line-height: 1;
+  line-height: 1.08;
   letter-spacing: .06em;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
   text-shadow: 0 3px 0 #78111a;
   animation: fac-connect-failure-text 240ms ease-out both;
+}
+
+/* 英文警告通常比中文长数倍：降低字号与字距，超长的禁运提示最多在安全宽度内换行。 */
+.fac-failure-text:lang(en) {
+  max-width: min(440px, calc(100vw - 32px));
+  padding-inline: 14px;
+  font-size: clamp(20px, 4vw, 36px);
+  line-height: 1.05;
+  letter-spacing: .025em;
+  white-space: normal;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 @keyframes fac-connect-failure-flash {
@@ -801,6 +821,11 @@
   width: 100%;
   height: auto;
   filter: drop-shadow(0 4px 0 rgba(43, 26, 8, 0.16));
+  transform-box: border-box;
+  transform-origin: center;
+  /* 折返点只翻转机身，容器和吊钩位置保持连续；短转向动画避免非对称机头像
+     瞬间镜像后产生“先飞出去、再倒退一截”的视觉错觉。 */
+  transition: transform 140ms ease-in-out;
 }
 
 .fac-plane-flip .fac-plane-art {
@@ -924,7 +949,14 @@
   color: #3b2b1d;
   font-size: 13px;
   font-weight: 800;
-  white-space: nowrap;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(440px, calc(100vw - 32px));
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
   pointer-events: none;
   animation: fac-hint-float 2.4s ease-in-out infinite;
 }
@@ -953,7 +985,14 @@
   color: #3b2b1d;
   font-size: 14px;
   font-weight: 900;
-  white-space: nowrap;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(440px, calc(100vw - 32px));
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
   pointer-events: none;
   animation: fac-toast-pop 1.6s ease forwards;
 }

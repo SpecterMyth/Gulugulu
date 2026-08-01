@@ -16,6 +16,10 @@ pub struct PetInstance {
     pub stamina: i64,
     pub stamina_updated_at: i64,
     pub exhausted: bool,
+    /// AI design work survives hatching. While present the pet uses the recipe's
+    /// canonical species/visual and is replaced in-place when generation finishes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_fusion: Option<PendingFusionInfo>,
     /// 键盘充能换算余数（还差多少键满下一点精力，< keys_per_stamina_for(tier)）。
     #[serde(default)]
     pub key_buffer: u64,

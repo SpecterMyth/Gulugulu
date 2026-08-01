@@ -21,7 +21,7 @@ use tauri::AppHandle;
 // 与总在最前 / 随机移动 / 语言并列，托盘与前端设置面板共读写。
 // ---------------------------------------------------------------------------
 
-/// 键盘充能是否开启（默认开，核心恢复机制；InteractionEconomy §5.2）。
+/// 键盘充能是否开启。新安装默认关闭，只有用户明确同意后才装全局钩子。
 pub fn keyboard_capture_enabled(app: &AppHandle) -> bool {
     crate::settings::load(app).keyboard_capture
 }
@@ -192,7 +192,7 @@ pub fn set_keyboard_capture(app: AppHandle, enabled: bool) -> Result<bool, Strin
 mod platform {
     use super::{KeyBatcher, KeyFxEvent, StaminaPatchEvent};
     use crate::game::SharedGameState;
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
     use std::sync::{Mutex, OnceLock};
     use std::thread;
     use std::time::{Duration, Instant};
@@ -209,6 +209,12 @@ mod platform {
     static BATCHER: OnceLock<Mutex<KeyBatcher>> = OnceLock::new();
     /// 钩子线程 id（0 = 未运行）；stop 用 PostThreadMessage(WM_QUIT) 退泵。
     static HOOK_THREAD_ID: AtomicU32 = AtomicU32::new(0);
+    /// 用户当前是否仍明确允许捕获。回调也检查它，使“关闭”不依赖异步摘钩完成。
+    static CAPTURE_DESIRED: AtomicBool = AtomicBool::new(false);
+    /// 防 start/stop 快速切换时并发创建两个低级钩子线程。
+    static HOOK_STARTING_OR_RUNNING: AtomicBool = AtomicBool::new(false);
+    /// 快速撤回后又开启时，重启钩子仍沿用游戏配置的限速。
+    static RATE_CAP_PER_SEC: AtomicU64 = AtomicU64::new(15);
     /// 单调毫秒钟的起点（回调里不能做慢事，Instant 足够便宜）。
     static CLOCK_START: OnceLock<Instant> = OnceLock::new();
 
@@ -223,7 +229,7 @@ mod platform {
     /// 钩子回调：必须极快（超过系统 LowLevelHooksTimeout 会被静默摘钩），
     /// 只做 pressed-set/计数登记并放行。
     unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        if code == HC_ACTION as i32 {
+        if code == HC_ACTION as i32 && CAPTURE_DESIRED.load(Ordering::SeqCst) {
             let info = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
             match wparam.0 as u32 {
                 WM_KEYDOWN | WM_SYSKEYDOWN => {
@@ -243,16 +249,26 @@ mod platform {
     }
 
     pub(super) fn start(rate_cap_per_sec: u64) {
-        if HOOK_THREAD_ID.load(Ordering::SeqCst) != 0 {
-            return; // 已在运行
+        RATE_CAP_PER_SEC.store(rate_cap_per_sec.max(1), Ordering::SeqCst);
+        CAPTURE_DESIRED.store(true, Ordering::SeqCst);
+        if HOOK_STARTING_OR_RUNNING.swap(true, Ordering::SeqCst) {
+            return;
         }
         // 初次启动时用配置的限速建 batcher（之后沿用同一实例）。
         BATCHER.get_or_init(|| Mutex::new(KeyBatcher::new(rate_cap_per_sec)));
         thread::spawn(|| unsafe {
             let Ok(hook) = SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_proc), None, 0) else {
+                HOOK_STARTING_OR_RUNNING.store(false, Ordering::SeqCst);
                 return;
             };
             HOOK_THREAD_ID.store(GetCurrentThreadId(), Ordering::SeqCst);
+            // 用户可能在 SetWindowsHookExW 完成前就撤回；此时绝不能留下“幽灵钩子”。
+            if !CAPTURE_DESIRED.load(Ordering::SeqCst) {
+                let _ = UnhookWindowsHookEx(hook);
+                HOOK_THREAD_ID.store(0, Ordering::SeqCst);
+                HOOK_STARTING_OR_RUNNING.store(false, Ordering::SeqCst);
+                return;
+            }
             // WH_KEYBOARD_LL 的回调在装钩线程上下文里执行，必须泵消息。
             let mut msg = MSG::default();
             while GetMessageW(&mut msg, None, 0, 0).as_bool() {
@@ -262,10 +278,25 @@ mod platform {
             // 收到 WM_QUIT：真实摘钩（对 AV 诚实——关闭就是不监听）。
             let _ = UnhookWindowsHookEx(hook);
             HOOK_THREAD_ID.store(0, Ordering::SeqCst);
+            HOOK_STARTING_OR_RUNNING.store(false, Ordering::SeqCst);
+            // stop 后紧接着 start 时，start 可能看见旧线程仍在退出而直接返回。
+            // 退出完成后按最新意愿补一次启动，AtomicBool 仍会阻止双钩子。
+            if CAPTURE_DESIRED.load(Ordering::SeqCst) {
+                start(RATE_CAP_PER_SEC.load(Ordering::SeqCst));
+            }
         });
     }
 
     pub(super) fn stop() {
+        CAPTURE_DESIRED.store(false, Ordering::SeqCst);
+        // 关闭瞬间即丢弃尚未入账/渲染的短暂批次；撤回之后不能再消费先前捕获。
+        if let Some(batcher) = BATCHER.get() {
+            if let Ok(mut pending) = batcher.lock() {
+                let _ = pending.drain_fx();
+                let _ = pending.take_counted();
+                let _ = pending.take_spaces();
+            }
+        }
         let tid = HOOK_THREAD_ID.load(Ordering::SeqCst);
         if tid != 0 {
             unsafe {

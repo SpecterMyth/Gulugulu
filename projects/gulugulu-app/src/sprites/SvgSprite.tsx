@@ -108,7 +108,7 @@ export type SvgSpriteProps = {
 
 export function SvgSprite({ species, config, petState = "idle", tier, visual: visualOverride, className, style }: SvgSpriteProps) {
   const info = config.species[species];
-  const visual = visualOverride ?? getSpeciesVisual(species, info);
+  const visual = visualOverride ?? getSpeciesVisual(species, info, config);
   const Rig = RIGS[visual.rig] ?? DuckRig;
   const view = petState === "moving" ? "side" : "front";
   const fxLevel = fxLevelForState(petState);

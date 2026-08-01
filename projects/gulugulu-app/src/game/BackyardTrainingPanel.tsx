@@ -14,6 +14,7 @@ import {
   universalMaterial,
 } from "./config";
 import { emitPaperFx } from "../ui/PaperFx";
+import { trainingMaterialIcon, trainingMaterialText } from "./trainingMaterialUi";
 
 // ---------------------------------------------------------------------------
 // 训练馆弹板（靠近显示）—— EconomyRework-TrainingHall.md §3。
@@ -122,7 +123,6 @@ export function BackyardTrainingPanel({
   // 让玩家一眼看出「卡在哪一档」。
   const materialIds = [...(config.trainingMaterials ?? []), universalMaterial(config)];
   const owned = save.materials ?? {};
-  const hasAnyMaterial = materialIds.some((id) => (owned[id] ?? 0) > 0);
   const tutorialBuild =
     save.trainingTutorialBoostClaimed !== true &&
     hallLevel === 0 &&
@@ -143,10 +143,10 @@ export function BackyardTrainingPanel({
     <div
       ref={rootRef}
       className={`by-poi-pop by-poi-pop--training ${trainingOpen ? "is-open" : ""}`}
-      style={{ left: trainingSide === "right" ? -252 : -684, bottom: 164 }}
+      style={{ left: trainingSide === "right" ? -252 : -754, bottom: 68 }}
       onClick={stopClick}
     >
-      <div className="by-poi-title">{bk.title}</div>
+      {hallLevel === 0 && <div className="by-poi-title">{bk.title}</div>}
 
       {hallLevel === 0 ? (
         <>
@@ -166,121 +166,133 @@ export function BackyardTrainingPanel({
         </>
       ) : (
         <>
-          {/* 馆等级：当前能做到第几级升阶（L 级 = 可练到 L+1 阶） */}
-          <div className="by-train-row">
-            <span className="by-pill">{fmt(bk.hallLevel, { level: hallLevel })}</span>
-            <span className="by-train-note">
-              {hallLevel >= trainingHallMaxLevel(config)
-                ? bk.hallMaxed
-                : fmt(bk.hallUnlocks, { tier: hallLevel + 1 })}
-            </span>
-            {hallCost != null && (
-              <button
-                type="button"
-                className="by-poi-cta is-mini"
-                disabled={save.coins < hallCost}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onBuildHall();
-                }}
-              >
-                {fmt(bk.upgradeHallBtn, { cost: formatCount(hallCost) })}
-              </button>
-            )}
-          </div>
-
-          {/* 材料库存 */}
-          <div className="by-train-sub">{bk.materialsTitle}</div>
-          {hasAnyMaterial ? (
-            <div className="by-train-materials">
-              {materialIds.map((id) => (
-                <span
-                  key={id}
-                  className={`by-train-mat${(owned[id] ?? 0) > 0 ? "" : " is-empty"}`}
-                  title={bk.materialNames[id] ?? id}
-                >
-                  {bk.materialNames[id] ?? id} <b>{owned[id] ?? 0}</b>
-                </span>
-              ))}
+          <header className="by-train-head">
+            <div className="by-train-heading">
+              <div className="by-poi-title">
+                {bk.title}
+                <span className="by-train-level">Lv{hallLevel}</span>
+              </div>
+              <span className="by-train-note">
+                {hallLevel >= trainingHallMaxLevel(config)
+                  ? bk.hallMaxed
+                  : fmt(bk.hallUnlocks, { tier: hallLevel + 1 })}
+              </span>
             </div>
-          ) : (
-            <div className="by-poi-empty">{bk.noMaterials}</div>
-          )}
+            <div className="by-train-upgrades">
+              {hallCost != null ? (
+                <button
+                  type="button"
+                  className="by-poi-cta is-mini"
+                  disabled={save.coins < hallCost}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onBuildHall();
+                  }}
+                >
+                  {fmt(bk.upgradeHallBtn, { cost: formatCount(hallCost) })}
+                </button>
+              ) : (
+                <span className="by-train-upgrade-done">{bk.hallMaxed}</span>
+              )}
+              {slotCost != null ? (
+                <button
+                  type="button"
+                  className="by-poi-cta is-mini"
+                  disabled={save.coins < slotCost}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onUpgradeSlots();
+                  }}
+                >
+                  {fmt(bk.expandSlotsBtn, { cost: formatCount(slotCost) })}
+                </button>
+              ) : (
+                <span className="by-train-upgrade-done">{bk.slotsMaxed}</span>
+              )}
+            </div>
+          </header>
 
-          {/* 训练位：进行中显示倒计时，到点显示「出师」 */}
-          <div className="by-train-sub">
-            {fmt(bk.slots, { used: jobs.length, total: slotTotal })}
-          </div>
-          <div className="by-train-slots">
-            {Array.from({ length: slotTotal }, (_, slot) => {
-              const job = jobs.find((j) => j.slot === slot);
-              if (!job) {
+          <section className="by-train-section">
+            <div className="by-train-sub">{bk.materialsTitle}</div>
+            <div className="by-train-materials">
+              {materialIds.map((id) => {
+                const localizedName = bk.materialNames[id] ?? id;
+                const count = owned[id] ?? 0;
                 return (
-                  <div key={slot} className="by-train-slot is-idle">
-                    {bk.idleSlot}
+                  <div
+                    key={id}
+                    className={`by-train-mat${count > 0 ? "" : " is-empty"}`}
+                    title={`${trainingMaterialText(localizedName)} × ${count}`}
+                    aria-label={`${trainingMaterialText(localizedName)} × ${count}`}
+                  >
+                    <span className="by-train-mat-icon" aria-hidden="true">
+                      {trainingMaterialIcon(id)}
+                    </span>
+                    <b className="by-train-mat-count">{formatCount(count)}</b>
                   </div>
                 );
-              }
-              const remain = job.doneAt - now;
-              return (
-                <div key={slot} className="by-train-slot">
-                  <span className="by-train-slot-name">
-                    {fmt(bk.training, {
-                      name: petName(job.petId),
-                      from: job.fromTier,
-                      to: job.fromTier + 1,
-                    })}
-                  </span>
-                  {remain > 0 ? (
-                    <span className="by-pill is-light">
-                      ⏳ {fmt(bk.remaining, { time: formatCountdown(remain) })}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="by-poi-cta is-mini"
-                      data-coach="trainingCollect"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onCollect(job.id);
-                      }}
-                    >
-                      {bk.collectBtn}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+              })}
+            </div>
+          </section>
 
-          <div className="by-train-row">
-            <button
-              type="button"
-              className="by-poi-cta"
-              data-coach="trainingStart"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenModal();
-              }}
-            >
-              {bk.openBtn}
-            </button>
-            {slotCost != null ? (
-              <button
-                type="button"
-                className="by-poi-cta is-mini"
-                disabled={save.coins < slotCost}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onUpgradeSlots();
-                }}
-              >
-                {fmt(bk.expandSlotsBtn, { cost: formatCount(slotCost) })}
-              </button>
-            ) : (
-              <span className="by-train-note">{bk.slotsMaxed}</span>
-            )}
-          </div>
+          <section className="by-train-section">
+            <div className="by-train-sub">
+              {fmt(bk.slots, { used: jobs.length, total: slotTotal })}
+            </div>
+            <div className="by-train-slots">
+              {Array.from({ length: slotTotal }, (_, slot) => {
+                const job = jobs.find((j) => j.slot === slot);
+                if (!job) {
+                  return (
+                    <div key={slot} className="by-train-slot is-idle">
+                      {bk.idleSlot}
+                    </div>
+                  );
+                }
+                const remain = job.doneAt - now;
+                return (
+                  <div key={slot} className="by-train-slot">
+                    <span className="by-train-slot-name">
+                      {fmt(bk.training, {
+                        name: petName(job.petId),
+                        from: job.fromTier,
+                        to: job.fromTier + 1,
+                      })}
+                    </span>
+                    {remain > 0 ? (
+                      <span className="by-pill is-light">
+                        {fmt(bk.remaining, { time: formatCountdown(remain) })}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="by-poi-cta is-mini"
+                        data-coach="trainingCollect"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onCollect(job.id);
+                        }}
+                      >
+                        {bk.collectBtn}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <button
+            type="button"
+            className="by-poi-cta by-train-start"
+            data-coach="trainingStart"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenModal();
+            }}
+          >
+            {bk.openBtn}
+          </button>
         </>
       )}
     </div>

@@ -161,6 +161,11 @@
   transform: translateY(-50%) rotate(-12deg);
 }
 
+/* 成就与道具入账提示保持清晰易读，不沿用纸张主题的花体标题字。 */
+.paper-fx-burst:is(.is-achievement, .is-reward) .paper-fx-label {
+  font-family: var(--font-ui, "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif);
+}
+
 .paper-fx-burst.is-achievement .paper-fx-label,
 .paper-fx-burst.is-max .paper-fx-label,
 .paper-fx-burst.is-milestone .paper-fx-label {
@@ -168,6 +173,95 @@
     repeating-linear-gradient(1deg, rgba(112, 87, 50, 0.035) 0 1px, transparent 1px 5px),
     #fff4cc;
   color: #8a4c0a;
+}
+
+.paper-fx-burst.is-achievement .paper-fx-piece,
+.paper-fx-burst.is-achievement .paper-fx-ring {
+  display: none;
+}
+
+.paper-fx-burst.is-achievement .paper-fx-label {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 0;
+  max-width: none;
+  min-height: 82px;
+  padding: 20px 54px 20px 28px;
+  border: 1px solid rgba(153, 119, 65, 0.13);
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(0deg, rgba(112, 87, 50, 0.025) 0 1px, transparent 1px 5px),
+    linear-gradient(96deg, #fffbed, #fff5cf);
+  box-shadow:
+    0 12px 26px rgba(76, 58, 31, 0.18),
+    3px 5px 0 rgba(90, 80, 60, 0.1);
+  animation: paper-fx-achievement-note var(--paper-fx-duration)
+    cubic-bezier(0.2, 0.72, 0.25, 1) both;
+}
+
+.paper-fx-steam-icon {
+  position: relative;
+  z-index: 2;
+  display: block;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  color: #24465f;
+  filter: drop-shadow(0 2px 0 rgba(255, 255, 255, 0.65));
+}
+
+.paper-fx-steam-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.paper-fx-steam-icon circle:first-child {
+  fill: currentColor;
+  stroke: none;
+}
+
+.paper-fx-steam-icon circle:not(:first-child) {
+  fill: none;
+  stroke: #fffbed;
+  stroke-width: 2.4;
+}
+
+.paper-fx-steam-icon path {
+  fill: none;
+  stroke: #fffbed;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.paper-fx-burst.is-achievement .paper-fx-label b {
+  flex: 1;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.paper-fx-burst.is-achievement .paper-fx-label::before {
+  left: -13px;
+  top: -9px;
+  width: 70px;
+  height: 24px;
+  background-color: rgba(184, 216, 250, 0.78);
+  box-shadow: 1px 2px 0 rgba(90, 80, 60, 0.1);
+  transform: rotate(-4deg);
+}
+
+.paper-fx-burst.is-achievement .paper-fx-label::after {
+  right: -11px;
+  bottom: -8px;
+  width: 88px;
+  height: 25px;
+  background-color: rgba(255, 176, 200, 0.72);
+  box-shadow: 1px 2px 0 rgba(90, 80, 60, 0.1);
+  transform: rotate(4deg);
 }
 
 .paper-fx-burst.is-training .paper-fx-label {
@@ -210,6 +304,26 @@
   100% { opacity: 0; transform: translate(-50%, -34px) rotate(2deg) scale(0.94); }
 }
 
+@keyframes paper-fx-achievement-note {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 24px) rotate(-1.5deg);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -128px) rotate(0.7deg);
+  }
+  32%,
+  58% {
+    opacity: 1;
+    transform: translate(-50%, -142px) rotate(-0.35deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -190px) rotate(0.4deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .paper-fx-piece {
     display: none;
@@ -220,10 +334,20 @@
   .paper-fx-label {
     animation: paper-fx-label-reduced 2200ms ease-out both;
   }
+
+  .paper-fx-burst.is-achievement .paper-fx-label {
+    animation: paper-fx-achievement-note-reduced 3600ms ease-out both;
+  }
 }
 
 @keyframes paper-fx-label-reduced {
   0% { opacity: 0; transform: translate(-50%, -18px) scale(0.96); }
   18%, 78% { opacity: 1; transform: translate(-50%, -18px) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -18px) scale(1); }
+}
+
+@keyframes paper-fx-achievement-note-reduced {
+  0% { opacity: 0; transform: translate(-50%, -128px); }
+  12%, 62% { opacity: 1; transform: translate(-50%, -128px); }
+  100% { opacity: 0; transform: translate(-50%, -128px); }
 }

@@ -64,6 +64,51 @@
   color: var(--paper-ink);
 }
 
+/* 全局便签纸滚动条：覆盖面板、列表、弹窗与工厂玩法中的所有滚动容器。 */
+.paper-app,
+.paper-app * {
+  scrollbar-width: thin;
+  scrollbar-color: #d2a63d #fff4cc;
+}
+
+.paper-app::-webkit-scrollbar,
+.paper-app *::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.paper-app::-webkit-scrollbar-track,
+.paper-app *::-webkit-scrollbar-track {
+  background-color: #fff4cc;
+  background-image: var(--paper-fibers-soft);
+  box-shadow: inset 1px 0 rgba(122, 112, 96, 0.12), inset -1px 0 rgba(122, 112, 96, 0.08);
+}
+
+.paper-app::-webkit-scrollbar-thumb,
+.paper-app *::-webkit-scrollbar-thumb {
+  min-height: 30px;
+  border: 3px solid #fff4cc;
+  border-radius: 2px;
+  background-color: #d2a63d;
+  background-image: var(--paper-fibers-soft);
+  box-shadow: inset 0 -3px rgba(74, 58, 8, 0.14);
+}
+
+.paper-app::-webkit-scrollbar-thumb:hover,
+.paper-app *::-webkit-scrollbar-thumb:hover {
+  background-color: #e2b943;
+}
+
+.paper-app::-webkit-scrollbar-corner,
+.paper-app *::-webkit-scrollbar-corner {
+  background: #fff4cc;
+}
+
+.paper-app::-webkit-scrollbar-button,
+.paper-app *::-webkit-scrollbar-button {
+  display: none;
+}
+
 /* Reusable primitives for new markup and legacy remapping. */
 .paper-surface,
 .paper-note,
@@ -147,7 +192,7 @@
 }
 
 .paper-app .speech::before {
-  right: 34px;
+  left: calc(var(--speech-tail-x, 50%) - 8px);
   bottom: -8px;
   width: 16px;
   height: 16px;
@@ -384,6 +429,133 @@
   background-color: #fff0ec;
   color: var(--paper-danger);
   box-shadow: inset 5px 0 0 var(--paper-danger), var(--paper-shadow);
+}
+
+.paper-app .panel-title-button {
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .debug-unlock-note {
+  border: 0;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+  color: var(--paper-yellow-ink);
+  box-shadow: var(--paper-shadow-lg);
+  transform: rotate(-0.7deg);
+}
+
+.paper-app .debug-unlock-tape {
+  background: rgba(236, 216, 165, 0.92);
+  box-shadow: 0 2px 4px rgba(90, 80, 60, 0.16);
+}
+
+.paper-app .debug-unlock-hint {
+  color: var(--paper-secondary);
+}
+
+.paper-app .debug-unlock-error {
+  color: var(--paper-danger);
+  font-weight: 800;
+}
+
+.paper-app .debug-unlock-note input {
+  border: 0;
+  border-bottom: 2px solid rgba(74, 58, 8, 0.34);
+  border-radius: 0;
+  background: rgba(255, 253, 244, 0.74);
+  color: var(--paper-ink);
+  box-shadow: inset 0 -1px rgba(255, 255, 255, 0.7);
+}
+
+.paper-app .debug-unlock-actions button:first-child {
+  background-color: var(--paper-white);
+  color: var(--paper-secondary);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .debug-unlock-actions button:last-child {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+/* 调试页沿用纸张信息层级，不再露出旧木板/羊皮纸控件。 */
+.paper-app .debug-panel {
+  gap: 12px;
+}
+
+.paper-app .debug-game,
+.paper-app .debug-stage,
+.paper-app .debug-info,
+.paper-app .debug-species {
+  border: 0;
+  border-radius: 0;
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .debug-game {
+  padding: 10px;
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .debug-game:nth-of-type(2) {
+  background-color: var(--paper-pink);
+  color: var(--paper-pink-ink);
+  transform: rotate(0.35deg);
+}
+
+.paper-app .debug-game:nth-of-type(3) {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  transform: rotate(-0.3deg);
+}
+
+.paper-app :is(.debug-game-row, .debug-controls, .debug-states) button,
+.paper-app .debug-species-card {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app :is(.debug-game-row, .debug-controls, .debug-states) button.is-active,
+.paper-app .debug-species-card.is-active {
+  border: 0;
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+  box-shadow: inset 0 -4px rgba(74, 58, 8, 0.13), var(--paper-shadow);
+}
+
+.paper-app :is(.debug-game-row, .debug-controls, .debug-states) button.is-danger {
+  background-color: #fff0ec;
+  color: var(--paper-danger);
+  box-shadow: inset 4px 0 var(--paper-danger), var(--paper-shadow);
+}
+
+.paper-app .debug-game-readout,
+.paper-app .debug-group-label,
+.paper-app .debug-info-dim {
+  color: currentColor;
+  opacity: 0.78;
+}
+
+.paper-app .debug-stage {
+  background-color: var(--paper-yellow);
+}
+
+.paper-app .debug-info {
+  padding: 7px 9px;
+  background-color: var(--paper-white);
+}
+
+.paper-app .debug-species {
+  padding: 9px;
+  background-color: var(--paper-guide);
 }
 
 .paper-app .welcome-overlay {
@@ -893,6 +1065,11 @@
 
 .paper-app .by-poi-pop--training .by-poi-title { background-color: var(--paper-mint); color: var(--paper-mint-ink); }
 .paper-app .by-poi-pop--market .by-poi-title { background-color: var(--paper-blue); color: var(--paper-blue-ink); }
+
+.paper-app .by-train-sub {
+  color: var(--paper-secondary);
+  opacity: 1;
+}
 
 .paper-app :is(.by-train-mat, .by-train-slot, .by-train-pet-tag, .by-train-pet-pill) {
   border: 0;

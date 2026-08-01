@@ -1,7 +1,7 @@
 use super::*;
 use serde_json::{json, Value};
 
-pub(super) const PROMPT_VERSION: &str = "pet-gen-v2";
+pub(super) const PROMPT_VERSION: &str = "pet-gen-v2.1";
 pub(super) const QUALITY_THRESHOLD: f64 = 75.0;
 pub(super) const MAX_CALLS: u32 = 4;
 
@@ -537,7 +537,7 @@ reactionProfile 只能是 sunny/shy/cool/sleepy/mischievous。
 toolId 只能是 {tools}；选择与角色职业想象和元素气质自然匹配的实物工具。
 heroPart 只能是 body/head/tail/headTop/arm/wing/flipper/muzzle/decor，不能写部件描述。
 
-只返回符合 JSON Schema 的对象。中文名 2~6 字且不要叠字；英文名自然可读。"#,
+只返回符合 JSON Schema 的对象。中文名 2~6 字且不要叠字；英文名默认只用一个不含空格的 TitleCase 英文单词，优先把角色意象、习性或声音拼接成自然、好念的造词；只有单词式专名明显无法表达角色时才用多词。"#,
         version = PROMPT_VERSION,
         archetype_menu = archetype_menu,
         underrepresented = underrepresented_archetypes(&inputs.history),
@@ -1339,6 +1339,8 @@ mod tests {
             build_art_prompt(&inputs, &concept, None)
         );
         assert!(prompts.contains(PROMPT_VERSION));
+        assert!(prompts.contains("默认只用一个不含空格的 TitleCase 英文单词"));
+        assert!(prompts.contains("拼接成自然、好念的造词"));
         assert!(!prompts.contains("宝可梦"));
         assert!(!prompts.contains("数码宝贝"));
         assert!(!prompts.contains("三丽鸥"));

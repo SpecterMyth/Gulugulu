@@ -6,6 +6,7 @@ type SpeechBubbleProps = {
   bubbleText: string | null;
   bubbleIsHint: boolean;
   speechDrop: number;
+  speechTailX: number;
   stageElements: Array<{ id: string; badge: string; color: string; nameZh: string }>;
   lastBubbleTextRef: RefObject<string>;
 };
@@ -15,6 +16,7 @@ export function SpeechBubble({
   bubbleText,
   bubbleIsHint,
   speechDrop,
+  speechTailX,
   stageElements,
   lastBubbleTextRef,
 }: SpeechBubbleProps) {
@@ -22,7 +24,10 @@ export function SpeechBubble({
     <section
       ref={speechRef}
       className={`speech ${bubbleText != null ? "is-visible" : "is-hidden"}${bubbleIsHint ? " is-hint" : ""}`}
-      style={{ "--speech-drop": `${speechDrop}px` } as CSSProperties}
+      style={{
+        "--speech-drop": `${speechDrop}px`,
+        "--speech-tail-x": `${speechTailX}px`,
+      } as CSSProperties}
       data-tauri-drag-region
     >
       {stageElements.length > 0 && (

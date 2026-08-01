@@ -8,6 +8,11 @@ import {
   onboardingDirective,
   type OnboardingDirective,
 } from "./onboardingSteps";
+import {
+  ONBOARDING_STEP_IDS,
+  onboardingLanguageFromStorage,
+  type OnboardingStepId,
+} from "./onboardingCopy";
 
 type Input = {
   bridge: GameBridge;
@@ -25,6 +30,8 @@ export type OnboardingDirector = {
   active: boolean;
   directive: OnboardingDirective | null;
   complete: (step?: string) => Promise<GameSave | null>;
+  /** Persistently finish the remaining main route. App may wire this to an explicit skip action. */
+  skipMain: () => Promise<GameSave | null>;
   skipAgent: () => Promise<GameSave | null>;
 };
 
@@ -105,6 +112,47 @@ function currentStepSatisfied(input: Input): boolean {
   }
 }
 
+type OnboardingSkipBridge = Pick<GameBridge, "advanceOnboarding" | "skipOnboardingAgent">;
+
+/**
+ * Complete the persisted route using only receipts already accepted by the backend.
+ * Exported separately from the hook so the transactional sequence can be regression-tested.
+ */
+export async function skipOnboardingRoute(
+  bridge: OnboardingSkipBridge,
+  initialSave: GameSave | null,
+  setSave: (save: GameSave) => void,
+): Promise<GameSave | null> {
+  let next = initialSave;
+  const visited = new Set<string>();
+
+  while (next?.onboarding?.status === "active") {
+    const step = next.onboarding.step as OnboardingStepId;
+    if (!ONBOARDING_STEP_IDS.includes(step) || visited.has(step)) {
+      throw new Error(`Cannot skip onboarding from persisted step: ${next.onboarding.step}`);
+    }
+    visited.add(step);
+
+    // C02-C12 are compatibility cursors for one real first-shift receipt. The
+    // backend explicitly accepts C12 from any C cursor and grants its roster once.
+    const receipt = step.startsWith("C") ? "C12" : step;
+    if (step === "F03a" && !next.onboarding.agentPromptSkipped) {
+      next = await bridge.skipOnboardingAgent();
+      setSave(next);
+    }
+    const previousStep = next.onboarding?.step;
+    next = await bridge.advanceOnboarding(receipt);
+    setSave(next);
+    if (
+      next.onboarding?.status === "active"
+      && next.onboarding.step === previousStep
+    ) {
+      throw new Error(`Onboarding skip did not advance from step: ${previousStep}`);
+    }
+  }
+  return next;
+}
+
 export function useOnboardingDirector(input: Input): OnboardingDirector {
   const currentRef = useRef(input);
   currentRef.current = input;
@@ -144,6 +192,17 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
     return queued;
   }, []);
 
+  const skipMain = useCallback(() => {
+    const run = async (): Promise<GameSave | null> => {
+      const current = currentRef.current;
+      return skipOnboardingRoute(current.bridge, current.save, current.setSave);
+    };
+    const queued = pendingRef.current.then(run, run);
+    pendingRef.current = queued.catch(() => null);
+    return queued;
+  }, []);
+
+  const language = onboardingLanguageFromStorage();
   const directive = useMemo(() => {
     if (!input.save || !input.config) return null;
     return onboardingDirective(input.save, input.config, {
@@ -152,7 +211,7 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
       nearShop: input.nearShop,
       nearMarket: input.nearMarket,
       fusionModalOpen: input.fusionModalOpen,
-    });
+    }, language);
   }, [
     input.save,
     input.config,
@@ -161,6 +220,7 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
     input.nearShop,
     input.nearMarket,
     input.fusionModalOpen,
+    language,
   ]);
 
   // Persisted facts are receipts. On reload, advance exactly one cursor at a time until the
@@ -199,43 +259,11 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
     return () => window.removeEventListener("keydown", onKey);
   }, [complete]);
 
-  // Strong route input mutex: keep window chrome and the single highlighted target usable.
-  useEffect(() => {
-    if (!directive) return;
-    const guard = (event: Event) => {
-      const target = event.target as Element | null;
-      if (!target) return;
-      if (target.closest("[data-onboarding-allow], [data-tauri-drag-region]")) return;
-      // Moving the desktop pet is window chrome, not a gameplay action. Let the
-      // drag begin during every strong-guide step, while the separate click
-      // guard below still prevents an off-route pet click from doing anything.
-      if (event.type === "pointerdown" && target.closest("[data-onboarding-pet-drag]")) return;
-      const coachTarget = target.closest<HTMLElement>("[data-coach]");
-      if (directive.targetKey && coachTarget?.dataset.coach === directive.targetKey) return;
-      const walkingStep =
-        directive.requiredMode === "backyard" &&
-        (directive.gesture === "arrow" || directive.gesture === "moveKeys");
-      const plainBackyardGround =
-        target.closest(".backyard") &&
-        !target.closest(
-          "button, a, input, select, textarea, [role='button'], .by-pet, .by-char, [data-coach]",
-        );
-      if (walkingStep && plainBackyardGround) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-    window.addEventListener("pointerdown", guard, true);
-    window.addEventListener("click", guard, true);
-    return () => {
-      window.removeEventListener("pointerdown", guard, true);
-      window.removeEventListener("click", guard, true);
-    };
-  }, [directive]);
-
   return {
     active: input.save?.onboarding?.status === "active",
     directive,
     complete,
+    skipMain,
     skipAgent,
   };
 }

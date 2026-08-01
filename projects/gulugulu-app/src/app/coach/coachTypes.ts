@@ -1,8 +1,8 @@
 // Unified save-backed onboarding focus-layer types.
 
 /** 手势原语：tap=G1 手指点击 · rapidTap=G2 连点 · keys=G3(⌨) · moveKeys=G3(◀▶) ·
- *  arrow=G4 边缘方向箭头 · ring=G5 仅高亮环（等待/无手指）。 */
-export type CoachGesture = "tap" | "rapidTap" | "keys" | "moveKeys" | "arrow" | "ring";
+ *  drop=大空格键 + 点击双引导 · arrow=G4 边缘方向箭头 · ring=G5 仅高亮环（等待/无手指）。 */
+export type CoachGesture = "tap" | "rapidTap" | "keys" | "moveKeys" | "drop" | "arrow" | "ring";
 
 /** 指向目标的语义种类；CoachFx 用 `data-coach` 属性在 DOM 里查它的屏幕位置来锚定。 */
 export type CoachTarget = { kind: string; petId?: string };

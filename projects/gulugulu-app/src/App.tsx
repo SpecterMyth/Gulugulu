@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
+import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import {
   type CSSProperties,
+  lazy,
   type PointerEvent,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -37,8 +39,7 @@ import { BackyardScene } from "./game/BackyardScene";
 import { FactoryHub, type FactoryVariant } from "./game/factory/FactoryHub";
 import type { CelebrationPayload, CelebrationPulse, HatchBranch } from "./game/CelebrationCinematic";
 import { celebrationDurationFor } from "./game/CelebrationCinematic";
-import { rememberFusionEgg, shouldPromptAutostart, takeFusionEgg } from "./app/autostartNudge";
-import { DebugPanel } from "./game/DebugPanel";
+import { shouldPromptAutostart } from "./app/autostartNudge";
 import { eggPriceFor, isMaxLevel } from "./game/config";
 import { formatCount } from "./game/format";
 import { foodFlightFor, keycapFlightsFor, useFlights } from "./game/FlightLayer";
@@ -97,6 +98,16 @@ const WELCOME_WINDOW_PAD = 34;
 /** 欢迎卡窗口高度上限（逻辑 px）：极端长文案兜底——超出仍由卡片内部滚动
  *  （styles.css `.welcome-card:has(.welcome-report)`），不至于把窗口撑出屏幕。 */
 const WELCOME_WINDOW_MAX_H = 680;
+/** Debug UI 是开发构建能力，不是靠口令隐藏的正式版功能。生产构建会把该分支及
+ *  DebugPanel 动态模块一并裁掉；Rust 命令仍保留独立 release 拒绝守卫。 */
+const DEBUG_UI_ENABLED = import.meta.env.DEV;
+const DebugPanel = DEBUG_UI_ENABLED
+  ? lazy(() =>
+      import("./game/DebugPanel").then((module) => ({
+        default: module.DebugPanel,
+      })),
+    )
+  : null;
 /** 记住用户上次把后院窗口拉到多高（逻辑 px），下次进入按此高度停靠。
  *  由 BackyardScene 仅在卸载时落盘最终高度——绝不逐帧写入进入瞬间的过渡值，
  *  否则该过渡值（= 上一面板的窗口高，调试 560 / 菜单 428）会被下面的 dock
@@ -178,9 +189,17 @@ export default function App() {
   const saveRef = useRef<typeof save>(save);
   saveRef.current = save;
   // 预览截图 rig:?ui= 指定初始面板(仅 !isTauri 生效,见 preview/shotParams)。
-  const initialUiMode = (previewUiMode() as UiMode | null) ?? "pet";
+  const requestedInitialUiMode = previewUiMode() as UiMode | null;
+  const initialUiMode =
+    requestedInitialUiMode === "debug" && !DEBUG_UI_ENABLED
+      ? "pet"
+      : (requestedInitialUiMode ?? "pet");
   const [uiMode, setUiMode] = useState<UiMode>(initialUiMode);
   const uiModeRef = useRef<UiMode>(initialUiMode);
+  // Full-work-area scenes temporarily replace the compact pet window geometry.
+  // Keep the last compact position in physical pixels so leaving the factory
+  // restores the pet exactly where the user had placed it.
+  const compactWindowPositionRef = useRef<{ x: number; y: number } | null>(null);
   // 工厂模式变体:菜单进入=rogue(危楼打工记);Debug「经典演示」进入=demo(经典沙盒)。
   const [factoryVariant, setFactoryVariant] = useState<FactoryVariant>(() =>
     previewFactoryShot() == null ? "rogue" : "demo",
@@ -204,7 +223,7 @@ export default function App() {
     celebrationIdRef.current += 1;
     setCelebration({ ...payload, id: celebrationIdRef.current, at: Date.now() });
   }, []);
-  // 「开机自启」引导弹窗（融合领新宠后弹出，最多三次；加入自启即不再弹）。
+  // 「开机自启」引导弹窗（首班教学完成、第二次融合完成后各提示一次；加入自启即不再弹）。
   const [autostartPromptOpen, setAutostartPromptOpen] = useState(false);
   const autostartPromptOpenRef = useRef(false);
   useEffect(() => {
@@ -479,7 +498,7 @@ export default function App() {
     emitPaperFx: emitPaperFxOverlay,
     workBursts,
   } = useFxOverlay(uiMode, activePetSpecies);
-  const { speechDrop, speechRef } = useSpeechDrop(uiMode, activePetSpecies, petState, duckFacingRef);
+  const { speechDrop, speechTailX, speechRef } = useSpeechDrop(uiMode, activePetSpecies, petState, duckFacingRef);
 
   const registerWorkJuice = useCallback(
     (coinsGained: number, expGained: number) => {
@@ -536,6 +555,7 @@ export default function App() {
     agentModels,
     handleAlwaysOnTop,
     handleKeyboardCapture,
+    handleDynamicQuoteAi,
     handleRandomMovement,
     handleAutostart,
     handleDefaultAgent,
@@ -547,13 +567,23 @@ export default function App() {
     appSettingsRef.current = appSettings;
   }, [appSettings]);
 
-  // 融合领新宠且庆典演出结束后调用：未加入自启且未到展示上限时弹一次引导，并记一次展示。
-  // 计数真源在 Rust（note_autostart_prompt_shown 广播 settings://changed 回填），这里只做门槛判断。
-  const maybePromptAutostart = useCallback(() => {
-    if (!shouldPromptAutostart(appSettingsRef.current)) return;
-    if (autostartPromptOpenRef.current) return; // 已有弹窗打开，不叠加
-    setAutostartPromptOpen(true);
-    void bridge.noteAutostartPromptShown().catch(() => undefined);
+  // 里程碑达成后重新读取系统注册态；若用户已从设置或系统侧加入自启，则不再打扰。
+  const maybePromptAutostart = useCallback(async () => {
+    if (autostartPromptOpenRef.current) return;
+    autostartPromptOpenRef.current = true; // 同一事件循环内也阻止两个里程碑叠加
+    try {
+      const settings = await bridge.getSettings();
+      appSettingsRef.current = settings;
+      if (!shouldPromptAutostart(settings)) return;
+      setAutostartPromptOpen(true);
+      void bridge.noteAutostartPromptShown().catch(() => undefined);
+    } catch {
+      // 系统自启状态无法确认时不弹，避免对已启用的用户误提示。
+    } finally {
+      if (!autostartPromptOpenRef.current || !shouldPromptAutostart(appSettingsRef.current)) {
+        autostartPromptOpenRef.current = false;
+      }
+    }
   }, [bridge]);
 
   const acceptAutostart = useCallback(() => {
@@ -727,6 +757,7 @@ export default function App() {
   }, [uiMode, goBack, save?.onboarding?.status]);
 
   const selectPanel = useCallback((mode: Exclude<UiMode, "pet" | "menu">) => {
+    if (mode === "debug" && !DEBUG_UI_ENABLED) return;
     // 从菜单进工厂一律走 roguelike 局(《危楼打工记》);经典演示只有 Debug 才进得去。
     if (mode === "factory") setFactoryVariant("rogue");
     setUiMode(mode);
@@ -745,7 +776,8 @@ export default function App() {
     // 局内 C02～C11 由真实状态机驱动“点这里”；进入第二班是一条权威回执，
     // 后端据此原子完成整段并发放首班奖励，不伪造教学点击。
     await coach.complete("C12");
-  }, [coach.complete]);
+    void maybePromptAutostart();
+  }, [coach.complete, maybePromptAutostart]);
 
   const handleFormalFactoryStart = useCallback(() => {
     if (saveRef.current?.onboarding?.step === "E02") {
@@ -935,11 +967,6 @@ export default function App() {
           else branch = "standard"; // 普通/经典孵化（统一中等强度）
           const payload: CelebrationPayload = { phase: "hatch", branch, tier, name, species, slot };
           fireCelebration(payload);
-          // 融合领新宠：收取核销登记过的融合蛋 id → 判定来源；等庆典演出走完再引导开机自启。
-          if (takeFusionEgg(eggId) && next.onboarding?.status !== "active") {
-            const delayMs = celebrationDurationFor({ ...payload, id: 0, at: Date.now() }) + 400;
-            window.setTimeout(maybePromptAutostart, delayMs);
-          }
           dispatchLocalEvent("agent_work_finish");
         })
         .catch((error) => {
@@ -1060,9 +1087,8 @@ export default function App() {
 
   const handleFusionCommitted = useCallback(
     (result: FusionStartResult) => {
+      const previousTutorialFusions = saveRef.current?.onboarding?.tutorialFusions ?? 0;
       setSave(result.save);
-      // 登记融合结果蛋 id：收取到它时即「融合领新宠」，据此引导开机自启（见 collectEgg）。
-      rememberFusionEgg(result.eggId);
       const egg = result.save.eggs.find((item) => item.id === result.eggId) ?? null;
       const name =
         result.mode === "recipe"
@@ -1070,21 +1096,52 @@ export default function App() {
             ? speciesDisplayName(result.species, languageRef.current, gameConfig?.species[result.species]?.nameZh, gameConfig?.species[result.species]?.nameEn)
             : shOf().newSpeciesName
           : shOf().mysterySpeciesName;
-      fireCelebration({
-        phase: "fusionCommit",
-        mode: result.mode,
-        tier: egg?.tier ?? 1,
-        name,
-        species: result.species ?? null,
-        slot: egg?.slot ?? null,
-        parentTier: fusionPair?.a.tier ?? 1,
-        parentA: fusionPair?.a.species ?? "",
-        parentB: fusionPair?.b.species ?? "",
-      });
-      showToastMsg(result.mode === "recipe" ? shOf().toast.fusionRecipe : shOf().toast.fusionAi);
+      // Steam 尚未返回槽位时不播放“经典配方”或“AI 设计”庆典，避免把待定
+      // 误报成 AI。权威 def 回绑后，蛋坑状态会按真实固定/AI 结果更新。
+      if (result.mode !== "pending") {
+        fireCelebration({
+          phase: "fusionCommit",
+          mode: result.mode,
+          tier: egg?.tier ?? 1,
+          name,
+          species: result.species ?? null,
+          slot: egg?.slot ?? null,
+          parentTier: fusionPair?.a.tier ?? 1,
+          parentA: fusionPair?.a.species ?? "",
+          parentB: fusionPair?.b.species ?? "",
+        });
+      }
+      // 后端在融合提交成功时原子递增该计数；只在跨过第二次融合里程碑时提示。
+      if (
+        result.mode !== "pending" &&
+        previousTutorialFusions < 2 &&
+        (result.save.onboarding?.tutorialFusions ?? 0) >= 2
+      ) {
+        const delayMs = celebrationDurationFor({
+          phase: "fusionCommit",
+          mode: result.mode,
+          tier: egg?.tier ?? 1,
+          name,
+          species: result.species ?? null,
+          slot: egg?.slot ?? null,
+          parentTier: fusionPair?.a.tier ?? 1,
+          parentA: fusionPair?.a.species ?? "",
+          parentB: fusionPair?.b.species ?? "",
+          id: 0,
+          at: Date.now(),
+        }) + 400;
+        window.setTimeout(() => void maybePromptAutostart(), delayMs);
+      }
+      showToastMsg(
+        result.mode === "recipe"
+          ? shOf().toast.fusionRecipe
+          : result.mode === "ai"
+            ? shOf().toast.fusionAi
+            : shOf().toast.fusionPending,
+      );
       setFusionPair(null); // 关闭确认弹窗，让场景庆典接手
     },
-    [fireCelebration, fusionPair, gameConfig, setSave, shOf, showToastMsg],
+    [fireCelebration, fusionPair, gameConfig, maybePromptAutostart, setSave, shOf, showToastMsg],
   );
 
   const showCodexUpgradeGuide = useCallback(() => setCodexUpgradeOpen(true), []);
@@ -1500,6 +1557,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isTauri()) return;
+    let cancelled = false;
     if (uiMode === "backyard") {
       // 后院停靠：铺满工作区宽度、贴任务栏上沿。置顶关闭 + 边缘可缩放由
       // dock 命令在 Rust 侧权威设置（前端 window API 可能被能力配置静默拒绝）。
@@ -1508,8 +1566,21 @@ export default function App() {
     }
     if (uiMode === "factory") {
       // 工厂停靠：铺满整个工作区（屏顶→任务栏上沿），天空透明、飞机贴屏顶巡航。
-      void invoke("dock_factory_window").catch(() => undefined);
-      return;
+      void (async () => {
+        try {
+          if (compactWindowPositionRef.current == null) {
+            const position = await getCurrentWindow().outerPosition();
+            if (cancelled) return;
+            compactWindowPositionRef.current = { x: position.x, y: position.y };
+          }
+          if (!cancelled) await invoke("dock_factory_window");
+        } catch {
+          // Window geometry is best-effort; keep the UI usable if the OS rejects it.
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
     // 欢迎卡打开时，把窗口临时增高到能完整容纳整张卡——否则 280×320 小窗会把昨日战报
     // 拦腰截断成内部滚动条（还挤窄右列）。卡片是 position:fixed 覆盖层、铺满整窗，所以只需
@@ -1523,7 +1594,21 @@ export default function App() {
       );
     }
     // 恢复置顶 + 固定尺寸在 resize_game_window（Rust）内完成。
-    void bridge.resizeWindow(windowSize.w, height).catch(() => undefined);
+    void (async () => {
+      try {
+        await bridge.resizeWindow(windowSize.w, height);
+        const position = compactWindowPositionRef.current;
+        if (!cancelled && position != null) {
+          await getCurrentWindow().setPosition(new PhysicalPosition(position.x, position.y));
+          if (!cancelled) compactWindowPositionRef.current = null;
+        }
+      } catch {
+        // Window geometry is best-effort; keep the UI usable if the OS rejects it.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [bridge, uiMode, windowSize.h, windowSize.w, welcomeOffline, welcomeCardHeight]);
 
   // 一次性状态到期归位。working/thinking 是 Agent 活跃期基线，不在此表——它们由
@@ -1629,7 +1714,13 @@ export default function App() {
       return;
     }
     const watched = watchedLevelRef.current;
-    if (watched && watched.id === active.id && active.level > watched.level) {
+    // The active pet can level from an asynchronous save update while its main
+    // stage is unmounted (for example during factory play or in the backyard).
+    // In that case duckFacingRef is null and PaperFx falls back to the viewport
+    // centre, producing the stray small burst. Record the level below, but only
+    // play stage-bound feedback while the stage actually exists.
+    const stageVisible = uiMode === "pet" || uiMode === "menu";
+    if (stageVisible && watched && watched.id === active.id && active.level > watched.level) {
       if (isMaxLevel(gameConfig, active)) {
         triggerFinisher();
         emitPaperFx({
@@ -1657,7 +1748,7 @@ export default function App() {
       }
     }
     watchedLevelRef.current = { id: active.id, level: active.level };
-  }, [save, gameConfig, pushPop, shOf, showToastMsg, triggerFinisher]);
+  }, [save, gameConfig, pushPop, shOf, showToastMsg, triggerFinisher, uiMode]);
 
   // Autonomous wandering (only while the plain pet is showing)。纯散步——
   // 2026-07-21 机制修订：漫游不再有任何拾取/回复（原漫游零食已移除）。
@@ -1933,6 +2024,17 @@ export default function App() {
     setUiMode(directive.requiredMode);
   }, [coach.directive]);
 
+  const skipOnboarding = useCallback(() => {
+    if (!coach.active) return;
+    const confirmed = window.confirm(
+      languageRef.current === "zh"
+        ? "确定跳过整个新手引导吗？你仍然可以直接使用全部正常玩法。"
+        : "Skip the entire onboarding? You can still use all normal game features.",
+    );
+    if (!confirmed) return;
+    void coach.skipMain().catch((error) => showToastMsg(errorMessage(error)));
+  }, [coach.active, coach.skipMain, showToastMsg]);
+
   const visibleTutorialHint = useTutorialHints(save, gameConfig, uiMode, advanceTutorial, {
     hatcheryReady,
     steamEnabled: steamStatus != null,
@@ -1997,7 +2099,7 @@ export default function App() {
     <LanguageContext.Provider value={language}>
     <PaperFxProvider remote={emitPaperFxOverlay}>
     <main
-      className={`pet-shell ${uiMode === "debug" ? "" : "paper-app"} state-${petState} facing-${movementDirection} ui-${uiMode} ${isTauri() ? "" : "is-preview"}`}
+      className={`pet-shell paper-app state-${petState} facing-${movementDirection} ui-${uiMode} ${isTauri() ? "" : "is-preview"}`}
       style={
         uiMode === "backyard" || uiMode === "factory"
           ? // 停靠模式：窗口尺寸由停靠命令/用户拉伸决定，内容始终铺满
@@ -2013,17 +2115,19 @@ export default function App() {
           bubbleText={bubbleText}
           bubbleIsHint={bubbleIsHint}
           speechDrop={speechDrop}
+          speechTailX={speechTailX}
           stageElements={stageElements}
           lastBubbleTextRef={lastBubbleTextRef}
         />
       )}
 
-      {/* 存档驱动的唯一强引导层：一个目标、一张目标卡；主线不可整段跳过。 */}
+      {/* 存档驱动的唯一强引导层：一个目标、一张目标卡；玩家可确认后整段跳过。 */}
       <CoachFx directive={coachFxDirective} />
       <OnboardingGoal
         directive={coach.directive}
         onAction={handleOnboardingAction}
         onRecover={recoverOnboardingRoute}
+        onSkip={coach.active ? skipOnboarding : undefined}
       />
 
       {/* 连击累计读数（点击游戏爽快感）：置于对话气泡上方的窗口顶部，
@@ -2141,6 +2245,7 @@ export default function App() {
             changeLanguage={changeLanguage}
             handleAlwaysOnTop={handleAlwaysOnTop}
             handleKeyboardCapture={handleKeyboardCapture}
+            handleDynamicQuoteAi={handleDynamicQuoteAi}
             handleRandomMovement={handleRandomMovement}
             handleAutostart={handleAutostart}
             handleDefaultAgent={handleDefaultAgent}
@@ -2149,23 +2254,25 @@ export default function App() {
             closePet={closePet}
           />
         )
-      ) : (
+      ) : DEBUG_UI_ENABLED && DebugPanel ? (
         gameReady && (
           <PanelShell title={copy.debug} backLabel={copy.back} onBack={goBack}>
-            <DebugPanel
-              config={gameConfig}
-              save={save}
-              bridge={bridge}
-              onSave={setSave}
-              onToast={showToastMsg}
-              onFeedTokens={bridge.debugFeedTokens ? debugFeed : undefined}
-              onOpenFactoryDemo={openFactoryDemo}
-            />
+            <Suspense fallback={null}>
+              <DebugPanel
+                config={gameConfig}
+                save={save}
+                bridge={bridge}
+                onSave={setSave}
+                onToast={showToastMsg}
+                onFeedTokens={bridge.debugFeedTokens ? debugFeed : undefined}
+                onOpenFactoryDemo={openFactoryDemo}
+              />
+            </Suspense>
           </PanelShell>
         )
-      )}
+      ) : null}
 
-      {(uiMode === "menu" || uiMode === "debug" || uiMode === "settings") && gameReady && (
+      {(uiMode === "menu" || (DEBUG_UI_ENABLED && uiMode === "debug") || uiMode === "settings") && gameReady && (
         <MenuBar
           uiMode={uiMode}
           save={save}

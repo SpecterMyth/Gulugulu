@@ -38,6 +38,7 @@ export type HiringView = {
   canContinue: boolean;
   candidates: HiringCandidate[];
   selectedCount: number;
+  allAffordableSelected: boolean;
   hireCost: number;
   rerollSpent: number;
   rerollsUsed: number;
@@ -160,12 +161,25 @@ export type PulseBreakdown = {
   absorbUids: number[];
   /** 筹码 = base + 1.0 × absorbSum；每只被压榨咕噜默认贡献 100% 有效基础分。 */
   chips: number;
+  /** 三类卡牌乘区 + 节奏池：池内卡牌加成相加、池间相乘。 */
+  elementMult: number;
+  synergyCardMult: number;
+  jobMult: number;
+  rhythmMult: number;
+  /** 旧五池字段，供存量 UI/结算快照兼容。 */
+  individualMult: number;
+  teamMult: number;
+  networkMult: number;
+  statusMult: number;
+  /** 旧结算字段：分别镜像「个体×团队」「网络×状态」「节奏」，供存量 UI/快照兼容。 */
   skillMult: number;
   synergyMult: number;
   comboMult: number;
   /** 接通的桌元素(棱镜的虚拟桌记 "prism")。 */
   desks: string[];
   deskCount: number;
+  /** 接桌计分次数：1/2/4/8/12/16；与物理桌数分开供计分和演出使用。 */
+  deskScoreMult: number;
   /** 实际连通、但因本班次禁运而不参与计分的桌面元素。 */
   disabledDeskElements?: RogueElement[];
   /** 各桌通路(桌元素 → 通路上的 uid 链,演出描色用)。 */

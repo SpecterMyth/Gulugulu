@@ -92,7 +92,7 @@ export const MESSAGES: Record<Language, Record<string, string>> = {
     fuseBoundPetsUseAi: "已同步 Steam 的精灵请在融合台操作（需要 Steam 兑换）",
     needSteamForRelease: "需要连接 Steam 才能放生此精灵",
     // ---- Steam 基础层(steam.rs / steam_inventory.rs) ----
-    steamNotConnected: "Steam 未连接",
+    steamNotConnected: "Steam 未连接，请启动 Steam 并登录后重试",
     steamPumpExited: "Steam 泵线程已退出",
     splitStackMissingInstance: "拆栈结果缺少新实例",
     splitStackFailed: "拆栈失败：{err}",
@@ -216,7 +216,7 @@ export const MESSAGES: Record<Language, Record<string, string>> = {
     fuseBoundPetsUseAi: "Steam-synced pets must fuse at the fusion table (requires a Steam exchange)",
     needSteamForRelease: "Connect Steam to release this pet",
     // ---- Steam base layer (steam.rs / steam_inventory.rs) ----
-    steamNotConnected: "Steam is not connected",
+    steamNotConnected: "Steam is not connected. Start Steam, sign in, and try again",
     steamPumpExited: "The Steam worker thread has exited",
     splitStackMissingInstance: "Stack split returned no new instance",
     splitStackFailed: "Stack split failed: {err}",

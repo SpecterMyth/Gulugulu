@@ -22,6 +22,13 @@ export type RogueCardText = { name: string; desc: (lv: number) => string };
 /** 0.4 → "40"(百分数);1.35 → "1.35"(倍率,去尾零)。 */
 const pc = (x: number) => String(Math.round(x * 1_000) / 10);
 const mu = (x: number) => String(Math.round(x * 100) / 100);
+/** 卡牌加成：不足一倍显示百分比，满一倍起改用 x 倍率。 */
+const add = (x: number) => x < 1 ? `+${pc(x)}%` : `+${mu(x)}x`;
+const addEn = (x: number) => x < 1 ? `+${pc(x)}%` : `+${mu(x)}x`;
+const ratio = (x: number) => x < 1 ? `${pc(x)}%` : `${mu(x)}x`;
+const ratioEn = (x: number) => x < 1 ? `${pc(x)}%` : `${mu(x)}x`;
+const odds = (x: number) => x >= 1 ? "必定" : `${pc(x)}% 概率`;
+const oddsEn = (x: number) => x >= 1 ? "Always" : `${pc(x)}% chance`;
 
 const P = CARD_PARAMS;
 const V = valueAtLevel;
@@ -283,7 +290,7 @@ const zh: FactoryRogueStrings = {
   dim2: "属性与经营",
   dim3: "连携",
   dim4: "属性与经营",
-  dim5: "基础培训",
+  dim5: "综合精选",
   shopBuy: "购买",
   shopSkip: "跳过 +{v}",
   shopReroll: "刷新 −{v}",
@@ -390,40 +397,39 @@ const zh: FactoryRogueStrings = {
   cards: {
     "fire.burst": {
       name: "爆燃",
-      desc: (lv) => `【点燃】时，火系团队总业绩额外结算 ${V(P["fire.burst"].repeats, lv)} 次`,
+      desc: (lv) => `【点燃】：打工业绩额外结算 ${V(P["fire.burst"].repeats, lv)} 次`,
     },
     "fire.ember": {
       name: "余烬",
-      desc: (lv) => `火系咕噜提供的压榨业绩 ×${mu(V(P["fire.ember"].asAbsorbed, lv))}`,
+      desc: (lv) => `火系压榨业绩 ×${mu(V(P["fire.ember"].asAbsorbed, lv))}`,
     },
     "fire.wildfire": {
       name: "燎原",
-      desc: (lv) => `首次计分后沿相邻火系逐个【传火】，最多 ${V(P["fire.wildfire"].spread, lv)} 只`,
+      desc: (lv) => `首次计分后【传火】至多 ${V(P["fire.wildfire"].spread, lv)} 只`,
     },
     "fire.chain": {
       name: "引火链",
-      desc: (lv) => `投放含火咕噜时，压榨数 +${V(P["fire.chain"].reachBonus, lv)}`,
+      desc: (lv) => `含火投放：压榨数 +${V(P["fire.chain"].reachBonus, lv)}`,
     },
     "electric.overload": {
       name: "过载",
-      desc: (lv) => `每实际压榨 1 层，团队业绩 +${pc(V(P["electric.overload"].perDepth, lv))}%`,
+      desc: (lv) => `每压榨 1 层：加成 ${add(V(P["electric.overload"].perDepth, lv))}`,
     },
     "electric.wire": {
       name: "导线",
-      desc: (lv) => `投放含电咕噜时，压榨数 +${V(P["electric.wire"].reachBonus, lv)}`,
+      desc: (lv) => `含电投放：压榨数 +${V(P["electric.wire"].reachBonus, lv)}`,
     },
     "electric.parallel": {
       name: "并联回路",
-      desc: (lv) => `每多连通 1 张桌，团队业绩 +${pc(V(P["electric.parallel"].perExtraDesk, lv))}%`,
+      desc: (lv) => `每多接 1 桌：加成 ${add(V(P["electric.parallel"].perExtraDesk, lv))}`,
     },
     "electric.induction": {
       name: "感应",
-      desc: (lv) =>
-        `电系咕噜的团队业绩按接桌通路总边数计算，每边 +${pc(V(P["electric.induction"].perLink, lv))}%——连得越远越炸`,
+      desc: (lv) => `每条电系接桌通路边：加成 ${add(V(P["electric.induction"].perLink, lv))}`,
     },
     "ice.icicle": {
       name: "冰棱",
-      desc: (lv) => `直接粘在冰系咕噜上方的咕噜，团队业绩 ×${mu(V(P["ice.icicle"].above, lv))}`,
+      desc: (lv) => `冰系正上方咕噜：团队业绩 ×${mu(V(P["ice.icicle"].above, lv))}`,
     },
     "ice.freezeprice": {
       name: "冻价",
@@ -431,20 +437,19 @@ const zh: FactoryRogueStrings = {
     },
     "ice.prism": {
       name: "棱镜",
-      desc: (lv) =>
-        `冰系咕噜结算时若已接 ≥1 桌，接桌数 +1；团队业绩中的桌面份额 +${pc(V(P["ice.prism"].extraShare, lv))}%`,
+      desc: (lv) => `冰系已接桌：接桌数 +1，桌面加成 ${add(V(P["ice.prism"].extraShare, lv))}`,
     },
     "ice.chain": {
       name: "冰桥",
-      desc: (lv) => `投放含冰咕噜时，压榨数 +${V(P["ice.chain"].reachBonus, lv)}`,
+      desc: (lv) => `含冰投放：压榨数 +${V(P["ice.chain"].reachBonus, lv)}`,
     },
     "ice.freeze": {
       name: "急冻通路",
-      desc: (lv) => `连通后 ${pc(V(P["ice.freeze"].chance, lv))}% 概率【冻结】下方咕噜`,
+      desc: (lv) => `连通后：${odds(V(P["ice.freeze"].chance, lv))}【冻结】下方咕噜`,
     },
     "ice.overstaff": {
       name: "超额编制奖",
-      desc: (lv) => `每点【超额人口】使团队业绩 +${pc(V(P["ice.overstaff"].per, lv))}%`,
+      desc: (lv) => `每点【超额人口】：加成 ${add(V(P["ice.overstaff"].per, lv))}`,
     },
     "water.reflow": {
       name: "回流",
@@ -458,16 +463,15 @@ const zh: FactoryRogueStrings = {
     },
     "water.fourday": {
       name: "工休",
-      desc: (lv) =>
-        `含水同种罢工线改为 ${V(P["water.fourday"].line, lv)} 只；罢工时每只追加团队业绩的 ${pc(V(P["water.fourday"].strikeBonus, lv))}%`,
+      desc: (lv) => `含水同种 ${V(P["water.fourday"].line, lv)} 只罢工；每只追加 ${ratio(V(P["water.fourday"].strikeBonus, lv))} 完整业绩`,
     },
     "water.chain": {
       name: "水道",
-      desc: (lv) => `投放含水咕噜时，压榨数 +${V(P["water.chain"].reachBonus, lv)}`,
+      desc: (lv) => `含水投放：压榨数 +${V(P["water.chain"].reachBonus, lv)}`,
     },
     "water.same": {
       name: "同名增压",
-      desc: (lv) => `团队每有 1 只与投放者同名的咕噜，团队业绩 ×${mu(V(P["water.same"].perTeamSame, lv))}`,
+      desc: (lv) => `每只同名队友：本卡 ×${mu(V(P["water.same"].perTeamSame, lv))}（至多 10 只）`,
     },
     "water.convert": {
       name: "水镜同化",
@@ -475,34 +479,31 @@ const zh: FactoryRogueStrings = {
     },
     "grass.root": {
       name: "扎根",
-      desc: (lv) =>
-        `草系咕噜直接踩桌时，经该桌结算的团队业绩 ×${mu(V(P["grass.root"].deskMult, lv))}`,
+      desc: (lv) => `草系踩桌：该桌团队业绩 ×${mu(V(P["grass.root"].deskMult, lv))}`,
     },
     "grass.symbiosis": {
       name: "共生",
-      desc: (lv) =>
-        `草系咕噜每有一只异元素直接邻居，其压榨业绩 +${pc(V(P["grass.symbiosis"].perNeighbor, lv))}%`,
+      desc: (lv) => `每只异元素邻居：草系压榨加成 ${add(V(P["grass.symbiosis"].perNeighbor, lv))}`,
     },
     "grass.growth": {
       name: "生长",
-      desc: (lv) =>
-        `草系咕噜每跨一班，打工业绩 +${pc(V(P["grass.growth"].perShift, lv))}%（上限 ×${V(P["grass.growth"].capX, lv)}）——跨班存塔的复利引擎`,
+      desc: (lv) => `草系每跨 1 班：打工加成 ${add(V(P["grass.growth"].perShift, lv))}（上限 ×${V(P["grass.growth"].capX, lv)}）`,
     },
     "grass.chain": {
       name: "藤链",
-      desc: (lv) => `投放含草咕噜时，压榨数 +${V(P["grass.chain"].reachBonus, lv)}`,
+      desc: (lv) => `含草投放：压榨数 +${V(P["grass.chain"].reachBonus, lv)}`,
     },
     "grass.grow": {
       name: "野蛮生长",
-      desc: (lv) => `打工结算后 ${pc(V(P["grass.grow"].chance, lv))}% 概率【生长】`,
+      desc: (lv) => `结算后：${odds(V(P["grass.grow"].chance, lv))}【生长】`,
     },
     "grass.crowd": {
       name: "繁茂群落",
-      desc: (lv) => `每点【繁茂】使团队业绩 +${pc(V(P["grass.crowd"].perConnected, lv))}%`,
+      desc: (lv) => `每点【繁茂】：加成 ${add(V(P["grass.crowd"].perConnected, lv))}`,
     },
     "grass.height": {
       name: "高层冠幅",
-      desc: (lv) => `每层【层高】使该桌业绩 +${pc(V(P["grass.height"].perLayer, lv))}%`,
+      desc: (lv) => `每层【层高】：加成 ${add(V(P["grass.height"].perLayer, lv))}`,
     },
     "normal.crowd": {
       name: "人海",
@@ -523,23 +524,23 @@ const zh: FactoryRogueStrings = {
     },
     "normal.chain": {
       name: "人脉",
-      desc: (lv) => `投放含一般咕噜时，压榨数 +${V(P["normal.chain"].reachBonus, lv)}`,
+      desc: (lv) => `含一般投放：压榨数 +${V(P["normal.chain"].reachBonus, lv)}`,
     },
     "normal.absorb": {
       name: "吸收",
       desc: (lv) => {
         const targets = V(P["normal.absorb"].targets, lv);
-        const chance = pc(V(P["normal.absorb"].chance, lv));
-        return `投放后以 ${chance}% 概率吞掉最近且不比自己的咕噜${targets > 1 ? `，最多 ${targets} 只` : ""}`;
+        const chance = odds(V(P["normal.absorb"].chance, lv));
+        return `投放后：${chance}与最近的咕噜吸收；高等级吞低等级，同级由自己吞${targets > 1 ? `（至多 ${targets} 只）` : ""}`;
       },
     },
     "normal.gluttony": {
       name: "暴食",
-      desc: (lv) => `每点额外【体型】使压榨业绩 +${pc(V(P["normal.gluttony"].perSize, lv))}%`,
+      desc: (lv) => `投放者每点额外【体型】：加成 ${add(V(P["normal.gluttony"].perSize, lv))}`,
     },
     "normal.emperor": {
       name: "打工皇帝",
-      desc: (lv) => `结算后，团队中体型最大的一般咕噜体型 +${V(P["normal.emperor"].grow, lv)}，并吞掉被自己完全遮挡的所有咕噜`,
+      desc: (lv) => `结算后：最大一般系体型 +${V(P["normal.emperor"].grow, lv)}，吞掉完全遮挡的咕噜`,
     },
     // 旧存档只读；不会再进入商店。
     "normal.tags": { name: "旧·全能履历", desc: () => "已迁移为【吸收】" },
@@ -547,25 +548,23 @@ const zh: FactoryRogueStrings = {
     "normal.dispatch": { name: "旧·全科调度", desc: () => "已迁移为【打工皇帝】" },
     "attr.pure": {
       name: "专精",
-      desc: (lv) => `纯色（1 色）咕噜的团队业绩 ×${mu(V(P["attr.pure"].mult, lv))}`,
+      desc: (lv) => `1 色咕噜：加成 ${add(V(P["attr.pure"].mult, lv) - 1)}`,
     },
     "attr.dual": {
       name: "双职工",
-      desc: (lv) => `恰好 2 色的咕噜，团队业绩 ×${mu(V(P["attr.dual"].mult, lv))}`,
+      desc: (lv) => `2 色咕噜：加成 ${add(V(P["attr.dual"].mult, lv) - 1)}`,
     },
     "attr.slash": {
       name: "斜杠青年",
-      desc: (lv) => `恰好 3 色的咕噜，团队业绩 ×${mu(V(P["attr.slash"].mult, lv))}`,
+      desc: (lv) => `3 色咕噜：加成 ${add(V(P["attr.slash"].mult, lv) - 1)}`,
     },
     "attr.hex": {
       name: "六边形津贴",
-      desc: (lv) =>
-        `≥4 色的咕噜每拥有一种元素，团队业绩 +${pc(V(P["attr.hex"].perElement, lv))}%`,
+      desc: (lv) => `≥4 色咕噜每种元素：加成 ${add(V(P["attr.hex"].perElement, lv))}`,
     },
     "attr.balance": {
       name: "均衡红利",
-      desc: (lv) =>
-        `1~6 色六个工种各有 ≥1 只咕噜在场时，全局团队业绩 ×${mu(V(P["attr.balance"].mult, lv))}`,
+      desc: (lv) => `1~6 色工种均在场：加成 ${add(V(P["attr.balance"].mult, lv) - 1)}`,
     },
     "syn.steam": {
       name: "蒸汽机",
@@ -579,23 +578,23 @@ const zh: FactoryRogueStrings = {
     },
     "syn.greenhouse": {
       name: "温室",
-      desc: (lv) => `【点燃】后 ${pc(V(P["syn.greenhouse"].chance, lv))}% 概率额外触发【生长】${lv >= 5 ? "；巅峰：一次生长 2 只" : ""}`,
+      desc: (lv) => `【点燃】后：${odds(V(P["syn.greenhouse"].chance, lv))}额外【生长】${lv >= 5 ? " 2 只" : ""}`,
     },
     "syn.permafrost": {
       name: "霜根网络",
-      desc: (lv) => `冰草【粘连】；每条冰草边使团队业绩 +${pc(V(P["syn.permafrost"].perCrossEdge, lv))}%（最多 ${V(P["syn.permafrost"].cap, lv)} 条）${lv >= 5 ? "；巅峰：计算整片粘连区域" : ""}`,
+      desc: (lv) => `冰草【粘连】；每条边加成 ${add(V(P["syn.permafrost"].perCrossEdge, lv))}（至多 ${V(P["syn.permafrost"].cap, lv)} 条）${lv >= 5 ? "；Lv.5：计算整片粘连" : ""}`,
     },
     "syn.lightningrod": {
       name: "蓄能胃袋",
-      desc: (lv) => `一般咕噜可中继电路；线路中每点一般【体型】使团队业绩 +${pc(V(P["syn.lightningrod"].perMass, lv))}%`,
+      desc: (lv) => `一般系中继电路；线路中每点【体型】加成 ${add(V(P["syn.lightningrod"].perMass, lv))}`,
     },
     "syn.mudslide": {
       name: "泥石流",
-      desc: () => "塌方途经水草相邻对时，塌落咕噜 100% 原地重粘（不乱滚）——罢工爆破流定型卡",
+      desc: () => "塌方经过水草相邻对：原地重粘",
     },
     "syn.arcIgnite": {
       name: "电弧点火",
-      desc: (lv) => `【点燃】时，每多连 1 桌，团队业绩 +${pc(V(P["syn.arcIgnite"].perDesk, lv))}%`,
+      desc: (lv) => `【点燃】每多接 1 桌：加成 ${add(V(P["syn.arcIgnite"].perDesk, lv))}`,
     },
     "syn.thermalShock": {
       name: "热震",
@@ -603,39 +602,39 @@ const zh: FactoryRogueStrings = {
     },
     "syn.steamBurst": {
       name: "蒸汽爆发",
-      desc: (lv) => `【点燃】时，每只【同名】水咕噜使团队业绩 +${pc(V(P["syn.steamBurst"].perSame, lv))}%`,
+      desc: (lv) => `【点燃】每只【同名】水系：加成 ${add(V(P["syn.steamBurst"].perSame, lv))}`,
     },
     "syn.fireDispatch": {
       name: "吞火",
-      desc: (lv) => `火＋一般咕噜每点额外【体型】，点燃团队业绩 +${pc(V(P["syn.fireDispatch"].perMass, lv))}%`,
+      desc: (lv) => `火＋一般每点额外【体型】：加成 ${add(V(P["syn.fireDispatch"].perMass, lv))}`,
     },
     "syn.superconduct": {
       name: "超导",
-      desc: (lv) => `团队每有 1 只【冻结】咕噜，电系团队业绩 +${pc(V(P["syn.superconduct"].perFrozen, lv))}%`,
+      desc: (lv) => `每只【冻结】咕噜：加成 ${add(V(P["syn.superconduct"].perFrozen, lv))}`,
     },
     "syn.bionet": {
       name: "生物电网",
-      desc: (lv) => `【生长】咕噜可中继电路；每只使团队业绩 +${pc(V(P["syn.bionet"].perGenerated, lv))}%${lv >= 5 ? "；巅峰：每只按 2 只计算" : ""}`,
+      desc: (lv) => `【生长】咕噜中继电路；每只加成 ${add(V(P["syn.bionet"].perGenerated, lv))}${lv >= 5 ? "；Lv.5：计作 2 只" : ""}`,
     },
     "syn.iceMirror": {
       name: "冰镜同化",
-      desc: (lv) => `每只【冻结】的同名水咕噜使团队业绩 +${pc(V(P["syn.iceMirror"].perFrozenSame, lv))}%`,
+      desc: (lv) => `每只【冻结】同名水系：加成 ${add(V(P["syn.iceMirror"].perFrozenSame, lv))}`,
     },
     "syn.coldRotation": {
       name: "冰鲜储备",
-      desc: (lv) => `【冻结】咕噜每点额外【体型】使压榨业绩 +${pc(V(P["syn.coldRotation"].perMass, lv))}%`,
+      desc: (lv) => `【冻结】咕噜每点额外【体型】使压榨业绩 ${add(V(P["syn.coldRotation"].perMass, lv))}`,
     },
     "syn.irrigation": {
       name: "灌溉增殖",
-      desc: (lv) => `【生长】优先复制同名水咕噜，成功率 ×${mu(V(P["syn.irrigation"].chanceMult, lv))}${lv >= 5 ? "；巅峰：一次生长 3 只" : ""}`,
+      desc: (lv) => `【生长】优先复制同名水系；成功率 ×${mu(V(P["syn.irrigation"].chanceMult, lv))}${lv >= 5 ? "；Lv.5：3 只" : ""}`,
     },
     "syn.badge": {
       name: "液态融合",
-      desc: (lv) => `水＋一般咕噜完成【吸收】后，本次业绩 ×${mu(V(P["syn.badge"].mult, lv))}`,
+      desc: (lv) => `水＋一般【吸收】后：额外结算完整业绩 ×${mu(V(P["syn.badge"].mult, lv) - 1)}`,
     },
     "syn.multiSeed": {
       name: "营养繁殖",
-      desc: (lv) => `【生长】咕噜继承母体 ${pc(V(P["syn.multiSeed"].inheritMass, lv))}% 的【体型】${lv >= 5 ? "；巅峰：后代体型超越母体" : ""}`,
+      desc: (lv) => `【生长】咕噜继承母体 ${ratio(V(P["syn.multiSeed"].inheritMass, lv))}【体型】`,
     },
     "base.fire": {
       name: "火系培训",
@@ -663,16 +662,15 @@ const zh: FactoryRogueStrings = {
     },
     "staff.fire3": {
       name: "解雇",
-      desc: () => `一次性:立即点选场上至多 ${P["staff.fire3"].picks} 只解雇，返还 100% 最近雇价并触发真实物理塌方；不触发罢工，退款不与遣散费叠加`,
+      desc: () => `一次性：解雇至多 ${P["staff.fire3"].picks} 只，返还 1x 雇价并塌方（无罢工/遣散费）`,
     },
     "staff.severance": {
       name: "遣散费",
-      desc: (lv) =>
-        `罢工或解雇离场的咕噜，每只返还其最新雇价的 ${pc(V(P["staff.severance"].refund, lv))}%`,
+      desc: (lv) => `罢工/解雇离场：返还 ${ratio(V(P["staff.severance"].refund, lv))} 雇价`,
     },
     "staff.movedesk": {
       name: "搬桌",
-      desc: () => "一次性:交换两张办公桌及其塔体；跨桌连通结构在离各桌根节点等距的边界切开，不返还咕噜池",
+      desc: () => "一次性：交换两桌及塔体，跨桌结构从中切开",
     },
     "staff.expand": {
       name: "扩编",
@@ -680,8 +678,7 @@ const zh: FactoryRogueStrings = {
     },
     "staff.talentmarket": {
       name: "人才市场",
-      desc: (lv) =>
-        `每班每轮获得 ${P["staff.talentmarket"].rerollsPerLevel * lv} 次招聘刷新机会，并额外展示 ${P["staff.talentmarket"].candidatesPerLevel * lv} 名候选；每轮最多录用 10 名`,
+      desc: (lv) => `每轮招聘：刷新 +${P["staff.talentmarket"].rerollsPerLevel * lv}，候选 +${P["staff.talentmarket"].candidatesPerLevel * lv}（至多录用 10 名）`,
     },
     "staff.backfill": {
       name: "补招聘",
@@ -689,13 +686,11 @@ const zh: FactoryRogueStrings = {
     },
     "staff.loan": {
       name: "贷款",
-      desc: () =>
-        `立得 ${pc(LOAN_GAIN_RATE)}% 当前 KPI 现金；其后 ${LOAN_SHIFTS} 班每班偿还本金的 ${pc(LOAN_REPAY_RATE)}%，总还款 ${pc(LOAN_TOTAL_REPAY_RATE)}%；同一时间至多一笔`,
+      desc: () => `立得 ${ratio(LOAN_GAIN_RATE)} KPI；后 ${LOAN_SHIFTS} 班各还 ${ratio(LOAN_REPAY_RATE)} 本金（共 ${ratio(LOAN_TOTAL_REPAY_RATE)}）`,
     },
     "staff.pricecut": {
       name: "压价",
-      desc: (lv) =>
-        `指定一个工种,本局雇价基准 −${pc(V(P["staff.pricecut"].cut, lv))}%`,
+      desc: (lv) => `指定工种：本局雇价 −${ratio(V(P["staff.pricecut"].cut, lv))}`,
     },
   },
 };
@@ -754,7 +749,7 @@ const en: FactoryRogueStrings = {
   dim2: "Traits & Operations",
   dim3: "Synergy",
   dim4: "Traits & Operations",
-  dim5: "Base Training",
+  dim5: "Mixed Selection",
   shopBuy: "Buy",
   shopSkip: "Skip +{v}",
   shopReroll: "Reroll −{v}",
@@ -861,7 +856,7 @@ const en: FactoryRogueStrings = {
   cards: {
     "fire.burst": {
       name: "Burn Rate",
-      desc: (lv) => `On Ignition, the Fire Team's total performance scores ${V(P["fire.burst"].repeats, lv)} extra time(s)`,
+      desc: (lv) => `Ignite: score Work Performance ${V(P["fire.burst"].repeats, lv)} extra time(s)`,
     },
     "fire.ember": {
       name: "Warm Handover",
@@ -879,8 +874,7 @@ const en: FactoryRogueStrings = {
     },
     "electric.overload": {
       name: "Crunch Mode",
-      desc: (lv) =>
-        `Each Exploitation Count adds ${pc(V(P["electric.overload"].perDepth, lv))}% Team Performance`,
+      desc: (lv) => `Each exploited layer: bonus ${addEn(V(P["electric.overload"].perDepth, lv))}`,
     },
     "electric.wire": {
       name: "Live Wire",
@@ -888,13 +882,11 @@ const en: FactoryRogueStrings = {
     },
     "electric.parallel": {
       name: "Parallel Circuit",
-      desc: (lv) =>
-        `Each additional linked desk adds ${pc(V(P["electric.parallel"].perExtraDesk, lv))}% Team Performance`,
+      desc: (lv) => `Each extra linked desk: bonus ${addEn(V(P["electric.parallel"].perExtraDesk, lv))}`,
     },
     "electric.induction": {
       name: "Corporate Ladder",
-      desc: (lv) =>
-        `Electric Gulus gain +${pc(V(P["electric.induction"].perLink, lv))}% Team Performance per edge in the desk path`,
+      desc: (lv) => `Each Electric desk-path edge: bonus ${addEn(V(P["electric.induction"].perLink, lv))}`,
     },
     "ice.icicle": {
       name: "Icicle",
@@ -908,18 +900,15 @@ const en: FactoryRogueStrings = {
     },
     "ice.freeze": {
       name: "Flash-Freeze Route",
-      desc: (lv) =>
-        `After linking, ${pc(V(P["ice.freeze"].chance, lv))}% chance to Freeze one Gulu below`,
+      desc: (lv) => `After linking: ${oddsEn(V(P["ice.freeze"].chance, lv))} Freeze below`,
     },
     "ice.overstaff": {
       name: "Overstaffing Bonus",
-      desc: (lv) =>
-        `Each point of Overstaffing adds ${pc(V(P["ice.overstaff"].per, lv))}% Team Performance`,
+      desc: (lv) => `Each Overstaffing point: bonus ${addEn(V(P["ice.overstaff"].per, lv))}`,
     },
     "ice.prism": {
       name: "Prism",
-      desc: (lv) =>
-        `Ice landings with ≥1 desk linked count +1 desk; total desk share +${pc(V(P["ice.prism"].extraShare, lv))}%`,
+      desc: (lv) => `Ice linked to ≥1 desk: desk count +1, desk bonus ${addEn(V(P["ice.prism"].extraShare, lv))}`,
     },
     "ice.chain": {
       name: "Ice Bridge",
@@ -937,18 +926,15 @@ const en: FactoryRogueStrings = {
     },
     "water.fourday": {
       name: "Four-Day Week",
-      desc: (lv) =>
-        `Water groups strike at ${V(P["water.fourday"].line, lv)}; their strikes add ${pc(V(P["water.fourday"].strikeBonus, lv))}% of each Gulu's Team Performance`,
+      desc: (lv) => `Water groups strike at ${V(P["water.fourday"].line, lv)}; each adds ${ratioEn(V(P["water.fourday"].strikeBonus, lv))} full performance`,
     },
     "water.same": {
       name: "Same-Name Tide",
-      desc: (lv) =>
-        `Each same-name teammate multiplies Team Performance by ×${mu(V(P["water.same"].perTeamSame, lv))}`,
+      desc: (lv) => `Each same-name teammate: this card ×${mu(V(P["water.same"].perTeamSame, lv))} (max 10)`,
     },
     "water.convert": {
       name: "Assimilation",
-      desc: (lv) =>
-        `After scoring, Convert the top ${V(P["water.convert"].targets, lv)} highest-scoring non-Water targets exploited this pulse`,
+      desc: (lv) => `Score: Convert top ${V(P["water.convert"].targets, lv)} non-Water targets`,
     },
     "water.chain": {
       name: "Waterway",
@@ -956,18 +942,16 @@ const en: FactoryRogueStrings = {
     },
     "grass.root": {
       name: "Deep Roots",
-      desc: (lv) =>
-        `When a Grass Gulu stands on a desk, Team Performance settled through that desk ×${mu(V(P["grass.root"].deskMult, lv))}`,
+      desc: (lv) => `Grass on desk: that desk's Team Performance ×${mu(V(P["grass.root"].deskMult, lv))}`,
     },
     "grass.symbiosis": {
       name: "Team Player",
-      desc: (lv) =>
-        `Grass Gulus gain +${pc(V(P["grass.symbiosis"].perNeighbor, lv))}% Exploitation Performance per off-element direct neighbor`,
+      desc: (lv) => `Each off-element neighbor: Grass exploitation bonus ${addEn(V(P["grass.symbiosis"].perNeighbor, lv))}`,
     },
     "grass.growth": {
       name: "Compound Growth",
       desc: (lv) =>
-        `Grass Gulus gain +${pc(V(P["grass.growth"].perShift, lv))}% Work Performance per shift survived (cap ×${V(P["grass.growth"].capX, lv)}) — the buy-and-hold build`,
+        `Each survived shift adds ${addEn(V(P["grass.growth"].perShift, lv))} to a Grass Gulu's Work Performance (cap ×${V(P["grass.growth"].capX, lv)})`,
     },
     "grass.chain": {
       name: "Vine Network",
@@ -975,18 +959,15 @@ const en: FactoryRogueStrings = {
     },
     "grass.grow": {
       name: "Self-Propagation",
-      desc: (lv) =>
-        `${pc(V(P["grass.grow"].chance, lv))}% chance after linking to grow a free Grass Gulu above`,
+      desc: (lv) => `After scoring: ${oddsEn(V(P["grass.grow"].chance, lv))} Grow`,
     },
     "grass.crowd": {
       name: "Lush Workforce",
-      desc: (lv) =>
-        `Each Lush point adds ${pc(V(P["grass.crowd"].perConnected, lv))}% Team Performance`,
+      desc: (lv) => `Each Lush point: bonus ${addEn(V(P["grass.crowd"].perConnected, lv))}`,
     },
     "grass.height": {
       name: "Canopy",
-      desc: (lv) =>
-        `Each layer of total linked height adds ${pc(V(P["grass.height"].perLayer, lv))}% Team Performance`,
+      desc: (lv) => `Each linked Height: bonus ${addEn(V(P["grass.height"].perLayer, lv))}`,
     },
     "normal.crowd": {
       name: "Warm Bodies",
@@ -1013,27 +994,24 @@ const en: FactoryRogueStrings = {
       name: "Absorb",
       desc: (lv) => {
         const targets = V(P["normal.absorb"].targets, lv);
-        const chance = pc(V(P["normal.absorb"].chance, lv));
-        return `${chance}% chance to swallow the nearest Gulu no larger than itself${targets > 1 ? `, up to ${targets}` : ""}`;
+        const chance = oddsEn(V(P["normal.absorb"].chance, lv));
+        return `Deploy: ${chance} absorb with the nearest Gulu; higher Size wins, self wins ties${targets > 1 ? ` (up to ${targets})` : ""}`;
       },
     },
     "normal.gluttony": {
       name: "Gluttony",
-      desc: (lv) =>
-        `Each extra Size point adds ${pc(V(P["normal.gluttony"].perSize, lv))}% Exploitation Performance`,
+      desc: (lv) => `Each extra thrower Size: bonus ${addEn(V(P["normal.gluttony"].perSize, lv))}`,
     },
     "normal.emperor": {
       name: "Employee of the Universe",
-      desc: (lv) =>
-        `After scoring, the largest Normal Gulu on this Team gains +${V(P["normal.emperor"].grow, lv)} Size and swallows every Gulu it completely covers`,
+      desc: (lv) => `Score: largest Normal +${V(P["normal.emperor"].grow, lv)} Size; swallow fully covered Gulus`,
     },
     "normal.tags": { name: "Legacy Résumé", desc: () => "Migrated to Absorb" },
     "normal.overlap": { name: "Legacy Resonance", desc: () => "Migrated to Gluttony" },
     "normal.dispatch": { name: "Legacy Dispatch", desc: () => "Migrated to Employee of the Universe" },
     "syn.arcIgnite": {
       name: "Arc Ignition",
-      desc: (lv) =>
-        `When Ignited, each extra linked desk adds ${pc(V(P["syn.arcIgnite"].perDesk, lv))}% Team Performance`,
+      desc: (lv) => `Ignite, each extra desk: bonus ${addEn(V(P["syn.arcIgnite"].perDesk, lv))}`,
     },
     "syn.thermalShock": {
       name: "Thermal Shock",
@@ -1042,33 +1020,27 @@ const en: FactoryRogueStrings = {
     },
     "syn.steamBurst": {
       name: "Steam Burst",
-      desc: (lv) =>
-        `Ignition gains ${pc(V(P["syn.steamBurst"].perSame, lv))}% per same-name Water Gulu`,
+      desc: (lv) => `Ignite, each same-name Water: bonus ${addEn(V(P["syn.steamBurst"].perSame, lv))}`,
     },
     "syn.fireDispatch": {
       name: "Fire-Eater",
-      desc: (lv) =>
-        `Each extra Size point on a Fire+Normal Gulu adds ${pc(V(P["syn.fireDispatch"].perMass, lv))}% Ignition Team Performance`,
+      desc: (lv) => `Each extra Fire+Normal Size: bonus ${addEn(V(P["syn.fireDispatch"].perMass, lv))}`,
     },
     "syn.superconduct": {
       name: "Superconductor",
-      desc: (lv) =>
-        `Each Frozen Gulu adds ${pc(V(P["syn.superconduct"].perFrozen, lv))}% Electric Team Performance`,
+      desc: (lv) => `Each Frozen Gulu: bonus ${addEn(V(P["syn.superconduct"].perFrozen, lv))}`,
     },
     "syn.bionet": {
       name: "Bio-Network",
-      desc: (lv) =>
-        `Generated Gulus relay Electric routes; each adds ${pc(V(P["syn.bionet"].perGenerated, lv))}% Team Performance${lv >= 5 ? "; Apex: each counts twice" : ""}`,
+      desc: (lv) => `Generated Gulus relay circuits; each: bonus ${addEn(V(P["syn.bionet"].perGenerated, lv))}${lv >= 5 ? "; Lv.5: count twice" : ""}`,
     },
     "syn.iceMirror": {
       name: "Ice Mirror",
-      desc: (lv) =>
-        `Each Frozen same-name Water Gulu adds ${pc(V(P["syn.iceMirror"].perFrozenSame, lv))}% Team Performance`,
+      desc: (lv) => `Each Frozen same-name Water: bonus ${addEn(V(P["syn.iceMirror"].perFrozenSame, lv))}`,
     },
     "syn.coldRotation": {
       name: "Cold Storage",
-      desc: (lv) =>
-        `Each extra Size point on a Frozen Gulu adds ${pc(V(P["syn.coldRotation"].perMass, lv))}% Exploitation Performance`,
+      desc: (lv) => `Each extra Frozen Size: exploitation bonus ${addEn(V(P["syn.coldRotation"].perMass, lv))}`,
     },
     "syn.irrigation": {
       name: "Irrigation",
@@ -1077,64 +1049,55 @@ const en: FactoryRogueStrings = {
     },
     "syn.badge": {
       name: "Liquid Fusion",
-      desc: (lv) =>
-        `After a Water+Normal Gulu Absorbs, this pulse's performance ×${mu(V(P["syn.badge"].mult, lv))}`,
+      desc: (lv) => `Water+Normal Absorb: score full performance ×${mu(V(P["syn.badge"].mult, lv) - 1)} extra`,
     },
     "syn.multiSeed": {
       name: "Nutrient Seed",
-      desc: (lv) =>
-        `Generated Gulus inherit ${pc(V(P["syn.multiSeed"].inheritMass, lv))}% of the parent's Size${lv >= 5 ? "; Apex: offspring outgrow the parent" : ""}`,
+      desc: (lv) => `Generated Gulu Size: ${ratioEn(V(P["syn.multiSeed"].inheritMass, lv))} of parent`,
     },
     "attr.pure": {
       name: "Specialist",
-      desc: (lv) => `1-color Gulus' Team Performance ×${mu(V(P["attr.pure"].mult, lv))}`,
+      desc: (lv) => `1-color Gulus: bonus ${addEn(V(P["attr.pure"].mult, lv) - 1)}`,
     },
     "attr.dual": {
       name: "Dual Income",
-      desc: (lv) => `Exactly-2-color Gulus' Team Performance ×${mu(V(P["attr.dual"].mult, lv))}`,
+      desc: (lv) => `2-color Gulus: bonus ${addEn(V(P["attr.dual"].mult, lv) - 1)}`,
     },
     "attr.slash": {
       name: "Side Hustler",
-      desc: (lv) => `Exactly-3-color Gulus' Team Performance ×${mu(V(P["attr.slash"].mult, lv))}`,
+      desc: (lv) => `3-color Gulus: bonus ${addEn(V(P["attr.slash"].mult, lv) - 1)}`,
     },
     "attr.hex": {
       name: "Hexagon Allowance",
-      desc: (lv) =>
-        `Gulus with ≥4 colors gain +${pc(V(P["attr.hex"].perElement, lv))}% Team Performance per element`,
+      desc: (lv) => `≥4-color Gulus, each element: bonus ${addEn(V(P["attr.hex"].perElement, lv))}`,
     },
     "attr.balance": {
       name: "Full-Roster Bonus",
-      desc: (lv) =>
-        `While all six job tiers (1–6 colors) have ≥1 Gulu on site: all Team Performance ×${mu(V(P["attr.balance"].mult, lv))}`,
+      desc: (lv) => `All 1–6-color jobs on site: bonus ${addEn(V(P["attr.balance"].mult, lv) - 1)}`,
     },
     "syn.steam": {
       name: "Steam Engine",
-      desc: (lv) =>
-        `Adjacent Fire+Ice pairs radiate: both Gulus and their direct neighbors gain ×${mu(V(P["syn.steam"].aura, lv))} Team Performance`,
+      desc: (lv) => `Adjacent Fire+Ice: pair and neighbors' Team Performance ×${mu(V(P["syn.steam"].aura, lv))}`,
     },
     "syn.short": {
       name: "Short Circuit",
-      desc: (lv) =>
-        `Each same-name Water Gulu in the Circuit adds that Gulu's Work Performance ×${mu(V(P["syn.short"].burst, lv))}`,
+      desc: (lv) => `Each same-name Water in Circuit: add Work Performance ×${mu(V(P["syn.short"].burst, lv))}`,
     },
     "syn.greenhouse": {
       name: "Greenhouse",
-      desc: (lv) =>
-        `After Ignite, gain ${pc(V(P["syn.greenhouse"].chance, lv))}% extra Grow chance${lv >= 5 ? "; Apex: Grow 2 copies" : ""}`,
+      desc: (lv) => `Ignite: ${oddsEn(V(P["syn.greenhouse"].chance, lv))} extra Grow${lv >= 5 ? " ×2" : ""}`,
     },
     "syn.permafrost": {
       name: "Frostroot Network",
-      desc: (lv) =>
-        `Ice–Grass 【Stick】; each link adds ${pc(V(P["syn.permafrost"].perCrossEdge, lv))}% Team Performance (max ${V(P["syn.permafrost"].cap, lv)})${lv >= 5 ? "; Apex: count the entire stuck component" : ""}`,
+      desc: (lv) => `Ice–Grass Stick; each edge: bonus ${addEn(V(P["syn.permafrost"].perCrossEdge, lv))} (max ${V(P["syn.permafrost"].cap, lv)})${lv >= 5 ? "; Lv.5: whole cluster" : ""}`,
     },
     "syn.lightningrod": {
       name: "Battery Belly",
-      desc: (lv) =>
-        `Normal Gulus relay Electric routes; each Normal Size in the route adds ${pc(V(P["syn.lightningrod"].perMass, lv))}% Team Performance`,
+      desc: (lv) => `Normal relays circuits; each route Size: bonus ${addEn(V(P["syn.lightningrod"].perMass, lv))}`,
     },
     "syn.mudslide": {
       name: "Mudslide",
-      desc: () => "Collapses passing a Water+Grass pair re-stick 100% in place (no rolling) — the demolition build's keystone",
+      desc: () => "Collapse through Water+Grass: re-stick in place",
     },
     "base.fire": {
       name: "Fire Training",
@@ -1162,17 +1125,15 @@ const en: FactoryRogueStrings = {
     },
     "staff.fire3": {
       name: "Pink Slips",
-      desc: () =>
-        `One-shot: dismiss up to ${P["staff.fire3"].picks} Gulus, refunding 100% of their latest hire price and triggering real collapse physics; no strike and no stacking with Severance`,
+      desc: () => `One-shot: dismiss ${P["staff.fire3"].picks}; refund 1x, collapse (no strike/severance)`,
     },
     "staff.severance": {
       name: "Severance Package",
-      desc: (lv) =>
-        `Gulus leaving via strike or layoff refund ${pc(V(P["staff.severance"].refund, lv))}% of their latest hire fee`,
+      desc: (lv) => `Strike/layoff exit: refund ${ratioEn(V(P["staff.severance"].refund, lv))} hire price`,
     },
     "staff.movedesk": {
       name: "Desk Shuffle",
-      desc: () => "One-shot: swap two desks with their towers; connected structures are cut at the equal-distance boundary between desk roots and no Gulus return to the pool",
+      desc: () => "One-shot: swap two desks and towers; cut cross-desk links midway",
     },
     "staff.expand": {
       name: "Extra Seats",
@@ -1180,23 +1141,19 @@ const en: FactoryRogueStrings = {
     },
     "staff.talentmarket": {
       name: "Talent Market",
-      desc: (lv) =>
-        `Gain ${P["staff.talentmarket"].rerollsPerLevel * lv} hiring reroll(s) and ${P["staff.talentmarket"].candidatesPerLevel * lv} extra candidate(s) in every round; hire at most 10 per round`,
+      desc: (lv) => `Each draft: +${P["staff.talentmarket"].rerollsPerLevel * lv} rerolls, +${P["staff.talentmarket"].candidatesPerLevel * lv} candidates (hire max 10)`,
     },
     "staff.backfill": {
       name: "Backfill",
-      desc: (lv) =>
-        `After the regular draft, gain one extra draft with ${V(P["staff.backfill"].extraCandidates, lv)} additional Gulu candidate(s)`,
+      desc: (lv) => `After regular draft: extra draft for ${V(P["staff.backfill"].extraCandidates, lv)} Gulus`,
     },
     "staff.loan": {
       name: "Payday Loan",
-      desc: () =>
-        `Get ${pc(LOAN_GAIN_RATE)}% of the current KPI now; repay ${pc(LOAN_REPAY_RATE)}% of principal after each of the next ${LOAN_SHIFTS} shifts (${pc(LOAN_TOTAL_REPAY_RATE)}% total). One loan at a time`,
+      desc: () => `Get ${ratioEn(LOAN_GAIN_RATE)} KPI; repay ${ratioEn(LOAN_REPAY_RATE)} principal for ${LOAN_SHIFTS} shifts (${ratioEn(LOAN_TOTAL_REPAY_RATE)} total)`,
     },
     "staff.pricecut": {
       name: "Lowball Offer",
-      desc: (lv) =>
-        `Pick a job tier: its hire base drops ${pc(V(P["staff.pricecut"].cut, lv))}% for this run`,
+      desc: (lv) => `Pick a job: hire price −${ratioEn(V(P["staff.pricecut"].cut, lv))} this run`,
     },
   },
 };

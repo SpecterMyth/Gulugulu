@@ -95,8 +95,8 @@ export function RogueLoadout({
   deskOrder,
   onStart,
   onBack,
+  onLeaderboard,
   firstRunGuide = false,
-  onGuideLoadoutToggle,
 }: {
   config: GameConfig;
   /** 物种 → 进局元数据(rogueSpecies.buildSpeciesMeta 的产物;键即候选名单)。 */
@@ -104,8 +104,8 @@ export function RogueLoadout({
   deskOrder: RogueElement[];
   onStart: (loadout: string[]) => void;
   onBack: () => void;
+  onLeaderboard: () => void;
   firstRunGuide?: boolean;
-  onGuideLoadoutToggle?: () => void;
 }) {
   const { lang } = useT();
   const R = FACTORY_ROGUE[lang];
@@ -133,7 +133,6 @@ export function RogueLoadout({
   };
 
   const ready = picked.length >= LOADOUT_MIN && picked.length <= LOADOUT_MAX;
-  const guideSpecies = firstRunGuide ? picked[0] : undefined;
   const isZh = lang === "zh";
 
   // 出战准备是「局前」屏:KPI/现金/名额取第 1 班的权威初值(数值单源 = rogueConfig)。
@@ -167,6 +166,9 @@ export function RogueLoadout({
           </span>
           <span className="fr-note fr-note-pink fr-lo-cash">${formatCount(START_CASH)}</span>
           <span className="fr-note fr-note-blue fr-lo-seats">👥 0/{QUOTA_START}</span>
+          <button type="button" className="fr-note fr-btn fr-lo-leaderboard" onClick={onLeaderboard}>
+            STEAM · {isZh ? "排行榜" : "LEADERBOARD"}
+          </button>
         </div>
 
         <div className="fr-lo-sub">{fmt(R.loPick, { min: LOADOUT_MIN, max: LOADOUT_MAX })}</div>
@@ -216,19 +218,11 @@ export function RogueLoadout({
                   type="button"
                   key={m.species}
                   className={`fr-lo-card${isPicked ? " is-picked" : ""}`}
-                  data-coach={
-                    firstRunGuide && m.species === guideSpecies
-                      ? "factoryLoadoutCard"
-                      : undefined
-                  }
                   style={{
                     "--fr-el": elColor,
                     "--fr-stripe": elementStripe(m.elements, config),
                   } as React.CSSProperties}
-                  onClick={() => {
-                    toggle(m.species);
-                    if (m.species === guideSpecies) onGuideLoadoutToggle?.();
-                  }}
+                  onClick={() => toggle(m.species)}
                 >
                   <span className="fr-lo-card-stripe" aria-hidden="true" />
                   {isPicked && <span className="fr-lo-in">IN ✓</span>}

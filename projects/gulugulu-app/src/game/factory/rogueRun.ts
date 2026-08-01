@@ -45,6 +45,7 @@ import {
 } from "./rogueConfig";
 import {
   comboParams,
+  buildPulseAdjacency,
   computePulse,
   relayAllowedForCards,
   stickOverrideForCards,
@@ -54,7 +55,9 @@ import {
   buildAdjacency,
   deskBases,
   deskSwapMoves,
+  extendAdjacency,
   mismatchedDeskPathUids,
+  type Adjacency,
 } from "./rogueGraph";
 import { buildOffer, cardDef, cardPrice, drawDimCards, type OfferArgs } from "./rogueShop";
 import { unionElements } from "./rogueSpecies";
@@ -460,6 +463,40 @@ export class RogueRun implements RogueRunApi {
         for (let i = 0; i < 3; i++) this.hiringCandidates[i] = { id: this.hiringCandidateSeq++, species: mono, selected: true };
       }
     }
+    this.autoSelectAffordableHiringCandidates();
+  }
+
+  private affordableHiringCandidateIds(): Set<number> {
+    const availableSeats = Math.min(
+      HIRING_PICK_LIMIT,
+      Math.max(0, this.quotaMax - this.quotaUsed),
+    );
+    const availableCash = Math.max(0, this.cash - this.hiringRerollSpent);
+    const selectedByTier = [0, 0, 0, 0, 0, 0, 0];
+    let selectedCount = 0;
+    let selectedCost = 0;
+
+    const selectedIds = new Set<number>();
+    for (const candidate of this.hiringCandidates) {
+      if (selectedCount >= availableSeats) continue;
+
+      const tier = this.meta[candidate.species]?.tierCount ?? 1;
+      const price = this.priceFor(candidate.species, selectedByTier[tier] ?? 0);
+      if (selectedCost + price > availableCash) continue;
+
+      selectedIds.add(candidate.id);
+      selectedCount++;
+      selectedCost += price;
+      selectedByTier[tier] = (selectedByTier[tier] ?? 0) + 1;
+    }
+    return selectedIds;
+  }
+
+  private autoSelectAffordableHiringCandidates(): void {
+    const selectedIds = this.affordableHiringCandidateIds();
+    for (const candidate of this.hiringCandidates) {
+      candidate.selected = selectedIds.has(candidate.id);
+    }
   }
 
   private rerollsMax(): number {
@@ -493,6 +530,7 @@ export class RogueRun implements RogueRunApi {
   private buildHiringView() {
     const quotes = this.candidateQuotes();
     const selected = this.hiringCandidates.filter((c) => c.selected);
+    const affordableSelection = this.affordableHiringCandidateIds();
     const hireCost = selected.reduce((sum, c) => sum + (quotes.get(c.id) ?? 0), 0);
     const usedQuota = this.quotaUsed + selected.length;
     const poolCountMap = new Map<string, number>();
@@ -516,6 +554,8 @@ export class RogueRun implements RogueRunApi {
         };
       }),
       selectedCount: selected.length,
+      allAffordableSelected: selected.length === affordableSelection.size
+        && selected.every((candidate) => affordableSelection.has(candidate.id)),
       hireCost,
       rerollSpent: this.hiringRerollSpent,
       rerollsUsed: this.hiringRerollsUsed,
@@ -546,25 +586,24 @@ export class RogueRun implements RogueRunApi {
 
   setAllHiringCandidates(selected: boolean): void {
     if (this.phase !== "hiring") return;
-    const availableQuota = Math.min(
-      HIRING_PICK_LIMIT,
-      Math.max(0, this.quotaMax - this.quotaUsed),
-    );
-    for (const [index, candidate] of this.hiringCandidates.entries()) {
-      candidate.selected = selected && index < availableQuota;
-    }
+    if (selected) this.autoSelectAffordableHiringCandidates();
+    else for (const candidate of this.hiringCandidates) candidate.selected = false;
     this.bump();
   }
 
   toggleAllHiringCandidates(): void {
     if (this.phase !== "hiring") return;
-    const selectableCount = Math.min(
-      this.hiringCandidates.length,
-      HIRING_PICK_LIMIT,
-      Math.max(0, this.quotaMax - this.quotaUsed),
+    const previouslySelected = new Set(
+      this.hiringCandidates.filter((candidate) => candidate.selected).map((candidate) => candidate.id),
     );
-    const selectedCount = this.hiringCandidates.filter((candidate) => candidate.selected).length;
-    this.setAllHiringCandidates(selectedCount !== selectableCount);
+    this.autoSelectAffordableHiringCandidates();
+    const autoSelected = this.hiringCandidates.filter((candidate) => candidate.selected);
+    const wasAlreadyAutoSelected = previouslySelected.size === autoSelected.length
+      && autoSelected.every((candidate) => previouslySelected.has(candidate.id));
+    if (wasAlreadyAutoSelected) {
+      for (const candidate of this.hiringCandidates) candidate.selected = false;
+    }
+    this.bump();
   }
 
   rerollHiring(): boolean {
@@ -705,6 +744,7 @@ export class RogueRun implements RogueRunApi {
     if (meta == null) return null;
 
     const bodies = this.snap.bodies().filter((body) => body.settled);
+    const logicalBodies = this.logicalBodies(bodies);
     const desks = this.snap.desks();
     const enabledDesks = desks.filter(
       (desk) => !this.disabledDesks.includes(desk.element as RogueElement),
@@ -714,18 +754,14 @@ export class RogueRun implements RogueRunApi {
     const r = Math.max(8, radius);
     const landingY = (x: number, deskTop: number): number => {
       let y = deskTop - r;
-      // 从桌面向上找第一个不与现有圆重叠的静置位；重复数次处理多层塔。
-      for (let pass = 0; pass < bodies.length + 2; pass++) {
-        let next = y;
-        for (const body of bodies) {
-          const dx = x - body.x;
-          const rr = r + body.r;
-          if (Math.abs(dx) >= rr) continue;
-          const contactY = body.y - Math.sqrt(Math.max(1, rr * rr - dx * dx));
-          if (contactY < next) next = contactY;
-        }
-        if (Math.abs(next - y) < 0.01) break;
-        y = next;
+      // contactY 只由候选 x 与静态塔体决定；旧循环重复 N+2 次计算同一个最小值。
+      // 一次扫描即可得到完全相同的最高接触面，把每候选 O(n²) 降为 O(n)。
+      for (const body of bodies) {
+        const dx = x - body.x;
+        const rr = r + body.r;
+        if (Math.abs(dx) >= rr) continue;
+        const contactY = body.y - Math.sqrt(Math.max(1, rr * rr - dx * dx));
+        if (contactY < y) y = contactY;
       }
       return y;
     };
@@ -766,6 +802,10 @@ export class RogueRun implements RogueRunApi {
     this.uidCost.set(uid, this.bag[0]?.price ?? 0);
     this.uidBase.set(uid, meta.baseValue);
     if (meta.elements.includes("normal")) this.bodyStates.set(uid, { uid, sizeLevel: 1 });
+    const pulseCards = cardsForElementPlacement(meta.elements, this.cards);
+    const pulseStickOverride = stickOverrideForCards(pulseCards) ?? undefined;
+    const pulseStateOf = (targetUid: number) => this.stateFor(targetUid);
+    const baseAdjacency = buildPulseAdjacency(logicalBodies, pulseStateOf, pulseStickOverride);
     let best = candidates[0];
     let bestGain = Number.NEGATIVE_INFINITY;
     for (const candidate of candidates) {
@@ -778,8 +818,15 @@ export class RogueRun implements RogueRunApi {
         r,
         settled: true,
       };
-      const allBodies = [...bodies, hypothetical];
-      const pulse = computePulse(this.pulseCtx(uid, allBodies, desks));
+      const allBodies = [...logicalBodies, hypothetical];
+      const adjacency = extendAdjacency(baseAdjacency, logicalBodies, hypothetical, {
+        stickOverride: pulseStickOverride,
+      });
+      const pulse = computePulse(this.pulseCtx(uid, allBodies, desks, {
+        adjacency,
+        bodiesAreLogical: true,
+        enabledDesks,
+      }));
       const gain = pulse.total + pulse.extras.reduce((sum, item) => sum + item.amount, 0);
       if (
         gain > bestGain
@@ -835,12 +882,24 @@ export class RogueRun implements RogueRunApi {
       const state = this.stateFor(body.uid, body);
       const species = state?.speciesOverride ?? body.species;
       const elements = state?.elementsOverride ?? body.elements;
-      return { ...body, species, elements };
+      return species === body.species && elements === body.elements
+        ? body
+        : { ...body, species, elements };
     });
   }
 
-  private pulseCtx(uid: number, bodies: BodyLike[], desks: DeskLike[]): PulseCtx {
-    const sourceBody = bodies.find((body) => body.uid === uid);
+  private pulseCtx(
+    uid: number,
+    bodies: BodyLike[],
+    desks: DeskLike[],
+    prepared?: {
+      adjacency?: Adjacency;
+      bodiesAreLogical?: boolean;
+      enabledDesks?: DeskLike[];
+    },
+  ): PulseCtx {
+    const tail = bodies[bodies.length - 1];
+    const sourceBody = tail?.uid === uid ? tail : bodies.find((body) => body.uid === uid);
     const sourceState = this.bodyStates.get(uid);
     const sourceSpecies = sourceState?.speciesOverride ?? sourceBody?.species;
     const sourceElements = sourceState?.elementsOverride
@@ -848,17 +907,21 @@ export class RogueRun implements RogueRunApi {
       ?? sourceBody?.elements
       ?? [];
     const cards = cardsForElementPlacement(sourceElements, this.cards);
-    const logicalBodies = this.logicalBodies(bodies);
+    const logicalBodies = prepared?.bodiesAreLogical ? bodies : this.logicalBodies(bodies);
     return {
       uid,
       bodies: logicalBodies,
-      desks: desks.filter((desk) => !this.disabledDesks.includes(desk.element as RogueElement)),
+      desks: prepared?.enabledDesks
+        ?? desks.filter((desk) => !this.disabledDesks.includes(desk.element as RogueElement)),
       meta: this.meta,
       effBase: (u) => this.effBaseOf(u, logicalBodies, cards),
       cards,
       comboStacks: this.combo,
-      stateOf: (u) => this.stateFor(u, logicalBodies.find((body) => body.uid === u)),
-      opts: { stickOverride: stickOverrideForCards(cards) ?? undefined },
+      stateOf: (u) => this.stateFor(u),
+      opts: {
+        stickOverride: stickOverrideForCards(cards) ?? undefined,
+        adjacency: prepared?.adjacency,
+      },
     };
   }
 
@@ -988,62 +1051,84 @@ export class RogueRun implements RogueRunApi {
     bd: PulseBreakdown,
     triggerKind: "absorb" | "emperor",
   ): boolean {
+    // 加班员工只临时落场计分，随后原样返池；禁止它在离场前吞掉永久塔体。
+    if (this.phase === "overtime") return false;
     if (
       sourceUid === targetUid
-      || this.bodyMutations.some((item) => item.kind === "absorb" && item.targetUid === targetUid)
+      || this.bodyMutations.some((item) => (
+        item.kind === "absorb"
+        && (item.targetUid === sourceUid || item.targetUid === targetUid)
+      ))
     ) return false;
     const bodies = this.logicalBodies(physicalBodies);
     const source = bodies.find((body) => body.uid === sourceUid);
     const target = bodies.find((body) => body.uid === targetUid);
     if (source == null || target == null) return false;
-    const sourceState = this.bodyStates.get(sourceUid) ?? { uid: sourceUid };
-    const targetState = this.bodyStates.get(targetUid) ?? { uid: targetUid };
-    const sourceMass = Math.max(1, sourceState.sizeLevel ?? 1);
-    const targetMass = Math.max(1, targetState.sizeLevel ?? 1);
-    if (targetMass > sourceMass) return false;
+    const initialSourceState = this.bodyStates.get(sourceUid) ?? { uid: sourceUid };
+    const initialTargetState = this.bodyStates.get(targetUid) ?? { uid: targetUid };
+    const initialSourceMass = Math.max(1, initialSourceState.sizeLevel ?? 1);
+    const initialTargetMass = Math.max(1, initialTargetState.sizeLevel ?? 1);
+
+    // 吸收永远由等级较高的一方完成；同级时保留技能触发者为吸收者。
+    // 因此小体型尝试吸收大体型时，会反过来被大体型吸收。
+    const reversed = initialTargetMass > initialSourceMass;
+    const absorberUid = reversed ? targetUid : sourceUid;
+    const absorbedUid = reversed ? sourceUid : targetUid;
+    const absorber = reversed ? target : source;
+    const absorbed = reversed ? source : target;
+    const absorberState = reversed ? initialTargetState : initialSourceState;
+    const absorbedState = reversed ? initialSourceState : initialTargetState;
+    const absorberMass = reversed ? initialTargetMass : initialSourceMass;
+    const absorbedMass = reversed ? initialSourceMass : initialTargetMass;
 
     const adjacency = buildAdjacency(bodies, {
       stickOverride: stickOverrideForCards(this.cards) ?? undefined,
     });
     const inheritedLinks = [
-      ...(sourceState.absorbedLinks ?? []),
-      ...(targetState.absorbedLinks ?? []),
-      ...(adjacency.get(targetUid) ?? []).filter((uid) => uid !== sourceUid && uid !== targetUid),
-    ].filter((uid, index, all) => uid !== targetUid && uid !== sourceUid && all.indexOf(uid) === index);
+      ...(absorberState.absorbedLinks ?? []),
+      ...(absorbedState.absorbedLinks ?? []),
+      ...(adjacency.get(absorbedUid) ?? []).filter((uid) => uid !== absorberUid && uid !== absorbedUid),
+    ].filter((uid, index, all) => uid !== absorbedUid && uid !== absorberUid && all.indexOf(uid) === index);
     const inheritedDesks = new Set<RogueElement>([
-      ...(sourceState.absorbedDesks ?? []),
-      ...(targetState.absorbedDesks ?? []),
+      ...(absorberState.absorbedDesks ?? []),
+      ...(absorbedState.absorbedDesks ?? []),
     ]);
     const bases = deskBases(bodies, this.snap?.desks() ?? []);
     for (const [element, uids] of bases) {
-      if (uids.includes(targetUid)) inheritedDesks.add(element as RogueElement);
+      if (uids.includes(absorbedUid)) inheritedDesks.add(element as RogueElement);
     }
 
-    const sourceRaw = this.uidBase.get(sourceUid)
-      ?? this.meta[source.species]?.baseValue
+    const absorberRaw = this.uidBase.get(absorberUid)
+      ?? this.meta[absorber.species]?.baseValue
       ?? DEFAULT_BASE_VALUE;
-    const targetRaw = this.uidBase.get(targetUid)
-      ?? this.meta[target.species]?.baseValue
+    const absorbedRaw = this.uidBase.get(absorbedUid)
+      ?? this.meta[absorbed.species]?.baseValue
       ?? DEFAULT_BASE_VALUE;
-    this.uidBase.set(sourceUid, sourceRaw + targetRaw);
-    this.bodyStates.set(sourceUid, {
-      ...sourceState,
-      sizeLevel: sourceMass + targetMass,
+    this.uidBase.set(absorberUid, absorberRaw + absorbedRaw);
+    this.bodyStates.set(absorberUid, {
+      ...absorberState,
+      sizeLevel: absorberMass + absorbedMass,
       absorbedLinks: inheritedLinks,
       absorbedDesks: [...inheritedDesks],
     });
-    if (!targetState.frozen && !targetState.generated) {
+    if (!absorbedState.frozen && !absorbedState.generated) {
       this.quotaUsed = Math.max(0, this.quotaUsed - 1);
     }
-    this.uidSpecies.delete(targetUid);
-    this.uidCost.delete(targetUid);
-    this.uidBase.delete(targetUid);
-    this.bodyStates.delete(targetUid);
-    this.refunded.delete(targetUid);
-    this.bodyMutations.push({ kind: "absorb", sourceUid, targetUid });
+    this.uidSpecies.delete(absorbedUid);
+    this.uidCost.delete(absorbedUid);
+    this.uidBase.delete(absorbedUid);
+    this.bodyStates.delete(absorbedUid);
+    this.refunded.delete(absorbedUid);
+    this.bodyMutations.push({ kind: "absorb", sourceUid: absorberUid, targetUid: absorbedUid });
     bd.triggers = [
       ...(bd.triggers ?? []),
-      { kind: triggerKind, sourceUid, targetUids: [targetUid], value: sourceMass + targetMass, persistent: true },
+      {
+        kind: triggerKind,
+        sourceUid: absorberUid,
+        targetUids: [absorbedUid],
+        value: absorberMass + absorbedMass,
+        persistent: true,
+      },
     ];
     return true;
   }
@@ -1144,18 +1229,13 @@ export class RogueRun implements RogueRunApi {
     }
 
     const absorbLevel = cards["normal.absorb"] ?? 0;
-    if (absorbLevel > 0 && self.elements.includes("normal")) {
-      const sourceMass = Math.max(1, this.bodyStates.get(self.uid)?.sizeLevel ?? 1);
+    if (this.phase !== "overtime" && absorbLevel > 0 && self.elements.includes("normal")) {
       const adjacency = buildAdjacency(bodies, {
         stickOverride: stickOverrideForCards(cards) ?? undefined,
       });
       const targets = (adjacency.get(self.uid) ?? [])
         .map((uid) => byUid.get(uid))
         .filter((body): body is BodyLike => body != null)
-        .filter((body) => {
-          const mass = Math.max(1, this.bodyStates.get(body.uid)?.sizeLevel ?? 1);
-          return mass <= sourceMass;
-        })
         .sort((left, right) => {
           const dl = (left.x - self.x) ** 2 + (left.y - self.y) ** 2;
           const dr = (right.x - self.x) ** 2 + (right.y - self.y) ** 2;
@@ -1169,9 +1249,15 @@ export class RogueRun implements RogueRunApi {
         if (this.rng() >= chance) continue;
         if (this.absorbBody(self.uid, target.uid, physicalBodies, bd, "absorb")) {
           absorbedTargets.push(target.uid);
+          if (!this.bodyStates.has(self.uid)) break;
         }
       }
-      if (absorbedTargets.length > 0 && badgeLevel > 0 && self.elements.includes("water")) {
+      if (
+        absorbedTargets.length > 0
+        && this.bodyStates.has(self.uid)
+        && badgeLevel > 0
+        && self.elements.includes("water")
+      ) {
         const mult = valueAtLevel(CARD_PARAMS["syn.badge"].mult, badgeLevel);
         const amount = Math.round(bd.total * (mult - 1));
         if (amount > 0) {
@@ -1384,7 +1470,20 @@ export class RogueRun implements RogueRunApi {
     const bodies = this.snap.bodies();
     if (!bodies.some((b) => b.uid === uid)) return;
     const desks = this.snap.desks();
-    const baseCtx = this.pulseCtx(uid, bodies, desks);
+    const rawCtx = this.pulseCtx(uid, bodies, desks);
+    // 一次落地会为每张已持有卡重算“移除该卡后的贡献”。绝大多数卡不会改变
+    // 粘连结构，因此先建一次完整图供主结算、禁运探测和各卡贡献共同复用。
+    const baseCtx: PulseCtx = {
+      ...rawCtx,
+      opts: {
+        ...rawCtx.opts,
+        adjacency: buildPulseAdjacency(
+          rawCtx.bodies,
+          rawCtx.stateOf,
+          rawCtx.opts?.stickOverride,
+        ),
+      },
+    };
     const bd = computePulse(baseCtx);
     if (bd.deskCount === 0 && this.disabledDesks.length > 0) {
       // 计分上下文会先过滤禁运桌。额外用完整桌表探测一次，供演出层区分
@@ -1399,7 +1498,19 @@ export class RogueRun implements RogueRunApi {
     const fullGain = bd.total + bd.extras.reduce((sum, item) => sum + item.amount, 0);
     bd.cardContributions = Object.entries(this.cards).flatMap(([id, level]) => {
       if (level <= 0) return [];
-      const without = computePulse({ ...baseCtx, cards: { ...baseCtx.cards, [id]: 0 } });
+      const withoutCards = { ...baseCtx.cards, [id]: 0 };
+      const changesConnectivity = id === "syn.lightningrod" || id === "syn.permafrost";
+      const without = computePulse({
+        ...baseCtx,
+        cards: withoutCards,
+        opts: changesConnectivity
+          ? {
+              ...baseCtx.opts,
+              adjacency: undefined,
+              stickOverride: stickOverrideForCards(withoutCards) ?? undefined,
+            }
+          : baseCtx.opts,
+      });
       const withoutGain = without.total + without.extras.reduce((sum, item) => sum + item.amount, 0);
       const amount = Math.max(0, fullGain - withoutGain);
       return amount > 0 ? [{ id, amount }] : [];

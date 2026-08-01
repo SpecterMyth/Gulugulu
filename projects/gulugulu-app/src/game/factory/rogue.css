@@ -562,6 +562,7 @@
 .fr-lo-shiftkpi { font-size: 14px; transform: rotate(0.8deg); }
 .fr-lo-cash { margin-left: auto; font-size: 15px; transform: rotate(-0.8deg); }
 .fr-lo-seats { font-size: 15px; }
+.fr-lo-leaderboard { padding:7px 11px; border:0; background:#292532; color:#f4f0ff; font-size:11px; font-weight:900; letter-spacing:.04em; transform:rotate(.7deg); }
 
 .fr-lo-sub {
   font-size: 12px;
@@ -1683,11 +1684,12 @@
 
 /* N2 各宠自身数值:横向飘出的青色小字(与金色总值区分),朝 --fr-dx 侧移淡出。 */
 .fr-float.is-part {
-  font-size: 15px;
-  color: #7fe6ff;
+  font-size: 20px;
+  color: #ffdf5a;
   text-shadow:
-    -1px 0 0 rgba(20, 46, 60, 0.9), 1px 0 0 rgba(20, 46, 60, 0.9),
-    0 -1px 0 rgba(20, 46, 60, 0.9), 0 1px 0 rgba(20, 46, 60, 0.9);
+    -1px 0 0 rgba(74, 47, 20, 0.9), 1px 0 0 rgba(74, 47, 20, 0.9),
+    0 -1px 0 rgba(74, 47, 20, 0.9), 0 1px 0 rgba(74, 47, 20, 0.9),
+    0 0 8px rgba(255, 210, 60, 0.75);
   animation: fr-float-part 0.85s ease-out forwards;
 }
 @keyframes fr-float-part {
@@ -3023,6 +3025,9 @@
   color: #fff;
   box-shadow: 4px 4px 0 rgba(45, 41, 50, .18);
   transform: rotate(-1deg);
+  border: 0;
+  cursor: pointer;
+  text-align: left;
 }
 
 .fr-sum-steam-rank > span {
@@ -3036,9 +3041,39 @@
   font-size: 12px;
 }
 
+.fr-sum-steam-rank > small {
+  display: block;
+  margin-top: 3px;
+  color: #b8afc7;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .02em;
+}
+
 .fr-sum-steam-rank.is-syncing {
   opacity: .68;
 }
+
+/* Steam 全球榜：整块软木公告板上铺满错落便签，列表与“我的排名”分层滚动。 */
+.fr-lb-overlay { position: absolute; inset: 0; z-index: 7000; padding: clamp(12px, 2.2vw, 28px); box-sizing: border-box; background: rgba(255,250,235,.96); color: #3d372f; pointer-events: auto; }
+.fr-lb-board { height: 100%; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0,1fr) auto; gap: 9px; padding: clamp(12px,1.7vw,24px); box-sizing: border-box; background: #d89a58; background-image: linear-gradient(90deg,rgba(92,51,22,.08) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px); background-size: 22px 22px; border: 8px solid #865333; box-shadow: 0 13px 32px rgba(64,39,20,.28), inset 0 0 18px rgba(87,48,21,.2); }
+.fr-lb-head { display: grid; grid-template-columns: 145px minmax(300px,1fr) 180px; align-items: center; gap: 12px; }
+.fr-lb-title { justify-self: center; position: relative; min-width: min(520px,100%); padding: 12px 38px 10px; text-align: center; background: #fff0a8; box-shadow: 4px 6px 0 rgba(95,57,28,.18); transform: rotate(-.6deg); }
+.fr-lb-title::before,.fr-lb-title::after { content:""; position:absolute; top:-7px; width:13px; height:13px; border-radius:50%; background:#eb5b55; box-shadow:0 2px 2px #81443d; }
+.fr-lb-title::before { left:22px; }.fr-lb-title::after { right:22px; }
+.fr-lb-title span { display:block; color:#2579a4; font:800 11px/1 sans-serif; letter-spacing:3px; }.fr-lb-title strong { display:block; font-size:clamp(21px,2.4vw,34px); }.fr-lb-title em { color:#8e6637; font-size:11px; font-style:normal; letter-spacing:2px; }
+.fr-lb-tools { display:flex; flex-direction:column; align-items:flex-end; gap:5px; }.fr-lb-tools small { color:#fff8dc; text-shadow:0 1px #77502d; }.fr-lb-tools .fr-btn,.fr-lb-back { min-height:38px; border:0; background:#e9f3e5; font-weight:800; }
+.fr-lb-labels { display:flex; justify-content:space-between; padding:5px 20px; color:#fff6da; border-bottom:2px dashed rgba(255,255,255,.55); font-size:11px; font-weight:800; letter-spacing:1px; }
+.fr-lb-list { min-height:0; overflow-y:auto; padding:4px 6px 14px; scrollbar-gutter:stable; }
+.fr-lb-row { min-height:58px; display:grid; grid-template-columns:58px minmax(140px,1.05fr) 105px 66px 66px minmax(210px,1.55fr); align-items:center; gap:8px; margin:0 5px 8px; padding:5px 12px; box-sizing:border-box; background:#fff8cf; box-shadow:2px 4px 6px rgba(66,44,26,.17); border-left:6px solid #f0d56b; transform:rotate(.08deg); }
+.fr-lb-row:nth-child(even) { background:#e5f5ec; border-left-color:#8bcfb1; transform:rotate(-.08deg); }.fr-lb-row.rank-1 { min-height:72px; background:#fff0a0; border-left-color:#e7a400; }.fr-lb-row.rank-2 { background:#edf1f1; border-left-color:#aeb8bd; }.fr-lb-row.rank-3 { background:#f7d6b8; border-left-color:#ba7042; }.fr-lb-row.is-me { outline:3px solid #4aa6d8; background:#dff3ff; }
+.fr-lb-rank { font-size:21px; font-weight:900; text-align:center; }.fr-lb-player { min-width:0; display:flex; align-items:center; gap:7px; }.fr-lb-player strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.fr-lb-player small { padding:2px 6px; border-radius:8px; background:#4aa6d8; color:white; font-size:9px; }
+.fr-lb-score,.fr-lb-shift { display:flex; flex-direction:column; }.fr-lb-score strong { color:#d57a00; font-size:18px; }.fr-lb-score small,.fr-lb-shift small { color:#877d6d; font-size:8px; }.fr-lb-mode { justify-self:center; padding:4px 8px; background:#d9e8db; border-radius:2px; font-size:10px; font-weight:900; }.fr-lb-mode.is-endless { background:#2f2939; color:#f4ce6c; }
+.fr-lb-lineup { min-width:0; display:flex; align-items:center; gap:2px; overflow:hidden; }.fr-lb-gulu { flex:0 0 33px; width:33px; height:42px; display:inline-flex; align-items:center; justify-content:center; }.fr-lb-gulu .svg-sprite { width:40px; height:40px; }.fr-lb-old { color:#998a75; font-size:11px; font-style:italic; }.fr-lb-unknown { display:grid; place-items:center; width:26px; height:26px; border:2px dashed #ad9e89; }
+.fr-lb-me { position:relative; min-height:70px; padding:8px 8px 2px; background:rgba(94,56,28,.28); }.fr-lb-me .fr-lb-row { margin:0; }.fr-lb-me-tag { position:absolute; z-index:2; left:-8px; top:-14px; padding:5px 13px; background:#ff83ad; color:#5b3040; font-size:11px; font-weight:900; transform:rotate(-2deg); box-shadow:2px 3px 4px rgba(60,35,25,.2); }.fr-lb-not-ranked { min-height:58px; display:grid; place-items:center; background:#f4ead2; color:#7b6d59; font-weight:800; }
+.fr-lb-message { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; background:#fff6d5; color:#7c684d; text-align:center; font-size:16px; }.fr-lb-message.is-error strong { color:#b34f45; font-size:20px; }.fr-lb-message.is-error span { max-width:600px; font:12px/1.4 monospace; }
+@media (max-width: 900px) { .fr-lb-head { grid-template-columns:100px 1fr 110px; }.fr-lb-title { min-width:0; padding-inline:20px; }.fr-lb-row { grid-template-columns:48px minmax(110px,1fr) 90px 52px minmax(140px,1.2fr); }.fr-lb-mode { display:none; }.fr-lb-gulu { flex-basis:28px; }.fr-lb-gulu .svg-sprite { width:34px; height:34px; } }
+@media (max-height: 650px) { .fr-lb-overlay { padding:8px; }.fr-lb-board { padding:10px; border-width:5px; }.fr-lb-title { padding-block:7px 5px; }.fr-lb-row { min-height:50px; margin-bottom:5px; }.fr-lb-me { min-height:60px; } }
 
 .fr-sum-tip-shade {
   position: fixed;
@@ -3151,6 +3186,80 @@
 
 .fr-scene-wrap.fr-scene-punch {
   animation: fr-scene-punch 0.22s ease-out;
+}
+
+/* 清班掉落：让道具本身占据画面，文案只负责报名字与数量。 */
+.fr-reward-fx-stack {
+  position: fixed;
+  inset: 0;
+  z-index: 6400;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.fr-reward-fx {
+  --reward-glow: #ffe56f;
+  position: absolute;
+  display: grid;
+  place-items: center;
+  min-width: 210px;
+  color: #3a3430;
+  text-align: center;
+  filter: drop-shadow(0 8px 8px rgba(58, 52, 48, .22));
+  animation: fr-reward-fx-in 2.1s cubic-bezier(.18, .9, .24, 1) both;
+}
+
+.fr-reward-fx-icon {
+  display: grid;
+  place-items: center;
+  width: 146px;
+  height: 146px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf4 0 34%, var(--reward-glow) 35% 48%, transparent 70%);
+  font-size: 112px;
+  line-height: 1;
+  filter: drop-shadow(0 0 18px var(--reward-glow));
+}
+
+.fr-reward-fx strong {
+  position: relative;
+  z-index: 1;
+  margin-top: 12px;
+  padding: 4px 9px 3px;
+  background: #fffdf4;
+  box-shadow: 3px 4px 0 rgba(58, 52, 48, .16);
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.fr-reward-fx strong small {
+  color: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.fr-reward-fx.is-ironBadge { --reward-glow: #dce2e8; }
+.fr-reward-fx.is-copperGoggles { --reward-glow: #efb96f; }
+.fr-reward-fx.is-silverHelmet { --reward-glow: #d9edff; }
+.fr-reward-fx.is-goldWrench { --reward-glow: #ffe56f; }
+.fr-reward-fx.is-platinumVest { --reward-glow: #bfe9e4; }
+.fr-reward-fx.is-goldenBadge { --reward-glow: #ffc2d6; }
+
+@keyframes fr-reward-fx-in {
+  0% { opacity: 0; transform: translateY(24px) scale(.48) rotate(-7deg); }
+  14% { opacity: 1; transform: translateY(-8px) scale(1.16) rotate(3deg); }
+  25%, 72% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+  100% { opacity: 0; transform: translateY(-28px) scale(.94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-reward-fx { animation: fr-reward-fx-fade 2.1s ease both; }
+}
+
+@keyframes fr-reward-fx-fade {
+  0%, 100% { opacity: 0; }
+  10%, 80% { opacity: 1; }
 }
 
 /* ---- 大风日全屏定向风效 ---------------------------------------------------
@@ -4239,7 +4348,15 @@
 /* ---- 失投原因浮字(灰;复用 .fr-float 升浮动画) ---- */
 
 .fr-float.miss {
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
   font-size: 13px;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
   color: #cfc6b8;
   filter: none;
   text-shadow: 0 1px 0 rgba(59, 43, 29, 0.7);

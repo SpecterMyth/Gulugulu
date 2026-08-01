@@ -257,36 +257,88 @@ export const NearDecor = memo(function NearDecor() {
       <Flower left={-648} color="#F5917B" />
       <SignPost left={-624} label={T.bk.decor.glade} />
 
-      {/* ── 训练馆（世界 x≈-420，孵化区左侧；占位带 -580..-260） ──
-           石砌墙体 + 双开木门 + 屋顶 + 招牌，门口摆举重台/哑铃/沙袋。
-           手绘风与商店建筑（x=1016..1290）同一套：绝对定位 div 堆叠、#6B4520 描边。 */}
-      {/* 地基台阶 */}
-      <div style={abs({ left: -566, bottom: 146, width: 292, height: 14, borderRadius: 5, background: "linear-gradient(180deg,#C2B39A,#9C8B72)", boxShadow: "0 2px 0 rgba(59,43,29,0.25)" })} />
-      {/* 墙体（石砌纹理 = 两层错位的重复渐变） */}
-      <div style={abs({ left: -552, bottom: 158, width: 264, height: 140, borderRadius: "8px 8px 4px 4px", border: "3px solid #6B4520", boxSizing: "border-box", background: "repeating-linear-gradient(0deg, rgba(59,32,10,0.14) 0 2px, transparent 2px 26px), repeating-linear-gradient(90deg, rgba(59,32,10,0.10) 0 2px, transparent 2px 44px), linear-gradient(180deg,#B9A88C,#9C8B72)" })} />
-      {/* 双开木门 */}
-      <div style={abs({ left: -466, bottom: 158, width: 92, height: 88, borderRadius: "44px 44px 3px 3px", border: "3px solid #6B4520", boxSizing: "border-box", background: "repeating-linear-gradient(90deg, rgba(59,32,10,0.18) 0 2px, transparent 2px 22px), linear-gradient(180deg,#B07B44,#8E5D2C)" })} />
-      <div style={abs({ left: -421, bottom: 166, width: 3, height: 72, background: "#6B4520" })} />
-      <div style={abs({ left: -434, bottom: 196, width: 9, height: 9, borderRadius: "50%", background: "#F5C542" })} />
-      <div style={abs({ left: -413, bottom: 196, width: 9, height: 9, borderRadius: "50%", background: "#F5C542" })} />
-      {/* 侧窗（夜间由 BackyardNightLights 点亮） */}
-      <div style={abs({ left: -528, bottom: 216, width: 42, height: 34, borderRadius: 5, border: "3px solid #6B4520", boxSizing: "border-box", background: "linear-gradient(180deg,#CFE9FF,#9BDCFF)" })} />
-      <div style={abs({ left: -352, bottom: 216, width: 42, height: 34, borderRadius: 5, border: "3px solid #6B4520", boxSizing: "border-box", background: "linear-gradient(180deg,#CFE9FF,#9BDCFF)" })} />
-      {/* 屋顶（两坡 + 屋脊） */}
-      <div style={abs({ left: -574, bottom: 292, width: 308, height: 34, borderRadius: "8px 8px 0 0", border: "3px solid #6B4520", boxSizing: "border-box", background: "repeating-linear-gradient(90deg,#5F7F9B 0 22px,#4C6A85 22px 44px)", boxShadow: "0 8px 12px rgba(43,26,8,0.22)" })} />
-      <div style={abs({ left: -560, bottom: 322, width: 280, height: 0, borderLeft: "18px solid transparent", borderRight: "18px solid transparent", borderBottom: "38px solid #6F90AC" })} />
-      {/* 招牌木牌 */}
-      <div className="by-scene-note" style={abs({ left: -486, bottom: 336, padding: "4px 16px 5px", fontSize: 16, whiteSpace: "nowrap", zIndex: 1 })}>
+      {/* ── 训练馆（世界 x≈-420，孵化区左侧） ──
+           馆体、屋顶、门窗和器械统一画在同一张 SVG 坐标系里，避免缩放时屋顶分层错位。
+           暖色灰泥墙 + 赤陶屋顶沿用后院建筑的纸绘色块与深棕描边；窗内哑铃、
+           门侧沙袋和户外杠铃让建筑在小尺寸下也能一眼读成健身房。 */}
+      <div
+        aria-hidden="true"
+        style={abs({ left: -620, bottom: 146, width: 420, height: 236, pointerEvents: "none" })}
+      >
+        <svg viewBox="0 0 420 236" width="420" height="236" style={{ display: "block", overflow: "visible" }}>
+          <defs>
+            <linearGradient id="training-wall" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#F2DFB9" />
+              <stop offset="1" stopColor="#D7B47A" />
+            </linearGradient>
+            <linearGradient id="training-roof" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#DE7257" />
+              <stop offset="1" stopColor="#B94738" />
+            </linearGradient>
+            <linearGradient id="training-glass" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#CDEFF1" />
+              <stop offset="1" stopColor="#7FC2CA" />
+            </linearGradient>
+            <linearGradient id="training-door" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#F5B968" />
+              <stop offset="1" stopColor="#DB764E" />
+            </linearGradient>
+          </defs>
+
+          {/* 地基与整块馆体 */}
+          <rect x="54" y="221" width="292" height="14" rx="6" fill="#9C8B72" />
+          <rect x="47" y="218" width="306" height="8" rx="4" fill="#C7B698" />
+          <rect x="68" y="82" width="264" height="142" rx="10" fill="url(#training-wall)" stroke="#6B4520" strokeWidth="4" />
+          <path d="M70 188H330V222H70Z" fill="#C98758" opacity=".75" />
+          <path d="M86 84V222M314 84V222" fill="none" stroke="#B77C4B" strokeWidth="8" opacity=".48" />
+          <path d="M76 112H324" fill="none" stroke="#6B4520" strokeWidth="4" opacity=".28" />
+
+          {/* 单体赤陶屋顶：轮廓和屋檐共用一个坐标系，不再由两块 DOM 拼接 */}
+          <path d="M46 85L79 42Q81 39 86 39H314Q319 39 321 42L354 85Q357 89 351 89H49Q43 89 46 85Z" fill="url(#training-roof)" stroke="#6B4520" strokeWidth="4" strokeLinejoin="round" />
+          <path d="M82 42L67 86M141 42L133 86M200 42V86M259 42L267 86M318 42L333 86" fill="none" stroke="#9B382F" strokeWidth="3" opacity=".5" />
+          <path d="M43 84H357L346 103H54Z" fill="#F4D18A" stroke="#6B4520" strokeWidth="4" strokeLinejoin="round" />
+          <path d="M76 86V101M120 86V101M164 86V101M208 86V101M252 86V101M296 86V101M340 86V101" fill="none" stroke="#D79B58" strokeWidth="5" opacity=".8" />
+
+          {/* 两侧大窗：玻璃内的哑铃剪影强化健身房识别 */}
+          <g>
+            <rect x="82" y="124" width="62" height="54" rx="9" fill="#6B4520" />
+            <rect x="87" y="129" width="52" height="44" rx="6" fill="url(#training-glass)" />
+            <path d="M99 149H127" stroke="#426D70" strokeWidth="5" strokeLinecap="round" />
+            <path d="M97 142V156M103 139V159M123 139V159M129 142V156" stroke="#426D70" strokeWidth="5" strokeLinecap="round" />
+            <path d="M90 132L111 132" stroke="#F7FBF2" strokeWidth="3" strokeLinecap="round" opacity=".7" />
+          </g>
+          <g>
+            <rect x="256" y="124" width="62" height="54" rx="9" fill="#6B4520" />
+            <rect x="261" y="129" width="52" height="44" rx="6" fill="url(#training-glass)" />
+            <path d="M273 149H301" stroke="#426D70" strokeWidth="5" strokeLinecap="round" />
+            <path d="M271 142V156M277 139V159M297 139V159M303 142V156" stroke="#426D70" strokeWidth="5" strokeLinecap="round" />
+            <path d="M264 132L285 132" stroke="#F7FBF2" strokeWidth="3" strokeLinecap="round" opacity=".7" />
+          </g>
+
+          {/* 带拱顶的双开入口 */}
+          <path d="M154 224V170A46 46 0 0 1 246 170V224Z" fill="url(#training-door)" stroke="#6B4520" strokeWidth="4" />
+          <path d="M200 126V224" fill="none" stroke="#6B4520" strokeWidth="4" />
+          <path d="M158 171H242" fill="none" stroke="#8E4E36" strokeWidth="3" opacity=".55" />
+          <circle cx="190" cy="191" r="4" fill="#FFE28A" stroke="#6B4520" strokeWidth="2" />
+          <circle cx="210" cy="191" r="4" fill="#FFE28A" stroke="#6B4520" strokeWidth="2" />
+
+          {/* 左侧挂架与沙袋 */}
+          <path d="M68 111H27V127" fill="none" stroke="#6B4520" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M27 126V136" fill="none" stroke="#6B4520" strokeWidth="4" />
+          <rect x="13" y="135" width="28" height="66" rx="13" fill="#C85543" stroke="#6B4520" strokeWidth="4" />
+          <path d="M17 151H37" fill="none" stroke="#E7876D" strokeWidth="4" opacity=".7" />
+
+          {/* 右侧户外举重台与杠铃 */}
+          <path d="M350 213H414" fill="none" stroke="#6B4520" strokeWidth="8" strokeLinecap="round" />
+          <path d="M363 213L356 226M401 213L408 226" fill="none" stroke="#6B4520" strokeWidth="6" strokeLinecap="round" />
+          <path d="M354 197H410" fill="none" stroke="#4F4A44" strokeWidth="5" strokeLinecap="round" />
+          <path d="M350 189V205M358 186V208M406 186V208M414 189V205" fill="none" stroke="#3F3A35" strokeWidth="7" strokeLinecap="round" />
+        </svg>
+      </div>
+      {/* 白天在实景层渲染；纸张主题会隐藏它，并使用上方 NearUiNotes 的同位副本。 */}
+      <div className="by-scene-note" style={abs({ left: -472, bottom: 338, padding: "4px 16px 5px", fontSize: 16, whiteSpace: "nowrap", zIndex: 1 })}>
         {T.bk.decor.trainingHall}
       </div>
-      {/* 门口道具：举重台 + 杠铃 */}
-      <div style={abs({ left: -268, bottom: 150, width: 72, height: 12, borderRadius: 4, background: "linear-gradient(180deg,#8A6437,#6B4520)" })} />
-      <div style={abs({ left: -262, bottom: 162, width: 60, height: 5, borderRadius: 3, background: "#4F4A44" })} />
-      <div style={abs({ left: -272, bottom: 154, width: 16, height: 22, borderRadius: 4, background: "#3F3A35" })} />
-      <div style={abs({ left: -208, bottom: 154, width: 16, height: 22, borderRadius: 4, background: "#3F3A35" })} />
-      {/* 门口道具：沙袋（轻微摆动，复用 gg-sway） */}
-      <div style={abs({ left: -604, bottom: 246, width: 6, height: 26, background: "#6B4520" })} />
-      <div style={abs({ left: -614, bottom: 178, width: 26, height: 70, borderRadius: "10px 10px 12px 12px", background: "linear-gradient(180deg,#C4553F,#8E3A2A)", boxShadow: "inset -6px 0 0 rgba(0,0,0,0.16)", transformOrigin: "50% 0", animation: "gg-sway 3.8s ease-in-out infinite" })} />
       {/* 训练馆两侧的收边绿植 */}
       <Bush left={-676} w={96} h={54} color="#7CBE5F" />
       <Flower left={-244} color="#F5D95A" />
@@ -510,7 +562,7 @@ export const NearUiNotes = memo(function NearUiNotes() {
       <div className="by-scene-note" style={abs({ left: -624, bottom: 198, padding: "3px 12px 4px", fontSize: 13, whiteSpace: "nowrap", transform: "rotate(-2deg)" })}>
         {T.bk.decor.glade}
       </div>
-      <div className="by-scene-note" style={abs({ left: -486, bottom: 336, padding: "4px 16px 5px", fontSize: 16, whiteSpace: "nowrap", zIndex: 1 })}>
+      <div className="by-scene-note" style={abs({ left: -472, bottom: 338, padding: "4px 16px 5px", fontSize: 16, whiteSpace: "nowrap", zIndex: 1 })}>
         {T.bk.decor.trainingHall}
       </div>
       <div className="by-scene-note" style={abs({ left: 58, bottom: 226, padding: "4px 14px 5px", fontSize: 14, transform: "rotate(-2deg)", whiteSpace: "nowrap" })}>

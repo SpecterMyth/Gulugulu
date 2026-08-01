@@ -913,6 +913,7 @@ mod tests {
                 stamina: 0,
                 stamina_updated_at: 0,
                 exhausted: false,
+                pending_fusion: None,
                 key_buffer: 0,
                 token_buffer: 0,
                 steam_item_id: None,

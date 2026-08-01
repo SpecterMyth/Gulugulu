@@ -161,6 +161,8 @@ export type PetInstance = {
   stamina: number;
   staminaUpdatedAt: number;
   exhausted: boolean;
+  /** AI 形象尚未完成；宠物暂用配方固定形态，但属性与融合始终有效。 */
+  pendingFusion?: PendingFusionInfo | null;
   /** 键盘充能换算余数（还差多少键满下一点精力，< keysPerStaminaFor(tier)）。 */
   keyBuffer: number;
   /** Token 喂养换算余数（还差多少加权 Token 满下一点经验，< tokensPerExp）。 */
@@ -318,6 +320,26 @@ export type FactoryLeaderboardResult = {
   bestShift: number;
   endless: boolean;
   balanceVersion: number;
+  loadout: number[];
+};
+
+export type FactoryLeaderboardEntry = {
+  rank: number;
+  steamId: string;
+  personaName: string;
+  score: number;
+  revenueTotal: string;
+  bestShift: number | null;
+  endless: boolean | null;
+  balanceVersion: number | null;
+  loadout: number[] | null;
+  isMe: boolean;
+};
+
+export type FactoryLeaderboardPage = {
+  entries: FactoryLeaderboardEntry[];
+  me: FactoryLeaderboardEntry | null;
+  updatedAt: number;
 };
 
 /** `factory://leaderboard` / get_factory_leaderboard_status 的状态快照。 */
@@ -621,14 +643,17 @@ export type KeyFxEvent = {
 /** 应用设置（设备/隐私偏好；mirrors settings.rs AppSettings）。托盘菜单与
  *  设置面板共用，任一处改动经 settings://changed 广播同步。 */
 export type AppSettings = {
+  /** 全局键盘钩子同意。新安装/缺字段默认 false；已有明确选择原样保留。 */
   keyboardCapture: boolean;
+  /** 允许后台动态台词调用玩家已登录的 Claude/Codex CLI；独立、可撤回，默认 false。 */
+  dynamicQuoteAi: boolean;
   alwaysOnTop: boolean;
   randomMovement: boolean;
   /** 界面语言码（"zh" | "en"；留字符串以便扩展更多语言）。 */
   language: string;
   /** 开机自动启动（默认关闭）。真源为操作系统注册项，get_settings 读取时对账。 */
   autostart: boolean;
-  /** 「融合领新宠 → 引导开机自启」弹窗已展示次数（0..=3；加入自启或到上限后不再弹）。 */
+  /** 「里程碑 → 引导开机自启」弹窗历史展示次数（兼容旧设置；是否提示只看实际自启状态）。 */
   autostartPromptCount: number;
   /** AI 融合首选 Agent（"claude" | "codex"）。生成时优先用它（不可用回退另一个）。 */
   defaultAgent: string;
@@ -1055,7 +1080,8 @@ export type FusionProgress = {
 };
 
 export type FusionStartResult = {
-  mode: "recipe" | "ai";
+  /** pending = Steam 并集生成器尚未返回固定槽 / AI 槽结果。 */
+  mode: "recipe" | "ai" | "pending";
   save: GameSave;
   eggId: string;
   species?: string | null;

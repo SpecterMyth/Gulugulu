@@ -30,6 +30,7 @@ export interface ShellToastStrings {
   hatchStart: string;
   fusionRecipe: string;
   fusionAi: string;
+  fusionPending: string;
   /** 放生返还。{refund} */
   released: string;
   following: string;
@@ -302,6 +303,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       hatchStart: "开始孵化！",
       fusionRecipe: "触发经典配方！高阶蛋已放进孵化区",
       fusionAi: "✨ AI 开始设计新物种，神秘蛋已入孵化区",
+      fusionPending: "🎲 Steam 正在抽取经典配方或 AI 变种，结果确定后会自动更新",
       released: "已放生，返还 {refund} 金币",
       following: "它现在跟着你啦",
       hatcheryUpgraded: "孵化屋升级成功！",
@@ -510,6 +512,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       hatchStart: "Incubation started!",
       fusionRecipe: "Classic recipe triggered! High-tier egg is in the hatchery",
       fusionAi: "✨ AI is designing a new species — mystery egg is incubating",
+      fusionPending: "🎲 Steam is choosing a classic recipe or AI variant — the result will update automatically",
       released: "Released — {refund} coins refunded",
       following: "It's tagging along with you now",
       hatcheryUpgraded: "Hatchery upgraded!",

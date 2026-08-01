@@ -1,6 +1,6 @@
 import { useT } from "../useT";
 
-// 「开机自启」引导弹窗（首融领新宠后弹出，最多三次）。复用 welcome 卡体系样式。
+// 「开机自启」引导弹窗（首班教学完成、第二次融合完成后触发）。复用 welcome 卡体系样式。
 // 纯展示：是否弹出 / 计数由 App.tsx 依 AppSettings 决定，本组件只给两个回调。
 export function AutostartPromptCard({
   onAccept,

@@ -472,7 +472,9 @@ type AssimilationFx = {
 // 注入样式只覆写 transform 即可绕正确轴心旋转。xmlns/显式像素尺寸补丁与
 // speciesPreview.ts 同源（缺 xmlns 静默 onerror、缺尺寸按 300×150 默认栅格化）。
 
-const FRAME_COUNT = 10;
+// 拥挤模式最多只以 20fps 绘制；6 张均匀采样帧足以保持打工循环流畅，同时把
+// 每物种常驻的工作图集显存/内存比原来的 10 帧降低 40%。
+const FRAME_COUNT = 6;
 const WORK_CYCLE_MS = 550; // 与 sprites.css rig-work-* 同拍
 const SLEEP_CYCLE_MS = 3400; // 与 sprites.css rig-sleep-breathe 同拍
 const PATH_SLEEP_AUDIT_MS = 400;
@@ -577,27 +579,25 @@ function workPoseStyle(t: number): string {
   ].join("");
 }
 
-function bakeSpriteUrl(
+function bakeSpriteMarkup(
   species: string,
   config: GameConfig,
   petState: PetState,
-  poseCss: string,
   sizePx: number,
 ): string {
   const markup = renderToStaticMarkup(createElement(SvgSprite, { species, config, petState }));
   const nsAttr = markup.includes("xmlns=") ? "" : 'xmlns="http://www.w3.org/2000/svg" ';
-  const withNs = markup.replace("<svg ", `<svg ${nsAttr}width="${sizePx}" height="${sizePx}" `);
-  const openEnd = withNs.indexOf(">");
-  const styleTag = `<style>${BAKE_STYLE}${poseCss}</style>`;
-  const patched = withNs.slice(0, openEnd + 1) + styleTag + withNs.slice(openEnd + 1);
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(patched)}`;
+  return markup.replace("<svg ", `<svg ${nsAttr}width="${sizePx}" height="${sizePx}" `);
 }
 
-const bakeFrameUrl = (species: string, config: GameConfig, t: number, sizePx: number) =>
-  bakeSpriteUrl(species, config, "laboring", workPoseStyle(t), sizePx);
-
-const bakeSleepFrameUrl = (species: string, config: GameConfig, sizePx: number) =>
-  bakeSpriteUrl(species, config, "sleeping", "", sizePx);
+function bakeSpriteUrl(markup: string, poseCss: string): string {
+  const openEnd = markup.indexOf(">");
+  const styleTag = `<style>${BAKE_STYLE}${poseCss}</style>`;
+  const patched = markup.slice(0, openEnd + 1) + styleTag + markup.slice(openEnd + 1);
+  // data: URL 会让每一帧完整 SVG 字符串进入 WebView 图片缓存；大量自定义物种时
+  // 这部分会和栅格画布同时常驻。Blob URL 在 onload 后即可撤销，只留下最终帧。
+  return URL.createObjectURL(new Blob([patched], { type: "image/svg+xml" }));
+}
 
 /** 「期待」立绘：success 骨架（星星眼 + 笑）+ 双臂高举招呼 + **放下工具**
  *  （盖掉 BAKE_STYLE 的 .part-tool{opacity:1}）——载宠悬停时，山上能粘合的
@@ -609,9 +609,6 @@ const EXPECT_POSE =
   // preview. Folding both arms inward keeps the pose symmetric and intact.
   ".part-armR{transform:rotate(52deg)}.part-armL{transform:rotate(-52deg)}" +
   ".part-tool{opacity:0}.part-tail{transform:rotate(14deg)}.part-headtop{transform:rotate(-7deg)}";
-
-const bakeExpectUrl = (species: string, config: GameConfig, sizePx: number) =>
-  bakeSpriteUrl(species, config, "success", EXPECT_POSE, sizePx);
 
 /** 期待光晕的外扩边距（CSS px）：光晕烘进离屏帧（贴精灵剪影的金色辉光），
  *  运行时零模糊成本，只按 alpha 脉动。 */
@@ -791,6 +788,7 @@ export function FactoryScene({
     x: number;
     y: number;
     r: number;
+    scale: number;
     animated: boolean;
   }[]>([]);
   const [heroWave, setHeroWave] = useState(0);
@@ -823,6 +821,7 @@ export function FactoryScene({
       x: number;
       y: number;
       r: number;
+      scale: number;
       animated: boolean;
     }[] = [];
     // 本次结算里有触发效果的咕噜都必须保持正常亮度，不能因数量截断而落回压暗画布。
@@ -835,6 +834,7 @@ export function FactoryScene({
           x: b.x,
           y: b.y,
           r: b.r,
+          scale: rogue.bodyScale?.(uid) ?? 1,
           animated: heroes.length < SPOTLIGHT_ANIMATED_HERO_MAX,
         });
       }
@@ -1035,24 +1035,33 @@ export function FactoryScene({
       cache.set(species, entry);
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const sizePx = Math.round(PET_SIZE * dpr);
+      // 六张工作帧共享同一份静态 SVG 骨架，只注入不同姿态 CSS。旧实现每帧都
+      // renderToStaticMarkup 一次，在物种很多时会制造大量短命字符串与 React 树。
+      const workMarkup = bakeSpriteMarkup(species, config, "laboring", sizePx);
       const loads = Array.from(
         { length: FRAME_COUNT },
         (_, i) =>
           new Promise<HTMLCanvasElement>((resolve, reject) => {
             const img = new Image();
+            const url = bakeSpriteUrl(workMarkup, workPoseStyle(i / FRAME_COUNT));
             img.onload = () => {
               const frame = document.createElement("canvas");
               frame.width = sizePx;
               frame.height = sizePx;
               frame.getContext("2d")?.drawImage(img, 0, 0, sizePx, sizePx);
+              URL.revokeObjectURL(url);
               resolve(frame);
             };
-            img.onerror = () => reject(new Error(`bake ${species} frame ${i} failed`));
-            img.src = bakeFrameUrl(species, config, i / FRAME_COUNT, sizePx);
+            img.onerror = () => {
+              URL.revokeObjectURL(url);
+              reject(new Error(`bake ${species} frame ${i} failed`));
+            };
+            img.src = url;
           }),
       );
       const sleepLoad = new Promise<HTMLCanvasElement>((resolve, reject) => {
         const img = new Image();
+        const url = bakeSpriteUrl(bakeSpriteMarkup(species, config, "sleeping", sizePx), "");
         img.onload = () => {
           const frame = document.createElement("canvas");
           frame.width = sizePx;
@@ -1064,14 +1073,19 @@ export function FactoryScene({
             ctx.drawImage(img, 0, 0, sizePx, sizePx);
             ctx.filter = "none";
           }
+          URL.revokeObjectURL(url);
           resolve(frame);
         };
-        img.onerror = () => reject(new Error(`bake ${species} sleep frame failed`));
-        img.src = bakeSleepFrameUrl(species, config, sizePx);
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error(`bake ${species} sleep frame failed`));
+        };
+        img.src = url;
       });
       // 期待帧：本体 + 预烘光晕（金色辉光贴精灵剪影烘死在帧里，运行时只调 alpha）。
       const expectLoad = new Promise<[HTMLCanvasElement, HTMLCanvasElement]>((resolve, reject) => {
         const img = new Image();
+        const url = bakeSpriteUrl(bakeSpriteMarkup(species, config, "success", sizePx), EXPECT_POSE);
         img.onload = () => {
           const base = document.createElement("canvas");
           base.width = sizePx;
@@ -1088,10 +1102,14 @@ export function FactoryScene({
             g.drawImage(img, pad, pad, sizePx, sizePx);
             g.drawImage(img, pad, pad, sizePx, sizePx); // 叠两次加浓辉光
           }
+          URL.revokeObjectURL(url);
           resolve([base, glow]);
         };
-        img.onerror = () => reject(new Error(`bake ${species} expect failed`));
-        img.src = bakeExpectUrl(species, config, sizePx);
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error(`bake ${species} expect failed`));
+        };
+        img.src = url;
       });
       void Promise.all([Promise.all(loads), sleepLoad, expectLoad])
         .then(([frames, sleepFrame, [expectBase, expectGlow]]) => {
@@ -1129,16 +1147,23 @@ export function FactoryScene({
     const w = window as unknown as {
       __facStats?: typeof statsRef.current;
       __facBodies?: () => unknown[];
+      __facAtlas?: () => unknown[];
     };
     w.__facStats = statsRef.current;
-    (w as { __facAtlas?: () => unknown[] }).__facAtlas = () =>
+    const readAtlas = () =>
       Array.from(atlasRef.current.entries()).map(([species, atlas]) => ({
         species,
         ready: atlas.ready,
         frames: atlas.frames.length,
         expect: atlas.expectBase != null && atlas.expectGlow != null,
+        estimatedBytes: [
+          ...atlas.frames,
+          atlas.sleepFrame,
+          atlas.expectBase,
+          atlas.expectGlow,
+        ].reduce((sum, frame) => sum + (frame == null ? 0 : frame.width * frame.height * 4), 0),
       }));
-    w.__facBodies = () =>
+    const readBodies = () =>
       Array.from(bodiesRef.current.values()).map((b) => ({
         uid: b.uid,
         species: b.species,
@@ -1152,8 +1177,13 @@ export function FactoryScene({
         squishX: Math.round(b.curSqX * 1000) / 1000,
         squishY: Math.round(b.curSqY * 1000) / 1000,
       }));
+    w.__facAtlas = readAtlas;
+    w.__facBodies = readBodies;
     return () => {
-      delete w.__facBodies;
+      // StrictMode/HMR 可能让旧实例的 cleanup 晚于新实例 setup；只撤销自己注册的句柄，
+      // 避免旧 cleanup 把当前压测监控口一并删除。
+      if (w.__facBodies === readBodies) delete w.__facBodies;
+      if (w.__facAtlas === readAtlas) delete w.__facAtlas;
     };
   }, []);
 
@@ -1470,23 +1500,35 @@ export function FactoryScene({
     });
     if (settled.length > 0) {
       const supported = new Set<number>();
-      for (const b of settled) if (onSurface(b)) supported.add(b.uid);
-      let changed = true;
-      while (changed) {
-        changed = false;
-        for (const b of settled) {
-          if (supported.has(b.uid)) continue;
-          for (const s of settled) {
-            if (!supported.has(s.uid)) continue;
-            const rr = (b.r + s.r) * 1.12;
-            const dx = b.x - s.x;
-            const dy = b.y - s.y;
-            if (dx * dx + dy * dy > rr * rr) continue;
-            if (s.y < b.y - (b.r + s.r) * 0.3) continue; // 支撑者不能整体在上方
-            supported.add(b.uid);
-            changed = true;
-            break;
-          }
+      const supportEdges = new Map<number, number[]>();
+      for (const b of settled) supportEdges.set(b.uid, []);
+      // 接触关系在一次支撑重算中不会改变，先用 O(n²) 构图，再从表面根节点做 BFS。
+      // 旧实现每扩散一层都会重新扫描全部已支撑/未支撑组合，深塔最坏会到 O(n³)。
+      for (let i = 0; i < settled.length; i++) {
+        const a = settled[i];
+        for (let j = i + 1; j < settled.length; j++) {
+          const b = settled[j];
+          const radii = a.r + b.r;
+          const rr = radii * 1.12;
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          if (dx * dx + dy * dy > rr * rr) continue;
+          // 方向与旧判定完全一致：支撑者不能整体位于被支撑者上方。
+          if (a.y >= b.y - radii * 0.3) supportEdges.get(a.uid)!.push(b.uid);
+          if (b.y >= a.y - radii * 0.3) supportEdges.get(b.uid)!.push(a.uid);
+        }
+      }
+      const supportQueue: number[] = [];
+      for (const b of settled) {
+        if (!onSurface(b)) continue;
+        supported.add(b.uid);
+        supportQueue.push(b.uid);
+      }
+      for (let i = 0; i < supportQueue.length; i++) {
+        for (const uid of supportEdges.get(supportQueue[i]) ?? []) {
+          if (supported.has(uid)) continue;
+          supported.add(uid);
+          supportQueue.push(uid);
         }
       }
       const falling = settled.filter((b) => !supported.has(b.uid));
@@ -1619,7 +1661,13 @@ export function FactoryScene({
     });
     if (settled.length < STRIKE_COUNT) return;
     const parent = new Map<number, number>();
+    const bySpecies = new Map<string, Body[]>();
     settled.forEach((b) => parent.set(b.uid, b.uid));
+    for (const b of settled) {
+      const sameSpecies = bySpecies.get(b.species);
+      if (sameSpecies) sameSpecies.push(b);
+      else bySpecies.set(b.species, [b]);
+    }
     const find = (u: number): number => {
       let root = u;
       while (parent.get(root) !== root) root = parent.get(root)!;
@@ -1631,16 +1679,17 @@ export function FactoryScene({
       }
       return root;
     };
-    for (let i = 0; i < settled.length; i++) {
-      for (let j = i + 1; j < settled.length; j++) {
-        const a = settled[i];
-        const c = settled[j];
-        if (a.species !== c.species) continue;
-        const rr = (a.r + c.r) * CONTACT_SLACK;
-        const dx = a.x - c.x;
-        const dy = a.y - c.y;
-        if (dx * dx + dy * dy > rr * rr) continue;
-        parent.set(find(a.uid), find(c.uid));
+    for (const sameSpecies of bySpecies.values()) {
+      for (let i = 0; i < sameSpecies.length; i++) {
+        for (let j = i + 1; j < sameSpecies.length; j++) {
+          const a = sameSpecies[i];
+          const c = sameSpecies[j];
+          const rr = (a.r + c.r) * CONTACT_SLACK;
+          const dx = a.x - c.x;
+          const dy = a.y - c.y;
+          if (dx * dx + dy * dy > rr * rr) continue;
+          parent.set(find(a.uid), find(c.uid));
+        }
       }
     }
     const groups = new Map<number, Body[]>();
@@ -2432,6 +2481,10 @@ export function FactoryScene({
         for (const b of deserted) {
           bodies.delete(b.uid);
           goneIds.add(b.uid);
+          if (b.rogueReported !== true) {
+            b.rogueReported = true;
+            rg.onBounced(b.uid, b.species);
+          }
           const dir: 1 | -1 = b.x < sc.w / 2 ? -1 : 1;
           runnersRef.current.set(b.uid, {
             uid: b.uid,
@@ -2782,7 +2835,12 @@ export function FactoryScene({
                   height: PET_SIZE,
                 }}
               >
-                <SvgSprite species={hpet.species} config={config} petState="laboring" className="fac-pet-sprite" />
+                <div
+                  className="fac-hero-pet-scale"
+                  style={{ transform: `scale(${hpet.scale})` }}
+                >
+                  <SvgSprite species={hpet.species} config={config} petState="laboring" className="fac-pet-sprite" />
+                </div>
               </div>
             ))}
           </div>
@@ -2801,7 +2859,7 @@ export function FactoryScene({
             }}
           >
             <SvgSprite species={failedPet.species} config={config} petState="error" className="fac-pet-sprite" />
-            <div className="fac-failure-text">{failedPet.text}</div>
+            <div className="fac-failure-text" lang={lang}>{failedPet.text}</div>
           </div>
         </div>
       )}

@@ -5,7 +5,8 @@
   position: fixed;
   inset: 0;
   pointer-events: none; /* 非阻塞：绝不挡任何点击 */
-  z-index: 9000;
+  /* Above full-screen gameplay overlays (10000), below the onboarding card (10060). */
+  z-index: 10050;
   overflow: hidden;
 }
 
@@ -90,6 +91,9 @@
   gap: 6px;
   transform: translateX(-50%);
 }
+.coach-keys.is-drop {
+  filter: drop-shadow(0 8px 10px rgba(46, 27, 12, 0.34));
+}
 .coach-key {
   --coach-key-tilt: -1.2deg;
   min-width: 26px;
@@ -118,6 +122,35 @@
   min-width: 34px;
   font-size: 17px;
 }
+.coach-key.is-space {
+  --coach-key-tilt: 0deg;
+  width: clamp(190px, 34vw, 330px);
+  height: 64px;
+  padding: 0 24px;
+  flex-direction: column;
+  gap: 2px;
+  color: #3b2718;
+  background: linear-gradient(180deg, #fffdf5 0%, #ffe7a3 72%, #ffd36a 100%);
+  border-width: 4px;
+  border-radius: 13px;
+  box-shadow:
+    0 8px 0 #ad6e24,
+    0 0 0 5px rgba(255, 208, 72, 0.3),
+    0 0 26px 8px rgba(255, 190, 42, 0.58);
+  animation: coach-space-press 1.05s ease-in-out infinite;
+}
+.coach-space-label {
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+.coach-space-action {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #8c521b;
+}
 .coach-key:nth-child(2) {
   animation-delay: 0.18s;
 }
@@ -129,6 +162,25 @@
   }
   50% {
     transform: rotate(var(--coach-key-tilt)) translateY(-5px);
+  }
+}
+
+@keyframes coach-space-press {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow:
+      0 8px 0 #ad6e24,
+      0 0 0 5px rgba(255, 208, 72, 0.3),
+      0 0 26px 8px rgba(255, 190, 42, 0.58);
+  }
+  42%,
+  58% {
+    transform: translateY(6px) scale(0.985);
+    box-shadow:
+      0 2px 0 #ad6e24,
+      0 0 0 8px rgba(255, 208, 72, 0.18),
+      0 0 38px 12px rgba(255, 190, 42, 0.8);
   }
 }
 
@@ -200,6 +252,7 @@
   .coach-hand,
   .coach-hand.is-down,
   .coach-key,
+  .coach-key.is-space,
   .coach-arrow,
   .coach-arrow-down,
   .coach-ring {

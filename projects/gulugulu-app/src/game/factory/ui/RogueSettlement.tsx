@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { GameConfig } from "../../../types";
+import type { GameConfig, GameSave } from "../../../types";
 import { speciesDisplayName } from "../../../i18n";
 import { useT } from "../../../useT";
 import { SvgSprite } from "../../../sprites/SvgSprite";
@@ -12,11 +12,13 @@ export function RogueSettlement({
   run,
   view,
   config,
+  save,
   firstRunGuide = false,
 }: {
   run: RogueRunApi;
   view: RunView;
   config: GameConfig;
+  save: GameSave;
   firstRunGuide?: boolean;
 }) {
   const { lang } = useT();
@@ -26,6 +28,11 @@ export function RogueSettlement({
   const timerRef = useRef<number | null>(null);
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
+
+  const displaySpeciesName = (species: string) => {
+    const info = save.customSpecies[species]?.info ?? config.species[species];
+    return speciesDisplayName(species, lang, info?.nameZh, info?.nameEn);
+  };
 
   useEffect(() => {
     if (!paying) return;
@@ -69,6 +76,7 @@ export function RogueSettlement({
         base: "打工业绩",
         absorbed: "压榨业绩",
         extra: "额外业绩",
+        pools: "元素 · 连携 · 工种 · 连击",
         empty: "本班没有获得团队业绩",
         desks: (count: number) => `${count} 张办公桌`,
         wallet: "我的钱包",
@@ -91,6 +99,7 @@ export function RogueSettlement({
         base: "Work Performance",
         absorbed: "Exploitation Performance",
         extra: "Bonus Performance",
+        pools: "Element · Synergy · Job · Rhythm",
         empty: "No Team Performance earned this shift",
         desks: (count: number) => `${count} desk${count === 1 ? "" : "s"}`,
         wallet: "My wallet",
@@ -149,15 +158,27 @@ export function RogueSettlement({
                     <SvgSprite species={pulse.species} config={config} petState="success" />
                   </span>
                   <span className="fr-settlement-pulse-name">
-                    <b>{speciesDisplayName(pulse.species, lang)}</b>
-                    <small>#{index + 1} · {words.desks(pulse.deskCount)}</small>
+                    <b>{displaySpeciesName(pulse.species)}</b>
+                    <small>
+                      #{index + 1} · {words.desks(pulse.deskCount)}
+                      {" · "}×{pulse.deskScoreMult ?? pulse.deskCount}
+                    </small>
                   </span>
                   <strong title={words.team}>+¥{formatCount(pulse.total + extras)}</strong>
                 </summary>
                 <div className="fr-settlement-contributors">
+                  <div className="is-extra">
+                    <span>{words.pools}</span>
+                    <b>
+                      ×{(pulse.elementMult ?? pulse.teamMult ?? 1).toFixed(2)}
+                      {" · "}×{(pulse.synergyCardMult ?? pulse.networkMult ?? 1).toFixed(2)}
+                      {" · "}×{(pulse.jobMult ?? pulse.individualMult ?? 1).toFixed(2)}
+                      {" · "}×{(pulse.rhythmMult ?? pulse.comboMult ?? 1).toFixed(2)}
+                    </b>
+                  </div>
                   {pulse.contributors.map((part) => (
                     <div key={`${part.uid}-${part.role}`}>
-                      <span>{part.role === "head" ? words.base : words.absorbed} · {speciesDisplayName(part.species, lang)}</span>
+                      <span>{part.role === "head" ? words.base : words.absorbed} · {displaySpeciesName(part.species)}</span>
                       <b>¥{formatCount(part.amount)}</b>
                     </div>
                   ))}

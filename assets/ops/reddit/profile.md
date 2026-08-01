@@ -11,7 +11,7 @@
 ## About（≤200 字符）
 
 ```
-Mobi Studio — tiny studio, one human + a lot of Claude. Now raising Gulugulu: a free Steam desktop pet that reacts to your AI coding agents (Claude Code / Codex). 🐣
+Mobi Studio — tiny studio, one human + a lot of Claude. Raising Gulugulu: a $1.99 Steam desktop pet for Claude Code / Codex. Launching Aug 18. 🐣
 ```
 
 ## 注册后注意（关键：养号期）

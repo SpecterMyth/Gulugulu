@@ -396,10 +396,9 @@ pub fn species_codename_for_def(config: &GameConfig, def: u32) -> Option<String>
 
 /// 收取的本地物种：蛋已解析出 AI 自定义物种 → 用自定义 codename
 /// （Steam 侧按目录物种记账）；否则信 Steam 实际发放的 def（随机就绪）——但
-/// **只有 def 解析成本地已注册物种（目录 / 已导入变种）才可信**：未注册的 AI 槽
-/// 码名（生成未成功的变种）当物种孵出会渲染成兜底鸭。生成未成功（挂起未解析）
-/// 的蛋改孵**该配方的 0 号固有物种**（形象/名字都用它）；已定案蛋保留自身物种
-/// （教学首融绑了变种 def 的容忍口径，与 apply_fused_result 一致）。
+/// Steam 已经发放 AI 槽位 def 时，该确定性 codename 就是宠物的权威身份，即使形象
+/// 尚未生成也必须保留；渲染层会在 custom_species 到达前暂用兜底形象。这样提前领取
+/// 不会让本地固定物种与 Steam AI 道具永久分叉。
 pub fn collect_species_for(
     config: &GameConfig,
     save: &GameSave,
@@ -414,9 +413,7 @@ pub fn collect_species_for(
     if custom_resolved {
         return egg.species.clone();
     }
-    let registered = species_codename_for_def(config, granted_def)
-        .filter(|c| config.species.contains_key(c) || save.custom_species.contains_key(c));
-    if let Some(code) = registered {
+    if let Some(code) = species_codename_for_def(config, granted_def) {
         return code;
     }
     if let Some(p) = pending {
@@ -1174,7 +1171,54 @@ pub fn repair_unbound_tier2(config: &GameConfig, save: &mut GameSave) -> bool {
                 }
             }
         }
-        let Some((i, j)) = pair else { continue };
+        let Some((i, j)) = pair else {
+            // v6 onboarding's second guided fusion is Water + Electric. Older builds
+            // consumed the two locally granted parents before creating a Steam Fuse op,
+            // leaving the resulting Voltmare permanently local. There are consequently
+            // no parent instances left for the conservative repair above to consume.
+            //
+            // Reconstruct only this precisely identifiable tutorial receipt. The pump
+            // still mints both tier-1 materials through their normal server generators
+            // and exchanges them atomically; it never grants/binds the tier-2 item
+            // directly. This preserves Steam as the ownership authority while making
+            // old saves converge with the current local-first fusion flow.
+            if recipe_key == "electric+water"
+                && save.onboarding.tutorial_fusions >= 2
+                && save.onboarding.starter_trio_claimed
+            {
+                let parent_species = ["electric", "water"]
+                    .map(|element| config.species_by_recipe.get(element).cloned());
+                let parent_defs = parent_species.clone().map(|species| {
+                    species
+                        .as_ref()
+                        .and_then(|codename| config.steam_def_for_species(codename))
+                });
+                if let ([Some(sp_a), Some(sp_b)], [Some(def_a), Some(def_b)]) =
+                    (parent_species, parent_defs)
+                {
+                    save.steam_outbox.push(SteamOp::Fuse {
+                        op_id: new_id("op"),
+                        pet_a: String::new(),
+                        pet_b: String::new(),
+                        item_a: String::new(),
+                        item_b: String::new(),
+                        egg_def: target_def,
+                        recipe_key,
+                        applied: true,
+                        awaiting_result: false,
+                        mat_def_a: def_a,
+                        mat_def_b: def_b,
+                        egg_id: None,
+                        pet_id: Some(pet_id),
+                        parents: Some([sp_a, sp_b]),
+                        attempts: 0,
+                        next_retry_at: 0,
+                    });
+                    changed = true;
+                }
+            }
+            continue;
+        };
         let (id_a, sp_a, _) = candidates[i].clone();
         let (id_b, sp_b, _) = candidates[j].clone();
         let item_a = save
@@ -1333,6 +1377,7 @@ fn build_imported_pet(
             stamina: config.stamina_max,
             stamina_updated_at: now,
             exhausted: false,
+            pending_fusion: None,
             key_buffer: 0,
             token_buffer: 0,
             steam_item_id: Some(item.item_id.clone()),
@@ -1349,6 +1394,7 @@ fn build_imported_pet(
         stamina: config.stamina_max,
         stamina_updated_at: now,
         exhausted: false,
+        pending_fusion: None,
         key_buffer: 0,
         token_buffer: 0,
         steam_item_id: Some(item.item_id.clone()),
@@ -1499,6 +1545,7 @@ mod tests {
             stamina: 100,
             stamina_updated_at: 1000,
             exhausted: false,
+            pending_fusion: None,
             key_buffer: 0,
             token_buffer: 0,
             steam_item_id: None,
@@ -2471,6 +2518,46 @@ mod tests {
     }
 
     #[test]
+    fn fixed_slot_binding_cancels_provisional_ai_generation() {
+        // 二阶本地先行时，在 Steam 随机结果返回前会临时挂 pending；如果服务器掷中
+        // 0 号固定槽，回绑必须清掉任务并落定经典配方，绝不能继续调用 AI。
+        let config = config();
+        let mut save = fresh(&config);
+        let pending = PendingFusionInfo {
+            parents: ["guluduck".into(), "bubblefrog".into()],
+            recipe_key: "normal+water".into(),
+            requested_at: 1_234,
+            attempts: 0,
+            status: "pending".into(),
+            last_error: None,
+            provider: None,
+            forced_codename: None,
+        };
+        push_unbound_t2_egg(&mut save, "egg-fixed", Some(pending));
+
+        apply_fused_result(
+            &config,
+            &mut save,
+            "item-fixed".into(),
+            615, // normal+water 的 0 号固定物种 sudsotter
+            "normal+water",
+            &["guluduck".into(), "bubblefrog".into()],
+            Some("egg-fixed"),
+            None,
+            7_000,
+        );
+
+        let egg = save.eggs.iter().find(|e| e.id == "egg-fixed").unwrap();
+        assert_eq!(egg.species, "sudsotter");
+        assert!(
+            egg.pending_fusion.is_none(),
+            "Steam 掷中固定槽后不得残留 AI 生成任务"
+        );
+        assert_eq!(egg.steam_item_id.as_deref(), Some("item-fixed"));
+        assert_eq!(egg.steam_item_def, Some(615));
+    }
+
+    #[test]
     fn decided_recipe_egg_keeps_species_when_granted_ai_slot() {
         // 教学首融特作：蛋创建时已定案经典配方（无 pending）。并集生成器兑换掷中
         // 未注册 AI 槽 def(11403=aif1403) → 只回绑物品；物种保持经典、绝不改挂 AI
@@ -2513,9 +2600,9 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_pending_egg_hatches_recipe_canonical() {
-        // AI 生成未成功（挂起未解析）：收取不再孵出未注册槽码名（渲染成兜底鸭），
-        // 而是该配方的 0 号固有物种（形象+名字）；实发 def 只有解析成已注册物种才可信。
+    fn unresolved_steam_ai_egg_keeps_authoritative_slot_codename() {
+        // Steam 已经发放 AI 槽位道具时，物种身份必须立即采用确定性 codename；
+        // custom_species 尚未生成只影响暂时显示的形象，不得降级成 0 号固定物种。
         let config = config();
         let mut save = fresh(&config);
         let pending = PendingFusionInfo {
@@ -2533,8 +2620,8 @@ mod tests {
         save.eggs.last_mut().unwrap().steam_item_def = Some(11_403);
         assert_eq!(
             collect_species_for(&config, &save, 0, 11_403),
-            "sudsotter",
-            "未解析挂起蛋孵配方 0 号固有物种"
+            "aif1403",
+            "未解析挂起蛋仍保留 Steam AI 槽位身份"
         );
         // 对照 1：实发 def 是已注册目录物种（0 号固定）→ 信 def。
         assert_eq!(collect_species_for(&config, &save, 0, 615), "sudsotter");
@@ -2639,6 +2726,56 @@ mod tests {
         // 幂等：snowcub 已被 op 引用 → 二次调用无新变更。
         assert!(!repair_unbound_tier2(&config, &mut save));
         assert_eq!(save.steam_outbox.len(), 1);
+    }
+
+    #[test]
+    fn repair_legacy_tutorial_voltmare_reconstructs_missing_material_mints() {
+        let config = config();
+        let mut save = fresh(&config);
+        save.onboarding.tutorial_fusions = 2;
+        save.onboarding.starter_trio_claimed = true;
+        let voltmare = add_pet(&mut save, "voltmare", 2, 20);
+
+        assert!(repair_unbound_tier2(&config, &mut save));
+        assert!(save.pets.iter().any(|pet| pet.id == voltmare));
+        assert_eq!(save.steam_outbox.len(), 1);
+        let SteamOp::Fuse {
+            applied,
+            pet_id,
+            item_a,
+            item_b,
+            mat_def_a,
+            mat_def_b,
+            egg_def,
+            recipe_key,
+            ..
+        } = &save.steam_outbox[0]
+        else {
+            panic!("legacy tutorial repair must enqueue a Fuse op");
+        };
+        assert!(*applied);
+        assert_eq!(pet_id.as_deref(), Some(voltmare.as_str()));
+        assert!(item_a.is_empty() && item_b.is_empty());
+        assert_eq!((*mat_def_a, *mat_def_b), (103, 104));
+        assert_eq!(recipe_key, "electric+water");
+        assert_eq!(
+            *egg_def,
+            exchange_target_def(&config, "electric+water").unwrap()
+        );
+
+        // The target is now referenced by the op, so repeated startup sweeps are idempotent.
+        assert!(!repair_unbound_tier2(&config, &mut save));
+        assert_eq!(save.steam_outbox.len(), 1);
+    }
+
+    #[test]
+    fn repair_unproven_local_voltmare_does_not_mint_assets() {
+        let config = config();
+        let mut save = fresh(&config);
+        add_pet(&mut save, "voltmare", 2, 20);
+
+        assert!(!repair_unbound_tier2(&config, &mut save));
+        assert!(save.steam_outbox.is_empty());
     }
 
     #[test]

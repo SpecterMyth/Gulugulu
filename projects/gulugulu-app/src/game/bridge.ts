@@ -9,6 +9,7 @@ import type {
   DynamicQuote,
   EnergyFeedOutcome,
   FactoryLeaderboardResult,
+  FactoryLeaderboardPage,
   FactoryLeaderboardStatus,
   FactoryRogueAchievementSnapshot,
   FusionCliStatus,
@@ -95,6 +96,8 @@ export interface GameBridge {
   setAlwaysOnTop(enabled: boolean): Promise<AppSettings>;
   setRandomMovement(enabled: boolean): Promise<AppSettings>;
   setLanguage(language: string): Promise<AppSettings>;
+  /** 后台动态台词 AI 的独立同意开关。关闭后回到纯静态台词。 */
+  setDynamicQuoteAi(enabled: boolean): Promise<AppSettings>;
   /** AI 融合首选 Agent（"claude" | "codex"）。 */
   setDefaultAgent(agent: string): Promise<AppSettings>;
   /** AI 融合首选模型（首选 Agent 下的模型别名；空串 = CLI 默认模型）。 */
@@ -103,7 +106,7 @@ export interface GameBridge {
   listAgentModels(): Promise<AgentModels>;
   /** 开机自动启动开关（Tauri：写系统注册项；预览：仅内存态）。 */
   setAutostart(enabled: boolean): Promise<AppSettings>;
-  /** 「开机自启」引导弹窗展示一次后调用：计数 +1（封顶 3）。返回新设置快照。 */
+  /** 「开机自启」引导弹窗展示一次后调用：记录历史展示次数并返回新设置快照。 */
   noteAutostartPromptShown(): Promise<AppSettings>;
   /** 订阅设置变更（settings://changed，托盘或其它入口改动时推送）。Returns unsubscribe. */
   onSettingsChanged(handler: (settings: AppSettings) => void): () => void;
@@ -131,6 +134,8 @@ export interface GameBridge {
   recordFactoryLeaderboardResult(result: FactoryLeaderboardResult): Promise<FactoryLeaderboardStatus>;
   /** 读取本人工厂最高营收榜的本地 outbox / Steam 排名状态。 */
   getFactoryLeaderboardStatus(): Promise<FactoryLeaderboardStatus>;
+  /** 读取全球前 100 名及当前玩家条目。 */
+  getFactoryLeaderboard(): Promise<FactoryLeaderboardPage>;
   onFactoryLeaderboardStatus(handler: (status: FactoryLeaderboardStatus) => void): () => void;
   /** 订阅 achievement://unlocked（成就解锁；前端庆祝 toast + 宠物欢呼）。Returns unsubscribe. */
   onAchievementUnlocked(handler: (payload: AchievementUnlock) => void): () => void;
@@ -312,6 +317,9 @@ class TauriBridge implements GameBridge {
   setLanguage(language: string) {
     return invoke<AppSettings>("set_language", { language });
   }
+  setDynamicQuoteAi(enabled: boolean) {
+    return invoke<AppSettings>("set_dynamic_quote_ai", { enabled });
+  }
   setDefaultAgent(agent: string) {
     return invoke<AppSettings>("set_default_agent", { agent });
   }
@@ -432,6 +440,9 @@ class TauriBridge implements GameBridge {
   getFactoryLeaderboardStatus() {
     return invoke<FactoryLeaderboardStatus>("get_factory_leaderboard_status");
   }
+  getFactoryLeaderboard() {
+    return invoke<FactoryLeaderboardPage>("get_factory_leaderboard");
+  }
   onFactoryLeaderboardStatus(handler: (status: FactoryLeaderboardStatus) => void) {
     let disposed = false;
     let dispose: (() => void) | undefined;
@@ -542,13 +553,15 @@ class MockBridge implements GameBridge {
   private staminaHandlers = new Set<(event: StaminaPatchEvent) => void>();
   private expHandlers = new Set<(event: TokenFeedOutcome) => void>();
   private settingsHandlers = new Set<(settings: AppSettings) => void>();
-  private keyboardEnabled = true;
-  // 预览模式没有 Rust 单一真源：设置存内存（keyboardCapture 与 keyboardEnabled 同步）。
+  private quoteHandlers = new Set<(quotes: DynamicQuote[]) => void>();
+  private keyboardEnabled = false;
+  // 预览模式没有 Rust 单一真源：设置存内存；外部能力与正式版一样默认拒绝。
   private appSettings: AppSettings = {
-    keyboardCapture: true,
+    keyboardCapture: false,
+    dynamicQuoteAi: false,
     alwaysOnTop: true,
     randomMovement: true,
-    language: window.localStorage.getItem("gulugulu.language") ?? "zh",
+    language: window.localStorage.getItem("gulugulu.language") ?? "en",
     // 预览模式无系统注册项：自启态与引导计数仅存内存（供 UI / 弹窗流程演示）。
     autostart: false,
     autostartPromptCount: 0,
@@ -751,6 +764,14 @@ class MockBridge implements GameBridge {
     this.emitSettings();
     return Promise.resolve({ ...this.appSettings });
   }
+  setDynamicQuoteAi(enabled: boolean) {
+    this.appSettings.dynamicQuoteAi = enabled;
+    this.emitSettings();
+    if (!enabled) {
+      for (const handler of this.quoteHandlers) handler([]);
+    }
+    return Promise.resolve({ ...this.appSettings });
+  }
   setDefaultAgent(agent: string) {
     this.appSettings.defaultAgent = agent === "codex" ? "codex" : "claude";
     this.emitSettings();
@@ -808,8 +829,9 @@ class MockBridge implements GameBridge {
   getDynamicQuotes() {
     return Promise.resolve([] as DynamicQuote[]);
   }
-  onQuotesReady() {
-    return () => {};
+  onQuotesReady(handler: (quotes: DynamicQuote[]) => void) {
+    this.quoteHandlers.add(handler);
+    return () => this.quoteHandlers.delete(handler);
   }
   getSteamStatus() {
     // 网页预览没有 Steam:恒 unavailable,顺带免费验证降级 UI。
@@ -851,6 +873,22 @@ class MockBridge implements GameBridge {
   }
   getFactoryLeaderboardStatus() {
     return Promise.resolve(this.factoryLeaderboardUnavailable());
+  }
+  getFactoryLeaderboard() {
+    const speciesCount = 84;
+    const entries = Array.from({ length: 100 }, (_, index) => ({
+      rank: index + 1,
+      steamId: `7656119${String(index + 1).padStart(10, "0")}`,
+      personaName: index === 36 ? "You · Preview" : `Gulu Worker ${index + 1}`,
+      score: 125000 - index * 937,
+      revenueTotal: String((125000 - index * 937) * 100),
+      bestShift: Math.max(6, 42 - Math.floor(index / 4)),
+      endless: index < 24,
+      balanceVersion: 3,
+      loadout: Array.from({ length: 3 + (index % 8) }, (_, slot) => ((index * 7 + slot * 11) % speciesCount) + 1),
+      isMe: index === 36,
+    }));
+    return Promise.resolve({ entries, me: entries[36], updatedAt: Math.floor(Date.now() / 1000) });
   }
   onFactoryLeaderboardStatus() {
     return () => {};

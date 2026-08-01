@@ -14,11 +14,11 @@
 ```
 Mobi Studio — tiny studio, one human + a lot of Claude, making playful things.
 
-Now raising Gulugulu: a free Steam desktop pet that lives beside your code. It reacts while your AI coding agent (Claude Code / Codex) works — eating tokens, leveling up, and hatching AI-designed species you can collect, fuse, and trade on the Steam market.
+Now raising Gulugulu: a $1.99 Steam desktop pet launching August 18. It lives beside your code and reacts while your AI coding agent (Claude Code / Codex) works — eating tokens, leveling up, and hatching AI-designed species you can collect and fuse.
 
 Trailers, devlogs, and weird fusion reveals live here. Made by one human (Mobi Studio) + a lot of Claude.
 
-Gulugulu（咕噜咕噜）是住在你代码旁边的免费 Steam 桌宠：AI 编程代理干活时它吃 token 长大，还能孵化、融合出 AI 现场设计的新物种，在 Steam 市场收集与交易。这里放预告片、开发日志和融合怪物种揭晓。
+Gulugulu（咕噜咕噜）是住在你代码旁边的 Steam 桌宠，首发价 $1.99，8 月 18 日上线：AI 编程代理干活时它吃 token 长大，还能孵化、融合出 AI 现场设计的新物种。这里放预告片、开发日志和融合怪物种揭晓。
 ```
 
 ## 链接区（Customization → Links）

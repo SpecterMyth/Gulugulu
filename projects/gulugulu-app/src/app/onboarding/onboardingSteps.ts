@@ -1,8 +1,15 @@
 import type { UiMode } from "../../game/GamePanels";
 import { maxLevelForTier } from "../../game/config";
+import type { Language } from "../../i18n/core";
 import type { GameConfig, GameSave } from "../../types";
+import {
+  ONBOARDING_EN_COPY,
+  ONBOARDING_STEP_IDS,
+  onboardingLanguageFromStorage,
+  type OnboardingStepId,
+} from "./onboardingCopy";
 
-export type OnboardingGesture = "tap" | "rapidTap" | "keys" | "moveKeys" | "arrow" | "ring";
+export type OnboardingGesture = "tap" | "rapidTap" | "keys" | "moveKeys" | "drop" | "arrow" | "ring";
 
 export type OnboardingDirective = {
   step: string;
@@ -24,15 +31,6 @@ type Runtime = {
   nearMarket: boolean;
   fusionModalOpen: boolean;
 };
-
-const ORDER = [
-  "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11",
-  "A12", "A13", "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06",
-  "B07", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
-  "C11", "C12", "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "E01",
-  "E02", "E03", "F01", "F02", "F03a", "F04", "G01", "G02", "G03", "G04", "G05",
-  "G06", "G07",
-] as const;
 
 const COPY: Record<string, Omit<OnboardingDirective, "step" | "progress">> = {
   A01: { chapter: "破壳入职", label: "点这颗发光的蛋，把同事从壳里批准出来。", targetKey: "egg", gesture: "tap", ring: true, action: "target", requiredMode: "pet" },
@@ -107,6 +105,7 @@ export function onboardingDirective(
   save: GameSave,
   config: GameConfig,
   runtime: Runtime,
+  language: Language = onboardingLanguageFromStorage(),
 ): OnboardingDirective | null {
   const state = save.onboarding;
   if (!state || state.status !== "active" || state.step === "DONE") return null;
@@ -137,12 +136,17 @@ export function onboardingDirective(
     }
   }
 
-  const index = Math.max(0, ORDER.indexOf(state.step as (typeof ORDER)[number]));
+  const index = Math.max(0, ONBOARDING_STEP_IDS.indexOf(state.step as OnboardingStepId));
+  const localized = language === "en"
+    ? ONBOARDING_EN_COPY[state.step as OnboardingStepId]
+    : null;
   return {
     ...base,
+    ...(localized ?? {}),
+    cta: localized?.cta ?? base.cta,
     step: state.step,
     targetKey,
-    progress: `${index + 1}/${ORDER.length}`,
+    progress: `${index + 1}/${ONBOARDING_STEP_IDS.length}`,
   };
 }
 

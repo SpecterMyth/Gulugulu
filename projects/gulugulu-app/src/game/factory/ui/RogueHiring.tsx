@@ -57,7 +57,7 @@ export function RogueHiring({
     HIRING_PICK_LIMIT,
     Math.max(0, view.quotaMax - view.quotaUsed),
   );
-  const allSelected = selectableCount > 0 && hiring.selectedCount === selectableCount;
+  const allSelected = hiring.selectedCount > 0 && hiring.allAffordableSelected;
   const isPoolFull = view.quotaUsed >= view.quotaMax;
   const guideCandidateId = firstRunGuide
     ? [...hiring.candidates].sort((a, b) => b.price - a.price)[0]?.id
@@ -141,7 +141,7 @@ export function RogueHiring({
   };
 
   const toggleAllCandidates = () => {
-    run.setAllHiringCandidates(!allSelected);
+    run.toggleAllHiringCandidates();
   };
 
   return (

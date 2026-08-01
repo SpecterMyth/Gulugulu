@@ -69,8 +69,291 @@ mkdirSync(dirname(bundlePath), { recursive: true });
 writeFileSync(bundlePath, outputFiles[0].text);
 const G = await import(`${pathToFileURL(bundlePath).href}?v=${Date.now()}`);
 
+function cliValue(flag) {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
 const RUNS = Math.max(100, Number.parseInt(process.argv[2] ?? "500", 10) || 500);
 const SUMMARY_ONLY = process.argv.includes("--summary");
+const ALTERNATE_STRATEGY = process.argv.includes("--alternate-strategy");
+const ALTERNATE_LOADOUTS = ALTERNATE_STRATEGY || process.argv.includes("--alternate-loadouts");
+const FOUNDATION_GUARANTEE = process.argv.includes("--foundation-guarantee");
+const MONO_DESK_PROTECTION = process.argv.includes("--mono-desk-protection");
+const SEED_TEXT = cliValue("--seed") ?? "0x72901";
+const RUN_SEED = Number.parseInt(SEED_TEXT, SEED_TEXT.startsWith("0x") ? 16 : 10) >>> 0;
+const BALANCE_PROFILE = cliValue("--balance-profile") ?? "current";
+
+const BALANCE_PROFILES = {
+  "weak-card-boost-v1": {
+    "base.fire": { bonus: [5, 12, 30, 70, 160] },
+    "base.water": { bonus: [5, 12, 30, 70, 160] },
+    "base.grass": { bonus: [3, 8, 20, 50, 120] },
+    "base.electric": { bonus: [5, 12, 30, 70, 160] },
+    "base.ice": { bonus: [5, 12, 30, 70, 160] },
+    "base.normal": { bonus: [5, 12, 30, 70, 160] },
+    "fire.wildfire": { spread: [4, 8, 16, 32, 64] },
+    "water.same": { perTeamSame: [1.5, 2, 3, 5, 8] },
+    "water.convert": { targets: [2, 4, 6, 9, 12] },
+    "grass.grow": { chance: [0.3, 0.5, 0.7, 0.9, 1] },
+    "normal.gluttony": { perSize: [1, 2, 4, 8, 16] },
+    "normal.emperor": { grow: [2, 4, 8, 16, 32] },
+    "attr.hex": { perElement: [1, 2, 4, 8, 16] },
+    "attr.balance": { mult: [10, 20, 40, 80, 160] },
+    "syn.arcIgnite": { perDesk: [1, 2, 4, 8, 16] },
+    "syn.thermalShock": { echo: [10, 25, 60, 150, 400] },
+    "syn.greenhouse": { growCopies: [1, 1, 2, 3, 5] },
+    "syn.fireDispatch": { perMass: [2, 4, 8, 16, 32] },
+    "syn.short": { burst: [10, 25, 60, 150, 400] },
+    "syn.iceMirror": { perFrozenSame: [2, 4, 8, 16, 32] },
+    "syn.coldRotation": { perMass: [1, 2, 4, 8, 16] },
+    "syn.badge": { mult: [4, 8, 16, 32, 64] },
+    "syn.multiSeed": { inheritMass: [0.5, 0.75, 1, 1.5, 2.5] },
+    "staff.severance": { refund: [0.25, 0.5, 0.75, 1, 1] },
+    "staff.expand": { quota: 10 },
+    "staff.talentmarket": { rerollsPerLevel: 2, candidatesPerLevel: 2 },
+    "staff.backfill": { extraCandidates: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20] },
+    "staff.pricecut": { cut: [0.4, 0.6, 0.75, 0.9, 1] },
+  },
+  "weak-card-boost-v2": {
+    "base.fire": { bonus: [10, 25, 60, 140, 320] },
+    "base.water": { bonus: [10, 25, 60, 140, 320] },
+    "base.grass": { bonus: [6, 15, 35, 80, 180] },
+    "base.electric": { bonus: [10, 25, 60, 140, 320] },
+    "base.ice": { bonus: [10, 25, 60, 140, 320] },
+    "base.normal": { bonus: [10, 25, 60, 140, 320] },
+    "fire.wildfire": { spread: [6, 12, 24, 48, 96] },
+    "ice.freeze": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "water.same": { perTeamSame: [2, 3, 5, 8, 12] },
+    "water.convert": { targets: [3, 5, 8, 12, 16] },
+    "grass.grow": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "normal.gluttony": { perSize: [2, 4, 8, 16, 32] },
+    "normal.emperor": { grow: [3, 6, 12, 24, 48] },
+    "attr.hex": { perElement: [2, 4, 8, 16, 32] },
+    "attr.balance": { mult: [20, 40, 80, 160, 320] },
+    "syn.arcIgnite": { perDesk: [2, 4, 8, 16, 32] },
+    "syn.thermalShock": { echo: [20, 50, 125, 300, 750] },
+    "syn.greenhouse": { chance: [0.7, 0.85, 1, 1, 1], growCopies: [1, 2, 3, 4, 6] },
+    "syn.fireDispatch": { perMass: [4, 8, 16, 32, 64] },
+    "syn.short": { burst: [20, 50, 125, 300, 750] },
+    "syn.iceMirror": { perFrozenSame: [4, 8, 16, 32, 64] },
+    "syn.coldRotation": { perMass: [2, 4, 8, 16, 32] },
+    "syn.badge": { mult: [8, 16, 32, 64, 128] },
+    "syn.multiSeed": { inheritMass: [0.75, 1, 1.5, 2, 3] },
+    "staff.severance": { refund: [0.4, 0.65, 0.85, 1, 1] },
+    "staff.expand": { quota: 15 },
+    "staff.talentmarket": { rerollsPerLevel: 3, candidatesPerLevel: 3 },
+    "staff.backfill": { extraCandidates: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30] },
+    "staff.pricecut": { cut: [0.5, 0.7, 0.85, 0.95, 1] },
+  },
+  "weak-card-boost-v3": {
+    "base.fire": { bonus: [30, 80, 200, 500, 1200] },
+    "base.water": { bonus: [30, 80, 200, 500, 1200] },
+    "base.grass": { bonus: [20, 50, 125, 300, 750] },
+    "base.electric": { bonus: [30, 80, 200, 500, 1200] },
+    "base.ice": { bonus: [30, 80, 200, 500, 1200] },
+    "base.normal": { bonus: [30, 80, 200, 500, 1200] },
+    "fire.wildfire": { spread: [8, 20, 50, 125, 300] },
+    "ice.freeze": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "water.same": { perTeamSame: [2, 4, 8, 16, 32] },
+    "water.convert": { targets: [3, 6, 10, 15, 24] },
+    "grass.grow": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "normal.gluttony": { perSize: [3, 6, 12, 24, 48] },
+    "normal.emperor": { grow: [3, 6, 12, 24, 48] },
+    "attr.hex": { perElement: [3, 6, 12, 24, 48] },
+    "attr.balance": { mult: [30, 75, 180, 450, 1200] },
+    "syn.arcIgnite": { perDesk: [3, 6, 12, 24, 48] },
+    "syn.thermalShock": { echo: [30, 75, 180, 450, 1200] },
+    "syn.greenhouse": { chance: [1, 1, 1, 1, 1], growCopies: [2, 3, 4, 6, 10] },
+    "syn.fireDispatch": { perMass: [6, 12, 24, 48, 96] },
+    "syn.short": { burst: [30, 75, 180, 450, 1200] },
+    "syn.bionet": {
+      perGenerated: [1, 2, 4, 8, 16],
+      cap: 24,
+      generatedWeight: [1, 1, 2, 3, 5],
+    },
+    "syn.iceMirror": { perFrozenSame: [6, 12, 24, 48, 96] },
+    "syn.permafrost": {
+      perCrossEdge: [0.5, 1, 2, 4, 8],
+      cap: [8, 12, 16, 24, 99],
+    },
+    "syn.coldRotation": { perMass: [3, 6, 12, 24, 48] },
+    "syn.irrigation": { chanceMult: [3, 6, 12, 24, 48], growCopies: [1, 2, 3, 5, 8] },
+    "syn.badge": { mult: [12, 30, 75, 180, 450] },
+    "syn.multiSeed": { inheritMass: [1, 1.5, 2.5, 4, 6] },
+    "staff.severance": { refund: [0.4, 0.65, 0.85, 1, 1] },
+    "staff.expand": { quota: 15 },
+    "staff.talentmarket": { rerollsPerLevel: 3, candidatesPerLevel: 3 },
+    "staff.backfill": { extraCandidates: [3, 6, 9, 12, 15, 18, 21, 24, 27, 30] },
+    "staff.pricecut": { cut: [0.5, 0.7, 0.85, 0.95, 1] },
+  },
+  "weak-card-boost-v4": {
+    "base.fire": { bonus: [60, 180, 500, 1500, 5000] },
+    "base.water": { bonus: [60, 180, 500, 1500, 5000] },
+    "base.grass": { bonus: [40, 120, 350, 1000, 3000] },
+    "base.electric": { bonus: [60, 180, 500, 1500, 5000] },
+    "base.ice": { bonus: [60, 180, 500, 1500, 5000] },
+    "base.normal": { bonus: [60, 180, 500, 1500, 5000] },
+    "fire.wildfire": { spread: [10, 30, 90, 270, 800] },
+    "ice.freeze": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "water.same": { perTeamSame: [3, 8, 20, 50, 120] },
+    "water.convert": { targets: [4, 8, 14, 22, 36] },
+    "grass.grow": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "normal.gluttony": { perSize: [5, 15, 40, 100, 250] },
+    "normal.emperor": { grow: [5, 15, 40, 100, 250] },
+    "attr.hex": { perElement: [5, 15, 40, 100, 250] },
+    "attr.balance": { mult: [50, 150, 500, 1500, 5000] },
+    "syn.arcIgnite": { perDesk: [5, 15, 40, 100, 250] },
+    "syn.thermalShock": { echo: [60, 180, 500, 1500, 5000] },
+    "syn.greenhouse": { chance: [1, 1, 1, 1, 1], growCopies: [3, 5, 8, 13, 21] },
+    "syn.fireDispatch": { perMass: [10, 30, 90, 270, 800] },
+    "syn.short": { burst: [60, 180, 500, 1500, 5000] },
+    "syn.bionet": {
+      perGenerated: [2, 5, 12, 30, 75],
+      cap: 30,
+      generatedWeight: [1, 2, 3, 5, 8],
+    },
+    "syn.iceMirror": { perFrozenSame: [10, 30, 90, 270, 800] },
+    "syn.permafrost": {
+      perCrossEdge: [0.75, 1.5, 3, 6, 12],
+      cap: [10, 15, 22, 32, 99],
+    },
+    "syn.coldRotation": { perMass: [5, 15, 40, 100, 250] },
+    "syn.irrigation": { chanceMult: [4, 8, 16, 32, 64], growCopies: [2, 3, 5, 8, 13] },
+    "syn.badge": { mult: [20, 60, 180, 500, 1500] },
+    "syn.multiSeed": { inheritMass: [1.5, 2.5, 4, 6, 10] },
+    "staff.severance": { refund: [0.5, 0.75, 1, 1, 1] },
+    "staff.expand": { quota: 20 },
+    "staff.talentmarket": { rerollsPerLevel: 4, candidatesPerLevel: 4 },
+    "staff.backfill": { extraCandidates: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40] },
+    "staff.pricecut": { cut: [0.6, 0.8, 0.9, 1, 1] },
+  },
+  "weak-card-boost-v5": {
+    "base.fire": { bonus: [100, 400, 1600, 8000, 40000] },
+    "base.water": { bonus: [100, 400, 1600, 8000, 40000] },
+    "base.grass": { bonus: [70, 280, 1100, 5500, 27500] },
+    "base.electric": { bonus: [100, 400, 1600, 8000, 40000] },
+    "base.ice": { bonus: [100, 400, 1600, 8000, 40000] },
+    "base.normal": { bonus: [100, 400, 1600, 8000, 40000] },
+    "fire.wildfire": { spread: [20, 80, 320, 1280, 5120] },
+    "ice.freeze": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "water.same": { perTeamSame: [5, 20, 80, 320, 1280] },
+    "water.convert": { targets: [5, 10, 18, 30, 50] },
+    "grass.grow": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "normal.gluttony": { perSize: [10, 40, 160, 800, 4000] },
+    "normal.emperor": { grow: [10, 40, 160, 800, 4000] },
+    "attr.hex": { perElement: [10, 40, 160, 800, 4000] },
+    "attr.balance": { mult: [100, 400, 1600, 8000, 40000] },
+    "syn.arcIgnite": { perDesk: [10, 40, 160, 800, 4000] },
+    "syn.thermalShock": { echo: [150, 600, 2400, 12000, 60000] },
+    "syn.greenhouse": { chance: [1, 1, 1, 1, 1], growCopies: [4, 8, 16, 32, 64] },
+    "syn.fireDispatch": { perMass: [20, 80, 320, 1280, 5120] },
+    "syn.short": { burst: [150, 600, 2400, 12000, 60000] },
+    "syn.bionet": {
+      perGenerated: [4, 16, 64, 256, 1024],
+      cap: 40,
+      generatedWeight: [2, 3, 5, 8, 13],
+    },
+    "syn.iceMirror": { perFrozenSame: [20, 80, 320, 1280, 5120] },
+    "syn.permafrost": {
+      perCrossEdge: [1, 3, 9, 27, 81],
+      cap: [12, 18, 27, 40, 99],
+    },
+    "syn.coldRotation": { perMass: [10, 40, 160, 800, 4000] },
+    "syn.irrigation": { chanceMult: [5, 10, 20, 40, 80], growCopies: [3, 6, 12, 24, 48] },
+    "syn.badge": { mult: [50, 200, 800, 4000, 20000] },
+    "syn.multiSeed": { inheritMass: [2, 4, 8, 16, 32] },
+    "staff.severance": { refund: [0.5, 0.75, 1, 1, 1] },
+    "staff.expand": { quota: 20 },
+    "staff.talentmarket": { rerollsPerLevel: 4, candidatesPerLevel: 4 },
+    "staff.backfill": { extraCandidates: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40] },
+    "staff.pricecut": { cut: [0.6, 0.8, 0.9, 1, 1] },
+  },
+  "weak-card-boost-v6": {
+    "base.fire": { bonus: [500, 2500, 12500, 62500, 312500] },
+    "base.water": { bonus: [500, 2500, 12500, 62500, 312500] },
+    "base.grass": { bonus: [350, 1750, 8750, 43750, 218750] },
+    "base.electric": { bonus: [500, 2500, 12500, 62500, 312500] },
+    "base.ice": { bonus: [500, 2500, 12500, 62500, 312500] },
+    "base.normal": { bonus: [500, 2500, 12500, 62500, 312500] },
+    "fire.wildfire": { spread: [20, 80, 320, 1280, 5120] },
+    "ice.freeze": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "water.same": { perTeamSame: [5, 20, 80, 320, 1280] },
+    "water.convert": { targets: [5, 10, 18, 30, 50] },
+    "grass.grow": { chance: [0.5, 0.7, 0.85, 1, 1] },
+    "normal.gluttony": { perSize: [10, 40, 160, 800, 4000] },
+    "normal.emperor": { grow: [10, 40, 160, 800, 4000] },
+    "attr.hex": { perElement: [10, 40, 160, 800, 4000] },
+    "attr.balance": { mult: [100, 400, 1600, 8000, 40000] },
+    "syn.arcIgnite": { perDesk: [10, 40, 160, 800, 4000] },
+    "syn.thermalShock": { echo: [150, 600, 2400, 12000, 60000] },
+    "syn.greenhouse": { chance: [1, 1, 1, 1, 1], growCopies: [4, 8, 16, 32, 64] },
+    "syn.fireDispatch": {
+      perMass: [0, 0, 0, 0, 0],
+      direct: [30, 120, 480, 1920, 7680],
+    },
+    "syn.short": { burst: [150, 600, 2400, 12000, 60000] },
+    "syn.bionet": {
+      perGenerated: [4, 16, 64, 256, 1024],
+      cap: 40,
+      generatedWeight: [2, 3, 5, 8, 13],
+    },
+    "syn.lightningrod": {
+      perMass: [0, 0, 0, 0, 0],
+      direct: [30, 120, 480, 1920, 7680],
+    },
+    "syn.iceMirror": { perFrozenSame: [20, 80, 320, 1280, 5120] },
+    "syn.permafrost": {
+      perCrossEdge: [1, 3, 9, 27, 81],
+      cap: [12, 18, 27, 40, 99],
+    },
+    "syn.coldRotation": { perMass: [10, 40, 160, 800, 4000] },
+    "syn.irrigation": { chanceMult: [5, 10, 20, 40, 80], growCopies: [3, 6, 12, 24, 48] },
+    "syn.badge": { mult: [50, 200, 800, 4000, 20000] },
+    "syn.multiSeed": { inheritMass: [2, 4, 8, 16, 32] },
+    "staff.severance": { refund: [0.5, 0.75, 1, 1, 1] },
+    "staff.expand": { quota: 20 },
+    "staff.talentmarket": { rerollsPerLevel: 4, candidatesPerLevel: 4 },
+    "staff.backfill": { extraCandidates: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40] },
+    "staff.pricecut": { cut: [0.6, 0.8, 0.9, 1, 1] },
+  },
+};
+
+BALANCE_PROFILES["weak-card-boost-final"] = structuredClone(
+  BALANCE_PROFILES["weak-card-boost-v6"],
+);
+Object.assign(BALANCE_PROFILES["weak-card-boost-final"], {
+  "syn.bionet": {
+    perGenerated: [4, 16, 64, 256, 1024],
+    cap: 40,
+    generatedWeight: [1, 1, 1, 1, 1],
+  },
+  "syn.permafrost": {
+    perCrossEdge: [1, 3, 9, 27, 81],
+    cap: [40, 40, 40, 40, 40],
+  },
+  "syn.irrigation": {
+    chanceMult: [1, 1, 1, 1, 1],
+    growCopies: [3, 6, 12, 24, 48],
+  },
+  "staff.talentmarket": {
+    rerollsPerLevel: 0,
+    candidatesPerLevel: 4,
+  },
+});
+
+function applyBalanceProfile(profileId) {
+  if (profileId === "current") return;
+  const overrides = BALANCE_PROFILES[profileId];
+  if (overrides == null) throw new Error(`Unknown balance profile: ${profileId}`);
+  for (const [id, fields] of Object.entries(overrides)) {
+    if (G.CARD_PARAMS[id] == null) throw new Error(`Unknown card in balance profile: ${id}`);
+    Object.assign(G.CARD_PARAMS[id], fields);
+  }
+}
+
+applyBalanceProfile(BALANCE_PROFILE);
+
 const ELEMENTS = ["fire", "water", "grass", "electric", "ice", "normal"];
 const PAIRS = [];
 for (let i = 0; i < ELEMENTS.length; i++) {
@@ -327,9 +610,13 @@ function loadoutForRoute(route, meta) {
 function loadoutFor(kind, meta, rng, route = null) {
   if (kind === "expert" && route) return loadoutForRoute(route, meta);
   if (kind === "newcomer") {
+    const favorites = ALTERNATE_LOADOUTS ? shuffle(ELEMENTS, rng).slice(0, 2) : ["fire", "electric"];
     return {
-      species: ELEMENTS.map((element) => `starter_${element}`),
-      anchor: ["fire", "electric"],
+      species: [
+        ...favorites,
+        ...ELEMENTS.filter((element) => !favorites.includes(element)),
+      ].map((element) => `starter_${element}`),
+      anchor: favorites,
     };
   }
   const regularPairs = [
@@ -342,8 +629,20 @@ function loadoutFor(kind, meta, rng, route = null) {
   ];
   // 极限玩家按当前规则会很快收敛到“电＋草”的多桌/繁茂双指数构筑；
   // 中度玩家仍在六种直观双系主题间轮换，不预设已知版本答案。
+  const alternateExpertThemes = [
+    ["fire", "water"],
+    ["electric", "ice"],
+    ["electric", "normal"],
+    ["fire", "electric"],
+    ["water", "normal"],
+    ["fire", "ice"],
+  ];
   const anchor = kind === "expert"
-    ? ["grass", "electric"]
+    ? (
+      ALTERNATE_LOADOUTS
+        ? alternateExpertThemes[Math.floor(rng() * alternateExpertThemes.length)]
+        : ["grass", "electric"]
+    )
     : regularPairs[Math.floor(rng() * regularPairs.length)];
   const species = [];
   const add = (code) => {
@@ -351,8 +650,8 @@ function loadoutFor(kind, meta, rng, route = null) {
   };
   add(`ai_${anchor[0]}`);
   add(`ai_${anchor[1]}`);
-  add(`dual_${anchor.join("_")}`);
-  add(`dual_${[...anchor].reverse().join("_")}`);
+  add(`dual_${canonicalElements(anchor).join("_")}`);
+  add(`dual_${canonicalElements([...anchor].reverse()).join("_")}`);
   if (kind === "regular") {
     add(`starter_${anchor[0]}`);
     add(`starter_${anchor[1]}`);
@@ -422,6 +721,29 @@ function pulseFor(run, uid, extraBodies = [], cards = run.cards) {
 
 function pulseGain(pulse) {
   return pulse.total + pulse.extras.reduce((sum, extra) => sum + extra.amount, 0);
+}
+
+function recordPulseShape(run, pulse) {
+  const shape = {
+    individual: pulse.individualMult ?? 1,
+    team: pulse.teamMult ?? 1,
+    network: pulse.networkMult ?? 1,
+    status: pulse.statusMult ?? 1,
+    rhythm: pulse.comboMult ?? 1,
+  };
+  run.poolSamples.count++;
+  for (const [key, value] of Object.entries(shape)) run.poolSamples[key] += value;
+  const gain = pulseGain(pulse);
+  if (gain >= (run.peakBreakdown?.gain ?? -1)) {
+    run.peakBreakdown = {
+      gain,
+      chips: pulse.chips,
+      desks: pulse.deskCount,
+      absorbed: pulse.absorbUids.length,
+      extras: pulse.extras.reduce((sum, extra) => sum + extra.amount, 0),
+      ...shape,
+    };
+  }
 }
 
 function intersects(left, right) {
@@ -550,6 +872,36 @@ function applyPostPulse(run, pulse, sourceUid) {
     .map((uid) => logicalBodies(run).find((body) => body.uid === uid))
     .filter(Boolean);
 
+  if (
+    BALANCE_PROFILE === "weak-card-boost-v6"
+    || BALANCE_PROFILE === "weak-card-boost-final"
+  ) {
+    const directConversions = [
+      ["syn.fireDispatch", "fireDispatch", (value) => Math.max(0, value - 1)],
+      ["syn.lightningrod", "lightningrod", (value) => Math.max(0, value)],
+    ];
+    for (const [id, triggerKind, unitsFor] of directConversions) {
+      const level = cards[id] ?? 0;
+      if (level <= 0) continue;
+      const event = pulse.triggers?.find((triggerEvent) => triggerEvent.kind === triggerKind);
+      const units = unitsFor(event?.value ?? 0);
+      const params = G.CARD_PARAMS[id];
+      if (units <= 0 || !("direct" in params)) continue;
+      const factor = G.valueAtLevel(params.direct, level);
+      const amount = Math.round(pulse.chips * pulse.deskCount * units * factor);
+      if (amount <= 0) continue;
+      pulse.extras.push({ kind: "echo", uid: sourceUid, amount });
+      pulse.cardContributions ??= [];
+      pulse.cardContributions.push({ id, amount });
+      run.cash += amount;
+      run.revenueShift += amount;
+      run.revenueTotal += amount;
+      run.maxPulse = Math.max(run.maxPulse, pulseGain(pulse));
+      run.cardDirect[id] = (run.cardDirect[id] ?? 0) + amount;
+      trigger(run, id);
+    }
+  }
+
   const freezeLevel = cards["ice.freeze"] ?? 0;
   if (freezeLevel > 0 && source.elements.includes("ice")) {
     const targets = absorbed.filter((body) => body.y > source.y && !run.bodyStates.get(body.uid)?.frozen);
@@ -624,7 +976,8 @@ function applyPostPulse(run, pulse, sourceUid) {
     if (absorbedCount > 0) trigger(run, "normal.absorb", absorbedCount);
     if (absorbedCount > 0 && badgeLevel > 0 && source.elements.includes("water")) {
       const mult = G.valueAtLevel(G.CARD_PARAMS["syn.badge"].mult, badgeLevel);
-      const bonus = Math.round(pulseGain(pulse) * (mult - 1));
+      // 与 RogueRun 一致：液态融合只复制基础池与接桌数，不复制四个软上限池。
+      const bonus = Math.round(pulse.chips * pulse.deskCount * (mult - 1));
       if (bonus > 0) {
         pulse.extras.push({ kind: "echo", uid: sourceUid, amount: bonus });
         run.cash += bonus;
@@ -828,12 +1181,95 @@ function choosePlacement(run, species, overtime = false) {
       const safety = wouldStrike
         ? (1 - run.profile.strikeAwareness) * 0.12
         : 1;
+      if (ALTERNATE_STRATEGY) {
+        const sameNameCount = seen.size;
+        const habitDistance = run.lastPlacementX == null
+          ? 0
+          : Math.abs(placement.x - run.lastPlacementX);
+        const habit = 1 + Math.max(0, 1 - habitDistance / 240) * 0.28;
+        if (run.kind === "newcomer") {
+          // 直觉跟投：优先沿用上一根柱子、叠同名、落在桌面中央；
+          // 只粗略感知数字大小，不枚举绝对最高脉冲。
+          const visibleGain = Math.log2(2 + Math.max(0, placement.gain));
+          const shape = placement.kind === "stack"
+            ? 1.34
+            : placement.kind === "desk" ? 1.16 : 0.86;
+          const centerBias = placement.kind === "desk"
+            && enabledDesks(run).some((desk) =>
+              Math.abs(placement.x - (desk.x + desk.w / 2)) < 8)
+            ? 1.18
+            : 1;
+          return {
+            ...placement,
+            decisionGain: visibleGain
+              * shape
+              * centerBias
+              * habit
+              * (1 + Math.max(0, sameNameCount - 1) * 0.16)
+              * safety,
+            wouldStrike,
+          };
+        }
+        if (run.kind === "regular") {
+          // 稳健成塔：追求同名塔、可持续得分与罢工安全，
+          // 不为了单次最高值频繁跨桌搭桥。
+          const stableGain = Math.pow(Math.max(1, placement.gain), 0.64);
+          const shape = placement.kind === "stack"
+            ? 1.28
+            : placement.kind === "desk" ? 1.12 : 0.94;
+          return {
+            ...placement,
+            decisionGain: stableGain
+              * shape
+              * (1 + Math.max(0, sameNameCount - 1) * 0.2)
+              * (1 + Math.min(0.25, Math.max(0, placement.pulse.deskCount - 1) * 0.08))
+              * Math.sqrt(habit)
+              * safety,
+            wouldStrike,
+          };
+        }
+
+        // 乘区均衡搭桥：极限玩家不再只追当前总分，而是优先补齐
+        // 个人/团队/网络/状态中的短板，并保留多桌与大团队结构。
+        const pools = [
+          placement.pulse.individualMult ?? 1,
+          placement.pulse.teamMult ?? 1,
+          placement.pulse.networkMult ?? 1,
+          placement.pulse.statusMult ?? 1,
+        ];
+        const averagePool = pools.reduce((sum, value) => sum + value, 0) / pools.length;
+        const weakestPool = Math.min(...pools);
+        const balance = averagePool > 0 ? weakestPool / averagePool : 1;
+        const structure = 1
+          + Math.max(0, placement.pulse.deskCount - 1) * 0.18
+          + Math.min(0.45, placement.pulse.absorbUids.length * 0.035);
+        const bridge = placement.kind === "bridge" ? 1.3 : placement.kind === "stack" ? 1.08 : 1;
+        return {
+          ...placement,
+          decisionGain: Math.pow(Math.max(1, placement.gain), 0.72)
+            * (1 + balance * 0.55)
+            * structure
+            * bridge
+            * safety,
+          wouldStrike,
+        };
+      }
       return { ...placement, decisionGain: placement.gain * safety, wouldStrike };
     })
     .sort((left, right) => right.decisionGain - left.decisionGain || right.gain - left.gain);
   if (scored.length === 0) return null;
   if (overtime) return scored[0];
   const quality = clamp(profile.placementQuality + gaussian(run.rng) * 0.13, 0, 1);
+  if (ALTERNATE_STRATEGY) {
+    const breadth = run.kind === "newcomer" ? 8 : run.kind === "regular" ? 5 : 3;
+    const extraNoise = run.kind === "newcomer" ? 2 : 0;
+    const maxIndex = Math.min(
+      scored.length - 1,
+      Math.floor((1 - quality) * Math.min(breadth, scored.length)) + extraNoise,
+    );
+    const exponent = run.kind === "newcomer" ? 0.72 : run.kind === "regular" ? 1.3 : 2;
+    return scored[Math.floor((run.rng() ** exponent) * (maxIndex + 1))];
+  }
   const maxIndex = Math.min(scored.length - 1, Math.floor((1 - quality) * Math.min(4, scored.length)));
   return scored[Math.floor(run.rng() * (maxIndex + 1))];
 }
@@ -895,6 +1331,9 @@ function manualDrop(run, worker) {
   run.recentPulses.push(gain);
   if (run.recentPulses.length > 12) run.recentPulses.shift();
   applyPostPulse(run, pulse, uid);
+  recordPulseShape(run, pulse);
+  run.lastPlacementX = body.x;
+  run.lastPlacementKind = placement.kind;
   resolveStrikes(run, gain);
   return gain;
 }
@@ -916,6 +1355,7 @@ function overtimeDrop(run, worker) {
   run.revenueTotal += gain;
   run.maxPulse = Math.max(run.maxPulse, gain);
   applyPostPulse(run, pulse, uid);
+  recordPulseShape(run, pulse);
   // 加班角色计分后返池，不留在塔上。
   removeBody(run, uid, false);
   return gain;
@@ -924,6 +1364,39 @@ function overtimeDrop(run, worker) {
 function candidateValue(run, species, cost) {
   const meta = run.meta[species];
   const anchorHits = meta.elements.filter((element) => run.anchor.includes(element)).length;
+  if (ALTERNATE_STRATEGY) {
+    const onBoard = logicalBodies(run).filter((body) => body.species === species).length;
+    const affordability = 1 / Math.max(1, cost);
+    const aesthetics = 1 + gaussian(run.rng) * run.profile.cosmeticNoise;
+    if (run.kind === "newcomer") {
+      // 新手按熟悉元素、便宜程度和“我已经有这种”做招聘决定。
+      return (1 + anchorHits * 0.48)
+        * (1 + Math.min(3, onBoard) * 0.13)
+        * (1.2 - Math.max(0, meta.tierCount - 1) * 0.08)
+        * aesthetics
+        * affordability;
+    }
+    if (run.kind === "regular") {
+      // 中度玩家主动收同名，并偏爱能稳定接两张桌的双系。
+      return meta.baseValue
+        * (1 + anchorHits * 0.34)
+        * (1 + Math.min(4, onBoard) * 0.2)
+        * (1 + Math.min(2, Math.max(0, meta.tierCount - 1)) * 0.18)
+        * aesthetics
+        * affordability;
+    }
+    // 极限玩家围绕主轴补齐多桌桥梁，但仍考虑低色阶的基础分优势。
+    const bridgeValue = 1 + Math.max(0, meta.tierCount - 1) * 0.34;
+    const missingAnchor = run.anchor.filter((element) =>
+      !logicalBodies(run).some((body) => body.elements.includes(element))).length;
+    const coverage = meta.elements.filter((element) => run.anchor.includes(element)).length;
+    return meta.baseValue
+      * (1 + coverage * 0.42)
+      * bridgeValue
+      * (1 + Math.min(2, missingAnchor) * 0.12)
+      * aesthetics
+      * affordability;
+  }
   const direct = meta.baseValue * (1 + meta.reach * 0.09) * (1 + anchorHits * 0.28);
   const multi = 1 + Math.max(0, meta.elements.length - 1) * run.profile.bridgeAwareness * 0.42;
   const aesthetics = 1 + gaussian(run.rng) * run.profile.cosmeticNoise;
@@ -975,7 +1448,13 @@ function selectHireSet(run, candidates, needed) {
   for (const candidate of quoted) {
     if (selected.length >= Math.min(needed, G.HIRING_PICK_LIMIT ?? 10)) break;
     const count = speciesCounts[candidate.species] ?? 0;
-    const duplicatePenalty = count >= 2 ? 0.72 - run.profile.shopKnowledge * 0.22 : 1;
+    const duplicatePenalty = ALTERNATE_STRATEGY
+      ? (
+        count >= (run.kind === "newcomer" ? 4 : 3)
+          ? run.kind === "expert" ? 0.72 : 0.92
+          : 1
+      )
+      : (count >= 2 ? 0.72 - run.profile.shopKnowledge * 0.22 : 1);
     if (candidate.value * duplicatePenalty < quoted[0].value * 0.28 && selected.length >= 3) continue;
     selected.push(candidate);
     speciesCounts[candidate.species] = count + 1;
@@ -1121,7 +1600,142 @@ function setupUtility(run, id) {
   return 0;
 }
 
+function cardPoolCategory(id) {
+  if (
+    id === "electric.overload"
+    || id === "normal.gluttony"
+    || id === "attr.pure"
+    || id === "attr.dual"
+    || id === "attr.slash"
+    || id === "attr.hex"
+  ) return "individual";
+  if (
+    id === "water.same"
+    || id === "ice.overstaff"
+    || id === "grass.crowd"
+    || id === "attr.balance"
+  ) return "team";
+  if (
+    id === "electric.parallel"
+    || id === "electric.induction"
+    || id === "grass.height"
+    || id === "syn.arcIgnite"
+    || id === "syn.bionet"
+    || id === "syn.lightningrod"
+    || id === "syn.permafrost"
+  ) return "network";
+  if (
+    id === "syn.steamBurst"
+    || id === "syn.iceMirror"
+    || id === "syn.superconduct"
+    || id === "syn.fireDispatch"
+  ) return "status";
+  if (
+    id === "fire.burst"
+    || id === "fire.wildfire"
+    || id === "syn.thermalShock"
+    || id === "syn.short"
+    || id === "syn.badge"
+  ) return "extra";
+  return "foundation";
+}
+
+function attributeEligibility(run, id) {
+  if (!id.startsWith("attr.")) return null;
+  const eligible = new Set(run.loadout.map((species) => run.meta[species].tierCount));
+  if (id === "attr.pure") return eligible.has(1);
+  if (id === "attr.dual") return eligible.has(2);
+  if (id === "attr.slash") return eligible.has(3);
+  if (id === "attr.hex") return [4, 5, 6].some((tier) => eligible.has(tier));
+  if (id === "attr.balance") return [1, 2, 3, 4, 5, 6].every((tier) => eligible.has(tier));
+  return true;
+}
+
+function alternateCardDecisionScore(run, id, baseline = null) {
+  const def = G.cardDef(id);
+  if (!def) return -Infinity;
+  const eligibility = attributeEligibility(run, id);
+  if (eligibility === false) return -0.7 + gaussian(run.rng) * 0.01;
+  const level = run.cards[id] ?? 0;
+  const price = G.cardPrice(def, level, run.kpi);
+  const opportunity = price / Math.max(1, run.kpi) + G.SHOP_SKIP_REFUND_RATE;
+  const category = cardPoolCategory(id);
+  const setup = setupUtility(run, id);
+  const elementOwner = def.element;
+  const elementFit = elementOwner == null
+    ? 0
+    : run.anchor.includes(elementOwner) ? 0.14 : 0.045;
+  const pairFit = def.pair == null
+    ? 0
+    : def.pair.every((element) => run.anchor.includes(element)) ? 0.18 : 0.025;
+
+  if (run.kind === "newcomer") {
+    // 新手读卡面关键词与稀有度，重视“我的元素”和立刻看得懂的基础卡；
+    // 不调用全场最优落点来精算每张卡的边际收益。
+    const readable = id.startsWith("base.")
+      || id.endsWith(".chain")
+      || id === "fire.burst"
+      || id === "electric.overload"
+      || id === "water.fourday"
+      || id === "normal.absorb"
+      || id === "grass.grow"
+      || id === "ice.freeze"
+      ? 0.12
+      : 0;
+    return readable
+      + elementFit
+      + pairFit
+      + setup * 0.55
+      + (def.rarity === "epic" ? 0.035 : 0)
+      - opportunity * 0.38
+      - level * 0.022
+      + gaussian(run.rng) * 0.075;
+  }
+
+  const currentBaseline = baseline ?? bestCurrentPulse(run, run.cards);
+  const candidateCards = def.oneShot ? run.cards : { ...run.cards, [id]: level + 1 };
+  const improved = bestCurrentPulse(run, candidateCards);
+  const rawLift = Math.max(0, improved / Math.max(1, currentBaseline) - 1);
+  const compressedLift = rawLift / (1 + rawLift / (run.kind === "expert" ? 2 : 1.25));
+  const sampleCount = Math.max(1, run.poolSamples.count);
+  const poolValue = category === "extra" || category === "foundation"
+    ? 1
+    : run.poolSamples[category] / sampleCount;
+  const cap = category === "status" ? 8 : 10;
+  const poolNeed = category === "extra" || category === "foundation"
+    ? 0
+    : clamp(1 - (poolValue - 1) / (cap - 1), 0, 1);
+
+  if (run.kind === "regular") {
+    // 中度玩家看近期稳定收益和主轴匹配，弱化单个理想落点的诱惑。
+    return compressedLift * 0.55
+      + setup * 0.72
+      + elementFit * 0.7
+      + pairFit * 0.72
+      + poolNeed * 0.055
+      - opportunity * 0.5
+      - level * 0.012
+      + gaussian(run.rng) * 0.045;
+  }
+
+  // 极限玩家根据四个软上限池的平均强度补短板；
+  // 额外结算卡另行估值，避免继续往已接近软上限的同一池堆数值。
+  const categoryDiversity = category !== run.lastBoughtPool ? 0.035 : 0;
+  const extraValue = category === "extra" ? 0.08 : 0;
+  return compressedLift * 0.62
+    + setup * 0.78
+    + elementFit * 0.65
+    + pairFit * 0.78
+    + poolNeed * 0.17
+    + categoryDiversity
+    + extraValue
+    - opportunity * 0.58
+    - level * 0.01
+    + gaussian(run.rng) * 0.022;
+}
+
 function cardDecisionScore(run, id, baseline = null) {
+  if (ALTERNATE_STRATEGY) return alternateCardDecisionScore(run, id, baseline);
   const def = G.cardDef(id);
   if (!def) return -Infinity;
   const currentLevel = run.cards[id] ?? 0;
@@ -1159,12 +1773,10 @@ function useOneShot(run, id) {
       }))
       .sort((left, right) => left.gain - right.gain)
       .slice(0, 3);
-    const severance = run.cards["staff.severance"] ?? 0;
-    const rate = severance > 0
-      ? G.valueAtLevel(G.CARD_PARAMS["staff.severance"].refund, severance)
-      : 0;
     for (const item of worst) {
-      if (rate > 0) run.cash += Math.floor((run.uidCost.get(item.body.uid) ?? 0) * rate);
+      // 与 RogueRun.settleDeparture(uid, 1) 一致：主动解雇至少返还 100% 最近雇价，
+      // 遣散费不再额外叠加。
+      run.cash += Math.floor(run.uidCost.get(item.body.uid) ?? 0);
       removeBody(run, item.body.uid, true);
     }
     trigger(run, id);
@@ -1197,6 +1809,7 @@ function buyCard(run, id) {
   run.cash -= price;
   run.shopSpend += price;
   run.cardBuys[id] = (run.cardBuys[id] ?? 0) + 1;
+  run.lastBoughtPool = cardPoolCategory(id);
   if (def.oneShot) {
     useOneShot(run, id);
   } else {
@@ -1232,6 +1845,22 @@ function shop(run) {
   const offer = G.buildOffer(run.rng, args);
   for (let dimIndex = 0; dimIndex < 3; dimIndex++) {
     let ids = offer.cards[dimIndex];
+    const foundationElement = run.anchor
+      .slice()
+      .sort((left, right) => (
+        (run.cards[`base.${left}`] ?? 0) - (run.cards[`base.${right}`] ?? 0)
+        || run.anchor.indexOf(left) - run.anchor.indexOf(right)
+      ))[0];
+    if (
+      FOUNDATION_GUARANTEE
+      && run.shift <= 7
+      && dimIndex === 0
+      && foundationElement != null
+      && (run.cards[`base.${foundationElement}`] ?? 0) < 3
+    ) {
+      const foundationId = `base.${foundationElement}`;
+      if (!ids.includes(foundationId)) ids = [...ids.slice(0, -1), foundationId];
+    }
     for (const id of ids) run.cardOffers[id] = (run.cardOffers[id] ?? 0) + 1;
     const baseline = bestCurrentPulse(run, run.cards);
     let ranked = ids.map((id) => ({ id, score: cardDecisionScore(run, id, baseline) }))
@@ -1269,6 +1898,13 @@ function startRun(kind, seed, route = null, options = {}) {
     meta,
     loadout: selected.species,
     anchor: selected.anchor,
+    strategy: ALTERNATE_STRATEGY
+      ? (
+        kind === "newcomer"
+          ? "直觉跟投与熟悉柱"
+          : kind === "regular" ? "稳健同名成塔" : "四池均衡搭桥"
+      )
+      : "当前脉冲择优",
     shift: 1,
     kpi: G.kpiForShift(1),
     modifier: "none",
@@ -1290,6 +1926,18 @@ function startRun(kind, seed, route = null, options = {}) {
     loan: null,
     combo: 0,
     recentPulses: [],
+    lastPlacementX: null,
+    lastPlacementKind: null,
+    lastBoughtPool: null,
+    poolSamples: {
+      count: 0,
+      individual: 0,
+      team: 0,
+      network: 0,
+      status: 0,
+      rhythm: 0,
+    },
+    peakBreakdown: null,
     cardOffers: {},
     cardBuys: {},
     cardDirect: {},
@@ -1315,7 +1963,11 @@ function playShift(run) {
   run.kpi = G.kpiForShift(run.shift);
   run.modifier = G.modifierForShift(run.shift, run.rng);
   const disabledCount = run.shift === G.TOTAL_SHIFTS ? 0 : run.shift > 10 ? 2 : run.shift > 5 ? 1 : 0;
-  run.disabledDesks = shuffle(ELEMENTS, run.rng).slice(0, disabledCount);
+  const runElements = activeElements(run.loadout, run.meta);
+  const disabledPool = MONO_DESK_PROTECTION && runElements.length === 1
+    ? ELEMENTS.filter((element) => element !== runElements[0])
+    : ELEMENTS;
+  run.disabledDesks = shuffle(disabledPool, run.rng).slice(0, disabledCount);
   run.revenueShift = 0;
   run.combo = 0;
   recruit(run);
@@ -1396,6 +2048,8 @@ export function simulate(kind, seed, route = null, options = {}) {
   }
   return {
     kind,
+    strategy: run.strategy,
+    anchor: run.anchor.slice(),
     routeId: run.routeId,
     cleared,
     reason,
@@ -1403,6 +2057,13 @@ export function simulate(kind, seed, route = null, options = {}) {
     cash: run.cash,
     revenue: run.revenueTotal,
     maxPulse: run.maxPulse,
+    peakBreakdown: run.peakBreakdown,
+    poolAverages: Object.fromEntries(
+      ["individual", "team", "network", "status", "rhythm"].map((key) => [
+        key,
+        run.poolSamples.count > 0 ? run.poolSamples[key] / run.poolSamples.count : 1,
+      ]),
+    ),
     hires: run.hires,
     hireSpend: run.hireSpend,
     hireRerolls: run.hireRerolls,
@@ -1468,11 +2129,33 @@ function aggregateCards(results) {
 
 export function summarize(kind, results) {
   const completed = results.filter((result) => result.completed);
+  const peakRows = results.map((result) => result.peakBreakdown).filter(Boolean);
   const checkpoint = (shift) => results.filter((result) => result.cleared >= shift).length / results.length;
+  const anchorGroups = Object.groupBy(results, (result) => result.anchor.join("+"));
   return {
     label: PROFILE_DEFS[kind].label,
     collectionSize: PROFILE_DEFS[kind].collectionSize,
+    strategies: Object.fromEntries(
+      [...new Set(results.map((result) => result.strategy))]
+        .map((strategy) => [strategy, results.filter((result) => result.strategy === strategy).length]),
+    ),
     runs: results.length,
+    anchorBreakdown: Object.fromEntries(
+      Object.entries(anchorGroups)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([anchor, rows]) => [
+          anchor,
+          {
+            runs: rows.length,
+            survival10: Number((rows.filter((result) => result.cleared >= 10).length / rows.length).toFixed(3)),
+            survival15: Number((rows.filter((result) => result.cleared >= 15).length / rows.length).toFixed(3)),
+            clearedP50: Number(percentile(rows.map((result) => result.cleared), 0.5).toFixed(1)),
+            peakP50: Math.round(percentile(rows.map((result) => result.maxPulse), 0.5)),
+            peakP90: Math.round(percentile(rows.map((result) => result.maxPulse), 0.9)),
+            peakMax: Math.max(...rows.map((result) => result.maxPulse)),
+          },
+        ]),
+    ),
     completionRate: Number((completed.length / results.length).toFixed(3)),
     survival: Object.fromEntries([1, 5, 10, 15, 20].map((shift) => [
       shift,
@@ -1489,6 +2172,25 @@ export function summarize(kind, results) {
       p99: Math.round(percentile(results.map((result) => result.maxPulse), 0.99)),
       max: Math.max(...results.map((result) => result.maxPulse)),
     },
+    multiplierPools: Object.fromEntries(
+      ["individual", "team", "network", "status", "rhythm"].map((key) => [
+        key,
+        {
+          p50: Number(percentile(results.map((result) => result.poolAverages[key]), 0.5).toFixed(3)),
+          p90: Number(percentile(results.map((result) => result.poolAverages[key]), 0.9).toFixed(3)),
+        },
+      ]),
+    ),
+    peakShape: Object.fromEntries(
+      ["chips", "desks", "absorbed", "extras", "individual", "team", "network", "status", "rhythm"]
+        .map((key) => [
+          key,
+          {
+            p50: Number(percentile(peakRows.map((row) => row[key]), 0.5).toFixed(3)),
+            p90: Number(percentile(peakRows.map((row) => row[key]), 0.9).toFixed(3)),
+          },
+        ]),
+    ),
     completedOnly: {
       medianRevenue: Math.round(percentile(completed.map((result) => result.revenue), 0.5)),
       medianCash: Math.round(percentile(completed.map((result) => result.cash), 0.5)),
@@ -1513,22 +2215,36 @@ function main() {
   const resultsByKind = {};
   for (const kind of Object.keys(PROFILE_DEFS)) {
     resultsByKind[kind] = Array.from({ length: RUNS }, (_, index) =>
-      simulate(kind, (0x7290_1 ^ Math.imul(index + 1, 0x9e37_79b1) ^ kind.length * 0x45d9f3b) >>> 0));
+      simulate(kind, (RUN_SEED ^ Math.imul(index + 1, 0x9e37_79b1) ^ kind.length * 0x45d9f3b) >>> 0));
   }
   const report = {
     model: {
-      kind: "behavioral Monte Carlo with exact config/shop/pulse and abstracted Matter placement",
+      kind: ALTERNATE_STRATEGY
+        ? "behavioral Monte Carlo with exact additive-pool pulse formula and alternate human placement policies"
+        : "behavioral Monte Carlo with exact config/shop/pulse and abstracted Matter placement",
+      strategySet: ALTERNATE_STRATEGY
+        ? {
+          newcomer: "habitual columns, visible score and same-name follow-up",
+          regular: "safe same-name towers and stable multi-desk coverage",
+          expert: "balance individual/team/network/status soft-cap pools with deliberate bridges",
+        }
+        : "current-pulse greedy with profile noise",
       runsPerProfile: RUNS,
-      seed: "0x72901",
+      seed: `0x${RUN_SEED.toString(16)}`,
+      balanceProfile: BALANCE_PROFILE,
+      foundationGuarantee: FOUNDATION_GUARANTEE,
+      monoDeskProtection: MONO_DESK_PROTECTION,
       totalShifts: G.TOTAL_SHIFTS,
-      calibratedVisualRun: {
-        profile: "regular",
-        hired: 8,
-        throws: 8,
-        clearScore: 76,
-        kpi: 80,
-        result: "shift-1 bankruptcy",
-      },
+      calibration: ALTERNATE_STRATEGY
+        ? "Uses the same miss/wind/inspection calibration as the visual run, but replaces placement, hiring and shop policies."
+        : {
+          profile: "regular",
+          hired: 8,
+          throws: 8,
+          clearScore: 76,
+          kpi: 80,
+          result: "shift-1 bankruptcy",
+        },
     },
     profiles: Object.fromEntries(
       Object.entries(resultsByKind).map(([kind, results]) => [kind, summarize(kind, results)]),

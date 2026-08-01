@@ -16,6 +16,7 @@ type SettingsPanelProps = {
   changeLanguage: (nextLanguage: Language) => void;
   handleAlwaysOnTop: (enabled: boolean) => void;
   handleKeyboardCapture: (enabled: boolean) => void;
+  handleDynamicQuoteAi: (enabled: boolean) => void;
   handleRandomMovement: (enabled: boolean) => void;
   handleAutostart: (enabled: boolean) => void;
   handleDefaultAgent: (agent: string) => void;
@@ -33,6 +34,7 @@ export function SettingsPanel({
   changeLanguage,
   handleAlwaysOnTop,
   handleKeyboardCapture,
+  handleDynamicQuoteAi,
   handleRandomMovement,
   handleAutostart,
   handleDefaultAgent,
@@ -43,6 +45,7 @@ export function SettingsPanel({
   const defaultAgent = appSettings?.defaultAgent === "codex" ? "codex" : "claude";
   const modelOptions = defaultAgent === "codex" ? agentModels.codex : agentModels.claude;
   const defaultModel = appSettings?.defaultModel ?? "";
+
   return (
     <PanelShell title={copy.settings} backLabel={copy.back} onBack={goBack}>
       <div className="settings-panel">
@@ -68,10 +71,17 @@ export function SettingsPanel({
         />
         <SettingToggle
           label={copy.keyboardCharging}
-          enabled={appSettings?.keyboardCapture ?? true}
+          enabled={appSettings?.keyboardCapture ?? false}
           onText={copy.on}
           offText={copy.off}
           onToggle={handleKeyboardCapture}
+        />
+        <SettingToggle
+          label={copy.dynamicQuoteAi}
+          enabled={appSettings?.dynamicQuoteAi ?? false}
+          onText={copy.on}
+          offText={copy.off}
+          onToggle={handleDynamicQuoteAi}
         />
         <SettingToggle
           label={copy.randomMovement}
@@ -99,9 +109,11 @@ export function SettingsPanel({
           options={modelOptions}
           onChange={handleDefaultModel}
         />
-        <button type="button" className="settings-btn settings-action" onClick={() => selectPanel("debug")}>
-          🛠 {copy.debug}
-        </button>
+        {import.meta.env.DEV && (
+          <button type="button" className="settings-btn settings-action" onClick={() => selectPanel("debug")}>
+            🛠 {copy.debug}
+          </button>
+        )}
         <button type="button" className="settings-btn settings-action is-danger" onClick={closePet}>
           {copy.closePet}
         </button>

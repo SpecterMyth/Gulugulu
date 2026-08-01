@@ -5,6 +5,7 @@ import { clamp } from "../geometry";
 
 type UseSpeechDropResult = {
   speechDrop: number;
+  speechTailX: number;
   speechRef: RefObject<HTMLElement | null>;
 };
 
@@ -31,12 +32,15 @@ export function useSpeechDrop(
   duckFacingRef: RefObject<HTMLDivElement | null>,
 ): UseSpeechDropResult {
   const [speechDrop, setSpeechDrop] = useState(0);
+  // 280px 宠物窗扣除两侧 10px padding 后，气泡默认中心是 130px。
+  const [speechTailX, setSpeechTailX] = useState(130);
   const speechRef = useRef<HTMLElement | null>(null);
   const showStage = uiMode === "pet" || uiMode === "menu";
 
   useLayoutEffect(() => {
     if (!showStage) {
       setSpeechDrop(0);
+      setSpeechTailX(130);
       return;
     }
     const measure = () => {
@@ -52,6 +56,7 @@ export function useSpeechDrop(
       if (!svg || !body) {
         // 蛋（无 SVG 角色）或尚未挂载：气泡回到窗口顶部。
         if (applied !== 0) setSpeechDrop(0);
+        if (speechTailX !== 130) setSpeechTailX(130);
         return;
       }
       let bbox: DOMRect;
@@ -65,6 +70,7 @@ export function useSpeechDrop(
       // viewBox 256²，preserveAspectRatio 默认 xMidYMid meet：把头顶（bbox.y）
       // 从 viewBox 单位换算到屏幕坐标。
       const unit = Math.min(svgBox.width, svgBox.height) / 256;
+      const padX = (svgBox.width - 256 * unit) / 2;
       const padY = (svgBox.height - 256 * unit) / 2;
       // 头顶=身体包围盒顶缘换算到屏幕；睡觉/思考时还有飘在 body 之外的 ZZZ/思考点，
       // 用固定 viewBox 参考顶一并换算，取更高者，气泡才不会压住这些提示。
@@ -73,6 +79,13 @@ export function useSpeechDrop(
         ? Math.min(bodyTop, svgBox.top + padY + HEAD_VFX_TOP_VB * unit)
         : bodyTop;
       const speechBox = speech.getBoundingClientRect();
+      // The side-facing rigs do not necessarily occupy the center of their 256x256
+      // SVG viewport. Point the bubble tail at the rendered body instead of at a
+      // fixed spot near the bubble's right edge.
+      const bodyCenterX = svgBox.left + padX + (bbox.x + bbox.width / 2) * unit;
+      const TAIL_EDGE_GAP = 18;
+      const tailX = clamp(bodyCenterX - speechBox.left, TAIL_EDGE_GAP, speechBox.width - TAIL_EDGE_GAP);
+      if (Math.abs(tailX - speechTailX) > 0.5) setSpeechTailX(tailX);
       // speechBox.bottom 含当前 translateY，而这个位移正被弹出/呼吸/过渡动画实时改动。
       // 旧算法拿它和「目标 applied」做增量收敛：若某帧测量撞上动画中途（底缘还没下移到位，
       // 但 --speech-drop 已跳到目标值），增量会把这段动画差当成尚需补的下移量，一步过冲、
@@ -97,7 +110,7 @@ export function useSpeechDrop(
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [showStage, activePetSpecies, petState, uiMode]);
+  }, [showStage, activePetSpecies, petState, uiMode, speechTailX]);
 
-  return { speechDrop, speechRef };
+  return { speechDrop, speechTailX, speechRef };
 }

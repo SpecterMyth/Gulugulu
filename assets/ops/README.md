@@ -12,7 +12,7 @@
 | Handle | **`mobistudiohd`**（X 已注册定案 2026-07-22；其余平台一律跟随，被占依次退 `mobistudiodev` → `mobistudio_hd`） |
 | 账号头像 | 工作室彩色 Logo（各平台尺寸 `avatar-mobi-*.png` 已放各子目录；鸭头版留作游戏社区/活动用图） |
 | 横幅 | Gulugulu 游戏横幅（工作室号展示主打作品） |
-| 一句话简介 | Tiny studio, one human + a lot of Claude. Now raising Gulugulu — a free Steam desktop pet. |
+| 一句话简介 | Tiny studio, one human + a lot of Claude. Now raising Gulugulu — a $1.99 Steam desktop pet, launching Aug 18. |
 | 网站链接 | 现阶段 `https://github.com/SpecterMyth/Gulugulu`；Coming Soon 上线后统一换 Steam 商店页 |
 | **注册/恢复邮箱（内部）** | `mobistudiodev@gmail.com` —— 仅用于内部开发与发行操作，**不对外公示** |
 | **对外客服邮箱** | `gulugulu@mobigames.cn` —— 玩家支持 + 达人/媒体外联统一走这个 |
@@ -23,7 +23,7 @@
 |---|---|
 | X | ✅ 已注册 `@mobistudiohd`（2026-07-22，已登录 Chrome「Claude」Profile）；资料完善 + 首帖由 Claude 执行 |
 | ops 邮箱 | ✅ `mobistudiodev@gmail.com` 启用；对外客服箱 `gulugulu@mobigames.cn` 👤 待在 mobigames.cn 后台建立 |
-| Reddit / YouTube / Discord / Product Hunt / HN | 👤 待注册（照下表） |
+| Reddit / YouTube / Discord / Product Hunt / HN | 用户已确认建立了一系列账号；逐个平台的 handle、资料完整度和登录状态以 `ops/bd/social-accounts.csv` 每日核验结果为准 |
 
 ## 通用注意事项（先读再动手）
 

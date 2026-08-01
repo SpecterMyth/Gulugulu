@@ -48,6 +48,39 @@ export function buildAdjacency(bodies: BodyLike[], opts?: AdjacencyOpts): Adjace
   return adj;
 }
 
+/**
+ * 在一张已经为稳定塔体算好的邻接图上，增量接入一个新落点。
+ *
+ * 加班自动投放会比较大量候选落点；旧实现为每个候选重新做整场 O(n²)
+ * 两两检测。候选之间只有新增角色的位置不同，因此这里只检测它与已有角色的
+ * O(n) 条潜在边，并且只复制真正被接入的邻接数组，基础图保持只读可复用。
+ */
+export function extendAdjacency(
+  base: Adjacency,
+  bodies: BodyLike[],
+  candidate: BodyLike,
+  opts?: AdjacencyOpts,
+): Adjacency {
+  const slack = opts?.slack ?? GRAPH_CONTACT_SLACK;
+  const next = new Map(base);
+  const candidateLinks: number[] = [];
+  next.set(candidate.uid, candidateLinks);
+  if (!candidate.settled) return next;
+
+  for (const body of bodies) {
+    if (!body.settled || body.uid === candidate.uid) continue;
+    const dx = candidate.x - body.x;
+    const dy = candidate.y - body.y;
+    const lim = (candidate.r + body.r) * slack;
+    if (dx * dx + dy * dy > lim * lim) continue;
+    const stuck = opts?.stickOverride?.(candidate, body) ?? elementsIntersect(candidate, body);
+    if (!stuck) continue;
+    candidateLinks.push(body.uid);
+    next.set(body.uid, [...(base.get(body.uid) ?? []), candidate.uid]);
+  }
+  return next;
+}
+
 /** 吸取集:从 fromUid 沿无向粘连边做 BFS,按最少边数由近到远取 reach 只。
  *  不再限制连接方向,也不再按向下层数扩张;返回 uid 数组不含自身。 */
 export function absorbSet(bodies: BodyLike[], adjacency: Adjacency, fromUid: number, reach: number): number[] {

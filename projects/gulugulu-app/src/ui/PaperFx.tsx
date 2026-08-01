@@ -82,7 +82,12 @@ export function paperFxDuration(intensity: PaperFxIntensity): number {
   return 2300;
 }
 
-function paperFxLifetime(intensity: PaperFxIntensity, hasLabel: boolean): number {
+function paperFxLifetime(
+  intensity: PaperFxIntensity,
+  hasLabel: boolean,
+  preset?: PaperFxPreset,
+): number {
+  if (preset === "achievement" && hasLabel) return 5000;
   const pieces = paperFxDuration(intensity);
   if (!hasLabel || intensity < 2) return pieces;
   return Math.max(pieces, intensity === 3 ? 3200 : 2700);
@@ -158,14 +163,23 @@ export function PaperFxProvider({
       const rawPoint = pointFor(request.anchor);
       const horizontalMargin = Math.min(132, window.innerWidth / 2);
       const verticalMargin = Math.min(76, window.innerHeight / 2);
-      const point = request.label
+      const point = request.preset === "achievement" && request.label
+        ? {
+            x: window.innerWidth / 2,
+            y: window.innerHeight + 24,
+          }
+        : request.label
         ? {
             x: Math.max(horizontalMargin, Math.min(window.innerWidth - horizontalMargin, rawPoint.x)),
             y: Math.max(verticalMargin, Math.min(window.innerHeight - verticalMargin, rawPoint.y)),
           }
         : rawPoint;
       const pieceDurationMs = paperFxDuration(request.intensity);
-      const durationMs = paperFxLifetime(request.intensity, Boolean(request.label));
+      const durationMs = paperFxLifetime(
+        request.intensity,
+        Boolean(request.label),
+        request.preset,
+      );
       const seed =
         request.seed ??
         hashText(`${request.preset}:${request.label ?? ""}:${request.eventId ?? id}`);
@@ -317,6 +331,16 @@ export function PaperFxBurst({ pulse }: { pulse: PaperFxPulse }) {
       ))}
       {pulse.label && pulse.intensity >= 2 && (
         <span className="paper-fx-label">
+          {pulse.preset === "achievement" && (
+            <span className="paper-fx-steam-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" focusable="false">
+                <circle cx="16" cy="16" r="15" />
+                <circle cx="21.5" cy="10.5" r="4.25" />
+                <circle cx="10" cy="21.5" r="3.5" />
+                <path d="M13 19.8 18.1 13M6.8 19.8l5.9 2.5" />
+              </svg>
+            </span>
+          )}
           <b>{pulse.label}</b>
           <em aria-hidden="true">{pulse.preset === "achievement" ? "★" : "✓"}</em>
         </span>

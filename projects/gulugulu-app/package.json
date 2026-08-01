@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "benchmark:factory": "node scripts/factory_perf_check.mjs",
+    "verify:release-boundary": "node scripts/verify_release_trust_boundary.mjs",
     "preview": "vite preview",
     "verify:onboarding-layout": "node scripts/verify_onboarding_layout.mjs",
     "verify:pet-gen-v2": "node scripts/audit_pet_gen_v2.mjs",

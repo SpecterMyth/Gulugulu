@@ -303,7 +303,7 @@ const PROBES = {
   egg: { art: { sel: ".egg-svg" }, label: { sel: ".stage-egg-label" }, eggBoxCorner: { at: [0.2, 0.55] } },
   speech: { art: { sel: ".svg-sprite-body" }, bubble: { sel: ".speech" } },
   backyard: { ground: { at: [0.5, 0.94] }, hud: { sel: ".by-upgrade-btn" }, sky: { at: [0.5, 0.12] } },
-  factory: { office: { sel: ".fac-office" }, back: { sel: ".fac-back" }, plane: { sel: ".fac-plane" } },
+  factory: { office: { at: [0.5, 0.94] }, back: { sel: ".fac-back" }, plane: { sel: ".fac-plane" } },
 };
 
 try {

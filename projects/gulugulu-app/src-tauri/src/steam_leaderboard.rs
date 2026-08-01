@@ -24,11 +24,18 @@ pub const FACTORY_LEADERBOARD_API_NAME: &str = "LB_FACTORY_BEST_REVENUE";
 /// 20,000 样本压力测试后冻结：覆盖“活到第 40 班”的 P99 营收包络。
 /// Steam 分数 = floor(精确本地营收 / 100)；改这个常量会令新旧分数不可比较。
 pub const FACTORY_REVENUE_SCORE_UNIT: u64 = 100;
-pub const FACTORY_SCORE_SCHEMA_VERSION: i32 = 1;
+pub const FACTORY_SCORE_SCHEMA_VERSION: i32 = 2;
+const FACTORY_LEADERBOARD_DETAILS_MAX: usize = 15;
+const FACTORY_LOADOUT_MAX: usize = 10;
+const FACTORY_SPECIES_CODE_MAX: i32 = 84;
 const STORE_FILE: &str = "factory-leaderboard-v1.json";
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(15);
 const RETRY_MINUTES: [i64; 4] = [1, 2, 5, 10];
 static STORE_LOCK: Mutex<()> = Mutex::new(());
+
+pub struct LeaderboardPageRequest {
+    pub reply: mpsc::Sender<Result<FactoryLeaderboardPage, String>>,
+}
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +45,30 @@ pub struct FactoryLeaderboardResult {
     pub best_shift: u32,
     pub endless: bool,
     pub balance_version: u32,
+    pub loadout: Vec<i32>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryLeaderboardEntry {
+    pub rank: i32,
+    pub steam_id: String,
+    pub persona_name: String,
+    pub score: i32,
+    pub revenue_total: String,
+    pub best_shift: Option<i32>,
+    pub endless: Option<bool>,
+    pub balance_version: Option<i32>,
+    pub loadout: Option<Vec<i32>>,
+    pub is_me: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FactoryLeaderboardPage {
+    pub entries: Vec<FactoryLeaderboardEntry>,
+    pub me: Option<FactoryLeaderboardEntry>,
+    pub updated_at: i64,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -92,7 +123,7 @@ struct AccountState {
 struct PendingScore {
     revenue_total: String,
     score: i32,
-    details: [i32; 4],
+    details: Vec<i32>,
     attempts: u32,
     next_retry_at: i64,
 }
@@ -201,12 +232,19 @@ fn enqueue(
     let revenue = parse_revenue(&result.revenue_total)?;
     let score = scale_revenue(revenue, FACTORY_REVENUE_SCORE_UNIT);
     let revenue_total = revenue.to_string();
-    let details = [
+    if result.loadout.len() > FACTORY_LOADOUT_MAX
+        || result.loadout.iter().any(|code| !(1..=FACTORY_SPECIES_CODE_MAX).contains(code))
+    {
+        return Err("#factoryLeaderboardInvalidLoadout".to_string());
+    }
+    let mut details = vec![
         FACTORY_SCORE_SCHEMA_VERSION,
         checked_detail(result.best_shift, "BestShift")?,
         i32::from(result.endless),
         checked_detail(result.balance_version, "BalanceVersion")?,
+        result.loadout.len() as i32,
     ];
+    details.extend(result.loadout.iter().copied());
     let account = store.accounts.entry(owner.to_string()).or_default();
 
     let old_revenue = account
@@ -314,6 +352,16 @@ pub fn get_factory_leaderboard_status(
     Ok(load_store(&path)?.status_for(&owner))
 }
 
+#[tauri::command]
+pub async fn get_factory_leaderboard(
+    steam: tauri::State<'_, SharedSteamState>,
+) -> Result<FactoryLeaderboardPage, String> {
+    let steam = steam.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || steam.leaderboard_page_blocking())
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 fn wait_callback<T>(
     client: &steamworks::Client,
     rx: Receiver<T>,
@@ -358,7 +406,7 @@ fn upload_score(
         leaderboard,
         UploadScoreMethod::KeepBest,
         pending.score,
-        &pending.details,
+        pending.details.as_slice(),
         move |result| {
             let _ = tx.send(result);
         },
@@ -387,6 +435,62 @@ fn download_self(
     let entries = wait_callback(client, rx, CALLBACK_TIMEOUT)?
         .map_err(|error| format!("回读 Steam 排行榜失败：{error:?}"))?;
     Ok(entries.into_iter().find(|entry| entry.user.raw() == owner))
+}
+
+fn download_global(
+    client: &steamworks::Client,
+    leaderboard: &Leaderboard,
+) -> Result<Vec<steamworks::LeaderboardEntry>, String> {
+    let (tx, rx) = mpsc::channel();
+    client.user_stats().download_leaderboard_entries(
+        leaderboard,
+        LeaderboardDataRequest::Global,
+        1,
+        100,
+        FACTORY_LEADERBOARD_DETAILS_MAX,
+        move |result| {
+            let _ = tx.send(result);
+        },
+    );
+    wait_callback(client, rx, CALLBACK_TIMEOUT)?
+        .map_err(|error| format!("读取 Steam 全球排行榜失败：{error:?}"))
+}
+
+fn entry_payload(
+    client: &steamworks::Client,
+    entry: steamworks::LeaderboardEntry,
+    owner: u64,
+) -> FactoryLeaderboardEntry {
+    let details = &entry.details;
+    let is_v1 = details.first().copied() == Some(1) && details.len() >= 4;
+    let is_v2 = details.first().copied() == Some(FACTORY_SCORE_SCHEMA_VERSION) && details.len() >= 5;
+    let loadout = if is_v2 {
+        let count = details[4].clamp(0, FACTORY_LOADOUT_MAX as i32) as usize;
+        let end = 5usize.saturating_add(count).min(details.len());
+        let codes = details[5..end]
+            .iter()
+            .copied()
+            .filter(|code| (1..=FACTORY_SPECIES_CODE_MAX).contains(code))
+            .collect::<Vec<_>>();
+        (codes.len() == count).then_some(codes)
+    } else {
+        None
+    };
+    let steam_id = entry.user.raw();
+    let fallback = format!("Steam …{}", steam_id % 10_000_000);
+    let name = client.friends().get_friend(entry.user).name();
+    FactoryLeaderboardEntry {
+        rank: entry.global_rank,
+        steam_id: steam_id.to_string(),
+        persona_name: if name.trim().is_empty() || name == "[unknown]" { fallback } else { name },
+        score: entry.score,
+        revenue_total: (i128::from(entry.score.max(0)) * i128::from(FACTORY_REVENUE_SCORE_UNIT)).to_string(),
+        best_shift: (is_v1 || is_v2).then_some(details[1]),
+        endless: (is_v1 || is_v2).then_some(details[2] != 0),
+        balance_version: (is_v1 || is_v2).then_some(details[3]),
+        loadout,
+        is_me: steam_id == owner,
+    }
 }
 
 pub struct LeaderboardRuntime {
@@ -441,6 +545,31 @@ impl LeaderboardRuntime {
             .map_err(|error| format!("清除 Steam 工厂排行榜失败：{error:?}"))?
             .ok_or_else(|| "Steam 拒绝清除工厂排行榜成绩".to_string())?;
         Ok(())
+    }
+
+    pub fn fetch_page(&mut self, client: &steamworks::Client) -> Result<FactoryLeaderboardPage, String> {
+        let leaderboard = self.ensure_leaderboard(client)?;
+        let owner = client.user().steam_id().raw();
+        let mut global = download_global(client, &leaderboard)?;
+        let mut me_raw = global.iter().find(|entry| entry.user.raw() == owner).cloned();
+        if me_raw.is_none() {
+            me_raw = download_self(client, &leaderboard, owner)?;
+        }
+
+        let friends = client.friends();
+        for entry in global.iter().chain(me_raw.iter()) {
+            let _ = friends.request_user_information(entry.user, true);
+        }
+        // Persona 缓存通常已热；给首次出现的非好友短暂时间回调，失败则使用 SteamID 回退。
+        let until = Instant::now() + Duration::from_millis(600);
+        while Instant::now() < until {
+            client.run_callbacks();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+
+        let entries = global.drain(..).map(|entry| entry_payload(client, entry, owner)).collect::<Vec<_>>();
+        let me = me_raw.map(|entry| entry_payload(client, entry, owner));
+        Ok(FactoryLeaderboardPage { entries, me, updated_at: now_unix() })
     }
 
     /// 仅由 Steam 泵线程调用；失败写回退避时间并静默返回，不阻塞本地结算。
@@ -572,6 +701,7 @@ mod tests {
             best_shift: 12,
             endless: true,
             balance_version: 7,
+            loadout: vec![1, 2, 3],
         }
     }
 
@@ -617,7 +747,18 @@ mod tests {
         let pending = store.accounts["A"].pending.as_ref().unwrap();
         assert_eq!(pending.score, 2);
         assert_eq!(pending.attempts, 0);
-        assert_eq!(pending.details, [1, 12, 1, 7]);
+        assert_eq!(pending.details, [2, 12, 1, 7, 3, 1, 2, 3]);
+    }
+
+    #[test]
+    fn lineup_details_are_bounded_and_use_stable_positive_codes() {
+        let mut store = LeaderboardStore::default();
+        let mut too_many = result("100");
+        too_many.loadout = vec![1; FACTORY_LOADOUT_MAX + 1];
+        assert_eq!(enqueue(&mut store, "A", &too_many, 1).unwrap_err(), "#factoryLeaderboardInvalidLoadout");
+        let mut invalid = result("100");
+        invalid.loadout = vec![0, FACTORY_SPECIES_CODE_MAX + 1];
+        assert_eq!(enqueue(&mut store, "A", &invalid, 1).unwrap_err(), "#factoryLeaderboardInvalidLoadout");
     }
 
     #[test]
@@ -757,7 +898,7 @@ mod tests {
         let pending = PendingScore {
             revenue_total: "0".to_string(),
             score: 0,
-            details: [FACTORY_SCORE_SCHEMA_VERSION, 0, 0, 0],
+            details: vec![FACTORY_SCORE_SCHEMA_VERSION, 0, 0, 0, 0],
             attempts: 0,
             next_retry_at: 0,
         };

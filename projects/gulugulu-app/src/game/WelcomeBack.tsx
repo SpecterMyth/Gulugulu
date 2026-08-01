@@ -85,16 +85,24 @@ function goalText(save: GameSave, config: GameConfig, W: ShellStrings["welcome"]
 // ---------------------------------------------------------------------------
 
 /** 拉取「昨日战报」（Tauri-gated；预览模式/失败返回 null，卡片自动降级为旧式当前状态）。 */
-function useYesterdaySummary(): DaySummary | null {
-  const [summary, setSummary] = useState<DaySummary | null>(null);
+function useYesterdaySummary(): DaySummary | null | undefined {
+  // undefined means the native query is still pending. Keeping that state
+  // separate from a genuine "no report" result prevents the legacy summary
+  // layout from flashing before the morning report arrives.
+  const [summary, setSummary] = useState<DaySummary | null | undefined>(undefined);
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      setSummary(null);
+      return;
+    }
     let disposed = false;
     invoke<DaySummary>("get_yesterday_summary")
       .then((next) => {
         if (!disposed) setSummary(next);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!disposed) setSummary(null);
+      });
     return () => {
       disposed = true;
     };
@@ -205,7 +213,12 @@ export function WelcomeBackCard({
     const observer = new ResizeObserver(report);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [onMeasure]);
+  }, [onMeasure, summary]);
+
+  // Do not mount the overlay until its final layout is known. Otherwise the
+  // fallback list is painted for one frame and then replaced by the report.
+  if (summary === undefined) return null;
+
   // 有归档、或当天有 Token 历史 → 出昨日战报；否则（预览/首启无数据）降级为旧式当前状态。
   const showReport = summary != null && (summary.hasDigest || summary.tokensRaw > 0);
   const active = save.pets.find((pet) => pet.id === save.activePetId) ?? null;

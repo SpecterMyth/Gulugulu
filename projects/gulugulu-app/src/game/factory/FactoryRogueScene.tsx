@@ -63,6 +63,8 @@ import { RogueShop } from "./ui/RogueShop";
 import { RogueSettlement } from "./ui/RogueSettlement";
 import { RogueSummary } from "./ui/RogueSummary";
 import { RogueCardIcon } from "./ui/RogueCardIcon";
+import { FactoryLeaderboard } from "./ui/FactoryLeaderboard";
+import { encodeLeaderboardLoadout } from "./leaderboardSpecies";
 import "./rogue.css";
 
 const PULSE_PUMP_MS = 200; // 演出泵间隔(04 §8:浮字对象池 ≤6 并发,多余合并)
@@ -77,6 +79,23 @@ const STRIKE_CHAIN_WINDOW_MS = 6000; // 连锁罢工判定窗口(边缘红闪强
 /** 写进 Steam 排行榜 details[3]；改平衡到不可比时必须递增。 */
 const FACTORY_BALANCE_VERSION = 3;
 const FACTORY_STRIKE_WARNING_KEY = "gulugulu.factory.strike-warning.v1";
+const FACTORY_REWARD_FX_MS = 2100;
+const FACTORY_MATERIAL_ICONS: Record<string, string> = {
+  ironBadge: "🔩", copperGoggles: "🥽", silverHelmet: "⛑️",
+  goldWrench: "🔧", platinumVest: "🦺", goldenBadge: "🎟️",
+};
+const FACTORY_MATERIAL_NAMES: Record<"zh" | "en", Record<string, string>> = {
+  zh: {
+    ironBadge: "铁质工牌", copperGoggles: "铜质护目镜", silverHelmet: "银质安全帽",
+    goldWrench: "鎏金扳手", platinumVest: "铂金工装", goldenBadge: "金牌工牌",
+  },
+  en: {
+    ironBadge: "Iron Badge", copperGoggles: "Copper Goggles", silverHelmet: "Silver Helmet",
+    goldWrench: "Gilded Wrench", platinumVest: "Platinum Vest", goldenBadge: "Gold Badge",
+  },
+};
+
+type FactoryRewardFx = { id: number; material: string; count: number };
 
 function strikeWarningWasAcknowledged(): boolean {
   if (typeof window === "undefined") return false;
@@ -247,12 +266,12 @@ export function FactoryRogueScene({
   // 桌序在进 loadout 前就洗好(「先亮桌图,后选出战」);再开一局重洗。
   const [deskOrder, setDeskOrder] = useState<RogueElement[]>(initialDeskOrder);
   const [run, setRun] = useState<RogueRun | null>(null);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   // 未结束局的续局存档(进场读一次):存在且用户未选「重开」时,先弹「继续/重开」抉择。
   const [resumeSnap, setResumeSnap] = useState<RogueRunSnapshot | null>(
     () => (onboardingActive ? null : loadRunSnapshot()),
   );
   const [resumeDismissed, setResumeDismissed] = useState(false);
-  const [loadoutReviewed, setLoadoutReviewed] = useState(false);
   const firstRunGuide =
     onFirstShiftComplete != null
     && onboardingActive
@@ -371,16 +390,18 @@ export function FactoryRogueScene({
           deskOrder={deskOrder}
           onStart={handleStart}
           onBack={onBack}
+          onLeaderboard={() => setLeaderboardOpen(true)}
           firstRunGuide={firstRunGuide}
-          onGuideLoadoutToggle={() => setLoadoutReviewed(true)}
         />
+        {leaderboardOpen && <FactoryLeaderboard config={config} onClose={() => setLeaderboardOpen(false)} />}
         {firstRunGuide && (
-          <FactoryFirstRunGuide directive={factoryLoadoutGuide(loadoutReviewed)} />
+          <FactoryFirstRunGuide directive={factoryLoadoutGuide()} />
         )}
       </div>
     );
   }
   return (
+    <>
     <RogueRunStage
       run={run}
       save={save}
@@ -388,12 +409,15 @@ export function FactoryRogueScene({
       onExit={onBack}
       onRetry={handleRetry}
       onClaimFactoryLevels={onClaimFactoryLevels}
+      onLeaderboard={() => setLeaderboardOpen(true)}
       onSave={onSave}
       onFirstShiftComplete={onFirstShiftComplete}
       firstRunGuide={firstRunGuide}
       initialBodies={resumeSnap?.bodies}
       initialRewards={resumeSnap?.rewards}
     />
+    {leaderboardOpen && <FactoryLeaderboard config={config} onClose={() => setLeaderboardOpen(false)} />}
+    </>
   );
 }
 
@@ -452,6 +476,7 @@ function RogueRunStage({
   firstRunGuide,
   initialBodies,
   initialRewards,
+  onLeaderboard,
 }: {
   run: RogueRun;
   save: GameSave;
@@ -464,6 +489,7 @@ function RogueRunStage({
   firstRunGuide: boolean;
   initialBodies?: BodyLike[];
   initialRewards?: Record<string, number>;
+  onLeaderboard: () => void;
 }) {
   const subscribe = useCallback((fn: () => void) => run.subscribe(fn), [run]);
   const getView = useCallback(() => run.view(), [run]);
@@ -480,30 +506,19 @@ function RogueRunStage({
       firstShiftReceiptPendingRef.current = false;
     });
   }, [onFirstShiftComplete, view.phase, view.shiftIndex]);
-  const [hiringReviewed, setHiringReviewed] = useState(
-    () =>
-      view.shiftIndex > 1
-      || (view.hiring != null
-        && (view.hiring.round > 1
-          || view.hiring.selectedCount < view.hiring.candidates.length)),
-  );
   const [tutorialSettledCount, setTutorialSettledCount] = useState(
     () => initialBodies?.filter((body) => body.settled).length ?? 0,
   );
   const [strikeWarningOpen, setStrikeWarningOpen] = useState(false);
-  const strikeWarningAcknowledgedRef = useRef(strikeWarningWasAcknowledged());
+  // A restarted onboarding is a fresh teaching scope even when this desktop
+  // profile acknowledged the warning in an earlier save. Outside onboarding,
+  // keep the original once-per-profile behavior.
+  const strikeWarningAcknowledgedRef = useRef(
+    firstRunGuide ? false : strikeWarningWasAcknowledged(),
+  );
   const tutorialSettledUidsRef = useRef(
     new Set(initialBodies?.filter((body) => body.settled).map((body) => body.uid) ?? []),
   );
-  useEffect(() => {
-    const hiring = view.hiring;
-    if (
-      hiring != null
-      && (hiring.round > 1 || hiring.selectedCount < hiring.candidates.length)
-    ) {
-      setHiringReviewed(true);
-    }
-  }, [view.hiring]);
   useEffect(() => {
     if (view.stats.strikes <= 0 || strikeWarningAcknowledgedRef.current) return;
     setStrikeWarningOpen(true);
@@ -511,7 +526,7 @@ function RogueRunStage({
   const firstRunDirective = strikeWarningOpen
     ? factoryStrikeWarningGuide()
     : firstRunGuide
-      ? factoryRunGuide(view, hiringReviewed, tutorialSettledCount)
+      ? factoryRunGuide(view, tutorialSettledCount)
       : null;
   const acknowledgeStrikeWarning = useCallback(() => {
     strikeWarningAcknowledgedRef.current = true;
@@ -526,6 +541,8 @@ function RogueRunStage({
   const [runRewards, setRunRewards] = useState<Record<string, number>>(
     () => ({ ...(initialRewards ?? {}) }),
   );
+  const [rewardFx, setRewardFx] = useState<FactoryRewardFx[]>([]);
+  const rewardFxIdRef = useRef(0);
   const [leaderboardStatus, setLeaderboardStatus] = useState<FactoryLeaderboardStatus | null>(null);
   const recordRevenueAtStartRef = useRef(run.records().bestRevenue);
   const runRewardsRef = useRef(runRewards);
@@ -563,11 +580,41 @@ function RogueRunStage({
     () => gameBridge.onFactoryLeaderboardStatus(setLeaderboardStatus),
     [gameBridge],
   );
+  // 订阅只会收到后续事件；重新进入工厂时必须主动恢复本地已回读的 Steam 名次。
+  useEffect(() => {
+    let cancelled = false;
+    void gameBridge.getFactoryLeaderboardStatus()
+      .then((status) => {
+        if (!cancelled) setLeaderboardStatus((current) => current ?? status);
+      })
+      .catch(() => {
+        // 未绑定 Steam / 预览环境不影响工厂流程；终局仍会尝试从全球榜回读本人。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameBridge]);
   useEffect(() => {
     if (cleared > claimedHighRef.current) {
       claimedHighRef.current = cleared;
       void claimRef.current(cleared).then((granted) => {
         if (!mountedRef.current || Object.keys(granted).length === 0) return;
+        const gained = Object.entries(granted).filter(([, count]) => count > 0);
+        if (gained.length > 0) {
+          const effects = gained.map(([material, count]) => ({
+            id: ++rewardFxIdRef.current,
+            material,
+            count,
+          }));
+          setRewardFx((current) => [...current, ...effects]);
+          for (const effect of effects) {
+            window.setTimeout(() => {
+              if (mountedRef.current) {
+                setRewardFx((current) => current.filter((item) => item.id !== effect.id));
+              }
+            }, FACTORY_REWARD_FX_MS);
+          }
+        }
         setRunRewards((previous) => {
           const next = { ...previous };
           for (const [material, count] of Object.entries(granted)) {
@@ -656,6 +703,7 @@ function RogueRunStage({
       bestShift: Math.max(0, cleared),
       endless: view.endless,
       balanceVersion: FACTORY_BALANCE_VERSION,
+      loadout: encodeLeaderboardLoadout(view.loadout),
     };
     const key = JSON.stringify(result);
     if (key === leaderboardReportKeyRef.current) return;
@@ -663,6 +711,23 @@ function RogueRunStage({
     void gameBridge.recordFactoryLeaderboardResult(result)
       .then((status) => {
         setLeaderboardStatus(status);
+        if (status.globalRank != null) return;
+        // 本地 outbox 可能来自旧安装、被清理过，或上传事件发生在本页挂载之前。
+        // 直接读取 Steam 的本人条目作为显示兜底，避免榜上已有 #1 却显示“—”。
+        void gameBridge.getFactoryLeaderboard()
+          .then((page) => {
+            const me = page.me;
+            if (me == null) return;
+            setLeaderboardStatus((current) => current?.globalRank != null ? current : ({
+              ...(current ?? status),
+              steamScore: me.score,
+              globalRank: me.rank,
+              leaderboardAvailable: true,
+            }));
+          })
+          .catch(() => {
+            // Steam 离线时仍由现有 outbox 和 factory://leaderboard 事件稍后收敛。
+          });
       })
       .catch(() => {
         // Steam 未连接/榜单未创建时不影响本地结算；Rust outbox 负责可重试场景。
@@ -1155,6 +1220,9 @@ function RogueRunStage({
     const timer = window.setInterval(() => {
       const nowT = Date.now();
       const pulses = run.takePulses();
+      // view() 会组装招聘、卡牌、身体状态等完整 UI 快照；一轮演出泵只取一次，
+      // 避免百人场景每 200ms 为三个独立读取重复分配同一批数组/对象。
+      const currentView = run.view();
       const snap = snapshotRef.current;
       const bodies = snap?.bodies() ?? [];
       const gone = goneRef.current;
@@ -1232,12 +1300,13 @@ function RogueRunStage({
         const partEntries: { uid: number; amount: number }[] = [];
         for (const p of pulses) {
           if (p.total > 0) {
+            const scoreTimes = p.deskScoreMult ?? Math.max(1, p.deskCount);
             mainEntries.push({
               uid: p.uid,
-              amount: p.total / Math.max(1, p.deskCount),
+              amount: p.total / scoreTimes,
               protest: false,
               kind: "total",
-              repeatCount: p.deskCount,
+              repeatCount: scoreTimes,
             });
           }
           let extraStep = 0;
@@ -1379,12 +1448,13 @@ function RogueRunStage({
               if (p.total > 0 && chains < FX_CHAINS_MAX) {
                 chains++;
                 const at = locate(p.uid);
+                const scoreTimes = p.deskScoreMult ?? Math.max(1, p.deskCount);
                 // pulse 已同时画出全部桌路径；jackpot ×N 与主得分数字表达多桌倍率，
                 // 同一笔结算不再按桌数复制吸取、技能节点和金币潮。
                 fx.pulse({
                   bd: p,
-                  gained: gained / Math.max(1, p.deskCount),
-                  tier: tierIdxFor(gained / Math.max(1, p.deskCount)),
+                  gained: gained / scoreTimes,
+                  tier: tierIdxFor(gained / scoreTimes),
                   at: at != null ? { x: at.x, y: at.y } : null,
                   posOf: (uid) => {
                     const l = locate(uid);
@@ -1447,7 +1517,7 @@ function RogueRunStage({
 
       // 💢 同种标记:场上与当前签(袋头)同物种的落定宠(读快照,非逐帧;
       // 内容没变不 setState)。
-      const head = run.view().bagPreview[0]?.species ?? null;
+      const head = currentView.bagPreview[0]?.species ?? null;
       const next: SameMark[] =
         head == null
           ? []
@@ -1460,7 +1530,7 @@ function RogueRunStage({
           ? prev
           : next,
       );
-      const stateByUid = new Map(run.view().bodyStates.map((state) => [state.uid, state]));
+      const stateByUid = new Map(currentView.bodyStates.map((state) => [state.uid, state]));
       const nextBodyStates: BodyStateMark[] = bodies.flatMap((body) => {
         const state = stateByUid.get(body.uid);
         if (state == null) return [];
@@ -1489,7 +1559,7 @@ function RogueRunStage({
 
       // 教学步③:首次两同粘连(仅第 1 班未触发时扫;教学班规模小,O(n²) 无压力)。
       if (!cuesRef.current.samePair) {
-        const v = run.view();
+        const v = currentView;
         if (v.shiftIndex === 1 && !v.endless && v.phase === "shift") {
           const settled = bodies.filter((b) => b.settled);
           outer: for (let i = 0; i < settled.length; i++) {
@@ -1559,7 +1629,6 @@ function RogueRunStage({
           view={view}
           config={config}
           firstRunGuide={firstRunGuide}
-          onGuideCandidateToggle={() => setHiringReviewed(true)}
         />
       )}
 
@@ -1667,6 +1736,20 @@ function RogueRunStage({
       />
 
       {/* 破产「查封」封条(去饱和由 .fr-scene-wrap.is-doomed 做;只贴实物条,无暗幕) */}
+      <div className="fr-reward-fx-stack" aria-live="polite" aria-atomic="true">
+        {rewardFx.map((effect) => (
+          <div key={effect.id} className={`fr-reward-fx is-${effect.material}`}>
+            <span className="fr-reward-fx-icon" aria-hidden="true">
+              {FACTORY_MATERIAL_ICONS[effect.material] ?? "🎁"}
+            </span>
+            <strong>
+              {FACTORY_MATERIAL_NAMES[lang][effect.material] ?? effect.material}{" "}
+              <small>×{effect.count}</small>
+            </strong>
+          </div>
+        ))}
+      </div>
+
       {view.phase === "bankrupt" && (
         <div className="fr-seal-layer" aria-hidden="true">
           <div className="fr-seal fr-seal-a">{sealLine}</div>
@@ -1687,6 +1770,7 @@ function RogueRunStage({
           run={run}
           view={view}
           config={config}
+          save={save}
           firstRunGuide={firstRunGuide}
         />
       )}
@@ -1701,6 +1785,7 @@ function RogueRunStage({
           leaderboardStatus={leaderboardStatus}
           onRetry={onRetry}
           onExit={onExit}
+          onLeaderboard={onLeaderboard}
         />
       )}
       {(firstRunGuide || strikeWarningOpen) && (

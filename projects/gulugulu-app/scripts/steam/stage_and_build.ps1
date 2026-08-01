@@ -1,8 +1,8 @@
 <#
   Builds the Gulugulu release and stages the SteamPipe depot content.
   Usage (from anywhere):
-    powershell -ExecutionPolicy Bypass -File scripts\steam\stage_and_build.ps1            # build + stage
-    powershell -ExecutionPolicy Bypass -File scripts\steam\stage_and_build.ps1 -SkipBuild  # stage only (reuse target\release)
+    powershell -ExecutionPolicy Bypass -File scripts\steam\stage_and_build.ps1
+    powershell -ExecutionPolicy Bypass -File scripts\steam\stage_and_build.ps1 -SkipBuild
 
   After it finishes, upload with steamcmd (YOUR Steam login + Steam Guard):
     steamcmd +login <steamAccount> +run_app_build "<repo>\projects\gulugulu-app\scripts\steam\app_build_4956830.vdf" +quit
@@ -10,34 +10,44 @@
 param([switch]$SkipBuild)
 
 $ErrorActionPreference = 'Stop'
-$steamDir = $PSScriptRoot                                  # ...\scripts\steam
-$appDir   = (Resolve-Path (Join-Path $steamDir '..\..')).Path   # ...\projects\gulugulu-app
+$steamDir = $PSScriptRoot
+$appDir   = (Resolve-Path (Join-Path $steamDir '..\..')).Path
 $relDir   = Join-Path $appDir 'src-tauri\target\release'
 $content  = Join-Path $steamDir 'content'
 
 if (-not $SkipBuild) {
-    # Frontend (tsc + vite → dist\, which Tauri embeds at compile time), then the
-    # release exe. cargo build --release yields a complete Tauri binary (icon +
-    # manifest + embedded frontend via build.rs) and steam_api64.dll, and skips
-    # the installer bundling that `tauri build` adds (not needed for a raw depot).
+    # The Tauri CLI applies the production frontendDist configuration and embeds
+    # dist\ into the executable. Steam needs the raw files, not MSI/NSIS bundles.
     Push-Location $appDir
     try {
-        Write-Host "==> Building frontend (npm run build)..." -ForegroundColor Cyan
-        & npm run build
-        if ($LASTEXITCODE -ne 0) { throw "npm run build failed (exit $LASTEXITCODE)" }
-
-        Write-Host "==> Building release exe (cargo build --release) — can take several minutes..." -ForegroundColor Cyan
-        Push-Location (Join-Path $appDir 'src-tauri')
-        try { & cargo build --release } finally { Pop-Location }
-        if ($LASTEXITCODE -ne 0) { throw "cargo build --release failed (exit $LASTEXITCODE)" }
+        Write-Host "==> Building production Tauri executable (no installer bundle)..." -ForegroundColor Cyan
+        & (Join-Path $appDir 'node_modules\.bin\tauri.cmd') build --no-bundle
+        if ($LASTEXITCODE -ne 0) { throw "tauri build --no-bundle failed (exit $LASTEXITCODE)" }
     } finally { Pop-Location }
 }
 
-# Locate the release exe (tauri:build renames to Gulugulu.exe; cargo bin is gulugulu.exe).
 $exe = @('Gulugulu.exe','gulugulu.exe') |
        ForEach-Object { Join-Path $relDir $_ } |
        Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $exe) { throw "Release exe not found in $relDir (Gulugulu.exe / gulugulu.exe). Run without -SkipBuild first." }
+if (-not $exe) {
+    throw "Release exe not found in $relDir (Gulugulu.exe / gulugulu.exe). Run without -SkipBuild first."
+}
+
+# Steam's Windows depot must launch as a GUI app. Fail packaging if the release
+# entry point regresses to the console subsystem (IMAGE_SUBSYSTEM_WINDOWS_CUI=3).
+$exeStream = [System.IO.File]::OpenRead($exe)
+try {
+    $exeReader = [System.IO.BinaryReader]::new($exeStream)
+    $exeStream.Position = 0x3c
+    $peOffset = $exeReader.ReadInt32()
+    $exeStream.Position = $peOffset + 24 + 68
+    $subsystem = $exeReader.ReadUInt16()
+} finally {
+    $exeStream.Dispose()
+}
+if ($subsystem -ne 2) {
+    throw "Release exe uses PE subsystem $subsystem; expected Windows GUI subsystem 2."
+}
 
 $dll = Join-Path $relDir 'steam_api64.dll'
 if (-not (Test-Path $dll)) {
@@ -46,7 +56,12 @@ if (-not (Test-Path $dll)) {
 }
 if (-not $dll -or -not (Test-Path $dll)) { throw "steam_api64.dll not found under $relDir" }
 
-# Stage a clean content dir.
+# Resolve the paths before recursively replacing generated staging content.
+$steamRoot = [System.IO.Path]::GetFullPath($steamDir).TrimEnd('\') + '\'
+$contentRoot = [System.IO.Path]::GetFullPath($content)
+if (-not $contentRoot.StartsWith($steamRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to clean content outside Steam staging directory: $contentRoot"
+}
 if (Test-Path $content) { Remove-Item $content -Recurse -Force }
 New-Item -ItemType Directory -Path $content | Out-Null
 Copy-Item $exe (Join-Path $content 'Gulugulu.exe')
@@ -56,5 +71,5 @@ Write-Host ""
 Write-Host "==> Staged depot content -> $content" -ForegroundColor Green
 Get-ChildItem $content | ForEach-Object { "    {0,-20} {1,10:N0} bytes" -f $_.Name, $_.Length }
 Write-Host ""
-Write-Host "Next (YOU run this — Steam Guard 2FA is required and must be you):" -ForegroundColor Yellow
+Write-Host "Next (Steam Guard 2FA must be completed by the account owner):" -ForegroundColor Yellow
 Write-Host ("    steamcmd +login <steamAccount> +run_app_build `"{0}`" +quit" -f (Join-Path $steamDir 'app_build_4956830.vdf'))

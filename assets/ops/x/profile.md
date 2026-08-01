@@ -15,7 +15,7 @@
 ## Bio（≤160 字符）
 
 ```
-Tiny studio, one human + a lot of Claude. Now raising Gulugulu 🐣 a free Steam desktop pet that reacts while your AI coding agent works.
+Tiny studio, one human + a lot of Claude. Raising Gulugulu 🐣 a $1.99 Steam desktop pet for AI-assisted coding. Launching Aug 18.
 ```
 
 ## 首帖（文字 + 主视觉图 `assets/steam-store/main_capsule.png`）
@@ -23,7 +23,7 @@ Tiny studio, one human + a lot of Claude. Now raising Gulugulu 🐣 a free Steam
 ```
 Hello world 👋 We're Mobi Studio — one human + a lot of Claude, making playful things.
 
-First up: Gulugulu, a free Steam desktop pet that lives beside your code and reacts while your AI agent works. It eats tokens. Coming soon 🐣
+First up: Gulugulu, a $1.99 Steam desktop pet that lives beside your code and reacts while your AI agent works. It eats tokens. Launching Aug 18 🐣
 ```
 
 ## 运营注意（前 3 天）

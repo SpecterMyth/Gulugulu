@@ -221,6 +221,8 @@ pub struct SteamStateInner {
     pub tx: Mutex<Option<Sender<SteamRequest>>>,
     /// 创意工坊请求通道（发布/查询 AI 变种形象），与 `tx` 同由泵线程消费。
     pub workshop_tx: Mutex<Option<Sender<WorkshopRequest>>>,
+    /// 排行榜页面读取请求，与其余 Steam API 一样在唯一泵线程串行执行。
+    pub leaderboard_tx: Mutex<Option<Sender<crate::steam_leaderboard::LeaderboardPageRequest>>>,
     pub status: Mutex<SteamStatus>,
     pub unclaimed: Mutex<Vec<SnapItem>>,
     /// 成就 toast 去重集（None = 尚未播种；首个 with_save 播种当前已达成、不弹）。
@@ -238,6 +240,7 @@ impl SharedSteamState {
         SharedSteamState(Arc::new(SteamStateInner {
             tx: Mutex::new(None),
             workshop_tx: Mutex::new(None),
+            leaderboard_tx: Mutex::new(None),
             status: Mutex::new(SteamStatus {
                 mode: "unavailable".to_string(),
                 app_id: STEAM_APP_ID,
@@ -283,6 +286,9 @@ impl SharedSteamState {
             *guard = None;
         }
         if let Ok(mut guard) = self.0.workshop_tx.lock() {
+            *guard = None;
+        }
+        if let Ok(mut guard) = self.0.leaderboard_tx.lock() {
             *guard = None;
         }
         self.update_status(app, |s| {
@@ -427,6 +433,17 @@ impl SharedSteamState {
         reply_rx
             .recv_timeout(COMMAND_TIMEOUT)
             .unwrap_or(OpOutcome::Uncertain)
+    }
+
+    pub fn leaderboard_page_blocking(
+        &self,
+    ) -> Result<crate::steam_leaderboard::FactoryLeaderboardPage, String> {
+        let tx = self.0.leaderboard_tx.lock().ok().and_then(|guard| guard.clone())
+            .ok_or_else(|| "#steamNotConnected".to_string())?;
+        let (reply, receive) = mpsc::channel();
+        tx.send(crate::steam_leaderboard::LeaderboardPageRequest { reply })
+            .map_err(|_| "#steamPumpExited".to_string())?;
+        receive.recv_timeout(COMMAND_TIMEOUT).map_err(|_| "#steamLeaderboardTimeout".to_string())?
     }
 
     /// 创意工坊同步调用：发请求给泵线程并等待（不得持存档锁调用）。
@@ -602,6 +619,11 @@ pub fn init(app: AppHandle, game_state: SharedGameState, steam_state: SharedStea
         if let Ok(mut guard) = steam_state.0.workshop_tx.lock() {
             *guard = Some(workshop_tx);
         }
+        let (leaderboard_tx, leaderboard_rx) =
+            mpsc::channel::<crate::steam_leaderboard::LeaderboardPageRequest>();
+        if let Ok(mut guard) = steam_state.0.leaderboard_tx.lock() {
+            *guard = Some(leaderboard_tx);
+        }
         steam_state.update_status(&app, |s| {
             s.mode = "connected".to_string();
             s.steam_id = Some(steam_id.clone());
@@ -643,6 +665,7 @@ pub fn init(app: AppHandle, game_state: SharedGameState, steam_state: SharedStea
             &client,
             rx,
             workshop_rx,
+            leaderboard_rx,
         );
         let uptime = connected_at.elapsed();
 
@@ -884,6 +907,7 @@ fn pump_loop(
     client: &steamworks::Client,
     rx: Receiver<SteamRequest>,
     workshop_rx: Receiver<WorkshopRequest>,
+    leaderboard_rx: Receiver<crate::steam_leaderboard::LeaderboardPageRequest>,
 ) {
     let mut grace = Grace(HashMap::new());
     let mut last_outbox = Instant::now() - OUTBOX_INTERVAL; // 启动立即巡检一次。
@@ -968,6 +992,11 @@ fn pump_loop(
         while let Ok(request) = workshop_rx.try_recv() {
             let reply = perform_workshop(client, &request.op);
             let _ = request.reply.send(reply);
+        }
+
+        while let Ok(request) = leaderboard_rx.try_recv() {
+            let result = leaderboard.fetch_page(client);
+            let _ = request.reply.send(result);
         }
 
         if steam_state.owner_mismatch() {

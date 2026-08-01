@@ -79,8 +79,8 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
         ringRef.current.style.height = `${r.height + 12}px`;
       }
 
-      // 手指：仅 tap / rapidTap（走位类不再用手指，见 #5）。
-      const showHand = gesture === "tap" || gesture === "rapidTap";
+      // 手指：tap / rapidTap，以及投放双引导里的点击备选。
+      const showHand = gesture === "tap" || gesture === "rapidTap" || gesture === "drop";
       // #3 目标贴近视口底（手指放下方会被裁切）→ 翻到目标上方、指尖朝下压住按钮。
       const pointDown = showHand && r.bottom + HAND_H > vh - 2;
       const defaultHandTop = pointDown
@@ -125,6 +125,9 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
       const isArrow = gesture === "arrow";
       if (isArrow) {
         show(keysRef.current, true, `translate(${vw / 2}px, ${vh - 46}px)`);
+      } else if (gesture === "drop") {
+        // 投放时空格是主操作：大键帽固定在屏幕下方中央，不跟着运输机左右漂。
+        show(keysRef.current, true, `translate(${vw / 2}px, ${Math.max(72, vh - 112)}px)`);
       } else {
         // #2 键帽放目标「脚下」（不再压在头顶气泡上）：贴 rect 底、夹进视口内。
         const showKeys = gesture === "keys" || gesture === "moveKeys";
@@ -166,13 +169,18 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
         </div>
       </div>
       <div ref={keysRef} className="coach-hold" data-coach-fx="keys" style={{ opacity: 0 }}>
-        <div className="coach-keys">
+        <div className={`coach-keys${gesture === "drop" ? " is-drop" : ""}`}>
           {gesture === "moveKeys" || gesture === "arrow" ? (
             <>
               <span className="coach-key">◀</span>
               <span className="coach-key">A / D</span>
               <span className="coach-key">▶</span>
             </>
+          ) : gesture === "drop" ? (
+            <span className="coach-key is-space">
+              <span className="coach-space-label">空格键</span>
+              <span className="coach-space-action">按下投放</span>
+            </span>
           ) : (
             <span className="coach-key is-wide">⌨</span>
           )}

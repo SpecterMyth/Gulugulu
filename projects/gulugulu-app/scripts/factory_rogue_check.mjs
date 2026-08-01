@@ -7,17 +7,19 @@ const appDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const entrySource = `
 export { RogueRun } from "./src/game/factory/rogueRun";
 export { buildSpeciesMeta } from "./src/game/factory/rogueSpecies";
-export { computePulse, pulseSpotlightUids, pulseTeamUids } from "./src/game/factory/roguePulse";
+export { buildPulseAdjacency, computePulse, pulseSpotlightUids, pulseTeamUids } from "./src/game/factory/roguePulse";
 export {
   absorbSet,
   bodiesSupportedByDesks,
   buildAdjacency,
+  extendAdjacency,
   deskSwapMoves,
   deskPaths,
   mismatchedDeskPathUids,
 } from "./src/game/factory/rogueGraph";
 export { buildOffer, cardPrice, dimPool, meetsCardPrerequisites } from "./src/game/factory/rogueShop";
 export * as CFG from "./src/game/factory/rogueConfig";
+export { FACTORY_ROGUE } from "./src/i18n/factoryRogue";
 `;
 const { outputFiles } = buildSync({
   stdin: { contents: entrySource, resolveDir: appDir, loader: "ts" },
@@ -98,6 +100,21 @@ eq(M.absorbSet(rowBodies, rowAdj, 1, 0), [], "连接数为零时不吸取其他�
 eq(M.absorbSet(rowBodies, rowAdj, 1, 1), [2], "只吸取最近的一只角色");
 eq(M.absorbSet(rowBodies, rowAdj, 1, 3), [2, 7, 3], "同距离按邻接顺序取满最近数量");
 ok(M.absorbSet(rowBodies, rowAdj, 1, 6).includes(7), "连接链允许向上连通");
+const adjacencyEntries = (adj) => [...adj.entries()]
+  .map(([uid, links]) => [uid, [...links].sort((a, b) => a - b)])
+  .sort((a, b) => a[0] - b[0]);
+const incrementalCandidate = body(99, 0, 100, ["fire"]);
+eq(
+  adjacencyEntries(M.extendAdjacency(rowAdj, rowBodies, incrementalCandidate, { slack: 1.01 })),
+  adjacencyEntries(M.buildAdjacency([...rowBodies, incrementalCandidate], { slack: 1.01 })),
+  "增量接入候选点与全量重建邻接图完全等价",
+);
+const inheritedState = (uid) => uid === 1 ? { uid, absorbedLinks: [6] } : undefined;
+const inheritedAdj = M.buildPulseAdjacency(rowBodies, inheritedState);
+ok(
+  inheritedAdj.get(1)?.includes(6) && inheritedAdj.get(6)?.includes(1),
+  "复用的计分邻接图保留吸收继承连接",
+);
 eq(
   M.computePulse({
     uid: 1,
@@ -228,6 +245,13 @@ const parallelCtx = {
   comboStacks: 0,
 };
 eq(M.computePulse({ ...parallelCtx, cards: {} }).total, 24, "双桌电系基础脉冲为两份");
+const maxRhythmPulse = M.computePulse({ ...parallelCtx, cards: {}, comboStacks: 20 });
+eq(maxRhythmPulse.rhythmMult, 5, "20 层连击使节奏池达到 5×");
+eq(
+  M.computePulse({ ...parallelCtx, cards: {}, comboStacks: 99 }).rhythmMult,
+  5,
+  "节奏池在 5× 硬封顶",
+);
 const parallelPulse = M.computePulse({ ...parallelCtx, cards: { "electric.parallel": 1 } });
 eq(parallelPulse.total, 36, "并联回路 Lv.1 按每张额外桌 +50% 后执行两桌计分");
 ok(
@@ -239,6 +263,19 @@ eq(
   2,
   "分流直接显示本次连通到的真实桌数",
 );
+const tripleDeskPulse = M.computePulse({
+  ...parallelCtx,
+  bodies: [{ ...dualElectric, elements: ["fire", "electric", "water"] }],
+  desks: [
+    { element: "fire", x: -10, w: 20, top: 10 },
+    { element: "electric", x: -10, w: 20, top: 10 },
+    { element: "water", x: -10, w: 20, top: 10 },
+  ],
+  cards: {},
+});
+eq(tripleDeskPulse.deskCount, 3, "三桌脉冲保留真实物理桌数");
+eq(tripleDeskPulse.deskScoreMult, 4, "三桌按四次计分");
+eq(tripleDeskPulse.total, 48, "三桌基础业绩按 4 次结算");
 
 console.log("== 六系核心打法与连携触发");
 const fireCore = M.computePulse({
@@ -252,10 +289,26 @@ const fireCore = M.computePulse({
 eq(fireCore.total, 24, "爆燃不再挤占主脉冲乘区");
 eq(
   fireCore.extras.filter((extra) => extra.kind === "fireBurst").length,
-  16,
-  "爆燃 Lv.5 把本次火系团队总业绩额外结算 16 次",
+  15,
+  "爆燃 Lv.5 把投放者打工业绩额外结算 15 次",
 );
 ok(fireCore.triggers.some((trigger) => trigger.kind === "ignite"), "火系爆燃写入点燃演出触发");
+const fireBaseOnlyBurst = M.computePulse({
+  ...parallelCtx,
+  bodies: [{ ...dualElectric, elements: ["fire", "electric", "water"] }],
+  cards: { "fire.burst": 1, "attr.dual": 5 },
+});
+eq(
+  fireBaseOnlyBurst.extras.find((extra) => extra.kind === "fireBurst")?.amount,
+  Math.round(
+    12
+      * fireBaseOnlyBurst.elementMult
+      * fireBaseOnlyBurst.synergyCardMult
+      * fireBaseOnlyBurst.jobMult
+      * fireBaseOnlyBurst.rhythmMult,
+  ) * fireBaseOnlyBurst.deskScoreMult,
+  "爆燃结算投放者自身的全 BUFF 分数，并保留接桌计次",
+);
 const fireSpread = M.computePulse({
   uid: 1,
   bodies: rowBodies,
@@ -269,6 +322,17 @@ eq(
   fireSpread.extras.filter((extra) => extra.kind === "wildfire").map((extra) => extra.uid),
   [2, 7, 3, 4, 5, 6],
   "燎原按邻接广度顺序逐只传火并受等级上限约束",
+);
+eq(
+  fireSpread.extras.find((extra) => extra.kind === "wildfire")?.amount,
+  Math.round(
+    10
+      * fireSpread.elementMult
+      * fireSpread.synergyCardMult
+      * fireSpread.jobMult
+      * fireSpread.rhythmMult,
+  ) * fireSpread.deskScoreMult,
+  "燎原结算被传火单位自身的全 BUFF 分数，并保留接桌计次",
 );
 
 const sameWaterA = body(30, 0, 0, ["water"]);
@@ -294,6 +358,43 @@ eq(
   2,
   "同名增压只统计本次投放者与被压榨成员，排除未连通单位",
 );
+const additiveTeamPool = M.computePulse({
+  ...waterCtx,
+  bodies: [
+    { ...sameWaterA, elements: ["water", "ice"] },
+    { ...sameWaterB, elements: ["water", "ice"] },
+  ],
+  cards: { "water.same": 1, "ice.overstaff": 1 },
+  stateOf: (uid) => uid === 31 ? { uid, frozen: true } : undefined,
+});
+ok(
+  Math.abs(additiveTeamPool.elementMult - 1.41) < 1e-9,
+  "同名增压先按同名数指数叠加，再与超额编制在元素卡池相加",
+);
+const sameCapBodies = Array.from({ length: 12 }, (_, index) => {
+  const member = body(330 + index, 0, 220 - index * 20, ["water"]);
+  member.species = "sameCap";
+  return member;
+});
+const sameCapPulse = M.computePulse({
+  uid: 330,
+  bodies: sameCapBodies,
+  desks: [{ element: "water", x: -10, w: 20, top: 10 }],
+  meta: {
+    sameCap: {
+      species: "sameCap",
+      elements: ["water"],
+      tierCount: 1,
+      groupNo: 1,
+      reach: 20,
+      baseValue: 15,
+    },
+  },
+  effBase: () => 15,
+  cards: { "water.same": 1 },
+  comboStacks: 0,
+});
+ok(Math.abs(sameCapPulse.elementMult - Math.pow(1.1, 10)) < 1e-9, "同名增压最多取 10 只并保持指数叠加");
 
 const iceCore = M.computePulse({
   ...waterCtx,
@@ -399,7 +500,10 @@ eq(
   "没有霜根网络时纯冰与纯草不能互相粘连接桌",
 );
 eq(frostroot.deskCount, 1, "霜根网络允许纯冰与纯草互相粘连接桌");
-eq(frostroot.synergyMult, 1.5, "史诗霜根网络按两条冰草相邻边增加团队业绩");
+ok(
+  Math.abs(frostroot.synergyCardMult - 1.5) < 1e-9,
+  "史诗霜根网络按两条冰草相邻边加入连携卡池",
+);
 eq(
   frostroot.triggers.find((trigger) => trigger.kind === "permafrost")?.value,
   2,
@@ -430,7 +534,10 @@ const frostrootTeamScoped = M.computePulse({
   comboStacks: 0,
 });
 eq(frostrootTeamScoped.absorbUids, [571], "霜根网络测试场景只压榨最近一只咕噜");
-eq(frostrootTeamScoped.synergyMult, 1.25, "未满级霜根网络不计算实际团队之外的远端冰草边");
+ok(
+  Math.abs(frostrootTeamScoped.synergyCardMult - 1.25) < 1e-9,
+  "未满级霜根网络不计算实际团队之外的远端冰草边",
+);
 eq(
   frostrootTeamScoped.triggers.find((trigger) => trigger.kind === "permafrost")?.targetUids,
   [570, 571],
@@ -493,8 +600,12 @@ const frostrootCapped = M.computePulse({
   comboStacks: 0,
 });
 ok(
-  Math.abs(frostrootCapped.synergyMult - 43) < 1e-9,
-  "霜根网络满级计算整片粘连区域且开放到 99 条边",
+  Math.abs(
+    frostrootCapped.synergyCardMult
+      - (1 + (frostrootCapped.triggers.find((trigger) => trigger.kind === "permafrost")?.value ?? 0)
+        * M.CFG.CARD_PARAMS["syn.permafrost"].perCrossEdge[4]),
+  ) < 1e-9,
+  "霜根网络满级计算整片粘连区域，连携卡池不做软上限压缩",
 );
 
 console.log("== 元素系列只响应本元素投放");
@@ -563,18 +674,18 @@ ok(
 );
 eq(
   Array.from({ length: 20 }, (_, i) => M.CFG.kpiForShift(i + 1)),
-  [80, 150, 280, 530, 1000, 1600, 2500, 4000, 6300, 10000, 21544, 46416, 100000, 215443, 464159, 1000000, 2154435, 4641589, 10000000, 50000000],
+  [80, 179, 400, 894, 2000, 3170, 5024, 7962, 12619, 20000, 39895, 79579, 158740, 316645, 631623, 1259921, 2513211, 5013193, 10000000, 50000000],
   "1~20 班 KPI 完整曲线",
 );
 eq(M.CFG.kpiForShift(1), 80, "第 1 班 KPI 保持 80");
-eq(M.CFG.kpiForShift(5), 1_000, "第 5 班 KPI 调整为 1000");
-eq(M.CFG.kpiForShift(10), 10_000, "第 10 班 KPI 保持 1 万");
+eq(M.CFG.kpiForShift(5), 2_000, "第 5 班 KPI 调整为 2000");
+eq(M.CFG.kpiForShift(10), 20_000, "第 10 班 KPI 调整为 2 万");
 eq(M.CFG.kpiForShift(19), 10_000_000, "第 19 班 KPI 锚定 1000 万");
 eq(M.CFG.kpiForShift(20), 50_000_000, "第 20 班 KPI 锚定 5000 万");
 ok(
   Array.from({ length: 9 }, (_, i) => M.CFG.kpiForShift(i + 11) / M.CFG.kpiForShift(i + 10))
-    .every((rate) => rate > 2),
-  "第 10 班起每班 KPI 增长均超过一倍",
+    .every((rate) => rate > 1.99 && rate < 2),
+  "第 10~19 班 KPI 以约 ×1.995 平滑增长",
 );
 ok(
   Array.from({ length: 20 }, (_, i) => M.CFG.billForShift(i + 1, i === 19 ? "audit" : "none"))
@@ -584,15 +695,18 @@ ok(
 ok(M.CFG.kpiForShift(20) / M.CFG.kpiForShift(1) > 2_000, "20 班 KPI 相对首班膨胀超过 2000 倍");
 eq(M.CFG.KPI_BONUS_RATE, 0.3, "KPI 达标奖金率为 30%");
 eq(M.CFG.kpiBonusFor(80), 24, "KPI 80 的绩效奖金按整数四舍五入为 24");
-eq(M.CFG.CARD_PARAMS["fire.burst"].repeats, [1, 2, 4, 8, 16], "爆燃追加团队总业绩次数按翻倍成长");
+eq(M.CFG.CARD_PARAMS["fire.burst"].repeats, [1, 3, 6, 10, 15], "爆燃追加打工业绩次数为 1/3/6/10/15");
 eq(M.CFG.CARD_PARAMS["fire.wildfire"].spread, [2, 4, 8, 16, 32], "燎原传导上限按翻倍成长");
 eq(M.CFG.CARD_PARAMS["water.convert"].targets, [1, 2, 3, 5, 8], "水镜同化改为确定的目标数量");
-eq(M.CFG.CARD_PARAMS["normal.absorb"].chance, [0.3, 0.6, 1, 1, 1], "吸收前三档概率为 30%/60%/100%");
+const coreTriggerChance = [0.1, 0.2, 0.3, 0.4, 0.6];
+eq(M.CFG.CARD_PARAMS["grass.grow"].chance, coreTriggerChance, "生长五档触发率为 10%/20%/30%/40%/60%");
+eq(M.CFG.CARD_PARAMS["ice.freeze"].chance, coreTriggerChance, "冻结五档触发率为 10%/20%/30%/40%/60%");
+eq(M.CFG.CARD_PARAMS["normal.absorb"].chance, coreTriggerChance, "吸收五档触发率为 10%/20%/30%/40%/60%");
 eq(M.CFG.CARD_PARAMS["normal.absorb"].targets, [1, 1, 1, 2, 3], "吸收后两档确定吞掉 2/3 个目标");
 eq(M.CFG.CARD_PARAMS["normal.emperor"].grow, [1, 2, 3, 5, 8], "打工皇帝只成长确定的体型数值");
 eq(
   M.CFG.CARD_PARAMS["syn.arcIgnite"].perDesk,
-  [0.5, 1, 2, 4, 8],
+  [0.5, 1, 3, 8, 20],
   "史诗电弧点火每张额外桌的增幅按单一数值成长",
 );
 eq(
@@ -665,8 +779,8 @@ ok(
 );
 eq(M.CFG.CARD_PARAMS["staff.expand"].quota, 5, "扩编每次只增加 5 个员工名额");
 eq(M.CFG.CARD_PARAMS["staff.fire3"].picks, 3, "解雇一次最多选择 3 只");
-eq(M.CFG.CARD_PARAMS["attr.balance"].mult, [5, 10, 20, 40, 80], "均衡红利保留六工种机制并大幅提高倍率");
-eq(M.CFG.CARD_PARAMS["attr.hex"].perElement, [0.5, 1, 2, 4, 8], "六边形津贴保留逐元素机制并大幅提高数值");
+eq(M.CFG.CARD_PARAMS["attr.balance"].mult, [5, 8, 12, 20, 28], "均衡红利保留六工种机制并调整成长");
+eq(M.CFG.CARD_PARAMS["attr.hex"].perElement, [1, 2, 4, 6, 10, 20], "六边形津贴提供六级逐元素成长");
 eq(M.CFG.CARD_PARAMS["staff.backfill"].extraCandidates.length, 10, "补招聘上限提升到 Lv.10");
 eq(M.CFG.CARD_PARAMS["water.fourday"].line, [5, 7, 9, 12, 16], "工休罢工线提高为 5/7/9/12/16");
 eq(M.CFG.baseTrainingBonus(["fire"], { "base.fire": 2 }), 5, "非草单元素基础培训按增强阶梯增加基础分");
@@ -786,14 +900,21 @@ ok(
   }).some((card) => card.id === "base.fire"),
   "满级元素培训会从后续元素商店移除",
 );
-eq(
-  M.dimPool(5, { loadoutElements: ["fire", "water"], cardLevels: {}, activeLoan: false }),
-  [],
-  "基础培训不再占用独立商店维度",
-);
+const mixedSelectionIds = M.dimPool(5, {
+  loadoutElements: ["fire", "water"],
+  cardLevels: { "fire.burst": 1, "water.fourday": 1 },
+  activeLoan: false,
+}).map((card) => card.id);
 ok(
-  !M.buildOffer(() => 0.5, { loadoutElements: ["fire"], cardLevels: {}, activeLoan: false }).dims.includes(5),
-  "新商店不再抽取已合并的基础培训维度",
+  mixedSelectionIds.includes("base.fire")
+    && mixedSelectionIds.includes("staff.expand")
+    && mixedSelectionIds.includes("syn.steamBurst"),
+  "第三栏综合精选同时包含当前合法的元素、属性经营与连携卡",
+);
+eq(
+  M.buildOffer(() => 0.5, { loadoutElements: ["fire"], cardLevels: {}, activeLoan: false }).dims,
+  [1, 2, 5],
+  "新商店第三栏固定从综合精选池抽取",
 );
 const mergedPoolIds = M.dimPool(2, {
   loadoutElements: ["fire"],
@@ -809,11 +930,6 @@ eq(
   mergedPoolIds,
   "旧续局的维度四刷新会兼容迁移到新混合池",
 );
-eq(
-  M.buildOffer(() => 0.5, { loadoutElements: ["fire"], cardLevels: {}, activeLoan: false }).dims,
-  [1, 2, 2],
-  "尚未解锁连携时第三次强化继续抽属性经营混合池",
-);
 const priceDef = M.CFG.CARD_DEFS.find((card) => card.id === "attr.pure");
 eq(
   [0, 1, 2, 3, 4].map((level) => M.cardPrice(priceDef, level, 1000)),
@@ -827,7 +943,7 @@ eq(
   M.CFG.CARD_PARAMS["attr.dual"].mult[0],
   "同为普通的专精与双职工 Lv.1 预期倍率一致",
 );
-eq(1 + M.CFG.CARD_PARAMS["attr.hex"].perElement[0] * 5, 3.5, "五色六边形津贴 Lv.1 达到 3.5 倍");
+eq(1 + M.CFG.CARD_PARAMS["attr.hex"].perElement[0] * 5, 6, "五色六边形津贴 Lv.1 达到 6 倍");
 eq(M.CFG.baseTrainingBonus(["fire"], { "base.fire": 5 }), 40, "非草基础培训 Lv.5 增加 40 点基础分");
 eq(M.CFG.HIRE_BASE, [0, 3, 4.2, 6, 8.5, 12, 16], "六工种基准价");
 eq(M.CFG.HIRE_INFLATION, [0, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07], "六工种整局通胀率");
@@ -952,6 +1068,17 @@ ok(finalRun != null, "可构造第 20 班复合检查测试局");
 eq(finalRun.view().disabledDesks, [], "第 20 班不禁用任何桌面");
 eq(finalRun.view().powerThrowsLeft, 20, "第 20 班限制为 20 次手动投放");
 ok(finalRun.windAx() !== 0, "第 20 班启用大风");
+// 与 FactoryScene 标准 560px 场景的真实投放几何一致：
+// 起点脚底约 198.66px、地面 508px、初始竖速 40px/s、重力 2500px/s²。
+const standardDropDistance = 508 - (104 + 104 * (233 / 256));
+const standardDropSeconds =
+  (-40 + Math.sqrt(40 ** 2 + 2 * 2500 * standardDropDistance)) / 2500;
+const standardWindDrift =
+  0.5 * Math.abs(finalRun.windAx()) * standardDropSeconds ** 2;
+ok(
+  standardWindDrift >= 170,
+  `标准场景大风落地点相对无风至少偏移 170px（实得 ${standardWindDrift.toFixed(1)}px）`,
+);
 finalRun.tick(1_000);
 eq(finalRun.view().rushDeadline, 301_000, "第 20 班赶工时限为 5 分钟");
 
@@ -970,7 +1097,7 @@ const absorbRun = new M.RogueRun({
   loadout: ["normalWorker"],
   meta: normalMeta,
   deskOrder: ["normal"],
-  seed: 7001,
+  seed: 2,
 });
 ok(absorbRun.confirmHiring(), "吸收测试局完成招聘");
 const absorbBodies = [];
@@ -985,11 +1112,47 @@ ok(absorbRun.onThrow(7002, "normalWorker"), "再投放吸收者");
 absorbBodies.push(body(7002, 20, 0, ["normal"]));
 absorbBodies[1].species = "normalWorker";
 absorbRun.onSettled(7002);
-eq(absorbRun.takeBodyMutations(), [{ kind: "absorb", sourceUid: 7002, targetUid: 7001 }], "满级吸收生成确定的合并指令");
+eq(absorbRun.takeBodyMutations(), [{ kind: "absorb", sourceUid: 7002, targetUid: 7001 }], "满级吸收命中后生成合并指令");
 eq(absorbRun.view().quotaUsed, 9, "吸收后两个单位只占一个人口");
 eq(absorbRun.view().bodyStates.find((state) => state.uid === 7002)?.sizeLevel, 2, "吸收者体型合并为 2 级");
 eq(absorbRun.snapshot()?.bodyEconomy.find((item) => item.uid === 7002)?.base, 30, "吸收者继承两个单位的完整基础分");
 eq(absorbRun.bodyScale(7002), 1.5, "首次吸收后的角色半径明显增大到 1.5 倍");
+
+let reverseAbsorbResult = null;
+for (let seed = 1; seed <= 100 && reverseAbsorbResult == null; seed++) {
+  const run = new M.RogueRun({
+    loadout: ["normalWorker"], meta: normalMeta, deskOrder: ["normal"], seed,
+  });
+  run.confirmHiring();
+  const bodies = [];
+  run.registerSnapshots({ bodies: () => bodies, desks: () => absorbDesks });
+  run.onThrow(7101, "normalWorker");
+  bodies.push({ ...body(7101, 0, 0, ["normal"]), species: "normalWorker" });
+  run.onSettled(7101);
+  run.debugGrantCard("normal.absorb", 5);
+  run.onThrow(7102, "normalWorker");
+  bodies.push({ ...body(7102, 20, 0, ["normal"]), species: "normalWorker" });
+  run.onSettled(7102);
+  const firstMutation = run.takeBodyMutations()[0];
+  if (firstMutation?.kind !== "absorb") continue;
+
+  // 场景层通常会立即执行 mutation；测试快照手动镜像该移除动作。
+  bodies.splice(bodies.findIndex((item) => item.uid === firstMutation.targetUid), 1);
+  run.onThrow(7103, "normalWorker");
+  bodies.push({ ...body(7103, 20, 0, ["normal"]), species: "normalWorker" });
+  run.onSettled(7103);
+  const reverseMutation = run.takeBodyMutations()[0];
+  if (reverseMutation?.sourceUid === firstMutation.sourceUid && reverseMutation.targetUid === 7103) {
+    reverseAbsorbResult = { run, absorberUid: firstMutation.sourceUid };
+  }
+}
+ok(reverseAbsorbResult != null, "低等级单位触发吸收时会反过来被高等级单位吸收");
+eq(
+  reverseAbsorbResult?.run.view().bodyStates.find((state) => state.uid === reverseAbsorbResult.absorberUid)?.sizeLevel,
+  3,
+  "反向吸收后高等级单位继续升级",
+);
+ok(!reverseAbsorbResult?.run.view().bodyStates.some((state) => state.uid === 7103), "反向吸收后低等级单位被移除");
 
 const emperorRun = new M.RogueRun({
   loadout: ["normalWorker"],
@@ -1078,6 +1241,21 @@ budgetSnap.cash = 0;
 const poorRun = M.RogueRun.restore(budgetSnap, metas);
 ok(poorRun != null && !poorRun.view().hiring.canAfford, "recruitment requires enough cash for its immediate payment");
 ok(poorRun != null && !poorRun.confirmHiring(), "insufficient cash cannot confirm recruitment");
+poorRun?.setAllHiringCandidates(true);
+eq(poorRun?.view().hiring.selectedCount, 0, "automatic recruitment selects no candidates when cash is zero");
+
+const limitedBudgetSnap = budgetRun.snapshot();
+limitedBudgetSnap.cash = limitedBudgetSnap.hiringCandidates[0] == null
+  ? 0
+  : budgetRun.view().hiring.candidates[0].price;
+const limitedBudgetRun = M.RogueRun.restore(limitedBudgetSnap, metas);
+limitedBudgetRun?.setAllHiringCandidates(true);
+ok(
+  limitedBudgetRun != null
+    && limitedBudgetRun.view().hiring.selectedCount > 0
+    && limitedBudgetRun.view().hiring.hireCost <= limitedBudgetRun.view().cash,
+  "automatic recruitment selects only the quantity affordable with current cash",
+);
 
 const billRiskSnap = budgetRun.snapshot();
 billRiskSnap.cash = Math.max(0, billRiskSnap.bill - 1);
@@ -1120,14 +1298,8 @@ backfillCapRun.debugGrantCard("staff.backfill", 10);
 backfillCapRun.debugGrantCard("staff.talentmarket", 2);
 ok(backfillCapRun.confirmHiring(true), "十级补招聘局完成常规招聘");
 eq(backfillCapRun.view().hiring.candidates.length, 12, "补招聘 Lv.10 加人才市场 Lv.2 每轮展示 12 名候选");
-eq(backfillCapRun.view().hiring.selectedCount, 12, "旧的全选初态可暴露超过十名的候选面");
-ok(!backfillCapRun.confirmHiring(), "单轮选择超过 10 名时不能确认");
-backfillCapRun.setAllHiringCandidates(false);
-for (const candidate of backfillCapRun.view().hiring.candidates.slice(0, 10)) {
-  backfillCapRun.toggleHiringCandidate(candidate.id);
-}
-eq(backfillCapRun.view().hiring.selectedCount, 10, "人才市场扩大候选面但单轮最多选择 10 名");
-ok(backfillCapRun.confirmHiring(), "限制到 10 名后可以确认补招聘");
+eq(backfillCapRun.view().hiring.selectedCount, 10, "automatic recruitment respects the per-round seat limit");
+ok(backfillCapRun.confirmHiring(), "automatically limited recruitment can be confirmed directly");
 
 console.log("== 搬桌切割移动、解雇退款与遣散费");
 const deskCardRun = new M.RogueRun({
@@ -1383,13 +1555,18 @@ ok(factRun.confirmSettlement(), "三次罢工后仍成功通过本班");
 ok(factRun.view().strikeClearEver, "同一班三次罢工后通过写入单局事实");
 const cashBeforeLoan = factRun.view().cash;
 factRun.debugGrantCard("staff.loan");
-eq(factRun.view().cash - cashBeforeLoan, factRun.view().kpi, "贷款立即获得 100% KPI 现金");
+eq(factRun.view().cash - cashBeforeLoan, factRun.view().kpi * 3, "贷款立即获得 300% KPI 现金");
 eq(
-  [M.CFG.LOAN_REPAY_RATE, M.CFG.LOAN_TOTAL_REPAY_RATE, M.CFG.LOAN_SHIFTS],
-  [0.35, 1.05, 3],
+  M.FACTORY_ROGUE.zh.cards["staff.loan"].desc(1),
+  "立得 3x KPI；后 3 班各还 35% 本金（共 1.05x）",
+  "贷款商店卡牌用短倍率显示",
+);
+eq(
+  [M.CFG.LOAN_GAIN_RATE, M.CFG.LOAN_REPAY_RATE, M.CFG.LOAN_TOTAL_REPAY_RATE, M.CFG.LOAN_SHIFTS],
+  [3, 0.35, 1.05, 3],
   "贷款连续 3 班各偿还本金 35%，总还款 105%",
 );
-eq(factRun.view().loan, { perShift: 28, remaining: 84, shiftsLeft: 3 }, "首班贷款 80 的还款计划固定为 28/28/28");
+eq(factRun.view().loan, { perShift: 84, remaining: 252, shiftsLeft: 3 }, "首班按 KPI 80 贷款 240，还款计划固定为 84/84/84");
 ok(factRun.view().boughtCardEver, "购卡事实不会因卡牌是否常驻而丢失");
 ok(factRun.view().usedLoanEver, "贷款还清前后都保留曾用贷款事实");
 const factSnap = factRun.snapshot();

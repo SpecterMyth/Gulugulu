@@ -62,6 +62,7 @@ import { getGameBridge } from "./bridge";
 import { formatCount } from "./format";
 import { assignPetStations, type StationSlot } from "./stationAssign";
 import { EnergyBar, ExpBar } from "./EnergyBar";
+import { ElementIcon } from "./ElementIcon";
 import { FlightLayer, foodFlightFor, keycapFlightsFor, useFlights } from "./FlightLayer";
 import {
   buildPokedexModel,
@@ -1009,6 +1010,26 @@ export function BackyardScene({
     return null;
   };
 
+  const fusionPartnerIds = new Set(
+    placedPets
+      .filter(({ pet }) => fusionHintFor(pet) == null)
+      .map(({ pet }) => pet.id),
+  );
+  const showActivePetElements = fusionPartnerIds.size > 0;
+  const petElementIcons = (pet: PetInstance) =>
+    config.species[pet.species]?.elements.map((element) => {
+      const info = config.elements[element];
+      return info ? (
+        <ElementIcon
+          key={element}
+          badge={info.badge}
+          color={info.color}
+          title={info.nameZh}
+          size={10}
+        />
+      ) : null;
+    });
+
   const releaseRefund = (pet: PetInstance): number => {
     // 物种资料缺失（Steam 侧导入的未注册 AI 变种）→ 按确定性 codename 反解配方
     // 元素估算，与 Rust release_refund_for 的兜底同口径（连配方都反解不出 → 0 基价）。
@@ -1443,6 +1464,9 @@ export function BackyardScene({
                   <span className="by-pet-tag-stars" aria-label={fmt(bk.scene.tierAria, { tier: pet.tier })}>
                     {"★".repeat(pet.tier)}
                   </span>
+                  {fusionPartnerIds.has(pet.id) && (
+                    <span className="by-pet-tag-elements">{petElementIcons(pet)}</span>
+                  )}
                 </span>
                 <span className="by-pet-tag-name">
                   {pet.exhausted ? "💤 " : ""}
@@ -1558,6 +1582,9 @@ export function BackyardScene({
                   >
                     {"★".repeat(activePet.tier)}
                   </span>
+                  {showActivePetElements && (
+                    <span className="by-pet-tag-elements">{petElementIcons(activePet)}</span>
+                  )}
                 </span>
                 <span className="by-pet-tag-name">
                   {activePet.exhausted ? "💤 " : ""}

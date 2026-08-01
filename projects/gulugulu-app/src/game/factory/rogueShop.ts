@@ -25,7 +25,7 @@ export function cardDef(id: string): CardDef | undefined {
   return DEF_BY_ID.get(id);
 }
 
-/** 单卡现价 = 稀有度率 × 当班 KPI × 1.5^当前已持有等级；免费卡(贷款)恒 0。 */
+/** 单卡现价 = 稀有度率 × 当班 KPI × 3^当前已持有等级；免费卡(贷款)恒 0。 */
 export function cardPrice(def: CardDef, level: number, kpi: number): number {
   if (def.free) return 0;
   const rate = CARD_PRICE_RATE[def.rarity] ?? CARD_PRICE_RATE.common;
@@ -54,7 +54,8 @@ export function dimPool(dim: CardDim, args: OfferArgs): CardDef[] {
   // 旧续局可能仍保存 dim=4；刷新时迁移到新的“属性与经营”混合池。
   const poolDim: CardDim = dim === 4 ? 2 : dim;
   return CARD_DEFS.filter((d) => {
-    if (d.dim !== poolDim) return false;
+    // 维度五作为第三栏的“综合精选”池，统一收录当前合法的元素、属性经营与连携卡。
+    if (poolDim === 5 ? !([1, 2, 3] as CardDim[]).includes(d.dim) : d.dim !== poolDim) return false;
     if (!meetsCardPrerequisites(d, args.cardLevels)) return false;
     if (d.maxLevel != null && (args.cardLevels[d.id] ?? 0) >= d.maxLevel) return false;
     if (d.dim === 1 && (d.element == null || !args.loadoutElements.includes(d.element))) return false;
@@ -96,10 +97,9 @@ export function drawDimCards(rng: () => number, dim: CardDim, args: OfferArgs): 
     .map((d) => d.id);
 }
 
-/** 开一次商店:元素系列 + 属性经营混合池 + 连携；连携未解锁时第三次再抽混合池。 */
+/** 开一次商店：元素系列 + 属性经营混合池 + 综合精选池。 */
 export function buildOffer(rng: () => number, args: OfferArgs): ShopOffer {
-  const thirdDim: CardDim = dimPool(3, args).length > 0 ? 3 : 2;
-  const dims: [CardDim, CardDim, CardDim] = [1, 2, thirdDim];
+  const dims: [CardDim, CardDim, CardDim] = [1, 2, 5];
   return {
     dims,
     cards: [drawDimCards(rng, dims[0], args), drawDimCards(rng, dims[1], args), drawDimCards(rng, dims[2], args)],

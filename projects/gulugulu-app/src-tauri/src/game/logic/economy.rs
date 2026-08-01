@@ -262,10 +262,21 @@ pub(crate) fn apply_collect(
     let egg = save.eggs.remove(egg_index);
     let tutorial_direct_max = save.onboarding.status == "active"
         && egg.tier >= 2;
-    let (species, steam_item_id, steam_item_def) = match granted {
+    let pending_fusion = egg
+        .pending_fusion
+        .filter(|pending| pending.status != "resolved");
+    let (mut species, steam_item_id, steam_item_def) = match granted {
         Some((species, item_id, def)) => (species, Some(item_id), Some(def)),
         None => (egg.species, None, None),
     };
+    // A claimed design-in-progress pet is fully playable immediately. Keep the
+    // recipe's canonical species (correct elements/stats/default rig) until the
+    // AI design atomically replaces it.
+    if let Some(pending) = pending_fusion.as_ref() {
+        if let Some(fallback) = config.species_by_recipe.get(&pending.recipe_key) {
+            species = fallback.clone();
+        }
+    }
     // 融合 2.0：阶数在实例上，**蛋阶 = 宠阶**（EconomyScaling §7）——一律取 egg.tier。
     // 旧口径"物种自带 tier>0 沿用"是 bug：2 阶商店蛋掷中目录一阶物种（如 emberfox）
     // 时会错落成 t1（2026-07-16 真机 E2E 发现）。教程/一阶蛋与 legacy 蛋两侧本就相等。
@@ -276,7 +287,9 @@ pub(crate) fn apply_collect(
     if tier > save.stats.highest_tier {
         save.stats.highest_tier = tier;
     }
-    let pet_id = new_id("pet");
+    // Preserve the task identity across egg -> pet so an already-running worker
+    // and a worker restored after restart address the same durable target.
+    let pet_id = if pending_fusion.is_some() { egg.id } else { new_id("pet") };
     let level = if tutorial_direct_max {
         config.max_level_for_tier(tier)
     } else {
@@ -291,6 +304,7 @@ pub(crate) fn apply_collect(
         stamina: config.stamina_max,
         stamina_updated_at: now,
         exhausted: false,
+        pending_fusion,
         key_buffer: 0,
         token_buffer: 0,
         steam_item_id,

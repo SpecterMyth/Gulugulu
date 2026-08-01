@@ -46,11 +46,12 @@ eq(M.equivalentEggPrice(config, "frostpeng", 1), 300, "1 阶冰基础种等效�
 eq(M.equivalentEggPrice(config, "guluswan", 2), 160 * 85, "2 阶 guluswan([normal]) = 160×85");
 eq(M.equivalentEggPrice(config, "steamalotl", 3), (240 + 240) * 85 * 85, "3 阶 fire+water = (240+240)×85²");
 
-// ---- 商店升级 / 封顶（§6.1） ----
-eq(M.shopMaxLevel(config), 4, "商店封顶 4 阶");
+// ---- 商店升级 / 封顶（经济 v2.0：商店封顶 3 阶，4~6 阶转由训练馆升阶） ----
+// 现行 config.json、TS/Rust accessor 与 Rust 生产配置测试均以该口径为准。
+eq(M.shopMaxLevel(config), 3, "经济 v2.0：商店封顶 3 阶");
 eq(M.shopUpgradeCost(config, 1), 50000, "Lv1→2 升级费");
-eq(M.shopUpgradeCost(config, 3), 11250000, "Lv3→4 升级费");
-eq(M.shopUpgradeCost(config, 4), null, "已满级无升级费");
+eq(M.shopUpgradeCost(config, 2), 750000, "Lv2→3 升级费");
+eq(M.shopUpgradeCost(config, 3), null, "Lv3 已满级、无升级费");
 
 // ---- 蛋池整数权重 w(c)=3^(6−c)（§7.2） ----
 eq([1, 2, 3, 4, 5, 6].map((c) => M.eggRarityWeight(config, c)), [243, 81, 27, 9, 3, 1], "蛋池权重表");

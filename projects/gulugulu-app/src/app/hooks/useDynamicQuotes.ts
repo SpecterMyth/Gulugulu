@@ -11,11 +11,12 @@ export function useDynamicQuotes(bridge: GameBridge): void {
     bridge
       .getDynamicQuotes()
       .then((entries) => {
-        if (!disposed && entries.length > 0) setDynamicQuotes(entries);
+        if (!disposed) setDynamicQuotes(entries);
       })
       .catch(() => undefined);
     const unsubscribe = bridge.onQuotesReady((entries) => {
-      if (entries.length > 0) setDynamicQuotes(entries);
+      // 空数组是撤回同意/清空动态池的有效状态，不能忽略。
+      setDynamicQuotes(entries);
     });
     return () => {
       disposed = true;
