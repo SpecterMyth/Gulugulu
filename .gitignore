@@ -13,8 +13,9 @@ Desktop.ini
 *.tmp
 *.temp
 
-# Local Claude/Codex machine config
+# Local Claude/Codex machine config and scratch output
 claude/settings.json
+**/.claude/
 
 # Node/Vite
 node_modules/
@@ -29,6 +30,7 @@ projects/services/avatar-gen/.data/
 # Tauri/Rust build output
 target/
 projects/gulugulu-app/src-tauri/target/
+projects/gulugulu-app/src-tauri/target-codex-*/
 projects/gulugulu-app/src-tauri/gen/
 
 # Tauri generated installers/bundles
@@ -57,3 +59,14 @@ config/ops/ops_info.json
 # Large trailer media & SteamPipe depot build artifacts (kept local / on Steam)
 assets/steam-pv/
 scripts/steam/pipe/
+
+# Steam beta keys are access credentials; keep downloaded key batches local
+ops/steam/beta_test_keys/
+
+# Local release bundles, generated reports, and visual test captures
+build/
+outputs/
+test/auto_test/
+
+# Public repository: keep private operations and outreach data local
+ops/

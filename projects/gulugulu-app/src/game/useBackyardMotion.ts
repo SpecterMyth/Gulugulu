@@ -57,8 +57,6 @@ type PoiSides = {
 export type UseBackyardMotionInput = {
   onWalkingChange: (walking: boolean) => void;
   placedPetsRef: MutableRefObject<PlacedPet[]>;
-  dismissGuide: () => void;
-  dismissGuideRef: MutableRefObject<() => void>;
   charSize: number;
   spawnX: number;
   stageH: number;
@@ -67,8 +65,6 @@ export type UseBackyardMotionInput = {
 export function useBackyardMotion({
   onWalkingChange,
   placedPetsRef,
-  dismissGuide,
-  dismissGuideRef,
   charSize,
   spawnX,
   stageH,
@@ -270,11 +266,9 @@ export function useBackyardMotion({
     const onKeyDown = (event: KeyboardEvent) => {
       if (isLeftKey(event)) {
         keysRef.current.left = true;
-        dismissGuideRef.current();
         if (event.key.startsWith("Arrow")) event.preventDefault();
       } else if (isRightKey(event)) {
         keysRef.current.right = true;
-        dismissGuideRef.current();
         if (event.key.startsWith("Arrow")) event.preventDefault();
       }
     };
@@ -301,7 +295,6 @@ export function useBackyardMotion({
     const rect = rootRef.current?.getBoundingClientRect();
     const viewX = (event.clientX - (rect?.left ?? 0)) / stageRefValues.current.scale;
     motionRef.current.target = clamp(motionRef.current.camX + viewX, CHAR_MIN, CHAR_MAX);
-    dismissGuide();
   };
 
   // 相机定位：把主角（=当前陪伴）瞬移到指定世界 X，下一帧 rAF 循环随之取景。

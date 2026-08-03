@@ -233,7 +233,10 @@ fn enqueue(
     let score = scale_revenue(revenue, FACTORY_REVENUE_SCORE_UNIT);
     let revenue_total = revenue.to_string();
     if result.loadout.len() > FACTORY_LOADOUT_MAX
-        || result.loadout.iter().any(|code| !(1..=FACTORY_SPECIES_CODE_MAX).contains(code))
+        || result
+            .loadout
+            .iter()
+            .any(|code| !(1..=FACTORY_SPECIES_CODE_MAX).contains(code))
     {
         return Err("#factoryLeaderboardInvalidLoadout".to_string());
     }
@@ -463,7 +466,8 @@ fn entry_payload(
 ) -> FactoryLeaderboardEntry {
     let details = &entry.details;
     let is_v1 = details.first().copied() == Some(1) && details.len() >= 4;
-    let is_v2 = details.first().copied() == Some(FACTORY_SCORE_SCHEMA_VERSION) && details.len() >= 5;
+    let is_v2 =
+        details.first().copied() == Some(FACTORY_SCORE_SCHEMA_VERSION) && details.len() >= 5;
     let loadout = if is_v2 {
         let count = details[4].clamp(0, FACTORY_LOADOUT_MAX as i32) as usize;
         let end = 5usize.saturating_add(count).min(details.len());
@@ -482,9 +486,14 @@ fn entry_payload(
     FactoryLeaderboardEntry {
         rank: entry.global_rank,
         steam_id: steam_id.to_string(),
-        persona_name: if name.trim().is_empty() || name == "[unknown]" { fallback } else { name },
+        persona_name: if name.trim().is_empty() || name == "[unknown]" {
+            fallback
+        } else {
+            name
+        },
         score: entry.score,
-        revenue_total: (i128::from(entry.score.max(0)) * i128::from(FACTORY_REVENUE_SCORE_UNIT)).to_string(),
+        revenue_total: (i128::from(entry.score.max(0)) * i128::from(FACTORY_REVENUE_SCORE_UNIT))
+            .to_string(),
         best_shift: (is_v1 || is_v2).then_some(details[1]),
         endless: (is_v1 || is_v2).then_some(details[2] != 0),
         balance_version: (is_v1 || is_v2).then_some(details[3]),
@@ -547,11 +556,17 @@ impl LeaderboardRuntime {
         Ok(())
     }
 
-    pub fn fetch_page(&mut self, client: &steamworks::Client) -> Result<FactoryLeaderboardPage, String> {
+    pub fn fetch_page(
+        &mut self,
+        client: &steamworks::Client,
+    ) -> Result<FactoryLeaderboardPage, String> {
         let leaderboard = self.ensure_leaderboard(client)?;
         let owner = client.user().steam_id().raw();
         let mut global = download_global(client, &leaderboard)?;
-        let mut me_raw = global.iter().find(|entry| entry.user.raw() == owner).cloned();
+        let mut me_raw = global
+            .iter()
+            .find(|entry| entry.user.raw() == owner)
+            .cloned();
         if me_raw.is_none() {
             me_raw = download_self(client, &leaderboard, owner)?;
         }
@@ -567,9 +582,16 @@ impl LeaderboardRuntime {
             std::thread::sleep(Duration::from_millis(20));
         }
 
-        let entries = global.drain(..).map(|entry| entry_payload(client, entry, owner)).collect::<Vec<_>>();
+        let entries = global
+            .drain(..)
+            .map(|entry| entry_payload(client, entry, owner))
+            .collect::<Vec<_>>();
         let me = me_raw.map(|entry| entry_payload(client, entry, owner));
-        Ok(FactoryLeaderboardPage { entries, me, updated_at: now_unix() })
+        Ok(FactoryLeaderboardPage {
+            entries,
+            me,
+            updated_at: now_unix(),
+        })
     }
 
     /// 仅由 Steam 泵线程调用；失败写回退避时间并静默返回，不阻塞本地结算。
@@ -755,10 +777,16 @@ mod tests {
         let mut store = LeaderboardStore::default();
         let mut too_many = result("100");
         too_many.loadout = vec![1; FACTORY_LOADOUT_MAX + 1];
-        assert_eq!(enqueue(&mut store, "A", &too_many, 1).unwrap_err(), "#factoryLeaderboardInvalidLoadout");
+        assert_eq!(
+            enqueue(&mut store, "A", &too_many, 1).unwrap_err(),
+            "#factoryLeaderboardInvalidLoadout"
+        );
         let mut invalid = result("100");
         invalid.loadout = vec![0, FACTORY_SPECIES_CODE_MAX + 1];
-        assert_eq!(enqueue(&mut store, "A", &invalid, 1).unwrap_err(), "#factoryLeaderboardInvalidLoadout");
+        assert_eq!(
+            enqueue(&mut store, "A", &invalid, 1).unwrap_err(),
+            "#factoryLeaderboardInvalidLoadout"
+        );
     }
 
     #[test]

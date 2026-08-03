@@ -1,14 +1,15 @@
 use crate::game::*;
 
 const BASE_ELEMENTS: [&str; 6] = ["normal", "fire", "water", "grass", "electric", "ice"];
-const STARTER_TRIO: [&str; 3] = ["water", "electric", "ice"];
+const STARTER_TRIO: [&str; 3] = ["normal", "fire", "electric"];
+const TUTORIAL_FUSION_RECIPES: [&str; 2] = ["fire+normal", "electric+water"];
 
 const ONBOARDING_STEPS: [&str; 61] = [
     "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12", "A13",
-    "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "C01", "C02", "C03",
-    "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "D01", "D02", "D03", "D04",
-    "D05", "D06", "D07", "D08", "E01", "E02", "E03", "F01", "F02", "F03a", "F04", "G01", "G02",
-    "G03", "G04", "G05", "G06", "G07", "DONE",
+    "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06", "B07",
+    "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "D01",
+    "D02", "D03", "D04", "D05", "D06", "D07", "D08", "E01", "E02", "E03", "F01", "F02", "F03a",
+    "F04", "G01", "G02", "G03", "G04", "G05", "G06", "G07", "DONE",
 ];
 
 pub(crate) fn occupied_pet_count(save: &GameSave) -> usize {
@@ -41,6 +42,7 @@ fn grant_max_pet(
     config: &GameConfig,
     save: &mut GameSave,
     species: String,
+    tier: u8,
     now: i64,
     capacity_exempt: bool,
 ) -> Result<String, String> {
@@ -48,11 +50,11 @@ fn grant_max_pet(
         return Err(format!("#unknownSpeciesNamed|species={species}"));
     }
     let id = new_id("pet");
-    let level = config.max_level_for_tier(1);
+    let level = config.max_level_for_tier(tier);
     save.pets.push(PetInstance {
         id: id.clone(),
         species: species.clone(),
-        tier: 1,
+        tier,
         level,
         exp: 0,
         stamina: config.stamina_max,
@@ -69,7 +71,7 @@ fn grant_max_pet(
     }
     record_species_obtained(save, &species);
     save.stats.first_maxlevel_done = true;
-    save.stats.highest_tier = save.stats.highest_tier.max(1);
+    save.stats.highest_tier = save.stats.highest_tier.max(tier);
     if save.active_pet_id.is_none() {
         save.active_pet_id = Some(id.clone());
     }
@@ -95,8 +97,40 @@ fn grant_elements(
         .collect();
     // Resolve every species before mutating so the transaction cannot partially grant.
     for codename in species? {
-        grant_max_pet(config, save, codename, now, capacity_exempt)?;
+        grant_max_pet(config, save, codename, 1, now, capacity_exempt)?;
     }
+    Ok(())
+}
+
+/// Skipping the route replaces the two hands-on tutorial fusions with their
+/// canonical, max-level results. `tutorial_fusions` is also the durable receipt:
+/// a player who already performed one or both fusions only receives the missing
+/// result, and retrying the skip cannot duplicate either reward.
+pub(crate) fn logic_grant_skipped_onboarding_fusions(
+    config: &GameConfig,
+    save: &mut GameSave,
+    now: i64,
+) -> Result<(), String> {
+    if save.onboarding.status != "active" {
+        return Ok(());
+    }
+    let completed = usize::from(save.onboarding.tutorial_fusions.min(2));
+    let species: Result<Vec<String>, String> = TUTORIAL_FUSION_RECIPES[completed..]
+        .iter()
+        .map(|recipe| {
+            config
+                .species_by_recipe
+                .get(*recipe)
+                .cloned()
+                .ok_or_else(|| format!("#missingRecipe|recipe={recipe}"))
+        })
+        .collect();
+
+    for codename in species? {
+        grant_max_pet(config, save, codename, 2, now, true)?;
+    }
+    save.onboarding.tutorial_fusions = 2;
+    save.tutorial_first_fusion_done = true;
     Ok(())
 }
 

@@ -300,7 +300,8 @@ impl SharedCodexState {
         // 在线 = 「在跟踪某会话文件」且「该源最近有新内容」。仅"跟踪到文件"不算在线——
         // 否则启动即采纳的陈旧历史日志会让状态栏永久显示在线（见 codex_last_active）。
         let now = Instant::now();
-        let recent = |at: Option<Instant>| at.is_some_and(|t| now.duration_since(t) < ACTIVE_WINDOW);
+        let recent =
+            |at: Option<Instant>| at.is_some_and(|t| now.duration_since(t) < ACTIVE_WINDOW);
         let codex_online = state.codex_watching && recent(state.codex_last_active);
         let claude_online = state.claude_code_watching && recent(state.claude_last_active);
         CodexStatus {
@@ -387,7 +388,8 @@ pub fn spawn_codex_watcher(app: AppHandle, state: SharedCodexState) {
         let mut parse_state = CodexParseState::default();
         let mut active_project: Option<String> = None;
         let mut last_error_emit: Option<(String, Instant)> = None;
-        let mut started_sessions: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+        let mut started_sessions: std::collections::HashSet<PathBuf> =
+            std::collections::HashSet::new();
 
         loop {
             let codex_home = state
@@ -433,11 +435,17 @@ pub fn spawn_codex_watcher(app: AppHandle, state: SharedCodexState) {
                     if let Ok((prev_offset, events)) =
                         read_new_events(prev_file, offset, &mut parse_state)
                     {
-                        let _ = update_codex_session_offset(&app, prev_project, prev_file, prev_offset);
+                        let _ =
+                            update_codex_session_offset(&app, prev_project, prev_file, prev_offset);
                         if !events.is_empty() {
                             mark_source_active(&state, "codex");
                             process_session_events(
-                                &app, &state, "codex", prev_file, prev_project, events,
+                                &app,
+                                &state,
+                                "codex",
+                                prev_file,
+                                prev_project,
+                                events,
                                 &mut last_error_emit,
                             );
                         }
@@ -480,7 +488,12 @@ pub fn spawn_codex_watcher(app: AppHandle, state: SharedCodexState) {
                         if !events.is_empty() {
                             mark_source_active(&state, "codex");
                             process_session_events(
-                                &app, &state, "codex", &latest, project_path, events,
+                                &app,
+                                &state,
+                                "codex",
+                                &latest,
+                                project_path,
+                                events,
                                 &mut last_error_emit,
                             );
                         }
@@ -504,7 +517,8 @@ pub fn spawn_claude_code_watcher(app: AppHandle, state: SharedCodexState) {
         let mut parse_state = ClaudeCodeParseState::default();
         let mut active_project: Option<String> = None;
         let mut last_error_emit: Option<(String, Instant)> = None;
-        let mut started_sessions: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+        let mut started_sessions: std::collections::HashSet<PathBuf> =
+            std::collections::HashSet::new();
 
         loop {
             let claude_home = state
@@ -533,12 +547,20 @@ pub fn spawn_claude_code_watcher(app: AppHandle, state: SharedCodexState) {
                         read_new_claude_code_events(prev_file, offset, &mut parse_state)
                     {
                         let _ = update_claude_code_session_offset(
-                            &app, prev_project, prev_file, prev_offset,
+                            &app,
+                            prev_project,
+                            prev_file,
+                            prev_offset,
                         );
                         if !events.is_empty() {
                             mark_source_active(&state, "claudeCode");
                             process_session_events(
-                                &app, &state, "claudeCode", prev_file, prev_project, events,
+                                &app,
+                                &state,
+                                "claudeCode",
+                                prev_file,
+                                prev_project,
+                                events,
                                 &mut last_error_emit,
                             );
                         }
@@ -587,7 +609,12 @@ pub fn spawn_claude_code_watcher(app: AppHandle, state: SharedCodexState) {
                         if !events.is_empty() {
                             mark_source_active(&state, "claudeCode");
                             process_session_events(
-                                &app, &state, "claudeCode", &latest, project_path, events,
+                                &app,
+                                &state,
+                                "claudeCode",
+                                &latest,
+                                project_path,
+                                events,
                                 &mut last_error_emit,
                             );
                         }
@@ -622,7 +649,8 @@ where
         .map_err(|error| error.to_string())?;
 
     let mut buf = Vec::new();
-    file.read_to_end(&mut buf).map_err(|error| error.to_string())?;
+    file.read_to_end(&mut buf)
+        .map_err(|error| error.to_string())?;
 
     let mut consumed = 0usize; // 已消费到「最后一个 '\n' 之后」的字节数
     for chunk in buf.split_inclusive(|&b| b == b'\n') {
@@ -1580,7 +1608,11 @@ const DAILY_TOKENS_RETAIN_DAYS: u64 = 40;
 
 /// 把当天新增的 raw 总量 + 四分明细记入全局每日桶，并顺带修剪过期桶。
 /// 调用方需已持有 `lock_progress()` 且会随后 save。
-fn record_daily_tokens(store: &mut ProgressStore, token_delta: u64, breakdown_delta: &TokenBreakdown) {
+fn record_daily_tokens(
+    store: &mut ProgressStore,
+    token_delta: u64,
+    breakdown_delta: &TokenBreakdown,
+) {
     record_daily_tokens_at(store, token_delta, breakdown_delta, current_day_index());
 }
 
@@ -1686,7 +1718,9 @@ fn progress_lock() -> &'static Mutex<()> {
 
 fn lock_progress() -> std::sync::MutexGuard<'static, ()> {
     // 锁只保护文件访问顺序；即便被投毒也照常继续（数据不因此损坏）。
-    progress_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    progress_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn load_progress_store(app: &AppHandle) -> Result<ProgressStore, String> {
@@ -1839,8 +1873,9 @@ fn latest_claude_code_session_file(claude_home: &Path) -> Option<PathBuf> {
         return None;
     }
     latest_non_generation_session(&projects, |path| {
-        extract_claude_code_project_path(path)
-            .or_else(|| project_path_from_claude_code_session_path(path, &claude_home.join("projects")))
+        extract_claude_code_project_path(path).or_else(|| {
+            project_path_from_claude_code_session_path(path, &claude_home.join("projects"))
+        })
     })
 }
 
@@ -2157,7 +2192,12 @@ mod tests {
     use super::*;
 
     fn bd(input: u64, cache_create: u64, cache_read: u64, output: u64) -> TokenBreakdown {
-        TokenBreakdown { input, cache_create, cache_read, output }
+        TokenBreakdown {
+            input,
+            cache_create,
+            cache_read,
+            output,
+        }
     }
 
     /// `projects` 给每个项目的 raw total_tokens；`daily` 给 (天序号, raw 总量)。
@@ -2192,7 +2232,10 @@ mod tests {
         assert_eq!(all.total, 7_570_198_000);
         // 四分明细逐项求和，且四项之和回到 total。
         assert_eq!(all.breakdown.total(), all.total);
-        assert_eq!(all.breakdown, split(5_198_000).also_add(split(7_565_000_000)));
+        assert_eq!(
+            all.breakdown,
+            split(5_198_000).also_add(split(7_565_000_000))
+        );
     }
 
     #[test]
@@ -2214,8 +2257,14 @@ mod tests {
         assert_eq!(stats.w1.total, 10 + 20);
         assert_eq!(stats.m1.total, 10 + 20 + 40 + 80);
         assert_eq!(stats.all.total, 1000); // all 走项目累计，与桶无关
-        // 四分随时间窗一同聚合，且始终自洽。
-        assert_eq!(stats.m1.breakdown, split(10).also_add(split(20)).also_add(split(40)).also_add(split(80)));
+                                           // 四分随时间窗一同聚合，且始终自洽。
+        assert_eq!(
+            stats.m1.breakdown,
+            split(10)
+                .also_add(split(20))
+                .also_add(split(40))
+                .also_add(split(80))
+        );
         assert_eq!(stats.w1.breakdown.total(), stats.w1.total);
     }
 
@@ -2251,7 +2300,10 @@ mod tests {
         // total 与 breakdown 都为空时不建桶。
         let before = (store.daily_tokens.len(), store.daily_breakdown.len());
         record_daily_tokens_at(&mut store, 0, &TokenBreakdown::default(), 201);
-        assert_eq!((store.daily_tokens.len(), store.daily_breakdown.len()), before);
+        assert_eq!(
+            (store.daily_tokens.len(), store.daily_breakdown.len()),
+            before
+        );
     }
 
     /// 「昨日战报」按具体某天取数：命中当天桶（raw + 四分），另一天互不串，缺桶回全零。
@@ -2318,7 +2370,10 @@ mod tests {
         // 播种后继续入账，再次 load 不得二次覆盖。
         store.projects.get_mut("legacy").unwrap().breakdown.input += 1_000;
         seed_breakdown_ledger(&mut store);
-        assert_eq!(store.projects["legacy"].breakdown, bd(1_000, 0, 0, 6_777_797));
+        assert_eq!(
+            store.projects["legacy"].breakdown,
+            bd(1_000, 0, 0, 6_777_797)
+        );
     }
 
     // 测试便捷：链式相加，返回累加结果。
@@ -2346,7 +2401,10 @@ mod tests {
         assert_eq!(obj.get("cacheCreate").and_then(Value::as_u64), Some(2));
         assert_eq!(obj.get("cacheRead").and_then(Value::as_u64), Some(3));
         assert_eq!(obj.get("output").and_then(Value::as_u64), Some(4));
-        assert!(obj.get("breakdown").is_none(), "flatten 后不应再有嵌套 breakdown 键");
+        assert!(
+            obj.get("breakdown").is_none(),
+            "flatten 后不应再有嵌套 breakdown 键"
+        );
         // TokenStats 的四个窗口都按 camelCase key 暴露。
         let stats = serde_json::to_value(TokenStats::default()).unwrap();
         for key in ["all", "d1", "w1", "m1"] {

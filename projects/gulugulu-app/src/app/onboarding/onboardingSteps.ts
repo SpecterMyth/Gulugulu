@@ -1,5 +1,5 @@
 import type { UiMode } from "../../game/GamePanels";
-import { maxLevelForTier } from "../../game/config";
+import { hatcherySlotCount, maxLevelForTier } from "../../game/config";
 import type { Language } from "../../i18n/core";
 import type { GameConfig, GameSave } from "../../types";
 import {
@@ -120,7 +120,19 @@ export function onboardingDirective(
   if (state.step === "E03" && runtime.uiMode === "factory") return null;
 
   let targetKey = base.targetKey;
-  if (state.step === "A16") {
+  let a13NeedsPitRecovery = false;
+  if (state.step === "A13") {
+    const hatcherySlots = hatcherySlotCount(config, save.hatcheryLevel);
+    const occupiedHatcherySlots = new Set(
+      save.eggs.flatMap((egg) => egg.slot == null ? [] : [egg.slot]),
+    );
+    a13NeedsPitRecovery =
+      save.eggs.some((egg) => egg.slot == null && egg.shopElement === "fire") &&
+      Array.from({ length: hatcherySlots }, (_, slot) => slot).every((slot) => occupiedHatcherySlots.has(slot));
+  }
+  if (a13NeedsPitRecovery) {
+    targetKey = "hatcheryUpgrade";
+  } else if (state.step === "A16") {
     const fire = petForElement(save, config, "fire");
     if (fire) targetKey = runtime.nearPetId === fire.id ? `followBtn:${fire.id}` : `placedPet:${fire.id}`;
   } else if (state.step === "B01" || state.step === "B02") {
@@ -140,12 +152,26 @@ export function onboardingDirective(
   const localized = language === "en"
     ? ONBOARDING_EN_COPY[state.step as OnboardingStepId]
     : null;
+  const recoveryLabel = a13NeedsPitRecovery
+    ? language === "en"
+      ? "Another egg took the open pit. Unlock one more pit; your Fire Egg is still safe in inventory."
+      : "空蛋坑被别的蛋占了。先再解锁一个蛋坑，火蛋仍安全地待在库存里。"
+    : null;
+  // Walking hints are useful until the player reaches a pet. Once the contextual
+  // Follow/Fuse button is present, keep only the click cue so the movement keys do
+  // not compete with the action the player must take next.
+  const gesture =
+    targetKey?.startsWith("followBtn:") || targetKey?.startsWith("fuseBtn:")
+      ? "tap"
+      : base.gesture;
   return {
     ...base,
     ...(localized ?? {}),
+    ...(recoveryLabel ? { label: recoveryLabel } : {}),
     cta: localized?.cta ?? base.cta,
     step: state.step,
     targetKey,
+    gesture,
     progress: `${index + 1}/${ONBOARDING_STEP_IDS.length}`,
   };
 }

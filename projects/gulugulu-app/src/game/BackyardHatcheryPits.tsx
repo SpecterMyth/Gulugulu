@@ -111,6 +111,11 @@ export function BackyardHatcheryPits({
     }
     if (coachEggId == null) coachEggId = pitEgg.id;
   }
+  const tutorialFirePlacement =
+    save.onboarding?.status === "active" && save.onboarding.step === "A13";
+  const guidedInventoryEgg = tutorialFirePlacement
+    ? inventoryEggs.find((egg) => egg.shopElement === "fire") ?? inventoryEggs[0]
+    : inventoryEggs[0];
   return (
     <>
       {/* ── 孵化区：蛋坑（真实存档驱动） ── */}
@@ -122,7 +127,12 @@ export function BackyardHatcheryPits({
           const cost = config.hatcheryUpgradeCosts[slotIndex - 1];
           const affordable = cost != null && save.coins >= cost;
           const tutorialUnlock =
-            isNext && save.onboarding?.status === "active" && save.onboarding.step === "A10";
+            isNext &&
+            save.onboarding?.status === "active" &&
+            (save.onboarding.step === "A10" ||
+              (save.onboarding.step === "A13" &&
+                freeSlot == null &&
+                inventoryEggs.some((egg) => egg.shopElement === "fire")));
           const canUnlock = affordable || tutorialUnlock;
           return (
             <div
@@ -164,7 +174,7 @@ export function BackyardHatcheryPits({
 
         const egg = save.eggs.find((item) => item.slot === slotIndex) ?? null;
         if (!egg) {
-          const canPlace = inventoryEggs.length > 0 && !busy;
+          const canPlace = guidedInventoryEgg != null && !busy;
           return (
             <div
               key={`pit-${slotIndex}`}
@@ -179,8 +189,8 @@ export function BackyardHatcheryPits({
               title={canPlace ? bk.placeEggTitle : bk.emptyPitTitle}
               onClick={(event) => {
                 event.stopPropagation();
-                if (!canPlace) return;
-                onPlaceEgg(inventoryEggs[0].id, slotIndex);
+                if (!canPlace || !guidedInventoryEgg) return;
+                onPlaceEgg(guidedInventoryEgg.id, slotIndex);
               }}
             >
               <div className="by-pit-mound" />
@@ -271,7 +281,7 @@ export function BackyardHatcheryPits({
           type="button"
           className="by-egg-inv"
           style={{ left: 16 + index * 30, bottom: 148 }}
-          disabled={busy}
+          disabled={busy || (tutorialFirePlacement && egg.shopElement !== "fire")}
           title={freeSlot == null ? bk.noFreePitTitle : bk.placeToHatchTitle}
           onClick={(event) => {
             event.stopPropagation();

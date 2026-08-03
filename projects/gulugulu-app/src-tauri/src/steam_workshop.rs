@@ -1,4 +1,4 @@
-﻿//! Steam 创意工坊（ISteamUGC）—— AI 融合变种形象/名字的全局 UGC 载体。
+//! Steam 创意工坊（ISteamUGC）—— AI 融合变种形象/名字的全局 UGC 载体。
 //!
 //! 机制（00-decisions.md「用户拍板(2026-07-14) · Feature 2」+ SkinWorkshop.md 皮肤化
 //! 改版 2026-07-18）：每个 AI 变种槽有全局确定性 `petId`（= `fusion_slots::
@@ -96,8 +96,10 @@ pub(crate) fn need_next_page(fetched: usize, page_returned: usize, total: u32, p
 fn write_content_dir(codename: &str, entry_json: &str) -> Result<PathBuf, String> {
     let dir = std::env::temp_dir().join("gulugulu-ugc").join(codename);
     fs::create_dir_all(&dir).map_err(|e| format!("建内容目录失败：{e}"))?;
-    fs::write(dir.join(CONTENT_FILENAME), entry_json).map_err(|e| format!("写内容文件失败：{e}"))?;
-    dir.canonicalize().map_err(|e| format!("内容目录 canonicalize 失败：{e}"))
+    fs::write(dir.join(CONTENT_FILENAME), entry_json)
+        .map_err(|e| format!("写内容文件失败：{e}"))?;
+    dir.canonicalize()
+        .map_err(|e| format!("内容目录 canonicalize 失败：{e}"))
 }
 
 /// 从下载好的安装目录读回 `CustomSpeciesEntry` JSON。先取定名文件，退而求其次扫描
@@ -157,9 +159,11 @@ pub fn publish(
 
     // 1) CreateItem
     let (tx, rx) = mpsc::channel();
-    client.ugc().create_item(AppId(app_id), FileType::Community, move |res| {
-        let _ = tx.send(res);
-    });
+    client
+        .ugc()
+        .create_item(AppId(app_id), FileType::Community, move |res| {
+            let _ = tx.send(res);
+        });
     let (published_id, create_needs_legal) = match pump_until(client, &rx, UGC_TIMEOUT) {
         Some(Ok(v)) => v,
         Some(Err(e)) => return Err(format!("CreateItem 失败：{e:?}")),
@@ -187,7 +191,9 @@ pub fn publish(
         Some(Ok((id, submit_needs_legal))) => Ok((id.0, create_needs_legal || submit_needs_legal)),
         Some(Err(e)) => {
             if create_needs_legal {
-                Err(format!("SubmitItemUpdate 失败（需先在 Steam 接受创意工坊法律协议）：{e:?}"))
+                Err(format!(
+                    "SubmitItemUpdate 失败（需先在 Steam 接受创意工坊法律协议）：{e:?}"
+                ))
             } else {
                 Err(format!("SubmitItemUpdate 失败：{e:?}"))
             }
@@ -249,7 +255,10 @@ pub fn list_for_pet_id(
             .query_all(
                 UGCQueryType::RankedByPublicationDate,
                 UGCType::Items,
-                AppIDs::Both { creator: AppId(app_id), consumer: AppId(app_id) },
+                AppIDs::Both {
+                    creator: AppId(app_id),
+                    consumer: AppId(app_id),
+                },
                 page,
             )
             .map_err(|_| "CreateQueryAll 失败".to_string())?
@@ -333,7 +342,10 @@ fn resolve_personas(client: &Client, metas: &mut [WorkshopItemMeta], budget: Dur
         client.run_callbacks();
         std::thread::sleep(Duration::from_millis(100));
         pending.retain(|owner| {
-            let name = client.friends().get_friend(SteamId::from_raw(*owner)).name();
+            let name = client
+                .friends()
+                .get_friend(SteamId::from_raw(*owner))
+                .name();
             if usable(&name) {
                 resolved.push((*owner, name));
                 false
@@ -352,7 +364,10 @@ fn resolve_personas(client: &Client, metas: &mut [WorkshopItemMeta], budget: Dur
 }
 
 /// 按 fileId 查单条物品详情（owner/时间/标题 + `petId`/`gulupetSchema` KV 标签）。
-pub fn item_details(client: &Client, published_file_id: u64) -> Result<WorkshopItemDetails, String> {
+pub fn item_details(
+    client: &Client,
+    published_file_id: u64,
+) -> Result<WorkshopItemDetails, String> {
     let query = client
         .ugc()
         .query_item(PublishedFileId(published_file_id))
@@ -460,7 +475,10 @@ fn list_owned_published(
                 UserList::Published,
                 UGCType::Items,
                 UserListOrder::CreationOrderAsc,
-                AppIDs::Both { creator: AppId(app_id), consumer: AppId(app_id) },
+                AppIDs::Both {
+                    creator: AppId(app_id),
+                    consumer: AppId(app_id),
+                },
                 page,
             )
             .map_err(|_| "CreateQueryUserUGCRequest 失败".to_string())?;
@@ -517,9 +535,11 @@ pub fn delete_all_owned(
     let mut failed = 0usize;
     for file_id in ids {
         let (tx, rx) = mpsc::channel();
-        client.ugc().delete_item(PublishedFileId(file_id), move |res| {
-            let _ = tx.send(res);
-        });
+        client
+            .ugc()
+            .delete_item(PublishedFileId(file_id), move |res| {
+                let _ = tx.send(res);
+            });
         match pump_until(client, &rx, UGC_TIMEOUT) {
             Some(Ok(())) => deleted += 1,
             Some(Err(e)) => {
@@ -582,7 +602,10 @@ mod tests {
     #[test]
     fn first_file_id_matches_pick_earliest() {
         // 时间更早者胜；并列 id 小者胜；空 = 无人认领。
-        assert_eq!(first_file_id(&[meta(200, 1), meta(100, 9), meta(150, 2)]), Some(9));
+        assert_eq!(
+            first_file_id(&[meta(200, 1), meta(100, 9), meta(150, 2)]),
+            Some(9)
+        );
         assert_eq!(first_file_id(&[meta(100, 8), meta(100, 3)]), Some(3));
         assert_eq!(first_file_id(&[]), None);
     }

@@ -240,6 +240,7 @@ export function RogueHud({
     quotaUsed: view.quotaUsed,
     quotaMax: view.quotaMax,
     combo: view.combo,
+    showBagEmpty: view.phase === "shift" || view.phase === "overtime",
     cashLow,
   };
 
@@ -272,7 +273,10 @@ export function RogueHud({
       {/* ---- 顶部中央横幅（决算日 / 破产预警）：留在 fr-hud-top 里居中，
              不与左右立柱冲突；顶部中间原先给运输机的位置略下移由 CSS 负责 ---- */}
       {(view.modifier === "audit" || bankruptWarn) && (
-        <div className="fr-hud-top" onPointerDown={(event) => event.stopPropagation()}>
+        <div
+          className={`fr-hud-top${view.modifier === "audit" ? " is-audit" : ""}`}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
         {view.modifier === "audit" && (
           <div className="fr-modbar">
             <span>🧾 {R.modAudit}</span>

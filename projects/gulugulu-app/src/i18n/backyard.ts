@@ -83,8 +83,6 @@ export interface BackyardStrings {
     petExhaustedTitle: string;
     tierAria: string;
     charRecoveringTitle: string;
-    guideTitle: string;
-    guideSub: string;
   };
 
   /** 融合条件未达成时的主角气泡提示。 */
@@ -209,6 +207,8 @@ export interface BackyardStrings {
     weightHint: string;
     loveTitle: string;
     loveLabel: string;
+    todayCoins: string;
+    todayWorkBest: string;
     tokenLine: string;
     /** AI 连接（Claude/Codex 登录态）：两个并排按钮，标签自带 {name}+状态。 */
     agentConnect: string;
@@ -439,8 +439,6 @@ const zh: BackyardStrings = {
     petExhaustedTitle: "趴着充电中…回到 10% 就起来",
     tierAria: "{tier} 阶",
     charRecoveringTitle: "精力恢复中…还可以带它散步",
-    guideTitle: "🖱 点击场景走过去 · ⌨ ← → / A D 移动",
-    guideSub: "走到商店、公告板或伙伴身边看看吧 · 拖动窗口边缘可以缩放后院",
   },
 
   hint: {
@@ -542,6 +540,8 @@ const zh: BackyardStrings = {
     weightHint: "该类 token 折算陪伴宠经验的权重（喂养用）",
     loveTitle: "今日还能给的爱（点击额度）",
     loveLabel: "今日的爱",
+    todayCoins: "今日金币",
+    todayWorkBest: "打工最高分",
     tokenLine: "🍙 Token→✨经验",
     agentConnect: "连接 {name}",
     agentConnecting: "{name} 登录中…",
@@ -760,8 +760,6 @@ const en: BackyardStrings = {
     petExhaustedTitle: "Recharging… back on its feet at 10%",
     tierAria: "Tier {tier}",
     charRecoveringTitle: "Recovering… walkies still allowed",
-    guideTitle: "🖱 Click to walk there · ⌨ ← → / A D to move",
-    guideSub: "Visit the shop, the board, or a buddy · Drag window edges to resize the yard",
   },
 
   hint: {
@@ -863,6 +861,8 @@ const en: BackyardStrings = {
     weightHint: "Feed weight — how much EXP this token type grants your companion",
     loveTitle: "Love left today (click quota)",
     loveLabel: "Today's love",
+    todayCoins: "Coins today",
+    todayWorkBest: "Best work score",
     tokenLine: "🍙 Tokens→✨EXP",
     agentConnect: "Connect {name}",
     agentConnecting: "{name} signing in…",

@@ -31,8 +31,14 @@ impl Smoke {
         let client = steamworks::Client::init_app(APP_ID).unwrap_or_else(|e| {
             panic!("SteamAPI init_app({APP_ID}) 失败：{e}。前置：Steam 客户端运行 + 拥有该 App 的账号登录")
         });
-        eprintln!("[smoke] steam 连接 OK，steam_id={}", client.user().steam_id().raw());
-        Smoke { client, cleanup: Vec::new() }
+        eprintln!(
+            "[smoke] steam 连接 OK，steam_id={}",
+            client.user().steam_id().raw()
+        );
+        Smoke {
+            client,
+            cleanup: Vec::new(),
+        }
     }
 
     fn wait(&self, handle: steamworks_sys::SteamInventoryResult_t) -> OpOutcome {
@@ -93,7 +99,11 @@ impl Smoke {
 }
 
 fn ids_by_def(items: &[GrantedItem], def: u32) -> Vec<u64> {
-    items.iter().filter(|i| i.def == def).map(|i| i.item_id.parse().unwrap()).collect()
+    items
+        .iter()
+        .filter(|i| i.def == def)
+        .map(|i| i.item_id.parse().unwrap())
+        .collect()
 }
 
 /// A6 + A7：set: 标签兑换 / item 型 def 自升阶 / 并集 generator 开池 + 负例。
@@ -107,11 +117,17 @@ fn a6_a7_exchange_primitives() {
     let mats = s.generate(&[90003, 90004]);
     let fire = ids_by_def(&mats, 90003);
     let water = ids_by_def(&mats, 90004);
-    assert!(!fire.is_empty() && !water.is_empty(), "缺 90003/90004 材料：{mats:?}");
+    assert!(
+        !fire.is_empty() && !water.is_empty(),
+        "缺 90003/90004 材料：{mats:?}"
+    );
     let out = s.exchange(90006, &[fire[0], water[0]]);
     match &out {
         OpOutcome::Granted(items) => {
-            assert!(items.iter().any(|i| i.def == 90005), "A6.1 期望开出 90005，实得 {items:?}");
+            assert!(
+                items.iter().any(|i| i.def == 90005),
+                "A6.1 期望开出 90005，实得 {items:?}"
+            );
             eprintln!("[smoke] ✅ A6.1 set: 标签配对兑换 OK");
         }
         other => panic!("A6.1 set: 标签兑换失败：{other:?}"),
@@ -131,7 +147,10 @@ fn a6_a7_exchange_primitives() {
     let out = s.exchange(101, &destroy);
     match &out {
         OpOutcome::Granted(items) => {
-            assert!(items.iter().any(|i| i.def == 101), "A6.2 期望铸出新 101，实得 {items:?}");
+            assert!(
+                items.iter().any(|i| i.def == 101),
+                "A6.2 期望铸出新 101，实得 {items:?}"
+            );
             eprintln!("[smoke] ✅ A6.2 item 型 def 自升阶兑换 OK（净 −1）");
         }
         other => panic!("A6.2 自升阶兑换失败：{other:?}"),
@@ -144,7 +163,9 @@ fn a6_a7_exchange_primitives() {
     let out = s.exchange(20014, &[duck[0], frog[0]]);
     match &out {
         OpOutcome::Granted(items) => {
-            let ok = items.iter().any(|i| i.def == 615 || (11401..=11410).contains(&i.def));
+            let ok = items
+                .iter()
+                .any(|i| i.def == 615 || (11401..=11410).contains(&i.def));
             assert!(ok, "A7.1 期望 615/11401..11410，实得 {items:?}");
             eprintln!("[smoke] ✅ A7.1 并集 generator 开池 OK → {items:?}");
         }
@@ -182,13 +203,55 @@ fn fusion_probability_distribution() {
 
     let recipes = [
         // 二元素：理论固定 40% / AI 60%。
-        Recipe { name: "electric+ice", target: 20_002, mats: [103, 106], fixed: 603, ai: 10_201..=10_210, trials: 10 },
-        Recipe { name: "fire+normal", target: 20_007, mats: [102, 101], fixed: 608, ai: 10_701..=10_710, trials: 10 },
-        Recipe { name: "normal+water", target: 20_014, mats: [101, 104], fixed: 615, ai: 11_401..=11_410, trials: 10 },
+        Recipe {
+            name: "electric+ice",
+            target: 20_002,
+            mats: [103, 106],
+            fixed: 603,
+            ai: 10_201..=10_210,
+            trials: 10,
+        },
+        Recipe {
+            name: "fire+normal",
+            target: 20_007,
+            mats: [102, 101],
+            fixed: 608,
+            ai: 10_701..=10_710,
+            trials: 10,
+        },
+        Recipe {
+            name: "normal+water",
+            target: 20_014,
+            mats: [101, 104],
+            fixed: 615,
+            ai: 11_401..=11_410,
+            trials: 10,
+        },
         // 三元素：理论固定 60% / AI 40%。材料用一个二元素固定种 + 剩余一元素。
-        Recipe { name: "electric+fire+grass", target: 20_015, mats: [601, 105], fixed: 616, ai: 11_501..=11_510, trials: 10 },
-        Recipe { name: "electric+ice+water", target: 20_023, mats: [603, 104], fixed: 624, ai: 12_301..=12_310, trials: 10 },
-        Recipe { name: "fire+grass+water", target: 20_027, mats: [606, 104], fixed: 628, ai: 12_701..=12_710, trials: 10 },
+        Recipe {
+            name: "electric+fire+grass",
+            target: 20_015,
+            mats: [601, 105],
+            fixed: 616,
+            ai: 11_501..=11_510,
+            trials: 10,
+        },
+        Recipe {
+            name: "electric+ice+water",
+            target: 20_023,
+            mats: [603, 104],
+            fixed: 624,
+            ai: 12_301..=12_310,
+            trials: 10,
+        },
+        Recipe {
+            name: "fire+grass+water",
+            target: 20_027,
+            mats: [606, 104],
+            fixed: 628,
+            ai: 12_701..=12_710,
+            trials: 10,
+        },
     ];
 
     let mut s = Smoke::init();
@@ -213,18 +276,34 @@ fn fusion_probability_distribution() {
             } else {
                 panic!("{} 第 {trial} 次返回越池 def={def}", recipe.name);
             }
-            eprintln!("[prob] {} {trial:02}/{} -> def={def} ({})", recipe.name, recipe.trials, if def == recipe.fixed { "fixed" } else { "ai" });
+            eprintln!(
+                "[prob] {} {trial:02}/{} -> def={def} ({})",
+                recipe.name,
+                recipe.trials,
+                if def == recipe.fixed { "fixed" } else { "ai" }
+            );
         }
         let bucket = if recipe_index < 3 { 0 } else { 1 };
         by_elements[bucket].0 += fixed;
         by_elements[bucket].1 += ai;
-        eprintln!("[prob] {} 汇总 fixed={fixed}/{} ai={ai}/{}", recipe.name, recipe.trials, recipe.trials);
+        eprintln!(
+            "[prob] {} 汇总 fixed={fixed}/{} ai={ai}/{}",
+            recipe.name, recipe.trials, recipe.trials
+        );
     }
     s.consume_cleanup();
 
     let [(fixed2, ai2), (fixed3, ai3)] = by_elements;
-    eprintln!("[prob] === 二元素 fixed={fixed2}/{} ({:.1}%)，理论 40% ===", fixed2 + ai2, fixed2 as f64 * 100.0 / (fixed2 + ai2) as f64);
-    eprintln!("[prob] === 三元素 fixed={fixed3}/{} ({:.1}%)，理论 60% ===", fixed3 + ai3, fixed3 as f64 * 100.0 / (fixed3 + ai3) as f64);
+    eprintln!(
+        "[prob] === 二元素 fixed={fixed2}/{} ({:.1}%)，理论 40% ===",
+        fixed2 + ai2,
+        fixed2 as f64 * 100.0 / (fixed2 + ai2) as f64
+    );
+    eprintln!(
+        "[prob] === 三元素 fixed={fixed3}/{} ({:.1}%)，理论 60% ===",
+        fixed3 + ai3,
+        fixed3 as f64 * 100.0 / (fixed3 + ai3) as f64
+    );
     assert!(fixed2 > 0, "30 次二元素融合竟无固定结果");
     assert!(fixed3 > 0, "30 次三元素融合竟无固定结果");
 }
@@ -241,7 +320,11 @@ fn plus_in_tag_value_matching() {
     let m2 = s.generate(&[90005]);
     let mut ids: Vec<u64> = [ids_by_def(&m1, 90005), ids_by_def(&m2, 90005)].concat();
     ids.dedup();
-    let destroy: Vec<u64> = if ids.len() >= 2 { ids[..2].to_vec() } else { vec![ids[0], ids[0]] };
+    let destroy: Vec<u64> = if ids.len() >= 2 {
+        ids[..2].to_vec()
+    } else {
+        vec![ids[0], ids[0]]
+    };
     let out = s.exchange(90006, &destroy);
     eprintln!("[smoke] 对角(set:fire+water*2)结果: {out:?}");
     match &out {
@@ -278,7 +361,10 @@ fn inventory_snapshot() {
     match s.wait(inv::start_get_all().expect("start_get_all")) {
         OpOutcome::Granted(items) => {
             for it in &items {
-                eprintln!("[snap] def={} item={} q={}", it.def, it.item_id, it.quantity);
+                eprintln!(
+                    "[snap] def={} item={} q={}",
+                    it.def, it.item_id, it.quantity
+                );
             }
             eprintln!("[snap] 共 {} 条", items.len());
         }
@@ -301,7 +387,11 @@ fn a8_cleanup_residue() {
         let id: u64 = it.item_id.parse().unwrap();
         for n in 0..it.quantity {
             let outcome = s.wait(inv::start_consume(id).expect("start_consume"));
-            eprintln!("[smoke] consume {id} ({}/{}) → {outcome:?}", n + 1, it.quantity);
+            eprintln!(
+                "[smoke] consume {id} ({}/{}) → {outcome:?}",
+                n + 1,
+                it.quantity
+            );
         }
     }
     eprintln!("[smoke] === A8 清理完成 ===");
@@ -321,7 +411,10 @@ fn a5_tail_check() {
         }
     };
     let before = count_101(&s);
-    eprintln!("[smoke] A5-tail 起始库存 101 × {}（≈主测已掉数）", before.len());
+    eprintln!(
+        "[smoke] A5-tail 起始库存 101 × {}（≈主测已掉数）",
+        before.len()
+    );
     let mut got = 0usize;
     for round in 1..=4 {
         let out = s.trigger(21011);
@@ -343,9 +436,17 @@ fn a5_tail_check() {
         after.len(),
         before.len(),
         got,
-        if after.len() <= 10 { "✅ 未超" } else { "❌ 超限" }
+        if after.len() <= 10 {
+            "✅ 未超"
+        } else {
+            "❌ 超限"
+        }
     );
-    assert!(after.len() <= 10, "窗口累计 {} 超过 drop_max_per_window=10", after.len());
+    assert!(
+        after.len() <= 10,
+        "窗口累计 {} 超过 drop_max_per_window=10",
+        after.len()
+    );
     for id in after {
         let outcome = s.wait(inv::start_consume(id).expect("start_consume"));
         eprintln!("[smoke] cleanup consume {id} → {outcome:?}");
@@ -389,8 +490,14 @@ fn a5_window_cap() {
         }
     }
     eprintln!("[smoke] A5 结果序列 {results:?}，累计 {granted_total}（期望 ≈10 后转空=封顶生效）");
-    assert!(granted_total >= 1, "13 分钟内一个都没掉——drop_interval/窗口配置或发布未生效");
-    assert!(granted_total <= 10, "累计 {granted_total} 超过 drop_max_per_window=10——封顶未生效！");
+    assert!(
+        granted_total >= 1,
+        "13 分钟内一个都没掉——drop_interval/窗口配置或发布未生效"
+    );
+    assert!(
+        granted_total <= 10,
+        "累计 {granted_total} 超过 drop_max_per_window=10——封顶未生效！"
+    );
     s.consume_cleanup();
     eprintln!("[smoke] === A5 完成：累计 {granted_total}/10 ===");
 }
@@ -411,14 +518,18 @@ fn workshop_audit_slots() {
     let s = Smoke::init();
     let mut total = 0usize;
     for codename in AUDIT_SLOTS {
-        let metas =
-            match crate::steam_workshop::list_for_pet_id(&s.client, APP_ID, codename, Duration::ZERO) {
-                Ok(m) => m,
-                Err(e) => {
-                    eprintln!("[audit] {codename}: 查询失败 {e}");
-                    continue;
-                }
-            };
+        let metas = match crate::steam_workshop::list_for_pet_id(
+            &s.client,
+            APP_ID,
+            codename,
+            Duration::ZERO,
+        ) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("[audit] {codename}: 查询失败 {e}");
+                continue;
+            }
+        };
         total += metas.len();
         let first = crate::steam_workshop::first_file_id(&metas);
         for m in &metas {
@@ -448,14 +559,22 @@ fn workshop_audit_slots() {
 fn workshop_preview_probe() {
     let s = Smoke::init();
     let target: u64 = 3765893901; // aif0401 汐跃侯（首发条目）
-    let (_, json) = crate::steam_workshop::fetch_item(&s.client, target).expect("下载 aif0401 内容");
+    let (_, json) =
+        crate::steam_workshop::fetch_item(&s.client, target).expect("下载 aif0401 内容");
     let png = std::path::PathBuf::from(std::env::var("APPDATA").expect("APPDATA"))
         .join("com.gulugulu.pet")
         .join("species-previews")
         .join("aif0401.png");
     assert!(png.is_file(), "预览 PNG 缓存缺失：{}", png.display());
-    match crate::steam_workshop::update_preview(&s.client, APP_ID, target, "aif0401", "汐跃侯", &json, &png)
-    {
+    match crate::steam_workshop::update_preview(
+        &s.client,
+        APP_ID,
+        target,
+        "aif0401",
+        "汐跃侯",
+        &json,
+        &png,
+    ) {
         Ok(()) => eprintln!("[probe] SubmitItemUpdate Ok"),
         Err(e) => {
             eprintln!("[probe] SubmitItemUpdate 失败：{e}");
@@ -493,19 +612,25 @@ fn workshop_repair_previews() {
             eprintln!("[repair] {codename}: 无 PNG 缓存，跳过");
             continue;
         }
-        let metas =
-            match crate::steam_workshop::list_for_pet_id(&s.client, APP_ID, codename, Duration::ZERO) {
-                Ok(m) if !m.is_empty() => m,
-                Ok(_) => {
-                    eprintln!("[repair] {codename}: 无物品，跳过");
-                    continue;
-                }
-                Err(e) => {
-                    eprintln!("[repair] {codename}: 查询失败 {e}");
-                    continue;
-                }
-            };
-        let Some(keeper) = crate::steam_workshop::first_file_id(&metas) else { continue };
+        let metas = match crate::steam_workshop::list_for_pet_id(
+            &s.client,
+            APP_ID,
+            codename,
+            Duration::ZERO,
+        ) {
+            Ok(m) if !m.is_empty() => m,
+            Ok(_) => {
+                eprintln!("[repair] {codename}: 无物品，跳过");
+                continue;
+            }
+            Err(e) => {
+                eprintln!("[repair] {codename}: 查询失败 {e}");
+                continue;
+            }
+        };
+        let Some(keeper) = crate::steam_workshop::first_file_id(&metas) else {
+            continue;
+        };
         // 预览已入库的不再动（省单物品每日更新配额）。用单物品查询取最新态——
         // 批量列表查询的 preview_url 有缓存延迟，会误判成"无预览"导致重复更新。
         let fresh_preview = crate::steam_workshop::item_details(&s.client, keeper)
@@ -572,11 +697,12 @@ fn workshop_repair_previews() {
                 .unwrap_or(false);
             if dup_same {
                 let (tx, rx) = std::sync::mpsc::channel();
-                s.client
-                    .ugc()
-                    .delete_item(steamworks::PublishedFileId(m.published_file_id), move |r| {
+                s.client.ugc().delete_item(
+                    steamworks::PublishedFileId(m.published_file_id),
+                    move |r| {
                         let _ = tx.send(r);
-                    });
+                    },
+                );
                 let started = std::time::Instant::now();
                 loop {
                     s.client.run_callbacks();
@@ -586,7 +712,10 @@ fn workshop_repair_previews() {
                             break;
                         }
                         Ok(Err(e)) => {
-                            eprintln!("[repair] {codename}: 删除 {} 失败 {e:?}", m.published_file_id);
+                            eprintln!(
+                                "[repair] {codename}: 删除 {} 失败 {e:?}",
+                                m.published_file_id
+                            );
                             break;
                         }
                         Err(_) if started.elapsed() > Duration::from_secs(20) => {
@@ -614,7 +743,10 @@ fn workshop_list_all_items() {
         .query_all(
             UGCQueryType::RankedByPublicationDate,
             UGCType::Items,
-            AppIDs::Both { creator: AppId(APP_ID), consumer: AppId(APP_ID) },
+            AppIDs::Both {
+                creator: AppId(APP_ID),
+                consumer: AppId(APP_ID),
+            },
             1,
         )
         .expect("query_all")
@@ -634,7 +766,12 @@ fn workshop_list_all_items() {
                             }
                         }
                     }
-                    rows.push((r.published_file_id.0, r.time_created, r.title.clone(), pet_id));
+                    rows.push((
+                        r.published_file_id.0,
+                        r.time_created,
+                        r.title.clone(),
+                        pet_id,
+                    ));
                 }
             }
             rows
@@ -647,7 +784,9 @@ fn workshop_list_all_items() {
         match rx.try_recv() {
             Ok(Ok(rows)) => {
                 for (id, t, title, pet_id) in &rows {
-                    let known = pet_id.as_deref().map_or(false, |p| AUDIT_SLOTS.contains(&p));
+                    let known = pet_id
+                        .as_deref()
+                        .map_or(false, |p| AUDIT_SLOTS.contains(&p));
                     eprintln!(
                         "[all] id={id} t={t} petId={:?} title={title:?}{}",
                         pet_id,
@@ -669,7 +808,8 @@ fn workshop_list_all_items() {
 fn workshop_republish_4201() {
     let s = Smoke::init();
     let old_id: u64 = 3765894508; // aif4201 霁壳灵（该槽唯一条目，本机所有）
-    let (details, json) = crate::steam_workshop::fetch_item(&s.client, old_id).expect("下载 4201 内容");
+    let (details, json) =
+        crate::steam_workshop::fetch_item(&s.client, old_id).expect("下载 4201 内容");
     assert!(json.len() > 1000, "内容异常短（{}），不删", json.len());
     let title = details.meta.title.clone();
     eprintln!("[republish] 内容 {} bytes，标题 {title}", json.len());
@@ -680,9 +820,11 @@ fn workshop_republish_4201() {
     assert!(png.is_file(), "PNG 缺失");
     // 删旧。
     let (tx, rx) = std::sync::mpsc::channel();
-    s.client.ugc().delete_item(steamworks::PublishedFileId(old_id), move |r| {
-        let _ = tx.send(r);
-    });
+    s.client
+        .ugc()
+        .delete_item(steamworks::PublishedFileId(old_id), move |r| {
+            let _ = tx.send(r);
+        });
     let started = std::time::Instant::now();
     loop {
         s.client.run_callbacks();
@@ -707,7 +849,10 @@ fn workshop_republish_4201() {
         .ok()
         .and_then(|d| d.meta.preview_url)
         .map_or(false, |u| !u.is_empty());
-    eprintln!("[republish] 新条目预览已入库={}", if verified { "✅是" } else { "❌否" });
+    eprintln!(
+        "[republish] 新条目预览已入库={}",
+        if verified { "✅是" } else { "❌否" }
+    );
 }
 
 #[test]
@@ -716,14 +861,19 @@ fn workshop_update_probe_no_preview() {
     let s = Smoke::init();
     let target: u64 = 3765893901; // aif0401 汐跃侯
     let (_, json) = crate::steam_workshop::fetch_item(&s.client, target).expect("下载内容");
-    let dir = std::env::temp_dir().join("gulugulu-ugc-probe").join("aif0401");
+    let dir = std::env::temp_dir()
+        .join("gulugulu-ugc-probe")
+        .join("aif0401");
     std::fs::create_dir_all(&dir).expect("mkdir");
     std::fs::write(dir.join("species.gulupet.json"), &json).expect("write");
     let dir = dir.canonicalize().expect("canonicalize");
     let update = s
         .client
         .ugc()
-        .start_item_update(steamworks::AppId(APP_ID), steamworks::PublishedFileId(target))
+        .start_item_update(
+            steamworks::AppId(APP_ID),
+            steamworks::PublishedFileId(target),
+        )
         .title("汐跃侯")
         .content_path(&dir);
     let (tx, rx) = std::sync::mpsc::channel();
@@ -762,14 +912,21 @@ fn workshop_resolve_roundtrip() {
         .expect("resolve 调用失败")
         .expect("aif0401 应已有全局形象（2026-07-16 补传 publishedFileId=3765893901）");
     let entry: serde_json::Value = serde_json::from_str(&json).expect("下载内容应为合法 JSON");
-    assert!(entry.get("info").and_then(|i| i.get("nameZh")).is_some(), "内容缺 info.nameZh");
+    assert!(
+        entry.get("info").and_then(|i| i.get("nameZh")).is_some(),
+        "内容缺 info.nameZh"
+    );
     assert_eq!(
         entry.get("parents").map(|p| p.is_array()),
         Some(true),
         "内容缺 parents 数组"
     );
     // 皮肤系统扩展面：详情应带回 petId 标签与上传者 SteamID（首发皮肤入库依据）。
-    assert_eq!(details.pet_id.as_deref(), Some("aif0401"), "详情缺 petId 标签");
+    assert_eq!(
+        details.pet_id.as_deref(),
+        Some("aif0401"),
+        "详情缺 petId 标签"
+    );
     assert!(details.meta.owner_steam_id > 0, "详情缺上传者 SteamID");
     eprintln!(
         "[smoke] workshop resolve aif0401 → {} bytes，nameZh={:?}，owner={}，persona={:?}",
@@ -779,7 +936,8 @@ fn workshop_resolve_roundtrip() {
         details.meta.owner_persona,
     );
     // 未认领槽位仍应返回 None（用一个不可能的测试专用槽名）。
-    let none = crate::steam_workshop::resolve(&s.client, APP_ID, "aif9901").expect("resolve 调用失败");
+    let none =
+        crate::steam_workshop::resolve(&s.client, APP_ID, "aif9901").expect("resolve 调用失败");
     assert!(none.is_none(), "aif9901 不应有人认领");
     eprintln!("[smoke] === workshop resolve 冒烟完成 ===");
 }
@@ -813,12 +971,18 @@ fn cloud_save_roundtrip() {
     let client = steamworks::Client::init_app(APP_ID)
         .unwrap_or_else(|e| panic!("SteamAPI init_app({APP_ID}) 失败：{e}"));
     let rs = client.remote_storage();
-    eprintln!("[cloud] steam 连接 OK，steam_id={}", client.user().steam_id().raw());
+    eprintln!(
+        "[cloud] steam 连接 OK，steam_id={}",
+        client.user().steam_id().raw()
+    );
 
     // 1. 账号级云开关 = 用户真实同意闸（partner 站配额 + Steam 全局云开）。应用级 flag 在
     //    开发者云配置下不可靠（可能 false 却照样能写读），不作硬门；见 steam_cloud::cloud_available。
     let acct_on = rs.is_cloud_enabled_for_account();
-    eprintln!("[cloud] is_cloud_enabled_for_app={}（开发期可能误报）· account={acct_on}", rs.is_cloud_enabled_for_app());
+    eprintln!(
+        "[cloud] is_cloud_enabled_for_app={}（开发期可能误报）· account={acct_on}",
+        rs.is_cloud_enabled_for_app()
+    );
     assert!(
         acct_on,
         "❌ 账号级云未启用 —— Steam 客户端『设置→云』全局云被关，请在 Steam 打开。"
@@ -835,13 +999,26 @@ fn cloud_save_roundtrip() {
     }
     let got = steam_cloud::read_file(&client, name).expect("read_file 应返回刚写入内容");
     assert_eq!(got, payload, "❌ 云往返内容不一致");
-    assert!(rs.file(name).is_persisted(), "❌ 文件未持久化到 Steam 云（不会跨机漫游）");
-    eprintln!("[cloud] ✅ 写读往返一致且已持久化到云（{} bytes）", got.len());
+    assert!(
+        rs.file(name).is_persisted(),
+        "❌ 文件未持久化到 Steam 云（不会跨机漫游）"
+    );
+    eprintln!(
+        "[cloud] ✅ 写读往返一致且已持久化到云（{} bytes）",
+        got.len()
+    );
 
     // 3. parse_meta 抽冲突判定字段。
     let meta = steam_cloud::parse_meta(&got).expect("parse_meta 应成功");
-    assert_eq!((meta.version, meta.revision, meta.last_seen_at), (8, 42, 1234), "parse_meta 字段错");
-    eprintln!("[cloud] ✅ parse_meta v={} rev={} seen={}", meta.version, meta.revision, meta.last_seen_at);
+    assert_eq!(
+        (meta.version, meta.revision, meta.last_seen_at),
+        (8, 42, 1234),
+        "parse_meta 字段错"
+    );
+    eprintln!(
+        "[cloud] ✅ parse_meta v={} rev={} seen={}",
+        meta.version, meta.revision, meta.last_seen_at
+    );
 
     // 4. 列表字节数（状态展示口径）。
     let total = steam_cloud::total_bytes(&client);
@@ -873,7 +1050,10 @@ fn cloud_enable_probe() {
         client.run_callbacks();
         std::thread::sleep(Duration::from_millis(60));
     }
-    eprintln!("[probe] set_cloud_enabled_for_app(true) 后 app={}", rs.is_cloud_enabled_for_app());
+    eprintln!(
+        "[probe] set_cloud_enabled_for_app(true) 后 app={}",
+        rs.is_cloud_enabled_for_app()
+    );
 
     let name = "gulugulu-cloud-probe.json";
     let payload = br#"{"probe":true}"#;
@@ -886,11 +1066,20 @@ fn cloud_enable_probe() {
         std::thread::sleep(Duration::from_millis(60));
     }
     match steam_cloud::read_file(&client, name) {
-        Some(b) => eprintln!("[probe] read_file OK: {} bytes = {}", b.len(), String::from_utf8_lossy(&b)),
+        Some(b) => eprintln!(
+            "[probe] read_file OK: {} bytes = {}",
+            b.len(),
+            String::from_utf8_lossy(&b)
+        ),
         None => eprintln!("[probe] read_file None（未落云/未持久化）"),
     }
     let f = client.remote_storage().file(name);
-    eprintln!("[probe] exists={} persisted={} timestamp={}", f.exists(), f.is_persisted(), f.timestamp());
+    eprintln!(
+        "[probe] exists={} persisted={} timestamp={}",
+        f.exists(),
+        f.is_persisted(),
+        f.timestamp()
+    );
     eprintln!("[probe] 云端文件列表={:?}", client.remote_storage().files());
     let del = client.remote_storage().file(name).delete();
     eprintln!("[probe] cleanup delete → {del}");
@@ -904,7 +1093,10 @@ fn cloud_enable_probe() {
 fn cloud_clear_save_dominance() {
     use crate::steam_cloud::{self, CloudAction, SaveMeta};
     let client = steamworks::Client::init_app(APP_ID).unwrap();
-    assert!(client.remote_storage().is_cloud_enabled_for_account(), "账号级云需开");
+    assert!(
+        client.remote_storage().is_cloud_enabled_for_account(),
+        "账号级云需开"
+    );
     steam_cloud::opt_in_app_cloud(&client);
 
     let name = "gulugulu-save-domtest.json";
@@ -918,14 +1110,23 @@ fn cloud_clear_save_dominance() {
 
     // 1. 旧存档在云：高修订号 500、coins 9999。
     put(br#"{"version":8,"cloudRevision":500,"lastSeenAt":100,"coins":9999}"#);
-    let cloud_meta = steam_cloud::parse_meta(&steam_cloud::read_file(&client, name).unwrap()).unwrap();
+    let cloud_meta =
+        steam_cloud::parse_meta(&steam_cloud::read_file(&client, name).unwrap()).unwrap();
     assert_eq!(cloud_meta.revision, 500);
     eprintln!("[dom] 云端旧档 rev={}", cloud_meta.revision);
 
     // 2. 清档后本地：rev=prev+1、force_push=true。即便云修订号更高，判定也必 PushLocal（夺权）。
-    let local = SaveMeta { version: 8, revision: 501, last_seen_at: 50 };
+    let local = SaveMeta {
+        version: 8,
+        revision: 501,
+        last_seen_at: 50,
+    };
     let action = steam_cloud::decide_cloud_action(local, Some(cloud_meta), true);
-    assert_eq!(action, CloudAction::PushLocal, "清档夺权应 PushLocal（不采纳旧云）");
+    assert_eq!(
+        action,
+        CloudAction::PushLocal,
+        "清档夺权应 PushLocal（不采纳旧云）"
+    );
     eprintln!("[dom] decide_cloud_action(force_push) → {action:?}（不被旧云拉回）");
 
     // 3. 执行 PushLocal：推清空档到云（rev 501、coins 0）。
@@ -935,8 +1136,14 @@ fn cloud_clear_save_dominance() {
     let after = steam_cloud::read_file(&client, name).unwrap();
     let after_meta = steam_cloud::parse_meta(&after).unwrap();
     assert_eq!(after_meta.revision, 501, "云端应为清空档修订号");
-    assert!(String::from_utf8_lossy(&after).contains("\"coins\":0"), "云端应为清空档内容");
-    eprintln!("[dom] ✅ 云端已是清空档 rev={} coins=0 —— 清档夺权成立", after_meta.revision);
+    assert!(
+        String::from_utf8_lossy(&after).contains("\"coins\":0"),
+        "云端应为清空档内容"
+    );
+    eprintln!(
+        "[dom] ✅ 云端已是清空档 rev={} coins=0 —— 清档夺权成立",
+        after_meta.revision
+    );
 
     let _ = client.remote_storage().file(name).delete();
     eprintln!("[dom] ✅ WS7 清档夺权云级验证全绿");
@@ -966,5 +1173,9 @@ fn cloud_list() {
             file.timestamp()
         );
     }
-    eprintln!("[list] 共 {} 个文件，{} bytes", files.len(), steam_cloud::total_bytes(&client));
+    eprintln!(
+        "[list] 共 {} 个文件，{} bytes",
+        files.len(),
+        steam_cloud::total_bytes(&client)
+    );
 }

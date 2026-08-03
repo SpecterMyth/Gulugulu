@@ -326,7 +326,7 @@ struct GameSave {
 
 **口径：按 progress 账本的累计四分加权 token 增量喂经验，不用逐事件 delta。** `GameSave` 按项目记录 `last_seen_project_tokens`，`codex_adapter.rs::apply_agent_token_event()` 结算完 progress 后，用增量差值调 `game::feed_from_project_tokens(diff)`（内部按 `tokensPerExp=40` 折算喂**主宠经验**、余数入 `tokenBuffer`，**只入主宠、无溢出、只产经验不产金币，主宠满级或缺席则整段浪费**），并把 `fedExp`/`fedLeveledUp`/`fedPetId` 附在现有 `codex://activity` 事件负载里，同时以 `TokenFeedOutcome{petId,expGained,leveledUp,levelAfter,expAfter,wasted,fedBreakdown}` 为载荷推送新事件 `game://exp`；前端播 Token 芯片飞行 + fed 咀嚼 + `+N ✨经验` 飘字（满级则「Token 就当零嘴」提示）。账本自愈：progress 总数小于锚点（用户删了 progress 文件）时重置锚点视为 0 增量。历史存量折币礼包（首建存档一次性 ≤200 金）保留不变。
 
-> **实现拆分（2026-07-21）**：旧 `logic_feed_energy` 已拆为 `logic_feed_keys`（键盘→精力，仅主宠、无溢出）与 `logic_feed_tokens`（Token→经验，仅主宠），`EnergySource` 枚举删除；`game://stamina` 的 `source` 恒为 `"keys"`。成就侧 `stats.total_tokens_fed` 仍按四分加权喂养单位累计（阈值 1M/50M/1B 不变），夜猫子旗标两条喂养路径都保留；`stats.first_maxlevel_done` 在点击与 Token 喂养两条路径都置位（Token 喂满级也能拿「首次满级」）。
+> **实现拆分（2026-07-21）**：旧 `logic_feed_energy` 已拆为 `logic_feed_keys`（键盘→精力，仅主宠、无溢出）与 `logic_feed_tokens`（Token→经验，仅主宠），`EnergySource` 枚举删除；`game://stamina` 的 `source` 恒为 `"keys"`。成就侧 `stats.total_tokens_fed` 仍按四分加权喂养单位累计；「代码盛宴」改读 `stats.total_tokens_observed ≥ 1B`，四类原始 Token 等权求和、不区分是否产出。夜猫子旗标两条喂养路径都保留；`stats.first_maxlevel_done` 在点击与 Token 喂养两条路径都置位（Token 喂满级也能拿「首次满级」）。
 
 ### 12.5 状态机扩展（与 petEvents 的关系）
 

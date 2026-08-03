@@ -15,6 +15,37 @@ export const QUOTA_PER_SHIFT = 5;
 export const LOADOUT_MIN = 3;
 export const LOADOUT_MAX = 10;
 
+/**
+ * 工厂经济和后端成绩快照共同使用的整数上限。
+ * 前端经济仍以 number 运算，因此不能跨过 MAX_SAFE_INTEGER；一旦达到上限，
+ * 继续得分只保留“已封顶”的事实，避免 Infinity 被序列化成 null 或显示成 0。
+ */
+export const FACTORY_VALUE_CAP = Number.MAX_SAFE_INTEGER;
+/**
+ * KPI 只占经济上限的 5%，为最高级卡价（最高 16.2× KPI）、贷款、账单和同班收入
+ * 留出可同时存在的安全空间。标准 20 班不受影响，超长无限局约在第 48 班封顶。
+ */
+export const FACTORY_KPI_CAP = Math.floor(FACTORY_VALUE_CAP / 20);
+
+export function clampFactoryValue(value: number): number {
+  if (typeof value !== "number" || Number.isNaN(value) || value <= 0) return 0;
+  if (!Number.isFinite(value) || value >= FACTORY_VALUE_CAP) return FACTORY_VALUE_CAP;
+  return Math.round(value);
+}
+
+export function addFactoryValues(...values: number[]): number {
+  let total = 0;
+  for (const value of values) {
+    total = clampFactoryValue(total + clampFactoryValue(value));
+    if (total === FACTORY_VALUE_CAP) break;
+  }
+  return total;
+}
+
+export function factoryValueString(value: number): string {
+  return clampFactoryValue(Math.trunc(value)).toString();
+}
+
 /** 无限模式在第 20 班后的基础增长率；每多一班再增加 0.03。 */
 export const KPI_RATE_LATE = 1.46;
 
@@ -22,8 +53,8 @@ export const KPI_RATE_LATE = 1.46;
  * 标准 20 班 KPI 权威表。
  * 第 1~5 班从 80 按约 ×2.236 增长到 2000；
  * 第 5~10 班按约 ×1.585 增长到 2 万；
- * 第 10~19 班按约 ×1.995 增长到 1000 万，
- * 第 19 班锚定 1000 万，第 20 班终局锚定 5000 万。
+ * 第 10~19 班按约 ×1.885 增长到 600 万，
+ * 第 19 班锚定 600 万，第 20 班终局锚定 2000 万。
  */
 export const KPI_BY_SHIFT = [
   0,
@@ -37,33 +68,36 @@ export const KPI_BY_SHIFT = [
   7_962,
   12_619,
   20_000,
-  39_895,
-  79_579,
-  158_740,
-  316_645,
-  631_623,
-  1_259_921,
-  2_513_211,
-  5_013_193,
-  10_000_000,
-  50_000_000,
+  37_693,
+  71_040,
+  133_887,
+  252_332,
+  475_563,
+  896_281,
+  1_689_195,
+  3_183_578,
+  6_000_000,
+  20_000_000,
 ] as const;
 
-/** 标准班读取权威表；无限模式从 5000 万继续按递增倍率复合增长。 */
+/** 标准班读取权威表；无限模式从 2000 万继续按递增倍率复合增长。 */
 export function kpiForShift(shift: number): number {
+  if (!Number.isFinite(shift)) return shift > 0 ? FACTORY_KPI_CAP : KPI_START;
   const normalizedShift = Math.max(1, Math.round(shift));
   if (normalizedShift <= TOTAL_SHIFTS) return KPI_BY_SHIFT[normalizedShift] ?? KPI_START;
 
   let kpi = KPI_BY_SHIFT[TOTAL_SHIFTS];
   for (let k = TOTAL_SHIFTS + 1; k <= normalizedShift; k++) {
     const m = k - TOTAL_SHIFTS;
-    kpi *= KPI_RATE_LATE + 0.03 * m;
+    const multiplier = KPI_RATE_LATE + 0.03 * m;
+    if (kpi >= FACTORY_KPI_CAP / multiplier) return FACTORY_KPI_CAP;
+    kpi *= multiplier;
   }
-  return Math.round(kpi);
+  return Math.min(FACTORY_KPI_CAP, clampFactoryValue(kpi));
 }
 
 export function kpiBonusFor(kpi: number): number {
-  return Math.max(0, Math.round(kpi * KPI_BONUS_RATE));
+  return clampFactoryValue(kpi * KPI_BONUS_RATE);
 }
 
 /** 账单与 KPI 使用同一个权威值：达标收入用于交账单，可支配增量主要来自加班时间。 */
@@ -153,7 +187,10 @@ export function hirePrice(args: {
   const t = Math.min(6, Math.max(1, args.tierCount));
   const base = HIRE_BASE[t] * (args.baseCut != null ? 1 - args.baseCut : 1);
   const infl = args.inflationOverride ?? HIRE_INFLATION[t];
-  return Math.max(1, Math.round(((base * args.kpi) / 100) * Math.pow(infl, args.hiredThisShift)));
+  return Math.max(
+    1,
+    clampFactoryValue(((base * args.kpi) / 100) * Math.pow(infl, Math.max(0, args.hiredThisShift))),
+  );
 }
 
 // ---- 大风 -------------------------------------------------------------------
@@ -180,13 +217,13 @@ export function baseValueForTier(tierCount: number): number {
 // ---- 商店 -------------------------------------------------------------------
 
 export const SHOP_PICKS = 3;
-export const CARD_PRICE_RATE: Record<string, number> = { common: 0.07, rare: 0.12, epic: 0.2 };
-/** 同名卡每升一级，下一次购买价变为上一级的 3 倍。 */
-export const CARD_LEVEL_PRICE_MULTIPLIER = 3;
+export const CARD_PRICE_RATE: Record<string, number> = { common: 0.15, rare: 0.25, epic: 0.4 };
+/** 同名卡每升一级，下一次购买价变为上一级的 2 倍。 */
+export const CARD_LEVEL_PRICE_MULTIPLIER = 2;
 export const SHOP_REROLL_RATE = 0.07;
 /** 班末商店的下一次刷新价：基础价随该维度已刷新次数逐次翻倍。 */
 export function shopRerollCost(kpi: number, rerollCount: number): number {
-  return Math.round(SHOP_REROLL_RATE * kpi * (2 ** Math.max(0, rerollCount)));
+  return clampFactoryValue(SHOP_REROLL_RATE * kpi * (2 ** Math.max(0, rerollCount)));
 }
 /** 跳过一维返 8% KPI：没钱时连续跳过仍能换来下一维的一张普通强化。 */
 export const SHOP_SKIP_REFUND_RATE = 0.08;
@@ -287,7 +324,7 @@ export const CARD_PARAMS = {
   "base.normal": { bonus: [2, 5, 10, 20, 40] },
   // 维度二 · 编制/财务
   "staff.fire3": { picks: 3 }, // 解雇(一次性)
-  "staff.severance": { refund: [0.1, 0.2, 0.4, 0.7, 1] },
+  "staff.severance": { refund: [0.25, 0.5, 1, 2, 3] },
   "staff.movedesk": {}, // 搬桌(一次性)
   "staff.expand": { quota: 5 }, // 扩编
   "staff.talentmarket": { rerollsPerLevel: 1, candidatesPerLevel: 1 },
@@ -591,8 +628,11 @@ export function cardsForElementPlacement(
   return scoped ?? cards;
 }
 
-/** 返还类效果全局封顶(02 §6-6:禁止 ≥100% 的"雇了就退"循环)。 */
+/** 无遣散费加成时，主动解雇最多返还 100% 最近雇价。 */
 export const REFUND_HARD_CAP = 1;
+
+/** 遣散费的独立退款上限；满级返还三倍最近雇价。 */
+export const SEVERANCE_REFUND_HARD_CAP = 3;
 
 // ---- 演出分档(04 §3:数字弹出) ---------------------------------------------
 

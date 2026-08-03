@@ -30,6 +30,9 @@ const AGENT_NAMES: Record<AgentProvider, string> = { claude: "Claude", codex: "C
 /** 累计 Token 时间窗按钮顺序：1d/1w/1m/all（默认 all）。 */
 const RANGE_ORDER: TokenRange[] = ["d1", "w1", "m1", "all"];
 
+/** 打工分数固定使用紧凑的 k/m/b，避免随界面语言切换成金额式“万/亿”。 */
+const formatWorkScore = (value: number): string => formatCount(value, "en").toLowerCase();
+
 /** 四分明细行的展示顺序 + 每类折算经验的喂养权重（与后端 tokenFeedWeights
  *  一致；2026-07-21 起 Token → 陪伴宠经验）。输入（权重 5，最滋补）领头，
  *  产出（×2）次之，读缓存（×0.01）垫底。 */
@@ -115,7 +118,7 @@ export function BackyardNoticeBoard({
     left: 2240,
     bottom: 208,
     width: 348,
-    height: 188,
+    height: 218,
     boxSizing: "border-box",
     cursor: "default",
   });
@@ -179,9 +182,11 @@ export function BackyardNoticeBoard({
       <div className="by-board-frame" aria-hidden="true" />
       <div className="by-board-inner">
         <div className="by-board-main">
-          <span className="by-board-token" title={bk.totalTokensTitle}>🍙 {formatCount(tokenStats[range].total)}</span>
-          <div className="by-board-topline">
-            <span className="by-board-token-label" title={bk.totalTokensTitle}>{bk.totalTokens}</span>
+          <div className="by-board-token-summary" title={bk.totalTokensTitle}>
+            <span className="by-board-token">🍙 {formatCount(tokenStats[range].total)}</span>
+            <span className="by-board-token-label">{bk.totalTokens}</span>
+          </div>
+          <div className="by-board-controls">
             <button
               type="button"
               className="by-board-detail-btn"
@@ -192,8 +197,25 @@ export function BackyardNoticeBoard({
             >
               {bk.detailOpen}
             </button>
+            {rangeSwitch}
           </div>
-          {rangeSwitch}
+        </div>
+
+        <div className="by-board-stats" aria-label={`${bk.todayCoins}, ${bk.todayWorkBest}`}>
+          <span className="by-board-stat">
+            <span className="by-board-stat-icon" aria-hidden="true">🪙</span>
+            <span className="by-board-stat-copy">
+              <span className="by-board-stat-label">{bk.todayCoins}</span>
+              <strong>{formatCount(save.daily.coinsEarned ?? 0)}</strong>
+            </span>
+          </span>
+          <span className="by-board-stat">
+            <span className="by-board-stat-icon" aria-hidden="true">🏆</span>
+            <span className="by-board-stat-copy">
+              <span className="by-board-stat-label">{bk.todayWorkBest}</span>
+              <strong>{formatWorkScore(save.stats?.factoryRogueBestRevenue ?? 0)}</strong>
+            </span>
+          </span>
         </div>
 
         {/* AI 连接：两个并排按钮（Claude / Codex），标签自带名称 + 状态。 */}
@@ -219,11 +241,9 @@ export function BackyardNoticeBoard({
 
         {/* 底部状态并排：今日互动额度 + 固定图鉴进度。 */}
         <div className="by-board-status-row">
-          <span className="by-board-love-row">
-            <span className="by-board-love" title={bk.loveTitle}>
-              <span className="by-board-love-label">{bk.loveLabel}</span>
-              <DailyLoveMeter clicks={save.daily.clicks} cap={config.dailyClickCap} showCount />
-            </span>
+          <span className="by-board-love" title={bk.loveTitle}>
+            <span className="by-board-love-label">{bk.loveLabel}</span>
+            <DailyLoveMeter clicks={save.daily.clicks} cap={config.dailyClickCap} showCount />
           </span>
           <span className="by-board-dex">
             {fmt(T.bk.dexProgress, { collected: pokedexModel.fixedCollected, total: FIXED_DEX_TOTAL })}

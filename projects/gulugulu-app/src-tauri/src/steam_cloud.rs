@@ -158,7 +158,11 @@ mod tests {
     use super::*;
 
     fn meta(rev: u64, seen: i64) -> SaveMeta {
-        SaveMeta { version: 8, revision: rev, last_seen_at: seen }
+        SaveMeta {
+            version: 8,
+            revision: rev,
+            last_seen_at: seen,
+        }
     }
 
     #[test]
@@ -172,7 +176,10 @@ mod tests {
 
     #[test]
     fn cloud_absent_pushes_local() {
-        assert_eq!(decide_cloud_action(meta(5, 100), None, false), CloudAction::PushLocal);
+        assert_eq!(
+            decide_cloud_action(meta(5, 100), None, false),
+            CloudAction::PushLocal
+        );
     }
 
     #[test]
@@ -213,7 +220,11 @@ mod tests {
         let bytes = br#"{"version":8,"coins":9,"cloudRevision":42,"lastSeenAt":1234}"#;
         assert_eq!(
             parse_meta(bytes),
-            Some(SaveMeta { version: 8, revision: 42, last_seen_at: 1234 })
+            Some(SaveMeta {
+                version: 8,
+                revision: 42,
+                last_seen_at: 1234
+            })
         );
     }
 
@@ -222,7 +233,11 @@ mod tests {
         let bytes = br#"{"version":8,"coins":9}"#;
         assert_eq!(
             parse_meta(bytes),
-            Some(SaveMeta { version: 8, revision: 0, last_seen_at: 0 })
+            Some(SaveMeta {
+                version: 8,
+                revision: 0,
+                last_seen_at: 0
+            })
         );
     }
 

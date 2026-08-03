@@ -80,6 +80,7 @@ const ALTERNATE_STRATEGY = process.argv.includes("--alternate-strategy");
 const ALTERNATE_LOADOUTS = ALTERNATE_STRATEGY || process.argv.includes("--alternate-loadouts");
 const FOUNDATION_GUARANTEE = process.argv.includes("--foundation-guarantee");
 const MONO_DESK_PROTECTION = process.argv.includes("--mono-desk-protection");
+const ACTIVE_DESK_FLOOR = MONO_DESK_PROTECTION || process.argv.includes("--active-desk-floor");
 const SEED_TEXT = cliValue("--seed") ?? "0x72901";
 const RUN_SEED = Number.parseInt(SEED_TEXT, SEED_TEXT.startsWith("0x") ? 16 : 10) >>> 0;
 const BALANCE_PROFILE = cliValue("--balance-profile") ?? "current";
@@ -1964,10 +1965,18 @@ function playShift(run) {
   run.modifier = G.modifierForShift(run.shift, run.rng);
   const disabledCount = run.shift === G.TOTAL_SHIFTS ? 0 : run.shift > 10 ? 2 : run.shift > 5 ? 1 : 0;
   const runElements = activeElements(run.loadout, run.meta);
-  const disabledPool = MONO_DESK_PROTECTION && runElements.length === 1
-    ? ELEMENTS.filter((element) => element !== runElements[0])
-    : ELEMENTS;
-  run.disabledDesks = shuffle(disabledPool, run.rng).slice(0, disabledCount);
+  run.disabledDesks = shuffle(ELEMENTS, run.rng).slice(0, disabledCount);
+  if (
+    ACTIVE_DESK_FLOOR
+    && runElements.length > 0
+    && runElements.every((element) => run.disabledDesks.includes(element))
+  ) {
+    const replacement = ELEMENTS.find((element) => (
+      !runElements.includes(element) && !run.disabledDesks.includes(element)
+    ));
+    const activeIndex = run.disabledDesks.findIndex((element) => runElements.includes(element));
+    if (replacement != null && activeIndex >= 0) run.disabledDesks[activeIndex] = replacement;
+  }
   run.revenueShift = 0;
   run.combo = 0;
   recruit(run);
@@ -2234,6 +2243,7 @@ function main() {
       balanceProfile: BALANCE_PROFILE,
       foundationGuarantee: FOUNDATION_GUARANTEE,
       monoDeskProtection: MONO_DESK_PROTECTION,
+      activeDeskFloor: ACTIVE_DESK_FLOOR,
       totalShifts: G.TOTAL_SHIFTS,
       calibration: ALTERNATE_STRATEGY
         ? "Uses the same miss/wind/inspection calibration as the visual run, but replaces placement, hiring and shop policies."

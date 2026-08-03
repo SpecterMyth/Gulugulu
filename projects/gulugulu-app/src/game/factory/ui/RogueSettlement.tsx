@@ -4,7 +4,7 @@ import { speciesDisplayName } from "../../../i18n";
 import { useT } from "../../../useT";
 import { SvgSprite } from "../../../sprites/SvgSprite";
 import { formatCount } from "../../format";
-import type { RogueRunApi, RunView } from "../rogueTypes";
+import { settlementIncomeFlows, type RogueRunApi, type RunView } from "../rogueTypes";
 
 const PAYMENT_MS = 1400;
 
@@ -24,6 +24,7 @@ export function RogueSettlement({
   const { lang } = useT();
   const data = view.settlement;
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const paymentStartedRef = useRef(false);
   const committedRef = useRef(false);
   const timerRef = useRef<number | null>(null);
   const [paying, setPaying] = useState(false);
@@ -50,8 +51,18 @@ export function RogueSettlement({
 
   if (data == null) return null;
 
+  // v9/v10 续档的结算对象没有下列字段；从当前贷款视图安全补算，保证旧档 UI
+  // 也会在确认前展示完整必要支付，而不是只显示普通账单。
+  const loanPayment = data.loanPayment ?? view.loan?.perShift ?? 0;
+  const requiredPayment = data.requiredPayment ?? data.bill + loanPayment;
+  const cashAfterPayment = data.cashAfterPayment ?? Math.max(0, data.cashBeforeBill - requiredPayment);
+  const shortfall = data.shortfall ?? Math.max(0, requiredPayment - data.cashBeforeBill);
+
   const confirm = () => {
-    if (paying || committedRef.current) return;
+    // State commits after the current event task. Close that tiny re-entry
+    // window synchronously so a rapid macro creates only one payment timer.
+    if (paymentStartedRef.current || paying || committedRef.current) return;
+    paymentStartedRef.current = true;
     setPaying(true);
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
     const duration = reduced || document.hidden ? 120 : PAYMENT_MS;
@@ -63,7 +74,7 @@ export function RogueSettlement({
     }, duration);
   };
 
-  const cashFlows = data.cashFlows.filter((flow) => flow.kind !== "hire");
+  const cashFlows = settlementIncomeFlows(data.cashFlows);
   const words = lang === "zh"
     ? {
         eyebrow: `第 ${data.shiftIndex} 班 · 下班回执`,
@@ -71,6 +82,8 @@ export function RogueSettlement({
         spent: "本班花费",
         received: "本班收入",
         bill: "待缴账单",
+        required: "本次应付",
+        loanPayment: "贷款还款",
         details: "逐笔团队业绩明细",
         team: "团队业绩",
         base: "打工业绩",
@@ -80,8 +93,10 @@ export function RogueSettlement({
         empty: "本班没有获得团队业绩",
         desks: (count: number) => `${count} 张办公桌`,
         wallet: "我的钱包",
-        after: "付款后余额",
-        confirm: "确认并缴账单",
+        after: "全部支付后余额",
+        shortfall: "资金缺口",
+        confirm: loanPayment > 0 ? "确认并支付全部" : "确认并缴账单",
+        confirmBankruptcy: "资金不足 · 确认破产",
         paying: "正在缴账…",
         paid: "已缴 ✓",
         refund: "退款",
@@ -94,6 +109,8 @@ export function RogueSettlement({
         spent: "Spent",
         received: "Received",
         bill: "Bill Due",
+        required: "Required today",
+        loanPayment: "Loan repayment",
         details: "Team Performance breakdown",
         team: "Team Performance",
         base: "Work Performance",
@@ -103,8 +120,10 @@ export function RogueSettlement({
         empty: "No Team Performance earned this shift",
         desks: (count: number) => `${count} desk${count === 1 ? "" : "s"}`,
         wallet: "My wallet",
-        after: "After payment",
-        confirm: "Confirm & pay bill",
+        after: "After all payments",
+        shortfall: "Shortfall",
+        confirm: loanPayment > 0 ? "Confirm all payments" : "Confirm & pay bill",
+        confirmBankruptcy: "Insufficient — confirm bankruptcy",
         paying: "Paying…",
         paid: "PAID ✓",
         refund: "Refund",
@@ -204,22 +223,33 @@ export function RogueSettlement({
               <b>+¥{formatCount(flow.amount)}</b>
             </div>
           ))}
+          {loanPayment > 0 && (
+            <div className="fr-settlement-flow fr-settlement-loan-flow">
+              <span>{words.loanPayment}</span>
+              <b>−¥{formatCount(loanPayment)}</b>
+            </div>
+          )}
         </div>
 
         <footer className="fr-settlement-foot">
           <div className="fr-settlement-payment">
             <div className="fr-settlement-wallet">
               <span>{words.wallet}</span>
-              <strong>¥{formatCount(paying && paid ? data.cashAfterBill : data.cashBeforeBill)}</strong>
+              <strong>¥{formatCount(paying && paid ? cashAfterPayment : data.cashBeforeBill)}</strong>
             </div>
             <div className="fr-settlement-arrow">→</div>
             <div className="fr-settlement-bill">
-              <span>{words.bill}</span>
-              <strong>¥{formatCount(data.bill)}</strong>
+              <span>{loanPayment > 0 ? words.required : words.bill}</span>
+              <strong>¥{formatCount(requiredPayment)}</strong>
+              {loanPayment > 0 && (
+                <small>
+                  {words.bill} ¥{formatCount(data.bill)} · {words.loanPayment} ¥{formatCount(loanPayment)}
+                </small>
+              )}
             </div>
-            <div className="fr-settlement-after">
-              <span>{words.after}</span>
-              <b>¥{formatCount(data.cashAfterBill)}</b>
+            <div className={`fr-settlement-after${shortfall > 0 ? " is-shortfall" : ""}`}>
+              <span>{shortfall > 0 ? words.shortfall : words.after}</span>
+              <b>{shortfall > 0 ? "−" : ""}¥{formatCount(shortfall > 0 ? shortfall : cashAfterPayment)}</b>
             </div>
           </div>
           <button
@@ -230,7 +260,7 @@ export function RogueSettlement({
             disabled={paying}
             onClick={confirm}
           >
-            {paying ? words.paying : words.confirm}
+            {paying ? words.paying : shortfall > 0 ? words.confirmBankruptcy : words.confirm}
           </button>
         </footer>
 

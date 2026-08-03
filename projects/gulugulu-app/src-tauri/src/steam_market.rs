@@ -117,7 +117,11 @@ fn fetch_price(app_id: u32, currency: u32, hash: &str) -> Result<Option<MarketPr
 
 /// 批量查价（去重、缓存、限频）。只返回**有挂单**的 def → 行情；无挂单/查不到的
 /// 缺席（面板据缺席回退估价）。人民币计价。
-pub fn prices_for_defs(config: &GameConfig, app_id: u32, defs: &[u32]) -> BTreeMap<u32, MarketPrice> {
+pub fn prices_for_defs(
+    config: &GameConfig,
+    app_id: u32,
+    defs: &[u32],
+) -> BTreeMap<u32, MarketPrice> {
     let mut out = BTreeMap::new();
     let mut seen = BTreeSet::new();
     let mut fetched = 0usize;

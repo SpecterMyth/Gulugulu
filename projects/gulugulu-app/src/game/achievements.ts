@@ -118,7 +118,7 @@ export function satisfiedAchievements(config: GameConfig, save: GameSave): Set<s
   // —— F. 编码伴侣 ——
   const tokens = st.totalTokensFed ?? 0;
   if (tokens >= 1_000_000) out.add("ACH_TOKENS_1M");
-  if (tokens >= 1_000_000_000) out.add("ACH_TOKENS_1B");
+  if ((st.totalTokensObserved ?? 0) >= 1_000_000_000) out.add("ACH_TOKENS_1B");
   if ((st.totalKeysCharged ?? 0) >= 100_000) out.add("ACH_KEYS_100K");
 
   // —— G. 经济 · 建设 ——

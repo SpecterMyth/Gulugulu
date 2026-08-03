@@ -13,6 +13,7 @@
 import { isTauri } from "../tauri";
 import { localGameConfig } from "../game/config";
 import { buildSeed } from "../game/mockSeeds";
+import { ONBOARDING_STEP_IDS, type OnboardingStepId } from "../app/onboarding/onboardingCopy";
 
 function params(): URLSearchParams | null {
   if (isTauri()) return null;
@@ -146,6 +147,22 @@ export function applyPreviewBootstrap(): void {
         if (hero) {
           const match = save.pets.find((pet) => pet.species === hero);
           if (match) save.activePetId = match.id;
+        }
+        const onboardingStep = p.get("onboarding");
+        if (ONBOARDING_STEP_IDS.includes(onboardingStep as OnboardingStepId)) {
+          save.version = 10;
+          save.onboarding = {
+            version: 6,
+            status: "active",
+            step: onboardingStep as OnboardingStepId,
+            tutorialWorkClicks: 0,
+            tutorialFusions: 0,
+            starterTrioClaimed: false,
+            postPracticeRosterClaimed: false,
+            factoryFormalEntered: false,
+            agentPromptSkipped: false,
+            steamMarketOpenAttempted: false,
+          };
         }
         window.localStorage.setItem("gulugulu.mock-save", JSON.stringify(save));
         // 种子档 = 老玩家:压掉全部一次性新手引导,保证画面干净可复现。

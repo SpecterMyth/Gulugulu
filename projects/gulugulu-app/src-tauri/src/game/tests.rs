@@ -1010,10 +1010,18 @@ fn ledger_breakdown_diff_tracks_seeds_and_self_heals() {
         B::default(),
         "首见项目自播种、不喂养"
     );
+    assert_eq!(
+        save.stats.total_tokens_observed, 97_400,
+        "首见项目的历史原始 Token 应计入累计成就，但不用于喂养"
+    );
     // 之后逐项差分。
     assert_eq!(
         ledger_breakdown_diff(&mut save, "proj", bd(5_100, 2_000, 92_000, 460)),
         bd(100, 0, 2_000, 60)
+    );
+    assert_eq!(
+        save.stats.total_tokens_observed, 99_560,
+        "input/cache_create/cache_read/output 都应按原始数量计入总 Token"
     );
     // progress 被删/重置（总数回退）→ 逐项饱和相减自愈：负增量记 0、换锚。
     assert_eq!(
@@ -1029,6 +1037,44 @@ fn ledger_breakdown_diff_tracks_seeds_and_self_heals() {
         ledger_breakdown_diff(&mut save, "proj", bd(15, 10, 10, 60)),
         bd(5, 0, 0, 50)
     );
+    assert_eq!(
+        save.stats.total_tokens_observed, 99_615,
+        "计数回退只换锚，不得重复累计历史 Token"
+    );
+}
+
+#[test]
+fn current_save_backfills_raw_token_achievement_total_from_breakdown_ledger() {
+    use crate::codex_adapter::TokenBreakdown;
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.last_seen_project_breakdown.insert(
+        "proj-a".into(),
+        TokenBreakdown {
+            input: 100,
+            cache_create: 200,
+            cache_read: 300,
+            output: 400,
+        },
+    );
+    save.last_seen_project_breakdown.insert(
+        "proj-b".into(),
+        TokenBreakdown {
+            input: 1,
+            cache_create: 2,
+            cache_read: 3,
+            output: 4,
+        },
+    );
+
+    assert!(migrate_save(
+        &config,
+        &mut save,
+        &BTreeMap::new(),
+        1000,
+        "2026-07-07"
+    ));
+    assert_eq!(save.stats.total_tokens_observed, 1_010);
 }
 
 #[test]
@@ -1913,10 +1959,7 @@ fn sample_custom_entry(parents: [&str; 2]) -> CustomSpeciesEntry {
 fn custom_species_v2_fields_are_backward_compatible_and_roundtrip() {
     let mut legacy_value =
         serde_json::to_value(sample_custom_entry(["guluduck", "bubblefrog"])).unwrap();
-    legacy_value
-        .as_object_mut()
-        .unwrap()
-        .remove("designMeta");
+    legacy_value.as_object_mut().unwrap().remove("designMeta");
     let visual = legacy_value
         .get_mut("visual")
         .and_then(serde_json::Value::as_object_mut)
@@ -2076,7 +2119,11 @@ fn ai_fusion_design_can_land_after_authoritative_pet_was_collected() {
     let egg_id = logic_start_ai_fusion(&config, &mut save, &a, &b, 1000, "2026-07-07").unwrap();
     logic_hatch_now(&mut save, 1000);
     let pet_id = logic_collect_hatched(&config, &mut save, &egg_id, 2000, "2026-07-07").unwrap();
-    save.pets.iter_mut().find(|pet| pet.id == pet_id).unwrap().species = "aif0101".into();
+    save.pets
+        .iter_mut()
+        .find(|pet| pet.id == pet_id)
+        .unwrap()
+        .species = "aif0101".into();
 
     logic_resolve_fusion_target(
         &config,
@@ -2093,7 +2140,14 @@ fn ai_fusion_design_can_land_after_authoritative_pet_was_collected() {
         save.recipe_ai_slots.get("fire+ice").map(Vec::as_slice),
         Some(["aif0101".to_string()].as_slice())
     );
-    assert_eq!(save.pets.iter().find(|pet| pet.id == pet_id).unwrap().species, "aif0101");
+    assert_eq!(
+        save.pets
+            .iter()
+            .find(|pet| pet.id == pet_id)
+            .unwrap()
+            .species,
+        "aif0101"
+    );
 }
 
 #[test]
@@ -2191,6 +2245,18 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
     save.onboarding.step = "B05".to_string();
     logic_advance_onboarding(&config, &mut save, "B05", 2000).unwrap();
     assert_eq!(save.pets.len(), 3, "首次异种融合后固定送三只");
+    let expected_species: Vec<String> = ["normal", "fire", "electric"]
+        .iter()
+        .map(|element| config.species_by_recipe[*element].clone())
+        .collect();
+    assert_eq!(
+        save.pets
+            .iter()
+            .map(|pet| pet.species.clone())
+            .collect::<Vec<_>>(),
+        expected_species,
+        "首批奖励应固定为一般、火、电三系"
+    );
     assert!(save.onboarding.starter_trio_claimed);
     assert!(save
         .pets
@@ -2253,6 +2319,57 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
 }
 
 #[test]
+fn skipping_onboarding_grants_both_tutorial_fusion_results_once() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.eggs.clear();
+
+    logic_grant_skipped_onboarding_fusions(&config, &mut save, 2_000).unwrap();
+
+    let expected: Vec<String> = ["fire+normal", "electric+water"]
+        .iter()
+        .map(|recipe| config.species_by_recipe[*recipe].clone())
+        .collect();
+    assert_eq!(
+        save.pets
+            .iter()
+            .map(|pet| pet.species.clone())
+            .collect::<Vec<_>>(),
+        expected
+    );
+    assert!(save.pets.iter().all(|pet| {
+        pet.tier == 2
+            && pet.level == config.max_level_for_tier(2)
+            && save.capacity_exempt_pet_ids.contains(&pet.id)
+    }));
+    assert_eq!(save.onboarding.tutorial_fusions, 2);
+    assert!(save.tutorial_first_fusion_done);
+    assert_eq!(save.stats.highest_tier, 2);
+    assert_eq!(save.dex_obtained.get(&expected[0]).copied(), Some(1));
+    assert_eq!(save.dex_obtained.get(&expected[1]).copied(), Some(1));
+
+    logic_grant_skipped_onboarding_fusions(&config, &mut save, 2_001).unwrap();
+    assert_eq!(save.pets.len(), 2, "retrying skip must not duplicate rewards");
+}
+
+#[test]
+fn skipping_after_first_tutorial_fusion_only_grants_the_second_result() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.eggs.clear();
+    save.onboarding.tutorial_fusions = 1;
+
+    logic_grant_skipped_onboarding_fusions(&config, &mut save, 2_000).unwrap();
+
+    assert_eq!(save.pets.len(), 1);
+    assert_eq!(
+        save.pets[0].species,
+        config.species_by_recipe["electric+water"]
+    );
+    assert_eq!(save.onboarding.tutorial_fusions, 2);
+}
+
+#[test]
 fn onboarding_first_fire_pet_stays_level_one_and_does_not_replace_companion() {
     let config = test_config();
     let mut save = fresh_save(&config);
@@ -2286,6 +2403,31 @@ fn onboarding_first_fire_pet_stays_level_one_and_does_not_replace_companion() {
 }
 
 #[test]
+fn onboarding_a12_rejects_wrong_eggs_without_consuming_the_manual_fire_slot() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.hatchery_level = 2;
+    save.onboarding.step = "A12".to_string();
+    save.coins = 137;
+    let eggs_before = save.eggs.len();
+
+    let err = logic_buy_egg(&config, &mut save, "normal", 1, 2_000, "2026-07-07").unwrap_err();
+    assert_eq!(err, "#onboardingTargetOnly");
+    assert_eq!(save.eggs.len(), eggs_before);
+    assert_eq!(save.coins, 137);
+    assert!(!save.tutorial_first_egg_bought);
+
+    let fire_id = logic_buy_egg(&config, &mut save, "fire", 1, 2_001, "2026-07-07").unwrap();
+    let fire = save.eggs.iter().find(|egg| egg.id == fire_id).unwrap();
+    assert_eq!(
+        fire.slot, None,
+        "A13 must still receive a manually placeable Fire Egg"
+    );
+    assert_eq!(save.coins, 137);
+    assert!(save.tutorial_first_egg_bought);
+}
+
+#[test]
 fn onboarding_facility_upgrades_are_fully_reimbursed() {
     let config = test_config();
     let mut save = fresh_save(&config);
@@ -2295,6 +2437,16 @@ fn onboarding_facility_upgrades_are_fully_reimbursed() {
     assert_eq!(save.hatchery_level, 2);
     assert_eq!(save.coins, 137, "教学蛋坑解锁应全额报销");
 
+    save.onboarding.step = "A13".to_string();
+    save.coins = 0;
+    logic_upgrade_hatchery(&config, &mut save, 1_001, "2026-07-07").unwrap();
+    assert_eq!(save.hatchery_level, 3);
+    assert_eq!(
+        save.coins, 0,
+        "A13 dead-end recovery must unlock one free pit without charging"
+    );
+
+    save.coins = 137;
     logic_upgrade_yard(&config, &mut save, 1_000, "2026-07-07").unwrap();
     assert_eq!(save.yard_level, 2);
     assert_eq!(save.coins, 137, "教学后院扩容应全额报销");
@@ -2444,10 +2596,10 @@ fn complete_onboarding_receipt_simulation_has_no_dead_end_or_double_grant() {
     let mut save = fresh_save(&config);
     let route = [
         "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12", "A13",
-        "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06", "B07", "C01", "C02", "C03",
-        "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "D01", "D02", "D03", "D04",
-        "D05", "D06", "D07", "D08", "E01", "E02", "E03", "F01", "F02", "F03a", "F04", "G01", "G02",
-        "G03", "G04", "G05", "G06", "G07",
+        "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06", "B07",
+        "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "D01",
+        "D02", "D03", "D04", "D05", "D06", "D07", "D08", "E01", "E02", "E03", "F01", "F02", "F03a",
+        "F04", "G01", "G02", "G03", "G04", "G05", "G06", "G07",
     ];
     for step in route {
         if step.starts_with('C') {
@@ -2503,10 +2655,19 @@ fn claimed_pending_design_keeps_recipe_identity_and_can_fuse() {
     });
 
     let claimed_id = apply_collect(&config, &mut save, egg_index, 1000, None);
-    assert_eq!(claimed_id, egg_id, "design task identity must survive claiming");
+    assert_eq!(
+        claimed_id, egg_id,
+        "design task identity must survive claiming"
+    );
     let claimed = save.pets.iter().find(|pet| pet.id == claimed_id).unwrap();
-    assert_eq!(claimed.species, fallback, "pending pet uses the fixed recipe form");
-    assert!(claimed.pending_fusion.is_some(), "design task must remain persisted");
+    assert_eq!(
+        claimed.species, fallback,
+        "pending pet uses the fixed recipe form"
+    );
+    assert!(
+        claimed.pending_fusion.is_some(),
+        "design task must remain persisted"
+    );
 
     let partner = add_pet_at_tier(
         &mut save,

@@ -122,6 +122,8 @@ export interface FactoryRogueStrings {
   shopOwnedLv: string;
   shopFree: string;
   shopMaxLv: string;
+  /** 已有贷款时免费贷款卡的禁用原因。 */
+  shopLoanActive: string;
   /** {n}/{total} 三选一步骤标记 */
   shopStep: string;
   /** 三选全部敲定、准备开工 */
@@ -299,12 +301,13 @@ const zh: FactoryRogueStrings = {
   shopOwnedLv: "已持有 Lv.{lv}",
   shopFree: "免费",
   shopMaxLv: "已满级",
+  shopLoanActive: "还款中",
   shopStep: "第 {n}/{total} 选",
   shopAllDone: "强化结束，准备招聘",
   shopOpPaused: "完成本次操作后继续商店 · 还剩 {n} 次选择",
   operationKicker: "待完成操作",
   operationDismissTitle: "选择要解雇的咕噜",
-  operationDismissSceneHint: "直接点击场景中的咕噜",
+  operationDismissSceneHint: "直接点击场景中的咕噜；每只退还 100% 最近雇价",
   operationSwapTitle: "选择要交换的桌子",
   operationSwapHint: "依次选择两张桌子；两座塔会随桌交换，连通部分会在两桌之间切开",
   operationPricecutTitle: "选择压价工种",
@@ -331,7 +334,7 @@ const zh: FactoryRogueStrings = {
   shopBillPaid: "本班账单 {v}",
   paidStamp: "已缴✓",
   hintNoShare: "✗ 气场不合，啪叽弹开！",
-  landingFailed: "没有下级可以压榨",
+  landingFailed: "落点没接稳，再试一次！",
   hintNoDesk: "✗ 没一个工位收到消息",
   connectionFailed: "没连通办公桌",
   disabledDeskHint: "本班次{element}系不计分",
@@ -758,12 +761,13 @@ const en: FactoryRogueStrings = {
   shopOwnedLv: "Owned Lv.{lv}",
   shopFree: "FREE",
   shopMaxLv: "Maxed",
+  shopLoanActive: "LOAN ACTIVE",
   shopStep: "Pick {n}/{total}",
   shopAllDone: "Upgrade complete, ready to recruit",
   shopOpPaused: "Finish this action to resume the shop · {n} picks left",
   operationKicker: "ACTION REQUIRED",
   operationDismissTitle: "Choose Gulus to lay off",
-  operationDismissSceneHint: "Click Gulus directly in the factory scene",
+  operationDismissSceneHint: "Click Gulus in the factory; each refunds 100% of its latest hire price",
   operationSwapTitle: "Choose desks to swap",
   operationSwapHint: "Pick two desks; swapping returns every Gulu on them to the hiring pool",
   operationPricecutTitle: "Choose a job tier to lowball",
@@ -790,7 +794,7 @@ const en: FactoryRogueStrings = {
   shopBillPaid: "Shift bill {v}",
   paidStamp: "PAID ✓",
   hintNoShare: "✗ Zero chemistry. Boing!",
-  landingFailed: "NO UNDERLINGS TO EXPLOIT",
+  landingFailed: "MISSED THE LANDING — TRY AGAIN!",
   hintNoDesk: "✗ Not a single desk got the memo",
   connectionFailed: "ALL DESKS OFFLINE!",
   disabledDeskHint: "{element} SCORES NOTHING THIS SHIFT",

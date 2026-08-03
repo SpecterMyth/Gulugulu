@@ -6,6 +6,7 @@ import { WORK_FX, WorkBurst } from "../sprites/parts/workFx";
 import type { GameBridge } from "./bridge";
 import { formatCount } from "./format";
 import { ROGUE_RUN_STORAGE_KEY, ROGUE_STORAGE_KEY } from "./factory/rogueTypes";
+import type { ConfirmGameDialog } from "../app/GameDialog";
 
 // -----------------------------------------------------------------------------
 // 动画调试面板（计划 §四）：逐个选择 27 只角色，预览全部状态动画。
@@ -52,6 +53,7 @@ export function DebugPanel({
   onToast,
   onFeedTokens,
   onOpenFactoryDemo,
+  onConfirm,
 }: {
   config: GameConfig;
   save: GameSave | null;
@@ -62,6 +64,8 @@ export function DebugPanel({
   onFeedTokens?: (amount: number) => void;
   /** Debug 专属入口：进入工厂「经典演示」沙盒（FactoryScene 不传 rogue）。 */
   onOpenFactoryDemo?: () => void;
+  /** 所有危险操作统一走游戏内便签确认，不调用浏览器原生对话框。 */
+  onConfirm: ConfirmGameDialog;
 }) {
   const [species, setSpecies] = useState("guluduck");
   const [petState, setPetState] = useState<PetState>("idle");
@@ -108,8 +112,17 @@ export function DebugPanel({
       (next) => (next.pets.length > 0 ? `${next.pets.length} 只精灵已升到满级` : "还没有精灵"),
     );
 
-  const debugClearSave = () => {
-    if (!window.confirm("确定清除存档并回到初始状态？此操作不可撤销。")) return;
+  const confirmDanger = (message: string) =>
+    onConfirm({
+      title: "危险操作确认",
+      message,
+      confirmLabel: "确认执行",
+      cancelLabel: "取消",
+      tone: "danger",
+    });
+
+  const debugClearSave = async () => {
+    if (!(await confirmDanger("确定清除存档并回到初始状态？此操作不可撤销。"))) return;
     runSaveDebug(
       () => bridge.debugClearSave(),
       () => "存档已清除，回到初始状态",
@@ -130,9 +143,9 @@ export function DebugPanel({
 
   // 清空本账号在本游戏发布的全部创意工坊内容（真机 Steam 侧删除，不可逆）。
   // 复用 saveBusy 作在途闸门（删除可能耗时，期间禁其余调试按钮）。
-  const debugClearWorkshop = () => {
+  const debugClearWorkshop = async () => {
     if (saveBusy) return;
-    if (!window.confirm("确定删除本账号在创意工坊发布的本游戏全部内容？此操作不可撤销。")) return;
+    if (!(await confirmDanger("确定删除本账号在创意工坊发布的本游戏全部内容？此操作不可撤销。"))) return;
     setSaveBusy(true);
     bridge
       .debugClearWorkshop()
@@ -152,14 +165,11 @@ export function DebugPanel({
   // 清空本账号在本游戏的 Steam 库存物品（逐件 ConsumeItem，不可逆）。
   // 注意：集成仍在跑时，本地存档尚有未绑定宠物会被 outbox 随后重新发放——
   // 要彻底清零请配合「清除存档」。
-  const debugClearInventory = () => {
+  const debugClearInventory = async () => {
     if (saveBusy) return;
-    if (
-      !window.confirm(
-        "确定清除本账号在 Steam 的本游戏全部库存物品？\n此操作不可撤销；若本地存档仍有宠物，集成会稍后自动重新发放（彻底清零请配合「清除存档」）。",
-      )
-    )
-      return;
+    if (!(await confirmDanger(
+      "确定清除本账号在 Steam 的本游戏全部库存物品？\n此操作不可撤销；若本地存档仍有宠物，集成会稍后自动重新发放（彻底清零请配合「清除存档」）。",
+    ))) return;
     setSaveBusy(true);
     bridge
       .debugClearInventory()
@@ -170,9 +180,9 @@ export function DebugPanel({
       .finally(() => setSaveBusy(false));
   };
 
-  const debugClearFactory = () => {
+  const debugClearFactory = async () => {
     if (saveBusy) return;
-    if (!window.confirm("确定清除 Steam 工厂排行、本地工厂历史、续局和今日工厂奖励数据？此操作不可撤销。")) return;
+    if (!(await confirmDanger("确定清除 Steam 工厂排行、本地工厂历史、续局和今日工厂奖励数据？此操作不可撤销。"))) return;
     setSaveBusy(true);
     bridge.debugClearFactoryLeaderboard()
       .then(() => bridge.debugClearFactoryData())

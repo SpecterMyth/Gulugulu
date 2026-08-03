@@ -749,6 +749,17 @@ pub fn skip_onboarding_agent(
 }
 
 #[tauri::command]
+pub fn grant_skipped_onboarding_fusions(
+    app: AppHandle,
+    state: tauri::State<'_, SharedGameState>,
+) -> Result<GameSave, String> {
+    let (_, save) = with_save(&app, state.inner(), |config, save| {
+        logic_grant_skipped_onboarding_fusions(config, save, now_secs())
+    })?;
+    Ok(save)
+}
+
+#[tauri::command]
 pub fn claim_stamina_tutorial_rescue(
     app: AppHandle,
     state: tauri::State<'_, SharedGameState>,

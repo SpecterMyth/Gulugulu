@@ -21,7 +21,7 @@ use tauri::AppHandle;
 // 与总在最前 / 随机移动 / 语言并列，托盘与前端设置面板共读写。
 // ---------------------------------------------------------------------------
 
-/// 键盘充能是否开启。新安装默认关闭，只有用户明确同意后才装全局钩子。
+/// 键盘充能是否开启。新安装默认开启，用户可随时通过设置或托盘关闭。
 pub fn keyboard_capture_enabled(app: &AppHandle) -> bool {
     crate::settings::load(app).keyboard_capture
 }

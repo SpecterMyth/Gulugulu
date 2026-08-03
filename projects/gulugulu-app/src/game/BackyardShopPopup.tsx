@@ -13,6 +13,9 @@ import { emitPaperFx } from "../ui/PaperFx";
 // ---------------------------------------------------------------------------
 
 const SHOP_ORDER = ["normal", "fire", "water", "grass", "electric", "ice"];
+const GUIDED_FIRE_PURCHASE_STEPS = new Set([
+  "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12",
+]);
 
 export type BackyardShopPopupProps = {
   save: GameSave;
@@ -130,6 +133,15 @@ export function BackyardShopPopup({
             viewTier === 1 &&
             save.onboarding?.status === "active" &&
             save.onboarding.step === "A12";
+          // Before the guided Fire Egg receipt lands, every other purchase can
+          // occupy the newly unlocked pit and strand A13 with no valid target.
+          // Keep the shop visible for orientation, but make the highlighted
+          // purchase the only mutation that can leave this screen.
+          const tutorialPurchaseLocked =
+            save.onboarding?.status === "active" &&
+            GUIDED_FIRE_PURCHASE_STEPS.has(save.onboarding.step) &&
+            !tutorialFire;
+          const unaffordable = !affordable && !tutorialFire;
           const previewSpecies = config.speciesByRecipe?.[element] ?? "guluduck";
           const pool = eggPoolCandidates(config, element, viewTier);
           const outcomes = pool
@@ -143,9 +155,9 @@ export function BackyardShopPopup({
             <button
               key={element}
               type="button"
-              className="by-shop-card"
+              className={`by-shop-card${unaffordable ? " is-unaffordable" : ""}`}
               data-coach={element === "fire" && viewTier === 1 ? "shopFire" : undefined}
-              disabled={busy || (!affordable && !tutorialFire)}
+              disabled={busy || unaffordable || tutorialPurchaseLocked}
               title={title}
               onClick={(event) => {
                 event.stopPropagation();
@@ -165,7 +177,9 @@ export function BackyardShopPopup({
                 {fmt(bk.eggName, { element: elName })}
                 {viewTier > 1 ? fmt(bk.eggTierSuffix, { tier: viewTier }) : ""}
               </span>
-              <span className={`by-shop-price ${affordable ? "" : "is-short"}`}>🪙 {formatCount(price)}</span>
+              <span className="by-shop-price">
+                🪙 <span className={unaffordable ? "is-short" : undefined}>{formatCount(price)}</span>
+              </span>
             </button>
           );
         })}

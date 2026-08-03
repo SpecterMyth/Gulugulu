@@ -93,6 +93,11 @@ pub fn logic_buy_egg(
     if !config.egg_prices.contains_key(element) {
         return Err("#noSuchElementEgg".to_string());
     }
+    let guided_fire_purchase_pending =
+        save.onboarding.status == "active" && save.onboarding.step == "A12";
+    if guided_fire_purchase_pending && !(element == "fire" && tier == 1) {
+        return Err("#onboardingTargetOnly".to_string());
+    }
     // 每日产出上限（EconomyScaling.md §7.5；「限频 generator」的客户端镜像）：达上限拒绝孵化。
     let mint_key = format!("{element}:{tier}");
     let cap = config.egg_daily_mint_cap(tier);
@@ -260,8 +265,7 @@ pub(crate) fn apply_collect(
     granted: Option<(String, String, u32)>,
 ) -> String {
     let egg = save.eggs.remove(egg_index);
-    let tutorial_direct_max = save.onboarding.status == "active"
-        && egg.tier >= 2;
+    let tutorial_direct_max = save.onboarding.status == "active" && egg.tier >= 2;
     let pending_fusion = egg
         .pending_fusion
         .filter(|pending| pending.status != "resolved");
@@ -289,7 +293,11 @@ pub(crate) fn apply_collect(
     }
     // Preserve the task identity across egg -> pet so an already-running worker
     // and a worker restored after restart address the same durable target.
-    let pet_id = if pending_fusion.is_some() { egg.id } else { new_id("pet") };
+    let pet_id = if pending_fusion.is_some() {
+        egg.id
+    } else {
+        new_id("pet")
+    };
     let level = if tutorial_direct_max {
         config.max_level_for_tier(tier)
     } else {

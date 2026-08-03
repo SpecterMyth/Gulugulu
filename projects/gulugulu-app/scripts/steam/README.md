@@ -12,7 +12,34 @@ Uploads a playable Windows build so the last release-checklist item
 | `stage_and_build.ps1` | Builds the release and stages `content\` (Gulugulu.exe + steam_api64.dll). |
 | `content\`, `output\` | Generated (gitignored). |
 
-## Steps
+## One-command update
+
+From `projects\gulugulu-app`:
+
+```powershell
+npm run steam:update
+```
+
+You can also run `scripts\steam\update_steam.cmd`. The first SteamCMD login may ask
+for the account password and Steam Guard approval in the console. Later runs can reuse
+the cached login. The script builds the current workspace, verifies the two-file
+Windows depot, creates a local audit ZIP, uploads it, and writes Build/Manifest IDs
+to `scripts\steam\output\publish-*\result.json`. Valve does not allow SteamCMD to
+automatically set the public `default` branch live, so after a successful upload you
+must select the new Build on the Steamworks Builds page and manually promote it to
+`default`. Beta branches passed with `-Branch` can still be set live automatically.
+
+Useful options:
+
+```powershell
+# Include Rust release tests before publishing
+powershell -ExecutionPolicy Bypass -File scripts\steam\update_steam.ps1 -RunTests
+
+# Build/package only; do not contact Steam
+powershell -ExecutionPolicy Bypass -File scripts\steam\update_steam.ps1 -BuildOnly
+```
+
+## Manual steps
 
 **1. Build + stage (Claude can run this):**
 ```powershell

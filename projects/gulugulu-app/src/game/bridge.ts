@@ -90,6 +90,8 @@ export interface GameBridge {
   advanceFactoryTutorial(completedStep: string): Promise<GameSave>;
   /** AI 连接明确选择稍后；不等待 CLI。 */
   skipOnboardingAgent(): Promise<GameSave>;
+  /** 跳过主引导时补发两次实操融合本应产出的满级咕噜。 */
+  grantSkippedOnboardingFusions(): Promise<GameSave>;
   claimStaminaTutorialRescue(): Promise<GameSave>;
   /** 应用设置（键盘充能/总在最前/随机移动/语言）。与托盘菜单共用单一真源。 */
   getSettings(): Promise<AppSettings>;
@@ -301,6 +303,9 @@ class TauriBridge implements GameBridge {
   }
   skipOnboardingAgent() {
     return invoke<GameSave>("skip_onboarding_agent");
+  }
+  grantSkippedOnboardingFusions() {
+    return invoke<GameSave>("grant_skipped_onboarding_fusions");
   }
   claimStaminaTutorialRescue() {
     return invoke<GameSave>("claim_stamina_tutorial_rescue");
@@ -554,10 +559,10 @@ class MockBridge implements GameBridge {
   private expHandlers = new Set<(event: TokenFeedOutcome) => void>();
   private settingsHandlers = new Set<(settings: AppSettings) => void>();
   private quoteHandlers = new Set<(quotes: DynamicQuote[]) => void>();
-  private keyboardEnabled = false;
-  // 预览模式没有 Rust 单一真源：设置存内存；外部能力与正式版一样默认拒绝。
+  private keyboardEnabled = true;
+  // 预览模式没有 Rust 单一真源：设置存内存；键盘充能与正式版一样默认开启。
   private appSettings: AppSettings = {
-    keyboardCapture: false,
+    keyboardCapture: true,
     dynamicQuoteAi: false,
     alwaysOnTop: true,
     randomMovement: true,
@@ -740,6 +745,9 @@ class MockBridge implements GameBridge {
   skipOnboardingAgent() {
     return this.run(() => this.engine.skipOnboardingAgent());
   }
+  grantSkippedOnboardingFusions() {
+    return this.run(() => this.engine.grantSkippedOnboardingFusions());
+  }
   claimStaminaTutorialRescue() {
     return this.run(() => this.engine.claimStaminaTutorialRescue());
   }
@@ -835,17 +843,19 @@ class MockBridge implements GameBridge {
   }
   getSteamStatus() {
     // 网页预览没有 Steam:恒 unavailable,顺带免费验证降级 UI。
-    // ?steam=on 假装已连接(测图鉴工坊分区:上传者列表/导入/分享;steamId 与
+    // ?steam=on 假装已连接；?steam=mismatch 额外触发跨账号存档确认便签。
+    // 二者都可测图鉴工坊分区:上传者列表/导入/分享;steamId 与
     // mock 上传者表的"本人"行联动);?pendrel=N 演示「放生同步中 ×N」状态行。
     const params = new URLSearchParams(window.location.search);
-    const steamOn = params.get("steam") === "on";
+    const steamMode = params.get("steam");
+    const steamOn = steamMode === "on" || steamMode === "mismatch";
     const pendingReleases = steamOn ? Number(params.get("pendrel") ?? "0") || 0 : 0;
     return Promise.resolve({
       mode: steamOn ? "connected" : "unavailable",
       pendingMints: 0,
       pendingReleases,
       unclaimedImports: 0,
-      ownerMismatch: false,
+      ownerMismatch: steamMode === "mismatch",
       lastSyncAt: null,
       steamId: steamOn ? "76561190000000001" : null,
       appId: 4956830,

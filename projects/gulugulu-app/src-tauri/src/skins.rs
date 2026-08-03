@@ -1,4 +1,4 @@
-﻿//! 皮肤系统命令层（SkinWorkshop.md）：图鉴换肤 / 工坊上传者列表 / 按 fileId 安装 /
+//! 皮肤系统命令层（SkinWorkshop.md）：图鉴换肤 / 工坊上传者列表 / 按 fileId 安装 /
 //! 分享文本导入 / 复制分享文本 / 补发布自家皮肤。
 //!
 //! 分层：纯规则在 `game::logic::skins`（可单测）；工坊网络原语在 `steam_workshop`
@@ -163,8 +163,8 @@ pub(crate) fn validate_fetched_skin(
         None | Some("1") => {}
         Some(_) => return Err("#skinSchemaUnsupported".to_string()),
     }
-    let entry: CustomSpeciesEntry = serde_json::from_str(entry_json)
-        .map_err(|_| "#skinContentInvalid".to_string())?;
+    let entry: CustomSpeciesEntry =
+        serde_json::from_str(entry_json).map_err(|_| "#skinContentInvalid".to_string())?;
     crate::fusion_gen::validate_custom_visual(&entry.visual)
         .map_err(|e| format!("#skinContentInvalid|err={e}"))?;
     let name_len = entry.info.name_zh.chars().count();
@@ -253,7 +253,10 @@ pub async fn list_skin_uploaders(
         })
         .map(|(set, _)| set)
         .unwrap_or_default();
-        let my_steam_id = steam_state.snapshot().steam_id.and_then(|s| s.parse::<u64>().ok());
+        let my_steam_id = steam_state
+            .snapshot()
+            .steam_id
+            .and_then(|s| s.parse::<u64>().ok());
         Ok(to_uploader_entries(&metas, &installed, my_steam_id))
     })
     .await
@@ -314,7 +317,8 @@ pub async fn import_skin_from_text(
     let steam_state = steam.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         require_steam(&steam_state)?;
-        let file_id = parse_share_file_id(&text).ok_or_else(|| "#skinShareTextInvalid".to_string())?;
+        let file_id =
+            parse_share_file_id(&text).ok_or_else(|| "#skinShareTextInvalid".to_string())?;
         let (details, entry_json) = steam_state.fetch_species_item(file_id)?;
         let (codename, entry) = validate_fetched_skin(&details, &entry_json, None)?;
         let skin = skin_from_fetch(&details, &entry, "shared", game::now_secs());
@@ -432,7 +436,9 @@ mod tests {
         let url = "https://steamcommunity.com/sharedfiles/filedetails/?id=3765893901";
         assert_eq!(parse_share_file_id(url), Some(3765893901));
         assert_eq!(
-            parse_share_file_id("https://steamcommunity.com/sharedfiles/filedetails/?id=3765893901&searchtext=x"),
+            parse_share_file_id(
+                "https://steamcommunity.com/sharedfiles/filedetails/?id=3765893901&searchtext=x"
+            ),
             Some(3765893901)
         );
         assert_eq!(
@@ -441,7 +447,10 @@ mod tests {
         );
         // 裸 fileId（唯一 6~20 位数字串）。
         assert_eq!(parse_share_file_id("3765893901"), Some(3765893901));
-        assert_eq!(parse_share_file_id("id 是 3765893901，去导入"), Some(3765893901));
+        assert_eq!(
+            parse_share_file_id("id 是 3765893901，去导入"),
+            Some(3765893901)
+        );
         // 歧义（两个候选数字串）/ 无候选 / 过短 / 0 → None。
         assert_eq!(parse_share_file_id("123456 和 654321 两个"), None);
         assert_eq!(parse_share_file_id("没有数字"), None);
@@ -449,7 +458,9 @@ mod tests {
         assert_eq!(parse_share_file_id("steamcommunity.com/?id=0"), None);
         // URL 命中优先于文本里其它数字串。
         assert_eq!(
-            parse_share_file_id("QQ 1008610086，链接 steamcommunity.com/sharedfiles/filedetails/?id=999999"),
+            parse_share_file_id(
+                "QQ 1008610086，链接 steamcommunity.com/sharedfiles/filedetails/?id=999999"
+            ),
             Some(999999)
         );
     }
@@ -480,7 +491,10 @@ mod tests {
         let entries = to_uploader_entries(&metas, &installed, Some(111));
         // 升序：(100,3) → (100,9) → (300,7)；首发 = (100,3)。
         assert_eq!(
-            entries.iter().map(|e| e.published_file_id.as_str()).collect::<Vec<_>>(),
+            entries
+                .iter()
+                .map(|e| e.published_file_id.as_str())
+                .collect::<Vec<_>>(),
             ["3", "9", "7"]
         );
         assert!(entries[0].is_first);
@@ -489,7 +503,14 @@ mod tests {
         assert!(entries[2].is_self && !entries[0].is_self);
         // camelCase 序列化（TS 镜像契约）。
         let json = serde_json::to_string(&entries[0]).unwrap();
-        for key in ["publishedFileId", "authorSteamId", "timeCreated", "isFirst", "installed", "isSelf"] {
+        for key in [
+            "publishedFileId",
+            "authorSteamId",
+            "timeCreated",
+            "isFirst",
+            "installed",
+            "isSelf",
+        ] {
             assert!(json.contains(key), "{key} 应为 camelCase");
         }
     }
@@ -513,7 +534,8 @@ mod tests {
     fn validate_fetched_skin_edges() {
         let json = sample_entry_json();
         // 正常：codename 取自 petId 标签；origin 字段随内容来但导入侧不采信（皮肤不入 custom_species）。
-        let (codename, entry) = validate_fetched_skin(&details(Some("aif0101"), Some("1")), &json, None).unwrap();
+        let (codename, entry) =
+            validate_fetched_skin(&details(Some("aif0101"), Some("1")), &json, None).unwrap();
         assert_eq!(codename, "aif0101");
         assert_eq!(entry.info.name_zh, "测试兽");
         // 无 schema 标签（早期上传）也接受。
@@ -546,7 +568,8 @@ mod tests {
         );
         // 坏 JSON。
         assert_eq!(
-            validate_fetched_skin(&details(Some("aif0101"), Some("1")), "{broken", None).unwrap_err(),
+            validate_fetched_skin(&details(Some("aif0101"), Some("1")), "{broken", None)
+                .unwrap_err(),
             "#skinContentInvalid"
         );
     }

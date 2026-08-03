@@ -196,18 +196,28 @@ const STROLL_RANGE = 64;
  * 即使双方同时向内踱步，也不会挤成一团。 */
 const ONBOARDING_PET_X = {
   near: 700,
-  far: 1000,
+  far: 1180,
 } as const;
+
+/** During onboarding, keep the small teaching roster in a deliberately loose row.
+ * The normal persistent stations are denser because they must eventually hold a
+ * large collection; the tutorial only has a handful of pets and benefits more
+ * from each one having a clearly walkable interaction area. */
+const ONBOARDING_PET_SPOTS: readonly number[] = [
+  1500,
+  2058,
+  2760,
+  3600,
+  4320,
+  5040,
+  5580,
+];
 
 /** 原地小动作可选状态（随机挑一个演一下）。 */
 const IDLE_ACTIONS: PetState[] = ["success", "fed"];
 
 /** 每只驻留伙伴的闲时行为：静止 / 原地动作 / 左右踱步，外加当前离站位偏移与朝向。 */
 type PetBehavior = { kind: "idle" | "action" | "move"; offset: number; facing: number; action: PetState };
-
-/** 首次进入后院的移动引导只出现一次 */
-const GUIDE_SEEN_KEY = "gulugulu.backyardGuideSeen";
-const GUIDE_AUTO_HIDE_MS = 12_000;
 
 /** 主角在场景里会原样演出的宠物状态（其余一律回落 idle；行走优先） */
 const SCENE_ACTION_STATES: ReadonlySet<PetState> = new Set([
@@ -430,14 +440,6 @@ export function BackyardScene({
   const [confirmRelease, setConfirmRelease] = useState(false);
   // 闲时行为（每只独立）：大部分时间安静待机，偶尔演个原地动作或左右踱两步。
   const [behaviors, setBehaviors] = useState<Record<string, PetBehavior>>({});
-  // 首次进入的移动引导（一次性）
-  const [showGuide, setShowGuide] = useState(() => {
-    try {
-      return window.localStorage.getItem(GUIDE_SEEN_KEY) == null;
-    } catch {
-      return true;
-    }
-  });
   // 键帽雨 + 能量饭团（InteractionEconomy §6.3）：后院场景自订阅 game://keys，
   // 键帽飞向主角；精力补丁触发条脉冲 + 短暂显示精力条（存档更新由 App 层负责）。
   const { flights: heroFlights, spawnFlights: spawnHeroFlights, removeFlight: removeHeroFlight } = useFlights();
@@ -622,6 +624,7 @@ export function BackyardScene({
     const training = new Set((save.trainingJobs ?? []).map((job) => job.petId));
     const result: Array<{ pet: PetInstance; spot: StationSpot }> = [];
     const onboardingStep = save.onboarding?.status === "active" ? save.onboarding.step : null;
+    let onboardingPlacedIndex = 0;
     for (const pet of save.pets) {
       if (pet.id === save.activePetId) continue;
       if (training.has(pet.id)) continue;
@@ -649,7 +652,18 @@ export function BackyardScene({
       ) {
         tutorialSpot = { x: ONBOARDING_PET_X.far, bottom: 142, size: 88 };
       }
-      const spot = tutorialSpot ?? spotForStationSlot(stationAssignRef.current.get(pet.id));
+      const onboardingFallbackX = onboardingStep == null
+        ? null
+        : ONBOARDING_PET_SPOTS[onboardingPlacedIndex]
+          ?? ONBOARDING_PET_SPOTS[ONBOARDING_PET_SPOTS.length - 1]
+            + (onboardingPlacedIndex - ONBOARDING_PET_SPOTS.length + 1) * 420;
+      onboardingPlacedIndex += 1;
+      const onboardingFallback = onboardingFallbackX == null
+        ? null
+        : { x: onboardingFallbackX, bottom: 142, size: 88 };
+      const spot = tutorialSpot
+        ?? onboardingFallback
+        ?? spotForStationSlot(stationAssignRef.current.get(pet.id));
       if (spot) result.push({ pet, spot });
     }
     return result;
@@ -665,7 +679,6 @@ export function BackyardScene({
 
   // rAF 循环 / 靠近检测所需的驻留伙伴快照（闲时调度与头顶气泡也读它）。
   const placedPetsRef = useRef(placedPets);
-  const guideSeenRef = useRef(false);
 
   useEffect(() => {
     placedPetsRef.current = placedPets;
@@ -722,26 +735,6 @@ export function BackyardScene({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placedIdsKey]);
 
-  const dismissGuide = () => {
-    if (guideSeenRef.current) return;
-    guideSeenRef.current = true;
-    try {
-      window.localStorage.setItem(GUIDE_SEEN_KEY, "1");
-    } catch {
-      // localStorage 不可用时引导只在本次会话隐藏
-    }
-    setShowGuide(false);
-  };
-  const dismissGuideRef = useRef(dismissGuide);
-  dismissGuideRef.current = dismissGuide;
-
-  // 引导超时自动收起
-  useEffect(() => {
-    if (!showGuide) return;
-    const timer = window.setTimeout(() => dismissGuideRef.current(), GUIDE_AUTO_HIDE_MS);
-    return () => window.clearTimeout(timer);
-  }, [showGuide]);
-
   // 图鉴打开时 Esc 先按弹窗栈逐层收（捕获阶段拦截，避免 App 的 Esc 直接退出后院）：
   // 导入/分享对话框 → 物种详情弹窗 → 图鉴本体。
   useEffect(() => {
@@ -789,12 +782,41 @@ export function BackyardScene({
   } = useBackyardMotion({
     onWalkingChange,
     placedPetsRef,
-    dismissGuide,
-    dismissGuideRef,
     charSize: CHAR_SIZE,
     spawnX: SPAWN_X,
     stageH: STAGE_H,
   });
+
+  const guidedHatcherySlotCount = hatcherySlotCount(config, save.hatcheryLevel);
+  const guidedHatcheryHasFreeSlot = Array.from(
+    { length: guidedHatcherySlotCount },
+    (_, slot) => slot,
+  ).some((slot) => !save.eggs.some((egg) => egg.slot === slot));
+  const a13NeedsPitRecovery =
+    save.onboarding?.status === "active" &&
+    save.onboarding.step === "A13" &&
+    !guidedHatcheryHasFreeSlot &&
+    save.eggs.some((egg) => egg.slot == null && egg.shopElement === "fire");
+  useEffect(() => {
+    if (save.onboarding?.status !== "active") return;
+    const targetX = save.onboarding.step === "A10"
+      ? HATCHERY_CENTER_X
+      : a13NeedsPitRecovery
+        ? (PIT_XS[guidedHatcherySlotCount] ?? 120 + guidedHatcherySlotCount * 100)
+        : null;
+    if (targetX == null) return;
+    // A09's acknowledgement can be pressed from anywhere in the yard. A
+    // recovery pit can also be farther right than the original pair. Stand one
+    // safe stride beyond the actual target so the companion never swallows its
+    // click area or leaves its pill under the lower-left yard HUD.
+    centerOnWorldX(targetX + 160);
+  }, [
+    a13NeedsPitRecovery,
+    centerOnWorldX,
+    guidedHatcherySlotCount,
+    save.onboarding?.status,
+    save.onboarding?.step,
+  ]);
 
   const onboardingFusionEggId =
     save.onboarding?.status === "active" &&
@@ -890,6 +912,15 @@ export function BackyardScene({
   const exemptPetCount = save.pets.length - yardOccupied;
   const yardMaxed = save.yardLevel >= config.yardCapacity.length;
   const yardUpgradeCost = yardMaxed ? null : config.yardUpgradeCosts[save.yardLevel - 1];
+  const yardUpgradeCostText = formatCount(yardUpgradeCost ?? 0);
+  const yardUpgradeSubText = yardMaxed
+    ? ""
+    : fmt(bk.scene.yardUpgradeSub, {
+        cost: yardUpgradeCostText,
+        cap: config.yardCapacity[save.yardLevel],
+      });
+  const yardUpgradeCostIndex = yardUpgradeSubText.indexOf(yardUpgradeCostText);
+  const yardUpgradeUnaffordable = yardUpgradeCost != null && save.coins < yardUpgradeCost;
 
   const nearPlaced = placedPets.find((item) => item.pet.id === nearPetId) ?? null;
 
@@ -1358,39 +1389,46 @@ export function BackyardScene({
             onDisconnectAgent={onDisconnectAgent}
           />
 
-          {/* 升级后院建筑木牌（立柱 + 实体牌面，随环境光变化） */}
-          <div style={abs({ left: 2652, bottom: 150, width: 8, height: 104, borderRadius: 4, background: "#8A6437" })} />
-          <button
-            type="button"
-            className="by-upgrade-btn"
-            data-coach="yardUpgrade"
-            style={abs({ left: 2596, bottom: 246 })}
-            disabled={
-              busy ||
-              yardMaxed ||
-              (yardUpgradeCost != null &&
-                save.coins < yardUpgradeCost &&
-                !(save.onboarding?.status === "active" && save.onboarding.step === "A14"))
-            }
-            onClick={(event) => {
-              event.stopPropagation();
-              onUpgradeYard();
-            }}
-          >
-            {yardMaxed ? (
-              <span>{fmt(bk.scene.yardMaxed, { cap: yardCapacity })}</span>
-            ) : (
-              <>
-                <span>{fmt(bk.scene.yardUpgrade, { level: save.yardLevel + 1 })}</span>
-                <span className="by-upgrade-sub">
-                  {fmt(bk.scene.yardUpgradeSub, {
-                    cost: formatCount(yardUpgradeCost ?? 0),
-                    cap: config.yardCapacity[save.yardLevel],
-                  })}
-                </span>
-              </>
-            )}
-          </button>
+          {/* 升级后院入口；纸张主题使用木框便签牌面和单根立柱。 */}
+          <div className="by-upgrade-post" style={abs({ left: 2680, bottom: 150, width: 8, height: 104, borderRadius: 4, background: "#8A6437" })} />
+          <div className="by-upgrade-shell" style={abs({ left: 2620, bottom: 240, width: 130, height: 78 })}>
+            <div className="by-upgrade-frame" aria-hidden="true" />
+            <button
+              type="button"
+              className="by-upgrade-btn"
+              data-coach="yardUpgrade"
+              disabled={
+                busy ||
+                yardMaxed ||
+                (yardUpgradeCost != null &&
+                  save.coins < yardUpgradeCost &&
+                  !(save.onboarding?.status === "active" && save.onboarding.step === "A14"))
+              }
+              onClick={(event) => {
+                event.stopPropagation();
+                onUpgradeYard();
+              }}
+            >
+              {yardMaxed ? (
+                <span>{fmt(bk.scene.yardMaxed, { cap: yardCapacity })}</span>
+              ) : (
+                <>
+                  <span>{fmt(bk.scene.yardUpgrade, { level: save.yardLevel + 1 })}</span>
+                  <span className="by-upgrade-sub">
+                    {yardUpgradeCostIndex >= 0 ? (
+                      <>
+                        {yardUpgradeSubText.slice(0, yardUpgradeCostIndex)}
+                        <span className={yardUpgradeUnaffordable ? "is-short" : undefined}>
+                          {yardUpgradeCostText}
+                        </span>
+                        {yardUpgradeSubText.slice(yardUpgradeCostIndex + yardUpgradeCostText.length)}
+                      </>
+                    ) : yardUpgradeSubText}
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* ── 驻留伙伴（点击直接打工） ── */}
@@ -1668,14 +1706,6 @@ export function BackyardScene({
         </div>
       </div>
 
-      {/* 首次进入的移动引导（一次性）：教练激活时让位，避免与 C3 键帽指引叠字（#4） */}
-      {showGuide && coachLabel == null && (
-        <div className="by-guide">
-          <span className="guide-sticker-sprinkles" aria-hidden="true" />
-          <span className="by-guide-title">{bk.scene.guideTitle}</span>
-          <span className="by-guide-sub">{bk.scene.guideSub}</span>
-        </div>
-      )}
       </div>
 
       {/* ===== 后院升级光效（回退路径：覆盖层未接手时窗口内渲染；接手则满屏无截断） ===== */}

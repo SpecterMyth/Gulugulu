@@ -20,9 +20,8 @@ pub const AUTOSTART_PROMPT_MAX: u32 = 3;
 pub struct AppSettings {
     /// 键盘充能：全局键盘钩子把按键次数换成精力（InteractionEconomy §5）。
     ///
-    /// 这是设备级隐私同意：新安装/旧文件缺字段时必须关闭；已有文件里明确保存的
-    /// true/false 原样保留，升级不能替用户重新开启。
-    #[serde(default)]
+    /// 默认开启；已有文件里明确保存的 true/false 原样保留，升级不会覆盖用户选择。
+    #[serde(default = "default_true")]
     pub keyboard_capture: bool,
     /// 后台动态台词是否可以调用玩家已登录的 Claude/Codex CLI。
     ///
@@ -61,7 +60,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            keyboard_capture: false,
+            keyboard_capture: true,
             dynamic_quote_ai: false,
             always_on_top: true,
             random_movement: true,
@@ -364,14 +363,14 @@ mod privacy_setting_tests {
     use super::AppSettings;
 
     #[test]
-    fn fresh_install_requires_explicit_external_capability_consent() {
+    fn fresh_install_enables_keyboard_charging_by_default() {
         let settings = AppSettings::default();
-        assert!(!settings.keyboard_capture);
+        assert!(settings.keyboard_capture);
         assert!(!settings.dynamic_quote_ai);
     }
 
     #[test]
-    fn legacy_settings_do_not_gain_new_permissions() {
+    fn legacy_settings_enable_keyboard_charging_when_field_is_missing() {
         let settings: AppSettings = serde_json::from_str(
             r#"{
                 "alwaysOnTop": true,
@@ -381,7 +380,7 @@ mod privacy_setting_tests {
         )
         .expect("legacy settings should still deserialize");
 
-        assert!(!settings.keyboard_capture);
+        assert!(settings.keyboard_capture);
         assert!(!settings.dynamic_quote_ai);
     }
 

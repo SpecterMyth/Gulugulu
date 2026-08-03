@@ -4,10 +4,18 @@ setlocal EnableExtensions EnableDelayedExpansion
 set "ROOT=%~dp0"
 set "APP_DIR=%ROOT%projects\gulugulu-app"
 set "PID_FILE=%ROOT%.gulugulu.pid"
+set "DEV_RUNNER=%ROOT%scripts\run-dev.ps1"
 
 if not exist "%APP_DIR%\package.json" (
   echo Cannot find app package.json:
   echo %APP_DIR%\package.json
+  pause
+  exit /b 1
+)
+
+if not exist "%DEV_RUNNER%" (
+  echo Cannot find development runner:
+  echo %DEV_RUNNER%
   pause
   exit /b 1
 )
@@ -31,8 +39,7 @@ if "!APP_RUNNING!"=="1" (
   echo Gulugulu already appears to be running. PID: !APP_PID!
 ) else (
   echo Starting Gulugulu desktop app...
-  powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$p = Start-Process -FilePath 'cmd.exe' -WorkingDirectory '%APP_DIR%' -ArgumentList @('/k', 'npm run tauri:dev') -WindowStyle Normal -PassThru; Set-Content -LiteralPath '%PID_FILE%' -Value $p.Id -Encoding ASCII"
+  start "Gulugulu Dev" /D "%APP_DIR%" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%DEV_RUNNER%" -AppDir "%APP_DIR%" -PidFile "%PID_FILE%"
 )
 
 echo.

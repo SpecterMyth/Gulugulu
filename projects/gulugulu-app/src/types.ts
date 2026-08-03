@@ -256,6 +256,8 @@ export type LifetimeStats = {
   totalFusions?: number;
   totalReleases?: number;
   totalTokensFed?: number;
+  /** 原始 Token 总量：input/cacheCreate/cacheRead/output 直接求和，不应用喂养权重。 */
+  totalTokensObserved?: number;
   totalKeysCharged?: number;
   highestTier?: number;
   daysPlayed?: number;
@@ -643,7 +645,7 @@ export type KeyFxEvent = {
 /** 应用设置（设备/隐私偏好；mirrors settings.rs AppSettings）。托盘菜单与
  *  设置面板共用，任一处改动经 settings://changed 广播同步。 */
 export type AppSettings = {
-  /** 全局键盘钩子同意。新安装/缺字段默认 false；已有明确选择原样保留。 */
+  /** 全局键盘钩子开关。新安装/缺字段默认 true；已有明确选择原样保留。 */
   keyboardCapture: boolean;
   /** 允许后台动态台词调用玩家已登录的 Claude/Codex CLI；独立、可撤回，默认 false。 */
   dynamicQuoteAi: boolean;

@@ -2023,7 +2023,8 @@ pub fn spawn_fusion_worker(app: AppHandle, game_state: SharedGameState, gen_stat
                     && !config.species.contains_key(&pet.species)
                     && !save.custom_species.contains_key(&pet.species)
                 {
-                    if let Some(recipe_key) = game::recipe_key_for_ai_codename(config, &pet.species) {
+                    if let Some(recipe_key) = game::recipe_key_for_ai_codename(config, &pet.species)
+                    {
                         if let Some(fallback) = config.species_by_recipe.get(&recipe_key).cloned() {
                             let forced_codename = pet.species.clone();
                             pet.species = fallback.clone();
@@ -3269,7 +3270,11 @@ fn run_v2_cycle(
             let Some(call) = v2::take_call(&mut calls) else {
                 break;
             };
-            let phase = if repair.is_some() { "revising" } else { "drawing" };
+            let phase = if repair.is_some() {
+                "revising"
+            } else {
+                "drawing"
+            };
             emit_progress(
                 app,
                 &job.egg_id,
@@ -3438,7 +3443,11 @@ fn run_v1_cycle(
             emit_progress(
                 app,
                 &job.egg_id,
-                if attempt > 1 { "retrying" } else { "generating" },
+                if attempt > 1 {
+                    "retrying"
+                } else {
+                    "generating"
+                },
                 Some(provider_name),
                 attempt,
                 None,

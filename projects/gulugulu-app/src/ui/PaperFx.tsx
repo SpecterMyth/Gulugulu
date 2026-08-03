@@ -16,6 +16,7 @@ export type PaperFxPreset =
   | "purchase"
   | "place"
   | "reward"
+  | "material"
   | "upgrade"
   | "unlock"
   | "achievement"
@@ -342,7 +343,9 @@ export function PaperFxBurst({ pulse }: { pulse: PaperFxPulse }) {
             </span>
           )}
           <b>{pulse.label}</b>
-          <em aria-hidden="true">{pulse.preset === "achievement" ? "★" : "✓"}</em>
+          {pulse.preset !== "material" && (
+            <em aria-hidden="true">{pulse.preset === "achievement" ? "★" : "✓"}</em>
+          )}
         </span>
       )}
     </div>

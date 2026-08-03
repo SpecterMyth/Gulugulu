@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../../useT";
 import type { OnboardingDirective } from "./onboardingSteps";
 import { placeOnboardingCard } from "./onboardingPlacement";
@@ -9,16 +9,40 @@ export function OnboardingGoal({
   onAction,
   onRecover,
   onSkip,
+  targetNote,
+  busy = false,
 }: {
   directive: OnboardingDirective | null;
   onAction: () => void;
   onRecover: () => void;
   /** Optional main-route escape hatch. App should pass director.skipMain after confirmation. */
   onSkip?: () => void;
+  /** Optional concrete input hint for a present target (for example “Space · Drop”). */
+  targetNote?: string;
+  /** Native persistence is in flight; repeated mutations are coalesced until it settles. */
+  busy?: boolean;
 }) {
   const { lang } = useT();
   const goalRef = useRef<HTMLElement>(null);
+  const keepLearningRef = useRef<HTMLButtonElement>(null);
   const [targetPresent, setTargetPresent] = useState(false);
+  const [skipConfirmOpen, setSkipConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    if (!skipConfirmOpen) return;
+    keepLearningRef.current?.focus();
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || busy) return;
+      setSkipConfirmOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [busy, skipConfirmOpen]);
+
+  useEffect(() => {
+    setSkipConfirmOpen(false);
+  }, [directive?.step]);
 
   useLayoutEffect(() => {
     const goal = goalRef.current;
@@ -47,16 +71,40 @@ export function OnboardingGoal({
 
       const goalRect = goal.getBoundingClientRect();
       if (directive.gesture === "drop") {
-        // 投放目标会随运输机持续移动。便签若参与目标避让，就会在飞机巡航时
-        // 反复换边、上下跳动；投放步骤固定在屏幕中央，只让手势追踪飞机。
-        const left = Math.max(14, (window.innerWidth - goalRect.width) / 2);
-        const top = Math.max(14, (window.innerHeight - goalRect.height) / 2);
-        const nextLayout = `${Math.round(left)}:${Math.round(top)}:screen-middle`;
+        // 投放目标会随运输机持续移动。便签若逐帧追着目标避让，就会反复换边；
+        // 改停在 HUD 之间的下方安全通道，让上层/下层落点圈都保持可见。
+        const horizontalBias = window.innerWidth <= 900
+          ? Math.min(52, window.innerWidth * 0.08)
+          : 0;
+        const left = Math.max(8, (window.innerWidth - goalRect.width) / 2 - horizontalBias);
+        const top = Math.max(8, window.innerHeight - goalRect.height - 10);
+        const nextLayout = `${Math.round(left)}:${Math.round(top)}:screen-lower-lane`;
         if (nextLayout !== previousLayout) {
           previousLayout = nextLayout;
           goal.style.left = `${left}px`;
           goal.style.top = `${top}px`;
-          goal.dataset.placement = "screen-middle";
+          goal.dataset.placement = "screen-lower-lane";
+        }
+        goal.dataset.targetOverlap = "false";
+        goal.dataset.speechOverlap = "false";
+        goal.dataset.placementReady = "true";
+        raf = requestAnimationFrame(position);
+        return;
+      }
+
+      const backyardRoot = document.querySelector<HTMLElement>(".ui-backyard");
+      if (backyardRoot) {
+        // Every backyard step uses one viewport slot. Targets, speech bubbles,
+        // pets and the camera all move independently in this scene; none of
+        // them may pull the guide card away from its fixed HUD position.
+        const left = Math.max(8, (window.innerWidth - goalRect.width) / 2);
+        const top = 2;
+        const nextLayout = `${Math.round(left)}:${top}:backyard-screen-top`;
+        if (nextLayout !== previousLayout) {
+          previousLayout = nextLayout;
+          goal.style.left = `${left}px`;
+          goal.style.top = `${top}px`;
+          goal.dataset.placement = "backyard-screen-top";
         }
         goal.dataset.targetOverlap = "false";
         goal.dataset.speechOverlap = "false";
@@ -85,19 +133,13 @@ export function OnboardingGoal({
           Number(style.opacity) > 0.01
         );
       };
-      const backyardRoot = document.querySelector<HTMLElement>(".ui-backyard");
       const mainRoot = document.querySelector<HTMLElement>(
         ".pet-shell:not(.ui-backyard):not(.ui-factory)",
       );
-      const anchorCandidates = backyardRoot
-        ? [
-            backyardRoot.querySelector<HTMLElement>(".by-char-say"),
-            backyardRoot.querySelector<HTMLElement>(".by-char"),
-          ]
-        : [
-            mainRoot?.querySelector<HTMLElement>(".speech.is-visible") ?? null,
-            mainRoot?.querySelector<HTMLElement>(".duck-facing") ?? null,
-          ];
+      const anchorCandidates = [
+        mainRoot?.querySelector<HTMLElement>(".speech.is-visible") ?? null,
+        mainRoot?.querySelector<HTMLElement>(".duck-facing") ?? null,
+      ];
       // The visible speech bubble wins. Because this runs every animation frame,
       // a bubble that appears mid-step immediately becomes the preferred anchor
       // and moves the guide above it; hiding it falls back to the character.
@@ -125,7 +167,7 @@ export function OnboardingGoal({
         height: rect.height,
         movable: element.matches(".speech"),
         preferred,
-        screenFixed: Boolean(backyardRoot) && preferred,
+        screenFixed: false,
       }));
       const placement = placeOnboardingCard(
         { width: window.innerWidth, height: window.innerHeight },
@@ -190,26 +232,35 @@ export function OnboardingGoal({
 
   if (!directive) return null;
   const showAction = directive.action !== "target";
+  const busyLabel = lang === "zh" ? "正在确认…" : "Saving…";
   return (
-    <section ref={goalRef} className="onboarding-goal" data-onboarding-allow role="status" aria-live="polite">
-      <div className="onboarding-sticker">
+    <section
+      ref={goalRef}
+      className={`onboarding-goal${directive.gesture === "drop" ? " is-drop" : ""}`}
+      data-step={directive.step}
+      data-onboarding-allow
+      role="status"
+      aria-live="polite"
+      aria-busy={busy}
+    >
+      <div className="onboarding-sticker" aria-hidden={skipConfirmOpen || undefined}>
         <span className="guide-sticker-sprinkles" aria-hidden="true" />
-        <header>
+        <header className="onboarding-goal-header">
           <span>{directive.chapter}</span>
           <small>{directive.progress}</small>
         </header>
         <p>{directive.label}</p>
         {showAction ? (
-          <button type="button" data-onboarding-allow onClick={onAction}>
-            {directive.cta ?? (lang === "zh" ? "知道了" : "Got it")}
+          <button type="button" data-onboarding-allow disabled={busy} onClick={onAction}>
+            {busy ? busyLabel : directive.cta ?? (lang === "zh" ? "知道了" : "Got it")}
           </button>
         ) : !targetPresent ? (
-          <button type="button" data-onboarding-allow onClick={onRecover}>
-            {lang === "zh" ? "带我回正确位置" : "Take me to the right place"}
+          <button type="button" data-onboarding-allow disabled={busy} onClick={onRecover}>
+            {busy ? busyLabel : lang === "zh" ? "带我回正确位置" : "Take me to the right place"}
           </button>
         ) : (
           <div className="onboarding-target-note">
-            {lang === "zh" ? "建议先做发光的这一步" : "Try the highlighted step first"}
+            {targetNote ?? (lang === "zh" ? "先做发光步骤" : "Do the glowing step")}
           </div>
         )}
         {onSkip && (
@@ -217,12 +268,65 @@ export function OnboardingGoal({
             type="button"
             className="onboarding-skip"
             data-onboarding-allow
-            onClick={onSkip}
+            disabled={busy}
+            onClick={() => setSkipConfirmOpen(true)}
           >
-            {lang === "zh" ? "跳过整个新手引导" : "Skip onboarding"}
+            {busy ? busyLabel : lang === "zh" ? "跳过整个新手引导" : "Skip onboarding"}
           </button>
         )}
       </div>
+      {onSkip && skipConfirmOpen && (
+        <div
+          className="onboarding-confirm-backdrop"
+          data-onboarding-allow
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !busy) setSkipConfirmOpen(false);
+          }}
+        >
+          <div
+            className="onboarding-confirm-note"
+            data-onboarding-allow
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="onboarding-skip-title"
+            aria-describedby="onboarding-skip-description"
+          >
+            <span className="onboarding-confirm-tape" aria-hidden="true" />
+            <strong id="onboarding-skip-title">
+              {lang === "zh" ? "要跳过新手引导吗？" : "Skip the onboarding?"}
+            </strong>
+            <p id="onboarding-skip-description">
+              {lang === "zh"
+                ? "之后仍可直接使用全部正常玩法，但引导进度会标记为完成。"
+                : "All regular features will remain available, but the guide will be marked complete."}
+            </p>
+            <div className="onboarding-confirm-actions">
+              <button
+                ref={keepLearningRef}
+                type="button"
+                className="onboarding-confirm-cancel"
+                data-onboarding-allow
+                disabled={busy}
+                onClick={() => setSkipConfirmOpen(false)}
+              >
+                {lang === "zh" ? "继续引导" : "Keep learning"}
+              </button>
+              <button
+                type="button"
+                className="onboarding-confirm-skip"
+                data-onboarding-allow
+                disabled={busy}
+                onClick={() => {
+                  setSkipConfirmOpen(false);
+                  onSkip();
+                }}
+              >
+                {busy ? busyLabel : lang === "zh" ? "确认跳过" : "Skip it"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

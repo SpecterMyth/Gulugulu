@@ -70,7 +70,9 @@ fn issue(
 }
 
 pub fn start_get_all() -> Result<steamworks_sys::SteamInventoryResult_t, String> {
-    issue(|inv, handle| unsafe { steamworks_sys::SteamAPI_ISteamInventory_GetAllItems(inv, handle) })
+    issue(|inv, handle| unsafe {
+        steamworks_sys::SteamAPI_ISteamInventory_GetAllItems(inv, handle)
+    })
 }
 
 pub fn start_trigger_drop(def: u32) -> Result<steamworks_sys::SteamInventoryResult_t, String> {
@@ -115,7 +117,9 @@ pub fn start_consume(item_id: u64) -> Result<steamworks_sys::SteamInventoryResul
 /// 从堆叠里拆 1 个到新实例（dest = k_SteamItemInstanceIDInvalid）。
 /// 掉落/兑换发放同 def 物品会自动堆叠（A5 实证：同 item_id quantity++），
 /// 而「一宠一物品 id」绑定模型要求独立实例 → 绑定前拆栈。
-pub fn start_split_one(source_item_id: u64) -> Result<steamworks_sys::SteamInventoryResult_t, String> {
+pub fn start_split_one(
+    source_item_id: u64,
+) -> Result<steamworks_sys::SteamInventoryResult_t, String> {
     issue(|inv, handle| unsafe {
         steamworks_sys::SteamAPI_ISteamInventory_TransferItemQuantity(
             inv,
@@ -129,8 +133,10 @@ pub fn start_split_one(source_item_id: u64) -> Result<steamworks_sys::SteamInven
 
 /// 仅开发期有效（Valve 在正式版禁用 GenerateItems）。
 pub fn start_generate(defs: &[u32]) -> Result<steamworks_sys::SteamInventoryResult_t, String> {
-    let ids: Vec<steamworks_sys::SteamItemDef_t> =
-        defs.iter().map(|d| *d as steamworks_sys::SteamItemDef_t).collect();
+    let ids: Vec<steamworks_sys::SteamItemDef_t> = defs
+        .iter()
+        .map(|d| *d as steamworks_sys::SteamItemDef_t)
+        .collect();
     let qty: Vec<u32> = defs.iter().map(|_| 1u32).collect();
     issue(|inv, handle| unsafe {
         steamworks_sys::SteamAPI_ISteamInventory_GenerateItems(
@@ -207,7 +213,8 @@ pub fn wait_result(
     let started = Instant::now();
     loop {
         pump();
-        let status = unsafe { steamworks_sys::SteamAPI_ISteamInventory_GetResultStatus(inv, handle) };
+        let status =
+            unsafe { steamworks_sys::SteamAPI_ISteamInventory_GetResultStatus(inv, handle) };
         if status == steamworks_sys::EResult::k_EResultOK {
             let items = collect_items(handle);
             destroy_result(handle);
@@ -215,10 +222,7 @@ pub fn wait_result(
         }
         if status != steamworks_sys::EResult::k_EResultPending {
             destroy_result(handle);
-            return OpOutcome::Failed(failed_result_message(
-                status,
-                steam_session_connected(),
-            ));
+            return OpOutcome::Failed(failed_result_message(status, steam_session_connected()));
         }
         if started.elapsed() > timeout {
             destroy_result(handle);

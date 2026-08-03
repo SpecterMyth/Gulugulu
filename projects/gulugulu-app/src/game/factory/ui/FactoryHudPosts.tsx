@@ -55,6 +55,8 @@ export type FactoryHudData = {
   quotaMax: number;
   /** 连击数；0 = 不显示连击胶囊。 */
   combo: number;
+  /** 签袋空文案是否有语义；招聘/结算底层 HUD 会关闭，免得误报。 */
+  showBagEmpty?: boolean;
   /** 现金不够付后两签 → 钱包红脉冲。 */
   cashLow?: boolean;
 };
@@ -334,7 +336,7 @@ export function FactoryHudPosts({
         <div className="fr-note fr-note-blue fhp-pool-total">👥 {data.bagTotal}</div>
 
         {/* 签袋队列:当前签奶油大卡 + 后两签递减 */}
-        {data.bag.every((s) => s == null) ? (
+        {data.bag.every((s) => s == null) ? data.showBagEmpty !== false && (
           <div className="fr-note fr-note-plain fhp-bag-empty">{labels.bagEmpty}</div>
         ) : (
           <div className="fhp-bag-queue">

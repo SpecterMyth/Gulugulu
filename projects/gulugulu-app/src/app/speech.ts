@@ -64,8 +64,46 @@ export function makePetEvent(type: PetEventType): PetEvent {
 }
 
 export function loadInitialLanguage(): Language {
-  const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  return savedLanguage === "en" || savedLanguage === "zh" ? savedLanguage : "en";
+  let savedLanguage: string | null = null;
+  try {
+    savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  } catch {
+    // A disabled localStorage must not prevent the app from starting.
+  }
+
+  // Browser preview tooling uses ?lang= to request deterministic screenshots.
+  // Real Tauri URLs never carry this parameter, so normal launches follow the OS.
+  let previewLanguage: string | null = null;
+  try {
+    previewLanguage = new URLSearchParams(window.location.search).get("lang");
+  } catch {
+    // Ignore malformed/unavailable locations and continue with system detection.
+  }
+
+  const systemLanguages = Array.from(
+    new Set([...(window.navigator.languages ?? []), window.navigator.language].filter(Boolean)),
+  );
+  const systemLanguage = systemLanguages
+    .map(supportedLanguageForLocale)
+    .find((language): language is Language => language != null);
+  const language =
+    supportedLanguageForLocale(previewLanguage) ??
+    systemLanguage ??
+    supportedLanguageForLocale(savedLanguage) ??
+    "en";
+
+  try {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  } catch {
+    // State still carries the selected language for this session.
+  }
+  return language;
+}
+
+/** Match BCP-47 locales such as zh-CN/en-US to the languages shipped by the game. */
+export function supportedLanguageForLocale(locale: string | null | undefined): Language | null {
+  const language = locale?.trim().toLowerCase().split(/[-_]/, 1)[0];
+  return language === "zh" || language === "en" ? language : null;
 }
 
 export function createQuoteDecks(): Record<Language, Set<string>> {

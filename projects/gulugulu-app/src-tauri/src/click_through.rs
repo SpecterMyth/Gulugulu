@@ -43,9 +43,18 @@ pub fn set_click_through(app: AppHandle, ignore: bool) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window missing".to_string())?;
+    // `set_click_through` and `set_click_through_watch(false)` are separate
+    // asynchronous IPC calls. A hit probe from the previous watch cycle can
+    // therefore arrive after watching has stopped. Never let that stale
+    // `ignore=true` request make the whole window permanently unclickable.
+    let ignore = effective_ignore(WATCHING.load(Ordering::Relaxed), ignore);
     window
         .set_ignore_cursor_events(ignore)
         .map_err(|error| error.to_string())
+}
+
+fn effective_ignore(watching: bool, requested_ignore: bool) -> bool {
+    watching && requested_ignore
 }
 
 /// 开关轮询。关闭时**必须**同时恢复实心，否则窗口可能停在穿透态而再没人来纠正
@@ -144,5 +153,13 @@ mod tests {
         ));
         // 光标没动但心跳到点 → 补一帧（窗口自己可能被拖走了）。
         assert!(should_emit(Some((10, 10)), (10, 10), HEARTBEAT));
+    }
+
+    #[test]
+    fn stale_probe_cannot_restore_click_through_after_watching_stops() {
+        assert!(effective_ignore(true, true));
+        assert!(!effective_ignore(true, false));
+        assert!(!effective_ignore(false, true));
+        assert!(!effective_ignore(false, false));
     }
 }

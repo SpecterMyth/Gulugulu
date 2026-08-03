@@ -719,6 +719,10 @@ pub struct LifetimeStats {
     /// 累计喂食的加权 Token 单位（四分加权口径，logic_feed_tokens）。
     #[serde(default)]
     pub total_tokens_fed: u64,
+    /// 累计观测到的原始 Token 总数（input/cache_create/cache_read/output 直接求和，
+    /// 不做喂养权重换算）。仅用于「代码盛宴」等总用量成就。
+    #[serde(default)]
+    pub total_tokens_observed: u64,
     /// 累计入账的键盘充能键数（logic_feed_keys）。
     #[serde(default)]
     pub total_keys_charged: u64,

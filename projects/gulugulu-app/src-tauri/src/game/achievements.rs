@@ -350,7 +350,7 @@ pub fn satisfied_achievements(config: &GameConfig, save: &GameSave) -> BTreeSet<
     if st.total_tokens_fed >= 1_000_000 {
         out.insert("ACH_TOKENS_1M");
     }
-    if st.total_tokens_fed >= 1_000_000_000 {
+    if st.total_tokens_observed >= 1_000_000_000 {
         out.insert("ACH_TOKENS_1B");
     }
     if st.total_keys_charged >= 100_000 {
@@ -613,6 +613,20 @@ mod tests {
         assert!(!got.contains("ACH_HATCHERY_MAX"));
         assert!(!got.contains("ACH_SHOP_MAX"));
         assert!(!got.contains("ACH_YARD_MAX"));
+    }
+
+    #[test]
+    fn code_banquet_counts_all_raw_tokens_instead_of_weighted_feed_units() {
+        let config = test_config();
+        let mut save = fresh(&config);
+
+        // 加权喂养单位即使达到 10 亿，也不能替代原始 Token 总量。
+        save.stats.total_tokens_fed = 1_000_000_000;
+        save.stats.total_tokens_observed = 999_999_999;
+        assert!(!satisfied_achievements(&config, &save).contains("ACH_TOKENS_1B"));
+
+        save.stats.total_tokens_observed = 1_000_000_000;
+        assert!(satisfied_achievements(&config, &save).contains("ACH_TOKENS_1B"));
     }
 
     #[test]

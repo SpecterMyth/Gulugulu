@@ -14,6 +14,13 @@
   cursor: pointer;
 }
 
+/* 结算、商店和总结弹层会完全覆盖工厂。冻结场景内的装饰/骨骼动画，配合
+ * FactoryScene 停掉 rAF，避免透明 WebView 继续重绘不可见的桌面合成层。 */
+.fac-stage.is-paused,
+.fac-stage.is-paused * {
+  animation-play-state: paused !important;
+}
+
 /* 商店截图专用信息层（?shot=1&factoryShot=...）。玩法画面仍由真实 FactoryScene
  * 产生；这里只负责让班次/KPI/商店/毕业语义在 600×338 缩略图里可读。 */
 .fac-marketing {
@@ -195,6 +202,70 @@
 .fac-desk.is-carried-dim {
   /* 载宠后只保留可落桌的元素色；不匹配桌退成仍可辨认轮廓的灰色。 */
   filter: grayscale(1) saturate(0) brightness(0.62) drop-shadow(0 6px 0 rgba(43, 26, 8, 0.2));
+}
+
+/* 首班前三次落点圈：跟随真实出手速度预估落点，进入同元素桌面的
+   保守区间后变绿。只有一个小 DOM，rAF 复用运输机循环直写 transform；
+   pointer-events:none 且低于活体宠/HUD，不会拦截投放或遮住按钮。 */
+.fac-drop-guide {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 950;
+  width: 48px;
+  height: 28px;
+  border: 3px dashed rgba(178, 116, 27, 0.88);
+  border-radius: 50%;
+  background: rgba(255, 226, 126, 0.2);
+  box-shadow: 0 2px 0 rgba(59, 43, 29, 0.24);
+  opacity: 0.72;
+  pointer-events: none;
+  will-change: transform;
+  transition: border-color 120ms ease, background-color 120ms ease, opacity 120ms ease;
+}
+
+.fac-drop-guide::after {
+  content: "\25bc";
+  position: absolute;
+  left: 50%;
+  top: -24px;
+  color: #a66c19;
+  font-size: 18px;
+  line-height: 1;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.82);
+  transform: translateX(-50%);
+}
+
+.fac-drop-guide.is-ready {
+  border-style: solid;
+  border-color: #34b866;
+  background: rgba(93, 232, 130, 0.28);
+  box-shadow: 0 0 0 5px rgba(93, 232, 130, 0.14), 0 2px 0 rgba(38, 92, 50, 0.25);
+  opacity: 1;
+  animation: fac-drop-guide-ready 760ms ease-in-out infinite alternate;
+}
+
+.fac-drop-guide.is-ready::after {
+  content: "\2713";
+  top: 3px;
+  color: #197c3d;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+@keyframes fac-drop-guide-ready {
+  from {
+    opacity: 0.84;
+    box-shadow: 0 0 0 2px rgba(93, 232, 130, 0.1), 0 2px 0 rgba(38, 92, 50, 0.25);
+  }
+  to {
+    opacity: 1;
+    box-shadow: 0 0 0 7px rgba(93, 232, 130, 0.18), 0 2px 0 rgba(38, 92, 50, 0.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fac-drop-guide.is-ready { animation: none; }
 }
 
 /* ⚠️ 两个关键帧的 filter **函数个数/类型必须完全一致**,否则浏览器无法补间、
@@ -392,22 +463,6 @@
 @keyframes fac-el-blink {
   0%, 100% { opacity: 0.25; scale: 0.72; }
   50% { opacity: 1; scale: 1.15; }
-}
-
-/* 窗外的云：左右缓慢漂移（10–12s） */
-.fac-win-cloud {
-  transform-box: fill-box;
-  animation: fac-win-drift 10s ease-in-out infinite alternate;
-}
-
-.fac-win-cloud-b {
-  animation-duration: 12s;
-  animation-delay: -4s;
-}
-
-@keyframes fac-win-drift {
-  0% { translate: -16px 0; }
-  100% { translate: 22px 0; }
 }
 
 /* ---- 前景小装饰物（纯装饰零碰撞；压在打工山之上读作最前景）。
@@ -771,6 +826,26 @@
   overflow-wrap: anywhere;
 }
 
+/* 窄窗左右 HUD 会吃掉大半横向空间。失败宠仍留在真实落点闪烁，文案则
+   收到屏幕中央安全通道，避免一次错误同时遮住 KPI、钱包和新手重试提示。 */
+@media (max-width: 900px) {
+  .fac-failure-text {
+    left: calc(50vw - var(--fac-failure-anchor-x, 50vw) + 50%);
+    max-width: 260px;
+  }
+}
+
+@media (max-width: 680px) {
+  .fac-failure-text,
+  .fac-failure-text:lang(en) {
+    max-width: 160px;
+    padding: 6px 9px 7px;
+    font-size: 18px;
+    line-height: 1.02;
+    letter-spacing: .015em;
+  }
+}
+
 @keyframes fac-connect-failure-flash {
   0%, 100% { filter: sepia(1) saturate(8) hue-rotate(320deg) brightness(1.05) drop-shadow(0 0 5px #ff1828); }
   50% { filter: sepia(1) saturate(10) hue-rotate(320deg) brightness(1.8) drop-shadow(0 0 18px #ff1828); }
@@ -1037,4 +1112,8 @@
   font-size: 16px;
   font-weight: 1000;
   letter-spacing: 1px;
+}
+.fac-desk-disabled-stamp text.is-multiline {
+  font-size: 13px;
+  letter-spacing: .55px;
 }

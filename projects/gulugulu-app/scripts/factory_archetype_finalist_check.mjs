@@ -12,6 +12,7 @@ import {
 import { writeFileSync } from "node:fs";
 
 const runs = Math.max(30, Number.parseInt(process.argv[2] ?? "50", 10) || 50);
+const fastMode = process.argv.includes("--fast");
 function cliValue(flag) {
   const index = process.argv.indexOf(flag);
   return index >= 0 ? process.argv[index + 1] : undefined;
@@ -54,7 +55,7 @@ for (const id of routeIds) {
       "expert",
       (routeSeed ^ hashText(id) ^ Math.imul(index + 1, 0x9e37_79b1)) >>> 0,
       route,
-      { trackContributions: false, fastMode: false },
+      { trackContributions: false, fastMode },
     ));
   const summary = summarize("expert", results);
   const cards = Object.entries(summary.cards)
@@ -88,7 +89,7 @@ const output = {
     routes: routeIds.length,
     totalRuns: runs * routeIds.length,
     seed: `0x${routeSeed.toString(16)}`,
-    fastMode: false,
+    fastMode,
     trackContributions: false,
   },
   routes: rows,

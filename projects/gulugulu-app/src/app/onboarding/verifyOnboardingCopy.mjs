@@ -47,7 +47,10 @@ const mainDirective = await importBundled(`
   export { onboardingDirective } from "./src/app/onboarding/onboardingSteps";
 `);
 const director = await importBundled(`
-  export { skipOnboardingRoute } from "./src/app/onboarding/useOnboardingDirector";
+  export {
+    createOnboardingTaskQueue,
+    skipOnboardingRoute,
+  } from "./src/app/onboarding/useOnboardingDirector";
 `);
 
 assert.equal(mainCopy.ONBOARDING_STEP_IDS.length, 60, "persisted onboarding route must stay at 60 steps");
@@ -91,8 +94,13 @@ let simulatedSave = {
 };
 const submittedReceipts = [];
 let agentSkips = 0;
+let fusionRewardGrants = 0;
 let savedSnapshots = 0;
 const skipBridge = {
+  async grantSkippedOnboardingFusions() {
+    fusionRewardGrants += 1;
+    return simulatedSave;
+  },
   async advanceOnboarding(receipt) {
     submittedReceipts.push(receipt);
     const current = simulatedSave.onboarding.step;
@@ -142,13 +150,57 @@ const skippedSave = await director.skipOnboardingRoute(
 assert.equal(skippedSave.onboarding.status, "completed", "skipMain must persist completion");
 assert.equal(skippedSave.onboarding.step, "DONE", "skipMain must finish at DONE");
 assert.equal(agentSkips, 1, "skipMain must persist the optional-AI skip receipt once");
+assert.equal(fusionRewardGrants, 1, "skipMain must grant both tutorial fusion results once");
 assert.equal(
   submittedReceipts.filter((step) => step === "C12").length,
   1,
   "skipMain must submit exactly one first-shift compatibility receipt",
 );
 assert.equal(submittedReceipts.length, 49, "skipMain receipt count changed unexpectedly");
-assert.equal(savedSnapshots, 50, "every skip mutation must update the live save");
+assert.equal(savedSnapshots, 51, "every skip mutation must update the live save");
+
+const queueCalls = [];
+const busyTransitions = [];
+let releaseFirst;
+const firstGate = new Promise((resolve) => {
+  releaseFirst = resolve;
+});
+const taskQueue = director.createOnboardingTaskQueue((busy) => busyTransitions.push(busy));
+const firstReceipt = taskQueue.run("complete:A04", async () => {
+  queueCalls.push("A04:start");
+  await firstGate;
+  queueCalls.push("A04:end");
+  return { onboarding: { status: "active", step: "A05" } };
+});
+const repeatedReceipt = taskQueue.run("complete:A04", async () => {
+  queueCalls.push("A04:duplicate");
+  return null;
+});
+assert.equal(repeatedReceipt, firstReceipt, "rapid repeated receipt must reuse the in-flight promise");
+const nextReceipt = taskQueue.run("complete:A05", async () => {
+  queueCalls.push("A05");
+  return { onboarding: { status: "active", step: "A06" } };
+});
+await Promise.resolve();
+assert.deepEqual(queueCalls, ["A04:start"], "a different next mutation must wait for persistence order");
+releaseFirst();
+await Promise.all([firstReceipt, repeatedReceipt, nextReceipt]);
+assert.deepEqual(
+  queueCalls,
+  ["A04:start", "A04:end", "A05"],
+  "the queue must coalesce duplicates but preserve ordered next-step work",
+);
+assert.deepEqual(busyTransitions, [true, false], "busy feedback must cover the full queued transaction");
+
+await assert.rejects(
+  taskQueue.run("complete:failure", async () => {
+    throw new Error("simulated persistence failure");
+  }),
+  /simulated persistence failure/,
+  "persistence errors must reach the caller",
+);
+const recoveredQueueResult = await taskQueue.run("complete:recovery", async () => ({ recovered: true }));
+assert.equal(recoveredQueueResult.recovered, true, "a failed receipt must not poison later onboarding work");
 
 for (const [step, copy] of Object.entries(mainCopy.ONBOARDING_EN_COPY)) {
   assert.ok(copy.chapter.trim(), `${step}: missing English chapter`);

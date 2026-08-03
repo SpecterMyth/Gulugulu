@@ -15,10 +15,12 @@ import {
   HIRING_CANDIDATE_COUNT,
   HIRING_PICK_LIMIT,
   HIRING_REROLL_RATES,
+  FACTORY_KPI_CAP,
+  FACTORY_VALUE_CAP,
   PULSE_TIERS,
   QUOTA_PER_SHIFT,
   QUOTA_START,
-  REFUND_HARD_CAP,
+  SEVERANCE_REFUND_HARD_CAP,
   RUSH_TRICKLE_RATE,
   hasPowerRule,
   hasRushRule,
@@ -33,9 +35,11 @@ import {
   WIND_DROP_SPEED,
   WIND_FLIP_MS,
   WIND_RATIO,
+  addFactoryValues,
   baseTrainingBonus,
   billForShift,
   cardsForElementPlacement,
+  clampFactoryValue,
   elementReachBonus,
   hirePrice,
   kpiBonusFor,
@@ -122,7 +126,7 @@ function loadRecords(): RogueRecords {
     if (!raw) return fallback;
     const p = JSON.parse(raw) as Partial<RogueRecords>;
     return {
-      bestRevenue: typeof p.bestRevenue === "number" ? p.bestRevenue : 0,
+      bestRevenue: clampFactoryValue(p.bestRevenue ?? 0),
       bestShift: typeof p.bestShift === "number" ? p.bestShift : 0,
       endlessUnlocked: p.endlessUnlocked === true,
       // v1 旧记录没有 starts；至少用已结算局数作为安全下界。
@@ -146,7 +150,7 @@ function saveRecords(records: RogueRecords): void {
 }
 
 /** 续局存档 schema 版本(RogueRunSnapshot 结构变更时 +1,旧档读盘即弃)。 */
-const RUN_SNAPSHOT_VERSION = 9;
+const RUN_SNAPSHOT_VERSION = 10;
 
 /** 读未结束局的续局存档;缺失/损坏/版本不符一律 null(退化为从头开局)。 */
 export function loadRunSnapshot(): RogueRunSnapshot | null {
@@ -155,7 +159,8 @@ export function loadRunSnapshot(): RogueRunSnapshot | null {
     const raw = window.localStorage.getItem(ROGUE_RUN_STORAGE_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as Partial<RogueRunSnapshot>;
-    if (p == null || p.v !== RUN_SNAPSHOT_VERSION) return null;
+    // v9 没有检查日剩余时间；restore 会安全迁移为完整时限。
+    if (p == null || (p.v !== 9 && p.v !== RUN_SNAPSHOT_VERSION)) return null;
     if (
       p.phase !== "hiring"
       && p.phase !== "shift"
@@ -273,6 +278,8 @@ export class RogueRun implements RogueRunApi {
   // ---- 检查日运行态 ----
   private rushArmed = false;
   private rushDeadline: number | null = null;
+  /** 续档只保存剩余有效游玩时间，首次 tick 再锚定到当前墙钟。 */
+  private rushResumeRemainingMs: number | null = null;
   private rushAcc = 0;
   private powerThrowsLeftVal: number | null = null;
   /** 已扣次数但尚未得到落地/离场结果的手动投放；最后一次要等结果结算后再判失败。 */
@@ -280,6 +287,7 @@ export class RogueRun implements RogueRunApi {
   private windSign: 1 | -1 = 1;
   /** null=非大风;0=已进班待首次 tick 校准;>0=下次翻向时刻。 */
   private windFlipAt: number | null = null;
+  private windResumeRemainingMs: number | null = null;
   private lastTickAt: number | null = null;
 
   // ---- 搬桌 ----
@@ -295,6 +303,20 @@ export class RogueRun implements RogueRunApi {
   private spentThisShift = 0;
   private recordsCache: RogueRecords;
   private runCounted = false;
+
+  /** The receipt needs one truthful total per income source, not hundreds of
+   * identical rows from rush ticks or a large strike. Aggregating here also
+   * bounds active-run memory and snapshot size. */
+  private recordIncomeCashFlow(kind: "refund" | "trickle" | "kpiBonus", amount: number): void {
+    const credited = clampFactoryValue(amount);
+    if (credited <= 0) return;
+    const existing = this.shiftCashFlows.find((flow) => flow.kind === kind);
+    if (existing == null) {
+      this.shiftCashFlows.push({ kind, amount: credited });
+      return;
+    }
+    existing.amount = addFactoryValues(existing.amount, credited);
+  }
 
   constructor(init: RogueRunInit) {
     this.meta = init.meta;
@@ -327,11 +349,11 @@ export class RogueRun implements RogueRunApi {
   }
 
   private openLoan(): void {
-    const principal = Math.round(LOAN_GAIN_RATE * this.kpi);
-    this.cash += principal;
+    const principal = clampFactoryValue(LOAN_GAIN_RATE * this.kpi);
+    this.cash = addFactoryValues(this.cash, principal);
     this.loan = {
       principal,
-      totalDue: Math.round(principal * LOAN_TOTAL_REPAY_RATE),
+      totalDue: clampFactoryValue(principal * LOAN_TOTAL_REPAY_RATE),
       paid: 0,
       shiftsLeft: LOAN_SHIFTS,
     };
@@ -482,11 +504,11 @@ export class RogueRun implements RogueRunApi {
 
       const tier = this.meta[candidate.species]?.tierCount ?? 1;
       const price = this.priceFor(candidate.species, selectedByTier[tier] ?? 0);
-      if (selectedCost + price > availableCash) continue;
+      if (price > availableCash - selectedCost) continue;
 
       selectedIds.add(candidate.id);
       selectedCount++;
-      selectedCost += price;
+      selectedCost = addFactoryValues(selectedCost, price);
       selectedByTier[tier] = (selectedByTier[tier] ?? 0) + 1;
     }
     return selectedIds;
@@ -531,11 +553,19 @@ export class RogueRun implements RogueRunApi {
     const quotes = this.candidateQuotes();
     const selected = this.hiringCandidates.filter((c) => c.selected);
     const affordableSelection = this.affordableHiringCandidateIds();
-    const hireCost = selected.reduce((sum, c) => sum + (quotes.get(c.id) ?? 0), 0);
+    let hireCost = 0;
+    let hireCostOverflow = false;
+    for (const candidate of selected) {
+      const price = quotes.get(candidate.id) ?? 0;
+      if (price > Number.MAX_SAFE_INTEGER - hireCost) hireCostOverflow = true;
+      hireCost = addFactoryValues(hireCost, price);
+    }
     const usedQuota = this.quotaUsed + selected.length;
     const poolCountMap = new Map<string, number>();
     for (const worker of this.bag) poolCountMap.set(worker.species, (poolCountMap.get(worker.species) ?? 0) + 1);
-    const canAfford = hireCost + this.hiringRerollSpent <= this.cash;
+    const canAfford = !hireCostOverflow
+      && this.hiringRerollSpent <= this.cash
+      && hireCost <= this.cash - this.hiringRerollSpent;
     const hasQuota = usedQuota <= this.quotaMax && selected.length <= HIRING_PICK_LIMIT;
     const rerollRate = this.hiringRerollRate();
     return {
@@ -560,7 +590,7 @@ export class RogueRun implements RogueRunApi {
       rerollSpent: this.hiringRerollSpent,
       rerollsUsed: this.hiringRerollsUsed,
       rerollsMax: this.rerollsMax(),
-      rerollCost: rerollRate == null ? null : Math.round(rerollRate * this.kpi),
+      rerollCost: rerollRate == null ? null : clampFactoryValue(rerollRate * this.kpi),
       canConfirm: hasQuota && canAfford,
       canAfford,
       hasQuota,
@@ -610,11 +640,11 @@ export class RogueRun implements RogueRunApi {
     if (this.phase !== "hiring" || this.hiringRerollsUsed >= this.rerollsMax()) return false;
     const rate = this.hiringRerollRate();
     if (rate == null) return false;
-    const cost = Math.round(rate * this.kpi);
-    if (this.hiringRerollSpent + cost > this.cash) return false;
+    const cost = clampFactoryValue(rate * this.kpi);
+    if (cost > this.cash - this.hiringRerollSpent) return false;
     this.hiringCandidates = this.hiringCandidates.map((c) => (c.selected ? c : this.drawCandidate()));
     this.hiringRerollsUsed++;
-    this.hiringRerollSpent += cost;
+    this.hiringRerollSpent = addFactoryValues(this.hiringRerollSpent, cost);
     this.bump();
     return true;
   }
@@ -625,8 +655,9 @@ export class RogueRun implements RogueRunApi {
     if (!view.canConfirm) return false;
     const quotes = new Map(view.candidates.map((c) => [c.id, c.price]));
     const selected = this.hiringCandidates.filter((c) => c.selected);
-    this.cash -= view.hireCost + this.hiringRerollSpent;
-    this.spentThisShift += view.hireCost + this.hiringRerollSpent;
+    const hiringSpend = addFactoryValues(view.hireCost, this.hiringRerollSpent);
+    this.cash -= hiringSpend;
+    this.spentThisShift = addFactoryValues(this.spentThisShift, hiringSpend);
     if (view.hireCost > 0) this.shiftCashFlows.push({ kind: "hire", amount: -view.hireCost });
     if (this.hiringRerollSpent > 0) this.shiftCashFlows.push({ kind: "reroll", amount: -this.hiringRerollSpent });
     for (const c of selected) {
@@ -927,12 +958,12 @@ export class RogueRun implements RogueRunApi {
 
   /** 统一入账:total + Σextras 全进现金与两条营收;顺带维护 maxPulse。返回入账额。 */
   private bookPulse(bd: PulseBreakdown): number {
-    let gained = bd.total;
-    for (const e of bd.extras) gained += e.amount;
+    let gained = clampFactoryValue(bd.total);
+    for (const e of bd.extras) gained = addFactoryValues(gained, e.amount);
     if (gained > 0) {
-      this.cash += gained;
-      this.revenueTotal += gained;
-      this.revenueShift += gained;
+      this.cash = addFactoryValues(this.cash, gained);
+      this.revenueTotal = addFactoryValues(this.revenueTotal, gained);
+      this.revenueShift = addFactoryValues(this.revenueShift, gained);
     }
     if (gained > this.stats.maxPulse) this.stats.maxPulse = gained;
     return gained;
@@ -1104,7 +1135,7 @@ export class RogueRun implements RogueRunApi {
     const absorbedRaw = this.uidBase.get(absorbedUid)
       ?? this.meta[absorbed.species]?.baseValue
       ?? DEFAULT_BASE_VALUE;
-    this.uidBase.set(absorberUid, absorberRaw + absorbedRaw);
+    this.uidBase.set(absorberUid, addFactoryValues(absorberRaw, absorbedRaw));
     this.bodyStates.set(absorberUid, {
       ...absorberState,
       sizeLevel: absorberMass + absorbedMass,
@@ -1457,10 +1488,11 @@ export class RogueRun implements RogueRunApi {
     return !this.endless && this.shiftIndex === 1 ? 1.35 : 1;
   }
 
-  /** 破产预警(01 §10 预测口径):预测下班账单 > 现金 + 本班剩余 KPI 缺口。 */
+  /** 破产预警(01 §10 预测口径):账单与本期还贷 > 现金 + 本班剩余 KPI 缺口。 */
   private computeDanger(): boolean {
     if (this.phase !== "shift") return false;
-    return this.cash + Math.max(0, this.kpi - this.revenueShift) < this.bill;
+    const requiredPayment = addFactoryValues(this.bill, this.nextLoanPayment());
+    return this.cash + Math.max(0, this.kpi - this.revenueShift) < requiredPayment;
   }
 
   onSettled(uid: number): void {
@@ -1535,8 +1567,15 @@ export class RogueRun implements RogueRunApi {
       ];
     }
     const gained = this.bookPulse(bd);
-    this.combo++;
-    if (this.combo > this.stats.maxCombo) this.stats.maxCombo = this.combo;
+    // A disabled-desk landing is still surfaced as a zero-value pulse so the
+    // scene can explain why it did not score. It must not prime the combo for
+    // the next valid landing: only revenue-producing work continues a streak.
+    if (gained > 0) {
+      this.combo++;
+      if (this.combo > this.stats.maxCombo) this.stats.maxCombo = this.combo;
+    } else {
+      this.combo = 0;
+    }
     if (bd.deskCount > this.stats.maxDesks) this.stats.maxDesks = bd.deskCount;
     // hit-stop 分档(04 §3):红光档 130ms、彩虹档 220ms;多接桌 jackpot 定格 180ms。
     if (gained >= PULSE_TIERS[4].min) this.hitStop(220, 0.12);
@@ -1569,24 +1608,43 @@ export class RogueRun implements RogueRunApi {
     this.bump();
   }
 
-  /** 遣散费退款率：10% / 20% / 40% / 70% / 100%。 */
+  /** 遣散费退款率：25% / 50% / 100% / 200% / 300%。 */
   private severanceRefundRate(): number {
     const lvl = this.cards["staff.severance"] ?? 0;
     if (lvl <= 0) return 0;
     const table = CARD_PARAMS["staff.severance"].refund;
-    return Math.min(table[Math.min(lvl, table.length) - 1], REFUND_HARD_CAP);
+    return Math.min(table[Math.min(lvl, table.length) - 1], SEVERANCE_REFUND_HARD_CAP);
+  }
+
+  /** Scene feedback quote for one departure. It shares the exact ledger
+   * formula and settled-state gate so rejected duplicate events stay silent. */
+  departureFeedback(uid: number, minimumRate = 0): { accepted: boolean; refund: number } {
+    if (!this.uidSpecies.has(uid) || this.refunded.has(uid)) return { accepted: false, refund: 0 };
+    const rate = Math.min(SEVERANCE_REFUND_HARD_CAP, Math.max(minimumRate, this.severanceRefundRate()));
+    const nominalRefund = clampFactoryValue(Math.floor((this.uidCost.get(uid) ?? 0) * rate));
+    // At the numeric safety ceiling only the remaining wallet room is actually
+    // credited. Quote that exact amount so fly text and the receipt never claim
+    // more than the ledger can store.
+    const refund = Math.min(nominalRefund, Math.max(0, FACTORY_VALUE_CAP - this.cash));
+    return {
+      accepted: true,
+      refund,
+    };
   }
 
   /** 单只离场账务：解雇至少退 100% 最新雇价；遣散费与其不叠加，取较高者。 */
-  private settleDeparture(uid: number, minimumRate = 0): void {
-    const rate = Math.min(REFUND_HARD_CAP, Math.max(minimumRate, this.severanceRefundRate()));
-    if (rate > 0) {
-      const refund = Math.floor((this.uidCost.get(uid) ?? 0) * rate);
-      if (refund > 0) {
-        this.cash += refund;
-        this.shiftCashFlows.push({ kind: "refund", amount: refund });
-      }
+  private settleDeparture(uid: number, minimumRate = 0): boolean {
+    // The scene removes a dismissed/striking body after its exit animation.
+    // Pointer spam or duplicate collision reports can arrive during that gap;
+    // settle each worker's departure ledger exactly once.
+    const feedback = this.departureFeedback(uid, minimumRate);
+    if (!feedback.accepted) return false;
+    this.refunded.add(uid);
+    if (feedback.refund > 0) {
+      this.cash = addFactoryValues(this.cash, feedback.refund);
+      this.recordIncomeCashFlow("refund", feedback.refund);
     }
+    return true;
   }
 
   onStrike(uids: number[], species: string): void {
@@ -1609,8 +1667,12 @@ export class RogueRun implements RogueRunApi {
     const fourdayRate = fourdayLvl > 0
       ? valueAtLevel(CARD_PARAMS["water.fourday"].strikeBonus, fourdayLvl)
       : 0;
+    // Empty groups are a valid rules-level strike signal (used by resumed and
+    // headless runs); non-empty groups are deduplicated by worker uid.
+    let settledAny = uids.length === 0;
     for (const uid of uids) {
-      this.settleDeparture(uid);
+      if (!this.settleDeparture(uid)) continue;
+      settledAny = true;
       const body = bodies.find((candidate) => candidate.uid === uid);
       if (fourdayRate <= 0 || body?.species !== species) continue;
       const source = computePulse(this.pulseCtx(uid, bodies, desks));
@@ -1631,6 +1693,7 @@ export class RogueRun implements RogueRunApi {
       this.pulses.push(bonus);
       this.shiftPulses.push(bonus);
     }
+    if (!settledAny) return;
     this.stats.strikes++;
     if (this.phase === "shift") this.shiftStrikeCount++;
     if (this.phase === "shift" && this.revenueShift >= this.kpi) this.startOvertime();
@@ -1642,7 +1705,7 @@ export class RogueRun implements RogueRunApi {
     if (this.phase !== "shift" && this.phase !== "shop") return;
     const species = this.uidSpecies.get(uid);
     if (species == null) return;
-    this.settleDeparture(uid, 1);
+    if (!this.settleDeparture(uid, 1)) return;
     this.pendingDismissN--;
     this.stats.dismissals++;
     if (this.phase === "shift" && this.revenueShift >= this.kpi) this.startOvertime();
@@ -1692,10 +1755,10 @@ export class RogueRun implements RogueRunApi {
     if (this.phase !== "shift") return;
     const bonus = kpiBonusFor(this.kpi);
     if (bonus > 0) {
-      this.cash += bonus;
-      this.revenueTotal += bonus;
-      this.revenueShift += bonus;
-      this.shiftCashFlows.push({ kind: "kpiBonus", amount: bonus });
+      this.cash = addFactoryValues(this.cash, bonus);
+      this.revenueTotal = addFactoryValues(this.revenueTotal, bonus);
+      this.revenueShift = addFactoryValues(this.revenueShift, bonus);
+      this.recordIncomeCashFlow("kpiBonus", bonus);
     }
     this.rushArmed = false;
     this.rushDeadline = null;
@@ -1726,6 +1789,8 @@ export class RogueRun implements RogueRunApi {
   /** 加班池全部结算：冻结本班账本，进入工资单；此时账单尚未扣除。 */
   private endShift(): void {
     if (this.phase !== "shift" && this.phase !== "overtime") return;
+    const loanPayment = this.nextLoanPayment();
+    const requiredPayment = addFactoryValues(this.bill, loanPayment);
     this.settlement = {
       shiftIndex: this.shiftIndex,
       spentTotal: this.spentThisShift,
@@ -1733,6 +1798,10 @@ export class RogueRun implements RogueRunApi {
       bill: this.bill,
       cashBeforeBill: this.cash,
       cashAfterBill: Math.max(0, this.cash - this.bill),
+      loanPayment,
+      requiredPayment,
+      cashAfterPayment: Math.max(0, this.cash - requiredPayment),
+      shortfall: Math.max(0, requiredPayment - this.cash),
       pulses: this.shiftPulses.slice(),
       cashFlows: this.shiftCashFlows.map((x) => ({ ...x })),
     };
@@ -1746,20 +1815,20 @@ export class RogueRun implements RogueRunApi {
   /** UI 付款动画结束后提交；幂等地只允许 settlement → shop/bankrupt 一次。 */
   confirmSettlement(): boolean {
     if (this.phase !== "settlement" || this.settlement == null) return false;
-    if (this.cash < this.bill) {
+    const loanPayment = this.loan == null
+      ? 0
+      : (this.settlement.loanPayment ?? this.nextLoanPayment());
+    const requiredPayment = this.settlement.requiredPayment
+      ?? addFactoryValues(this.bill, loanPayment);
+    if (this.cash < requiredPayment) {
       this.bankrupt();
       return false;
     }
-    this.cash -= this.bill;
+    // 账单和贷款是同一笔必要支付：先验证全额可付，再一次性扣除。
+    // 这样临界不足不会留下“账单已扣、贷款未还”的半提交破产状态。
+    this.cash -= requiredPayment;
     if (this.loan != null) {
-      const pay = this.nextLoanPayment();
-      if (this.cash < pay) {
-        this.bankrupt();
-        // 贷款也是必要支付(GDD 01 §2:现金不足以完成必要支付 = 破产)。
-        return false;
-      }
-      this.cash -= pay;
-      this.loan.paid += pay;
+      this.loan.paid += loanPayment;
       this.loan.shiftsLeft--;
       if (this.loan.shiftsLeft <= 0) this.loan = null;
     }
@@ -1832,7 +1901,7 @@ export class RogueRun implements RogueRunApi {
     if (this.phase !== "shop" || this.shopOffer == null) return;
     if (this.shopOffer.resolved[dimIndex]) return;
     this.shopOffer.resolved[dimIndex] = true;
-    this.cash += Math.round(SHOP_SKIP_REFUND_RATE * this.kpi);
+    this.cash = addFactoryValues(this.cash, clampFactoryValue(SHOP_SKIP_REFUND_RATE * this.kpi));
     this.bump();
   }
 
@@ -1881,6 +1950,7 @@ export class RogueRun implements RogueRunApi {
     this.shiftStrikeCount = 0;
     this.rushArmed = hasRushRule(this.modifier);
     this.rushDeadline = null; // 赶工墙钟由首次 tick 补 now
+    this.rushResumeRemainingMs = null;
     this.rushAcc = 0;
     this.powerThrowsLeftVal = hasPowerRule(this.modifier)
       ? powerThrowLimitFor(this.modifier)
@@ -1888,6 +1958,7 @@ export class RogueRun implements RogueRunApi {
     this.powerPendingThrows.clear();
     this.windSign = this.rng() < 0.5 ? -1 : 1;
     this.windFlipAt = hasWindRule(this.modifier) ? 0 : null;
+    this.windResumeRemainingMs = null;
     this.startHiring();
     this.bump();
   }
@@ -1902,6 +1973,20 @@ export class RogueRun implements RogueRunApi {
     while (this.disabledDesks.length < count && pool.length > 0) {
       const index = Math.floor(this.rng() * pool.length);
       this.disabledDesks.push(pool.splice(index, 1)[0]);
+    }
+    // Inspection modifiers may narrow a build, but must never turn off every
+    // matching scoring desk. Keep the original random draw/count and swap one
+    // disabled active desk for an inactive desk only when the draw hard-locks
+    // the selected loadout (mono builds from shift 6; dual builds from shift 11).
+    if (
+      this.loadoutEls.length > 0
+      && this.loadoutEls.every((element) => this.disabledDesks.includes(element))
+    ) {
+      const replacement = this.deskOrderArr.find((element) => (
+        !this.loadoutEls.includes(element) && !this.disabledDesks.includes(element)
+      ));
+      const activeIndex = this.disabledDesks.findIndex((element) => this.loadoutEls.includes(element));
+      if (replacement != null && activeIndex >= 0) this.disabledDesks[activeIndex] = replacement;
     }
   }
 
@@ -1969,7 +2054,8 @@ export class RogueRun implements RogueRunApi {
   }
 
   countsForStrike(uid: number): boolean {
-    return this.bodyStates.get(uid)?.strikeImmuneShift !== this.shiftIndex;
+    const state = this.bodyStates.get(uid);
+    return state?.strikeImmuneShift !== this.shiftIndex;
   }
 
   stickOverride(a: BodyLike, b: BodyLike): boolean | null {
@@ -2015,7 +2101,8 @@ export class RogueRun implements RogueRunApi {
 
     if (hasRushRule(this.modifier)) {
       if (this.rushDeadline == null && this.rushArmed) {
-        this.rushDeadline = nowMs + rushWallMsFor(this.modifier);
+        this.rushDeadline = nowMs + (this.rushResumeRemainingMs ?? rushWallMsFor(this.modifier));
+        this.rushResumeRemainingMs = null;
         dirty = true;
       }
       if (dt > 0 && this.snap != null) {
@@ -2028,10 +2115,10 @@ export class RogueRun implements RogueRunApi {
           const gain = Math.floor(this.rushAcc);
           if (gain > 0) {
             this.rushAcc -= gain;
-            this.cash += gain;
-            this.revenueTotal += gain;
-            this.revenueShift += gain;
-            this.shiftCashFlows.push({ kind: "trickle", amount: gain });
+            this.cash = addFactoryValues(this.cash, gain);
+            this.revenueTotal = addFactoryValues(this.revenueTotal, gain);
+            this.revenueShift = addFactoryValues(this.revenueShift, gain);
+            this.recordIncomeCashFlow("trickle", gain);
             dirty = true;
           }
         }
@@ -2051,7 +2138,8 @@ export class RogueRun implements RogueRunApi {
 
     if (hasWindRule(this.modifier)) {
       if (this.windFlipAt === 0) {
-        this.windFlipAt = nowMs + WIND_FLIP_MS;
+        this.windFlipAt = nowMs + (this.windResumeRemainingMs ?? WIND_FLIP_MS);
+        this.windResumeRemainingMs = null;
       } else if (this.windFlipAt != null && nowMs >= this.windFlipAt) {
         this.windSign = this.windSign === 1 ? -1 : 1;
         this.windFlipAt = nowMs + WIND_FLIP_MS;
@@ -2078,6 +2166,28 @@ export class RogueRun implements RogueRunApi {
       }
     }
 
+    if (dirty) this.bump();
+  }
+
+  /**
+   * 窗口切到后台时暂停检查日墙钟。恢复后把绝对截止时间整体顺延，
+   * 同时丢弃后台期间的 tick 间隔，避免切回游戏的一瞬间被判破产或翻转风向。
+   */
+  resumeClock(nowMs: number, pausedAtMs: number): void {
+    if (!Number.isFinite(nowMs) || !Number.isFinite(pausedAtMs)) return;
+    const pausedMs = Math.max(0, nowMs - pausedAtMs);
+    this.lastTickAt = nowMs;
+    if (this.phase !== "shift" || pausedMs === 0) return;
+
+    let dirty = false;
+    if (this.rushDeadline != null) {
+      this.rushDeadline += pausedMs;
+      dirty = true;
+    }
+    if (this.windFlipAt != null && this.windFlipAt > 0) {
+      this.windFlipAt += pausedMs;
+      dirty = true;
+    }
     if (dirty) this.bump();
   }
 
@@ -2156,6 +2266,7 @@ export class RogueRun implements RogueRunApi {
           species,
           cost: this.uidCost.get(uid) ?? 0,
           base: this.uidBase.get(uid) ?? this.meta[species]?.baseValue ?? 0,
+          departed: this.refunded.has(uid) || undefined,
         }))
         .filter((item) => !this.overtimePending.has(item.uid)),
       bodyStates: Array.from(this.bodyStates.values(), (state) => ({
@@ -2226,6 +2337,13 @@ export class RogueRun implements RogueRunApi {
         cashFlows: this.settlement.cashFlows.map((x) => ({ ...x })),
       },
       powerThrowsLeft: this.powerThrowsLeftVal,
+      rushRemainingMs: this.rushDeadline != null && this.lastTickAt != null
+        ? Math.max(0, this.rushDeadline - this.lastTickAt)
+        : this.rushResumeRemainingMs,
+      windSign: this.windSign,
+      windFlipRemainingMs: this.windFlipAt != null && this.windFlipAt > 0 && this.lastTickAt != null
+        ? Math.max(0, this.windFlipAt - this.lastTickAt)
+        : this.windResumeRemainingMs,
       stats: { ...this.stats },
       deskSwapPending: this.deskSwapPending,
       deskSwapFirst: this.deskSwapFirst,
@@ -2257,26 +2375,32 @@ export class RogueRun implements RogueRunApi {
     run.shiftIndex = snap.shiftIndex;
     run.endless = snap.endless;
     run.modifier = snap.modifier;
-    run.cash = snap.cash;
-    run.revenueTotal = snap.revenueTotal;
-    run.revenueShift = snap.revenueShift;
-    run.kpi = snap.kpi;
-    run.bill = snap.bill;
+    run.cash = clampFactoryValue(snap.cash);
+    run.revenueTotal = clampFactoryValue(snap.revenueTotal);
+    run.revenueShift = clampFactoryValue(snap.revenueShift);
+    run.kpi = Math.min(FACTORY_KPI_CAP, clampFactoryValue(snap.kpi))
+      || kpiForShift(snap.shiftIndex);
+    run.bill = Math.min(FACTORY_KPI_CAP, clampFactoryValue(snap.bill))
+      || billForShift(snap.shiftIndex, snap.modifier);
     // v3.1 数值迁移：扩编由 +10 调回 +5。按班次与卡级重算，旧续局不会保留超额名额。
     const naturalQuotaSteps = Math.max(0, snap.shiftIndex - (snap.phase === "shop" ? 0 : 1));
     run.quotaMax = QUOTA_START
       + naturalQuotaSteps * QUOTA_PER_SHIFT
       + (snap.cards["staff.expand"] ?? 0) * CARD_PARAMS["staff.expand"].quota;
     run.quotaUsed = snap.quotaUsed;
-    run.hiredThisShift = Array.isArray(snap.hireInflation) ? snap.hireInflation.slice() : [0, 0, 0, 0, 0, 0, 0];
-    run.bag = Array.isArray(snap.hirePool) ? snap.hirePool.map((x) => ({ ...x })) : [];
+    run.hiredThisShift = Array.isArray(snap.hireInflation)
+      ? snap.hireInflation.map((count) => Math.max(0, Number.isFinite(count) ? Math.trunc(count) : 0))
+      : [0, 0, 0, 0, 0, 0, 0];
+    run.bag = Array.isArray(snap.hirePool)
+      ? snap.hirePool.map((x) => ({ ...x, price: clampFactoryValue(x.price) }))
+      : [];
     run.overtimeReturned = Array.isArray(snap.overtimeReturned)
-      ? snap.overtimeReturned.map((item) => ({ ...item }))
+      ? snap.overtimeReturned.map((item) => ({ ...item, price: clampFactoryValue(item.price) }))
       : [];
     run.hiringCandidates = Array.isArray(snap.hiringCandidates) ? snap.hiringCandidates.map((x) => ({ ...x })) : [];
     run.hiringRound = snap.hiringRound ?? 1;
     run.hiringRerollsUsed = snap.hiringRerollsUsed ?? 0;
-    run.hiringRerollSpent = snap.hiringRerollSpent ?? 0;
+    run.hiringRerollSpent = clampFactoryValue(snap.hiringRerollSpent ?? 0);
     run.combo = snap.combo;
     run.cards = { ...snap.cards };
     // 旧标签系存档平滑迁移到吸收系的同稀有度位置。
@@ -2302,20 +2426,17 @@ export class RogueRun implements RogueRunApi {
     ]));
     if (snap.loan != null) {
       const shiftsLeft = Math.max(1, Math.min(LOAN_SHIFTS, snap.loan.shiftsLeft));
-      const principal = Math.max(
-        0,
-        Math.round(snap.loan.principal ?? LOAN_GAIN_RATE * snap.kpi),
-      );
+      const principal = clampFactoryValue(snap.loan.principal ?? LOAN_GAIN_RATE * run.kpi);
       const totalDue = Math.max(
         principal,
-        Math.round(snap.loan.totalDue ?? principal * LOAN_TOTAL_REPAY_RATE),
+        clampFactoryValue(snap.loan.totalDue ?? principal * LOAN_TOTAL_REPAY_RATE),
       );
       const completed = Math.max(0, LOAN_SHIFTS - shiftsLeft);
       const migratedPaid = completed * Math.round(principal * LOAN_REPAY_RATE);
       run.loan = {
         principal,
         totalDue,
-        paid: Math.min(totalDue, Math.max(0, Math.round(snap.loan.paid ?? migratedPaid))),
+        paid: Math.min(totalDue, clampFactoryValue(snap.loan.paid ?? migratedPaid)),
         shiftsLeft,
       };
     } else {
@@ -2358,7 +2479,17 @@ export class RogueRun implements RogueRunApi {
       : null;
     run.rushArmed = hasRushRule(snap.modifier);
     run.rushDeadline = null;
+    run.rushResumeRemainingMs = run.rushArmed && Number.isFinite(snap.rushRemainingMs)
+      ? Math.min(
+          rushWallMsFor(snap.modifier),
+          Math.max(0, Math.round(snap.rushRemainingMs ?? 0)),
+        )
+      : null;
+    run.windSign = snap.windSign === -1 ? -1 : 1;
     run.windFlipAt = hasWindRule(snap.modifier) ? 0 : null;
+    run.windResumeRemainingMs = hasWindRule(snap.modifier) && Number.isFinite(snap.windFlipRemainingMs)
+      ? Math.min(WIND_FLIP_MS, Math.max(0, Math.round(snap.windFlipRemainingMs ?? 0)))
+      : null;
     run.powerPendingThrows = new Set(
       (snap.bodies ?? [])
         .filter((body) => (
@@ -2368,19 +2499,20 @@ export class RogueRun implements RogueRunApi {
         .map((body) => body.uid),
     );
     if (snap.settlement != null) {
-      run.spentThisShift = snap.settlement.spentTotal;
+      run.spentThisShift = clampFactoryValue(snap.settlement.spentTotal);
       run.shiftPulses = snap.settlement.pulses.slice();
       run.shiftCashFlows = snap.settlement.cashFlows.slice();
     }
-    run.stats = { ...snap.stats };
+    run.stats = { ...snap.stats, maxPulse: clampFactoryValue(snap.stats.maxPulse) };
     run.deskSwapPending = snap.deskSwapPending;
     run.deskSwapFirst = snap.deskSwapFirst;
     // 战绩缓存读当前盘(构造期已 loadRecords);续局不改 runs 计数(本局早已计过或未计)。
     if (snap.phase === "shift" || snap.phase === "overtime") {
       for (const item of snap.bodyEconomy) {
         run.uidSpecies.set(item.uid, item.species);
-        run.uidCost.set(item.uid, item.cost);
-        run.uidBase.set(item.uid, item.base);
+        run.uidCost.set(item.uid, clampFactoryValue(item.cost));
+        run.uidBase.set(item.uid, clampFactoryValue(item.base));
+        if (item.departed === true) run.refunded.add(item.uid);
       }
     }
     // 续档不会保存逃跑动画；若所有未得分角色均已处理，就视为已全部返池并进入账单。

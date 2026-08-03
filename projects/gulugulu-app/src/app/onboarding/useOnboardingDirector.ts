@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GameBridge } from "../../game/bridge";
 import type { UiMode } from "../../game/GamePanels";
 import type { GameConfig, GameSave } from "../../types";
@@ -28,12 +28,50 @@ type Input = {
 
 export type OnboardingDirector = {
   active: boolean;
+  /** A receipt or route skip is being persisted. UI actions should stay single-flight. */
+  busy: boolean;
   directive: OnboardingDirective | null;
   complete: (step?: string) => Promise<GameSave | null>;
   /** Persistently finish the remaining main route. App may wire this to an explicit skip action. */
   skipMain: () => Promise<GameSave | null>;
   skipAgent: () => Promise<GameSave | null>;
 };
+
+type OnboardingTask = () => Promise<GameSave | null>;
+
+export type OnboardingTaskQueue = {
+  run: (key: string, task: OnboardingTask) => Promise<GameSave | null>;
+};
+
+/**
+ * Serialize different onboarding mutations while coalescing repeated clicks for the
+ * same receipt. This keeps slow native saves from accumulating duplicate work without
+ * losing a legitimate next-step mutation that arrives while the previous one settles.
+ */
+export function createOnboardingTaskQueue(
+  onBusyChange: (busy: boolean) => void = () => undefined,
+): OnboardingTaskQueue {
+  let tail: Promise<GameSave | null> = Promise.resolve(null);
+  const inFlight = new Map<string, Promise<GameSave | null>>();
+
+  return {
+    run(key, task) {
+      const existing = inFlight.get(key);
+      if (existing) return existing;
+
+      if (inFlight.size === 0) onBusyChange(true);
+      const queued = tail.then(task, task);
+      let tracked: Promise<GameSave | null>;
+      tracked = queued.finally(() => {
+        if (inFlight.get(key) === tracked) inFlight.delete(key);
+        if (inFlight.size === 0) onBusyChange(false);
+      });
+      inFlight.set(key, tracked);
+      tail = tracked.catch(() => null);
+      return tracked;
+    },
+  };
+}
 
 function speciesHasElement(config: GameConfig, species: string, element: string): boolean {
   return config.species[species]?.elements.includes(element) === true;
@@ -112,7 +150,10 @@ function currentStepSatisfied(input: Input): boolean {
   }
 }
 
-type OnboardingSkipBridge = Pick<GameBridge, "advanceOnboarding" | "skipOnboardingAgent">;
+type OnboardingSkipBridge = Pick<
+  GameBridge,
+  "advanceOnboarding" | "skipOnboardingAgent" | "grantSkippedOnboardingFusions"
+>;
 
 /**
  * Complete the persisted route using only receipts already accepted by the backend.
@@ -125,6 +166,11 @@ export async function skipOnboardingRoute(
 ): Promise<GameSave | null> {
   let next = initialSave;
   const visited = new Set<string>();
+
+  if (next?.onboarding?.status === "active") {
+    next = await bridge.grantSkippedOnboardingFusions();
+    setSave(next);
+  }
 
   while (next?.onboarding?.status === "active") {
     const step = next.onboarding.step as OnboardingStepId;
@@ -156,7 +202,11 @@ export async function skipOnboardingRoute(
 export function useOnboardingDirector(input: Input): OnboardingDirector {
   const currentRef = useRef(input);
   currentRef.current = input;
-  const pendingRef = useRef<Promise<GameSave | null>>(Promise.resolve(null));
+  const [busy, setBusy] = useState(false);
+  const taskQueueRef = useRef<OnboardingTaskQueue | null>(null);
+  if (taskQueueRef.current == null) {
+    taskQueueRef.current = createOnboardingTaskQueue(setBusy);
+  }
 
   const complete = useCallback((requestedStep?: string) => {
     const run = async (): Promise<GameSave | null> => {
@@ -170,9 +220,8 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
       current.setSave(next);
       return next;
     };
-    const queued = pendingRef.current.then(run, run);
-    pendingRef.current = queued.catch(() => null);
-    return queued;
+    const step = requestedStep ?? currentRef.current.save?.onboarding?.step ?? "none";
+    return taskQueueRef.current!.run(`complete:${step}`, run);
   }, []);
 
   const skipAgent = useCallback(() => {
@@ -187,9 +236,7 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
       }
       return next;
     };
-    const queued = pendingRef.current.then(run, run);
-    pendingRef.current = queued.catch(() => null);
-    return queued;
+    return taskQueueRef.current!.run("skip-agent", run);
   }, []);
 
   const skipMain = useCallback(() => {
@@ -197,9 +244,7 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
       const current = currentRef.current;
       return skipOnboardingRoute(current.bridge, current.save, current.setSave);
     };
-    const queued = pendingRef.current.then(run, run);
-    pendingRef.current = queued.catch(() => null);
-    return queued;
+    return taskQueueRef.current!.run("skip-main", run);
   }, []);
 
   const language = onboardingLanguageFromStorage();
@@ -261,6 +306,7 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
 
   return {
     active: input.save?.onboarding?.status === "active",
+    busy,
     directive,
     complete,
     skipMain,

@@ -7,10 +7,19 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "benchmark:factory": "node scripts/factory_perf_check.mjs",
+    "benchmark:factory-ui": "node scripts/factory_ui_perf_check.mjs",
+    "test:factory-layout": "node scripts/factory_ui_layout_check.mjs",
+    "test:factory-modifiers": "node scripts/factory_ui_layout_check.mjs --modifiers",
+    "test:factory-first-run": "node scripts/factory_first_run_recovery_check.mjs",
+    "test:factory-races": "node scripts/factory_interaction_race_check.mjs",
+    "test:factory-overlays": "node scripts/factory_interaction_race_check.mjs --stress-overlays",
+    "test:factory-economy": "node scripts/factory_economy_longrun_check.mjs",
     "verify:release-boundary": "node scripts/verify_release_trust_boundary.mjs",
     "preview": "vite preview",
     "verify:onboarding-layout": "node scripts/verify_onboarding_layout.mjs",
+    "test:onboarding-interrupt": "node scripts/onboarding_interrupt_check.mjs",
     "verify:pet-gen-v2": "node scripts/audit_pet_gen_v2.mjs",
+    "steam:update": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/steam/update_steam.ps1",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
@@ -28,6 +37,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "esbuild": "^0.28.0",
+    "puppeteer-core": "25.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.13"
   }

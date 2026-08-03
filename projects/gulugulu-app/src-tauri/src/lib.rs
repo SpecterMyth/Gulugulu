@@ -64,6 +64,13 @@ fn set_codex_home(
 
 #[tauri::command]
 fn close_pet(app: AppHandle) {
+    exit_app(&app);
+}
+
+/// Terminate work spawned by the app before asking Tauri to leave its event loop.
+/// The RunEvent hook below repeats this cleanup to cover every other exit source.
+pub(crate) fn exit_app(app: &AppHandle) {
+    cli_spawn::kill_all_live_children();
     app.exit(0);
 }
 
@@ -494,6 +501,7 @@ pub fn run() {
             game::advance_onboarding,
             game::advance_factory_tutorial,
             game::skip_onboarding_agent,
+            game::grant_skipped_onboarding_fusions,
             game::claim_stamina_tutorial_rescue,
             game::debug_add_coins,
             game::debug_grant_materials,

@@ -37,6 +37,38 @@
   --nt-fold: rgba(90, 80, 60, 0.18);
 }
 
+.fr-resume-notice {
+  position: absolute;
+  z-index: 5300;
+  top: max(clamp(112px, 14vh, 150px), calc(env(safe-area-inset-top, 0px) + 12px));
+  left: 50%;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: min(86vw, 440px);
+  padding: 8px 14px 9px;
+  border: 2px solid #286d5a;
+  border-radius: 999px;
+  background: #d9fff1;
+  box-shadow: 0 7px 20px rgba(30, 90, 72, 0.24);
+  color: #164f40;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+  pointer-events: none;
+  animation: fr-resume-notice-in 180ms ease-out both;
+}
+
+@keyframes fr-resume-notice-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-resume-notice { animation: none; }
+}
+
 /* 便签折角:右下角贴一枚三角(headline/CTA/卡片)。 */
 .fr-fold {
   position: absolute;
@@ -320,6 +352,9 @@
 .fr-settlement-pulse summary::-webkit-details-marker { display: none; }
 .fr-settlement-avatar { width: 42px; height: 42px; overflow: hidden; }
 .fr-settlement-avatar .svg-sprite { width: 100%; height: 100%; }
+/* 回执可能列出几十只角色；头像是信息图标，不需要每只都维持独立 SVG 骨骼动画。 */
+.fr-settlement-avatar .svg-sprite,
+.fr-settlement-avatar .svg-sprite * { animation: none !important; }
 .fr-settlement-pulse-name { display: flex; min-width: 0; flex-direction: column; }
 .fr-settlement-pulse-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fr-settlement-pulse-name small { color: #8d755b; }
@@ -328,6 +363,7 @@
 .fr-settlement-contributors > div, .fr-settlement-flow { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 11px; }
 .fr-settlement-contributors .is-extra { color: #a45024; }
 .fr-settlement-flow { margin: 4px 6px; padding: 7px 10px; border-radius: 8px; background: #e8f2d4; color: #4e722b; }
+.fr-settlement-loan-flow { background: #fff0d8; color: #9a4f20; }
 
 .fr-settlement-foot { padding-top: 10px; border-top: 2.5px dashed #d8d0bc; }
 .fr-settlement-payment { display: grid; grid-template-columns: 1fr 28px 1fr 1fr; align-items: center; gap: 8px; }
@@ -337,6 +373,8 @@
 .fr-settlement-wallet span, .fr-settlement-bill span, .fr-settlement-after span { font-size: 10px; font-weight: 800; }
 .fr-settlement-wallet strong, .fr-settlement-bill strong, .fr-settlement-after b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .fr-settlement-bill { color: #a92f26; background: #ffeef0; }
+.fr-settlement-bill small { margin-top: 2px; color: #7e5048; font-size: 9px; font-weight: 800; line-height: 1.2; }
+.fr-settlement-after.is-shortfall { background: #ffe0dc; color: #a92f26; }
 .fr-settlement-arrow { text-align: center; color: var(--nt-muted, #9a6d35); font-size: 22px; }
 .fr-settlement-confirm { display: flex; margin: 12px auto 0; min-width: 210px; padding: 8px 20px; font-size: 14px; }
 
@@ -403,7 +441,12 @@
   .fr-settlement-total { padding: 7px; }
   .fr-settlement-total strong { font-size: 16px; }
   .fr-settlement-payment { grid-template-columns: 1fr 18px 1fr; }
-  .fr-settlement-after { display: none; }
+  .fr-settlement-after {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 5px 8px;
+  }
   .fr-settlement-head h2 { font-size: 20px; }
   @keyframes fr-money-flight {
     0% { opacity: 0; transform: translate(0, 0) rotate(-15deg) scale(.7); }
@@ -1004,13 +1047,13 @@
   display: flex;
   justify-content: center;
   min-width: 0;
-  gap: 2px;
+  gap: 1px;
 }
 
 .fr-lo-els .el-icon {
   flex: 0 0 auto;
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
 }
 
 .fr-lo-hire {
@@ -1112,7 +1155,10 @@
   transform: rotate(0.6deg);
 }
 
-@media (max-width: 820px) {
+/* English footer copy needs roughly 900px before it can share one row with
+ * the picked count and primary CTA. Collapse earlier so common 1280x720 at
+ * 150% scaling (853 CSS px) keeps every explanation readable and clickable. */
+@media (max-width: 900px) {
   .fr-lo-foot {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
@@ -1271,6 +1317,116 @@
 
 .fr-wind-message.is-combined {
   bottom: 132px;
+}
+
+/* 高缩放等效窄窗只剩左右 HUD 之间的中央通道。大风提示在这里允许换行，
+   避免英文长规则压住左下退出；复合检查的三块信息共用同一安全列。 */
+@media (max-width: 900px) {
+  .fr-wind-message {
+    max-width: 370px;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 5px 10px 6px;
+    line-height: 1.08;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .fr-hud-top.is-audit,
+  .fr-timed-hud.is-audit.is-rush {
+    width: 370px;
+    min-width: 0;
+  }
+
+  .fr-hud-top.is-audit .fr-modbar {
+    box-sizing: border-box;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 680px) {
+  .fr-wind-message,
+  .fr-hud-top.is-audit,
+  .fr-timed-hud.is-audit.is-rush {
+    left: calc(50% + 21px);
+    width: 190px;
+    max-width: 190px;
+  }
+
+  .fr-wind-message {
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
+  .fr-wind-message.is-combined {
+    bottom: 160px;
+  }
+
+  .fr-hud-top.is-audit .fr-modbar {
+    gap: 4px;
+    padding: 5px 8px 6px;
+    font-size: 11px;
+    line-height: 1.08;
+  }
+
+  .fr-timed-hud.is-audit.is-rush {
+    min-height: 0;
+    padding: 8px 10px 10px;
+  }
+
+  .fr-timed-hud.is-audit.is-rush .fr-timed-head {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+
+  .fr-timed-hud.is-audit.is-rush .fr-timed-head strong {
+    justify-self: center;
+    padding: 3px 7px 4px;
+    font-size: 12px;
+    white-space: normal;
+  }
+
+  .fr-timed-hud.is-audit.is-rush .fr-timed-rule {
+    display: none;
+  }
+
+  .fr-timed-hud.is-audit.is-rush .fr-timed-value {
+    justify-self: center;
+    font-size: 14px;
+    line-height: 1.05;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .fr-timed-hud.is-audit .fr-power-pips {
+    grid-template-columns: repeat(10, minmax(5px, 1fr));
+    gap: 2px;
+    height: 24px;
+    margin-bottom: 6px;
+  }
+
+  .fr-timed-hud.is-audit.is-rush .fr-timed-track {
+    height: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-wind-arrow,
+  .fr-wind-gust,
+  .fr-wind-debris {
+    animation: none !important;
+  }
+
+  .fr-wind-gust,
+  .fr-wind-debris {
+    display: none;
+    will-change: auto;
+  }
 }
 
 /* 检查日资源条：嵌进办公室底部木地板带，不再悬浮成独立纸卡。
@@ -2130,6 +2286,14 @@
 .fr-card-buybar:not(:disabled):hover { transform: translateY(-2px); filter: brightness(1.05); }
 .fr-card-buybar:not(:disabled):active { transform: scale(0.97); }
 .fr-card-buybar:disabled { cursor: default; opacity: 0.5; filter: saturate(0.55); }
+.fr-card-buybar.is-unaffordable {
+  background: #d9d6cf;
+  color: #716c64;
+  box-shadow: 0 3px 8px rgba(75, 70, 64, 0.16);
+  filter: none;
+  opacity: 1;
+}
+.fr-shop-price-short { color: #c8342c; }
 
 /* 刷新/跳过 便签按钮 */
 .fr-shop-actions {
@@ -2257,6 +2421,14 @@
 @keyframes fr-shop-note-burst {
   0% { opacity: 0; scale: 0.35; translate: 0 24px; }
   100% { opacity: 1; scale: 1; translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-shop-cards .fr-card,
+  .fr-shop-burst-note,
+  .fr-shop-alldone-note {
+    animation: none !important;
+  }
 }
 @keyframes fr-shop-complete-note {
   0% { opacity: 0; transform: rotate(-7deg) scale(0.55) translateY(24px); }
@@ -2527,6 +2699,48 @@
   .fr-operation-card { width: min(640px, 94vw); padding: 28px 24px 22px; }
   .fr-operation-prompt { padding-left: 0; }
   .fr-operation-choice { min-height: 60px; padding: 8px; font-size: 14px; }
+}
+
+/* The supported 640x480 floor scales the cards visually. Reclaim their old
+ * 400px flex footprint too, otherwise Reroll and Skip begin below y=566 while
+ * the player sees a large blank strip. Compact long English terms at the same
+ * boundary so they never collide with the purchase bar. */
+@media (max-width: 760px) and (max-height: 620px) {
+  .fr-shop-overlay { overflow-x: hidden; overflow-y: auto; padding: 8px; }
+  .fr-shop-wrap { gap: 8px; }
+  .fr-shop-head { gap: 5px; }
+  .fr-shop-title { padding: 5px 12px 6px; font-size: 18px; }
+  .fr-shop-step,
+  .fr-shop-main { gap: 6px; }
+  .fr-shop-step,
+  .fr-shop-layout { width: 100%; }
+  .fr-shop-layout { grid-template-columns: minmax(0, 1fr) 40px; }
+  .fr-shop-cards {
+    width: 100%;
+    height: 320px;
+    padding-top: 0;
+    transform: none;
+  }
+  .fr-card-wrap {
+    width: calc((100% - 28px) / 3);
+    height: 320px;
+  }
+  .fr-card { gap: 4px; padding: 9px; }
+  .fr-card-art { width: 70px; height: 70px; }
+  .fr-card-name { font-size: 20px; }
+  .fr-card-desc { font-size: 11.5px; line-height: 1.35; }
+  .fr-card-buybar { margin-inline: 4px; padding-block: 7px; font-size: 15px; translate: 0 5px; }
+  /* The dedicated side panel remains reachable; hidden 190px hover bubbles on
+     edge cards otherwise widen the scroll container even before they appear. */
+  .fr-card-keyword-tip { display: none; }
+  .fr-shop-actions { min-height: 42px; gap: 16px; padding: 0; }
+  .fr-shop-act { min-height: 38px; padding: 7px 16px 8px; font-size: 14px; }
+  .fr-shop-act-reroll { transform: rotate(-2.4deg); }
+  .fr-shop-act-skip { transform: rotate(2.1deg); }
+  .fr-shop-act-reroll:not(:disabled):hover { transform: translateY(-2px) rotate(-2.4deg) scale(1.02); }
+  .fr-shop-act-skip:not(:disabled):hover { transform: translateY(-2px) rotate(2.1deg) scale(1.02); }
+  .fr-shop-act-reroll:not(:disabled):active { transform: rotate(-2.4deg) scale(0.97); }
+  .fr-shop-act-skip:not(:disabled):active { transform: rotate(2.1deg) scale(0.97); }
 }
 
 /* ---- 结算板(毕业/破产/无限终局) ---- */
@@ -3392,6 +3606,15 @@
   50% { transform: translate(-2px, 1px); }
   75% { transform: translate(1px, 2px); }
   100% { transform: translate(0, 0); }
+}
+
+/* 全屏速度线属于场景反馈：压在运输机之上，但必须低于普通 HUD / 提示（5000）和 Rogue HUD（5200）。 */
+.fr-fx-backdrop {
+  position: absolute;
+  inset: 0 0 clamp(72px, 9vh, 110px);
+  z-index: 4900;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 /* ---- fx 引擎层(RoguePulseFx:命令式节点全挂这层) ---- */
@@ -5624,5 +5847,179 @@
   .fr-timed-burn,
   .fr-timed-burn::before {
     animation: none !important;
+  }
+}
+
+/* 工厂奖励反馈的低动态路径：保留一次短促的明暗确认和关键数字，移除
+   全屏扫动、旋转、抛物线飞行和高密度装饰。JS 同时会降低节点预算，避免
+   “看不见但仍在跑”的 200 只高负载开销。 */
+@keyframes fr-feedback-reduced {
+  0% { opacity: 0; }
+  28% { opacity: .88; }
+  100% { opacity: 0; }
+}
+
+@keyframes fr-feedback-reduced-readable {
+  0% { opacity: 0; }
+  14%, 78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-speedlines,
+  .fr-confetti,
+  .fr-protest-bit {
+    display: none !important;
+  }
+
+  .fr-coin-in,
+  .fr-fire-burn i,
+  .fr-fire-burn b {
+    animation: none !important;
+  }
+
+  .fr-absorb-ring,
+  .fr-coin-land::before,
+  .fr-strike-ring,
+  .fr-protest-ring,
+  .fr-dismiss-ring,
+  .fr-edge-flash,
+  .fr-fire-burn,
+  .fr-water-morph,
+  .fr-absorb-morph,
+  .fr-eat-pulse {
+    animation: fr-feedback-reduced .18s ease-out both !important;
+    animation-delay: 0s !important;
+  }
+
+  .fr-fleck,
+  .fr-jackpot-x,
+  .fr-refund-fly.is-reduced,
+  .fr-dismiss-stamp {
+    animation: fr-feedback-reduced-readable .54s ease-out both !important;
+    animation-delay: 0s !important;
+  }
+
+  .fr-streamer,
+  .fr-pillar {
+    filter: none;
+  }
+}
+
+/* ---- Compact full-work-area layout ---------------------------------------
+ * Windows display scaling can turn a 1280×720 work area into roughly
+ * 853×480 CSS px. Keep the decision controls visible at that real-world floor:
+ * the roster/hiring lists own the scrolling space while their primary actions
+ * remain in the fixed flex budget. */
+@media (max-height: 620px) {
+  .fr-lo-wrap {
+    gap: 8px;
+    padding: 12px 14px 10px;
+  }
+
+  .fr-lo-head { gap: 6px; }
+  .fr-lo-title { padding: 5px 14px 6px; font-size: 18px; }
+  .fr-lo-back { padding-block: 4px 5px; }
+  .fr-lo-shiftkpi,
+  .fr-lo-cash,
+  .fr-lo-seats { font-size: 13px; }
+  .fr-lo-leaderboard { padding: 5px 9px; font-size: 10px; }
+  .fr-lo-sub { line-height: 1.2; }
+  .fr-lo-element-odds { padding: 5px 8px; }
+  .fr-lo-element-odd { padding: 4px 4px 5px; }
+  .fr-lo-grid {
+    min-height: 76px;
+    grid-auto-rows: 176px;
+    gap: 10px 9px;
+    padding: 7px 6px;
+  }
+  .fr-lo-card { gap: 3px; padding: 9px 8px 8px; }
+  .fr-lo-sprite { width: 56px; height: 56px; }
+  .fr-lo-name { font-size: 13px; }
+  .fr-lo-basev,
+  .fr-lo-drain { height: 28px; padding-inline: 9px; }
+  .fr-lo-foot { gap: 6px 8px; }
+  .fr-lo-legends { gap: 5px; }
+  .fr-lo-legend { padding: 4px 7px 5px; font-size: 10.5px; }
+  .fr-lo-clockin { padding: 8px 28px 10px; font-size: 18px; }
+
+  .fr-hiring-panel {
+    gap: 8px;
+    overflow: hidden;
+    padding: 11px 16px 10px;
+  }
+  .fr-hiring-head { min-height: 42px; gap: 8px; }
+  .fr-hiring-title-note,
+  .fr-hiring-shift-note,
+  .fr-hiring-cash-note,
+  .fr-hiring-quota-note { padding: 6px 12px; }
+  .fr-hiring-title-note { font-size: 1.2rem; }
+  .fr-hiring-cash-note { min-width: 92px; }
+  .fr-hiring-quota-note { min-width: 86px; }
+  .fr-hiring-cash-note b,
+  .fr-hiring-quota-note b { font-size: 1.05rem; }
+  .fr-hiring-tip { margin: 0 0 2px; font-size: .82rem; line-height: 1.2; }
+  .fr-hiring-candidates {
+    flex: 1 1 auto;
+    min-height: 72px;
+    gap: 10px 9px;
+    padding: 6px 4px;
+  }
+  .fr-hiring-card { gap: 3px; padding: 14px 8px 8px; }
+  .fr-hiring-sprite { width: 52px; height: 52px; }
+  .fr-hiring-card > strong { min-height: 20px; font-size: .9rem; }
+  .fr-hiring-card-state { padding: 2px 7px; font-size: .75rem; }
+  .fr-hiring-reach,
+  .fr-hiring-base { padding: 2px 6px; font-size: .9rem; }
+  .fr-hiring-pricebar { padding: 4px 8px; font-size: 1rem; }
+  .fr-hiring-pool { gap: 6px; padding: 4px 8px; }
+  .fr-hiring-pool > strong,
+  .fr-hiring-pool > b { padding: 3px 7px; }
+  .fr-hiring-pool-list > span { padding-block: 2px; }
+  .fr-hiring-money {
+    flex: 0 0 auto;
+    gap: 0;
+    margin: 0;
+    padding: 5px 8px;
+  }
+  .fr-hiring-money > div { min-width: 88px; padding: 2px 8px; }
+  .fr-hiring-money small { font-size: .65rem; }
+  .fr-hiring-money b { font-size: 1rem; }
+  .fr-hiring-money .is-primary b { font-size: 1.25rem; }
+  .fr-hiring-foot { flex: 0 0 auto; gap: 8px; }
+  .fr-hiring-foot button { padding: 8px 10px; line-height: 1.1; }
+  .fr-hiring-clock { min-width: 180px; font-size: 1rem; }
+}
+
+@media (max-width: 760px) and (max-height: 620px) {
+  .fr-hiring-head { flex-wrap: nowrap; }
+  .fr-hiring-foot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(180px, auto);
+    align-items: stretch;
+  }
+  .fr-hiring-foot-spacer { display: none; }
+  .fr-hiring-reroll { min-width: 0; }
+}
+
+@media (max-width: 680px) {
+  .fr-lo-element-odds-label {
+    flex: 0 0 112px;
+    white-space: normal;
+    font-size: 10.5px;
+    line-height: 1.08;
+  }
+  .fr-lo-element-odd { min-width: 52px; font-size: 10.5px; }
+  .fr-lo-element-odd.is-empty { flex-basis: 52px; }
+
+  /* The first-shift hint shares the lower edge with Quit and the tall right
+     resource post. Bias it into the free middle-left lane at narrow widths. */
+  .fr-tut {
+    left: calc(50% - 8vw);
+    width: min(300px, calc(100vw - 220px));
+    max-width: none;
+    box-sizing: border-box;
+    padding: 9px 13px 10px;
+    font-size: 12.5px;
   }
 }

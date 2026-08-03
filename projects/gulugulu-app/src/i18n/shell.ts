@@ -69,7 +69,7 @@ export interface ShellToastStrings {
   fusionResolvedToast: string;
   /** AI 生成进度:failed 横幅。{msg} */
   fusionBlockedToast: string;
-  /** 跨账号存档重绑确认弹窗(window.confirm)。 */
+  /** 跨账号存档重绑确认便签。 */
   steamRebindConfirm: string;
   /** 重绑完成。 */
   steamRebindDone: string;
@@ -250,6 +250,11 @@ export interface ShellAutostartStrings {
 }
 
 export interface ShellStrings {
+  dialog: {
+    steamRebindTitle: string;
+    confirm: string;
+    cancel: string;
+  };
   codexUpgrade: {
     title: string;
     description: string;
@@ -276,6 +281,11 @@ export interface ShellStrings {
 
 export const SHELL: Record<Language, ShellStrings> = {
   zh: {
+    dialog: {
+      steamRebindTitle: "Steam 存档需要确认",
+      confirm: "确认重绑",
+      cancel: "暂不重绑",
+    },
     codexUpgrade: {
       title: "Codex CLI 需要更新",
       description: "当前 Codex 版本不支持这次融合所需的模型。请升级；如果尚未安装，请先安装 Codex CLI，然后重新融合。",
@@ -484,6 +494,11 @@ export const SHELL: Record<Language, ShellStrings> = {
     },
   },
   en: {
+    dialog: {
+      steamRebindTitle: "Confirm Steam save",
+      confirm: "Rebind",
+      cancel: "Not now",
+    },
     codexUpgrade: {
       title: "Update Codex CLI",
       description:

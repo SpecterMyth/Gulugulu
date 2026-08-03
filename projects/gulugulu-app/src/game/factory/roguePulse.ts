@@ -6,6 +6,7 @@ import {
   CARD_PARAMS,
   COMBO_CAP,
   COMBO_PER_STACK,
+  clampFactoryValue,
   cardsForElementPlacement,
   elementReachBonus,
   valueAtLevel,
@@ -513,8 +514,8 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
   // repeat it once per desk so the credited amount matches the visible ×N.
   const scorePerPass = deskCount === 0
     ? 0
-    : Math.round(chips * allScoreMult);
-  const total = scorePerPass * deskScoreMult;
+    : clampFactoryValue(chips * allScoreMult);
+  const total = clampFactoryValue(scorePerPass * deskScoreMult);
   const raw = total;
 
   const weights = [
@@ -548,14 +549,14 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     if (burstLevel > 0 && has(self, "fire")) {
       const repeats = valueAtLevel(CARD_PARAMS["fire.burst"].repeats, burstLevel);
       for (let repeat = 0; repeat < repeats; repeat++) {
-        const amount = Math.round(base * allScoreMult) * deskScoreMult;
+        const amount = clampFactoryValue(base * allScoreMult * deskScoreMult);
         if (amount > 0) extras.push({ kind: "fireBurst", uid: self.uid, amount });
       }
     }
     if (wildfireLevel > 0 && has(self, "fire")) {
       const spread = triggers.find((trigger) => trigger.kind === "wildfire")?.targetUids ?? [];
       for (const targetUid of spread) {
-        const amount = Math.round(ctx.effBase(targetUid) * allScoreMult) * deskScoreMult;
+        const amount = clampFactoryValue(ctx.effBase(targetUid) * allScoreMult * deskScoreMult);
         if (amount > 0) extras.push({ kind: "wildfire", uid: targetUid, amount });
       }
     }
@@ -563,11 +564,12 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
     if (thermalLevel > 0 && has(self, "fire")) {
       const targets = absorbUids.filter((targetUid) => ctx.stateOf?.(targetUid)?.frozen === true);
       for (const targetUid of targets) {
-        const amount = Math.round(
+        const amount = clampFactoryValue(
           ctx.effBase(targetUid)
           * valueAtLevel(CARD_PARAMS["syn.thermalShock"].echo, thermalLevel)
-          * allScoreMult,
-        ) * deskScoreMult;
+          * allScoreMult
+          * deskScoreMult,
+        );
         if (amount > 0) extras.push({ kind: "echo", uid: targetUid, amount });
       }
       if (targets.length > 0) triggers.push({ kind: "thermalShock", sourceUid: uid, targetUids: targets });
@@ -582,11 +584,12 @@ function runPipeline(ctx: PulseCtx, withCombo: boolean, withExtras: boolean): { 
           && has(target, "water");
       });
       for (const targetUid of targets) {
-        const amount = Math.round(
+        const amount = clampFactoryValue(
           ctx.effBase(targetUid)
           * valueAtLevel(CARD_PARAMS["syn.short"].burst, shortLevel)
-          * allScoreMult,
-        ) * deskScoreMult;
+          * allScoreMult
+          * deskScoreMult,
+        );
         if (amount > 0) extras.push({ kind: "shortCircuit", uid: targetUid, amount });
       }
       if (targets.length > 0) {

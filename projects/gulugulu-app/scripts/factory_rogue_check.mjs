@@ -20,6 +20,8 @@ export {
 export { buildOffer, cardPrice, dimPool, meetsCardPrerequisites } from "./src/game/factory/rogueShop";
 export * as CFG from "./src/game/factory/rogueConfig";
 export { FACTORY_ROGUE } from "./src/i18n/factoryRogue";
+export { projectFactoryDropGuide } from "./src/game/factory/dropGuide";
+export { settlementIncomeFlows } from "./src/game/factory/rogueTypes";
 `;
 const { outputFiles } = buildSync({
   stdin: { contents: entrySource, resolveDir: appDir, loader: "ts" },
@@ -46,6 +48,31 @@ const ok = (value, message) => {
 };
 const eq = (actual, expected, message) =>
   ok(JSON.stringify(actual) === JSON.stringify(expected), `${message}（期望 ${JSON.stringify(expected)}，实得 ${JSON.stringify(actual)}）`);
+
+console.log("== 首班落点指示跟随真实水平出手速度");
+const guideDesks = [{ element: "fire", x: 380, w: 200, top: 800 }];
+const guideBase = {
+  planeSpeed: 400,
+  startFeetY: 200,
+  groundY: 1000,
+  gravity: 2500,
+  sceneWidth: 1000,
+  elements: ["fire"],
+  desks: guideDesks,
+};
+const guideRight = M.projectFactoryDropGuide({ ...guideBase, planeX: 300, planeDir: 1 });
+ok(guideRight.ready && guideRight.x > 400, "向右巡航时落点圈预留水平惯性并在桌面内变绿");
+const guideLeft = M.projectFactoryDropGuide({ ...guideBase, planeX: 650, planeDir: -1 });
+ok(guideLeft.ready && guideLeft.x < 550, "向左巡航时落点圈反向预留水平惯性");
+const guideWait = M.projectFactoryDropGuide({ ...guideBase, planeX: 100, planeDir: 1 });
+ok(!guideWait.ready && guideWait.element === "fire", "未进入匹配桌面的保守区时保持等待态");
+const guideFallback = M.projectFactoryDropGuide({
+  ...guideBase,
+  elements: ["water"],
+  planeX: 990,
+  planeDir: 1,
+});
+ok(!guideFallback.ready && guideFallback.element == null && guideFallback.x <= 982, "没有可用元素桌时回退到屏内地面落点");
 
 const metas = Object.fromEntries(
   [1, 2, 3, 4, 5, 6].map((tier) => {
@@ -254,6 +281,16 @@ eq(
 );
 const parallelPulse = M.computePulse({ ...parallelCtx, cards: { "electric.parallel": 1 } });
 eq(parallelPulse.total, 36, "并联回路 Lv.1 按每张额外桌 +50% 后执行两桌计分");
+const cappedPulse = M.computePulse({
+  ...parallelCtx,
+  effBase: () => M.CFG.FACTORY_VALUE_CAP,
+  cards: {},
+});
+eq(cappedPulse.total, M.CFG.FACTORY_VALUE_CAP, "极端基础值脉冲饱和而不生成 Infinity");
+ok(
+  cappedPulse.contributors.every((item) => Number.isSafeInteger(item.amount)),
+  "封顶脉冲的贡献拆分仍全部是安全整数",
+);
 ok(
   parallelPulse.total % parallelPulse.deskCount === 0,
   "多桌连通的总业绩是单次计分的桌数整倍数",
@@ -674,18 +711,23 @@ ok(
 );
 eq(
   Array.from({ length: 20 }, (_, i) => M.CFG.kpiForShift(i + 1)),
-  [80, 179, 400, 894, 2000, 3170, 5024, 7962, 12619, 20000, 39895, 79579, 158740, 316645, 631623, 1259921, 2513211, 5013193, 10000000, 50000000],
+  [80, 179, 400, 894, 2000, 3170, 5024, 7962, 12619, 20000, 37693, 71040, 133887, 252332, 475563, 896281, 1689195, 3183578, 6000000, 20000000],
   "1~20 班 KPI 完整曲线",
 );
 eq(M.CFG.kpiForShift(1), 80, "第 1 班 KPI 保持 80");
 eq(M.CFG.kpiForShift(5), 2_000, "第 5 班 KPI 调整为 2000");
 eq(M.CFG.kpiForShift(10), 20_000, "第 10 班 KPI 调整为 2 万");
-eq(M.CFG.kpiForShift(19), 10_000_000, "第 19 班 KPI 锚定 1000 万");
-eq(M.CFG.kpiForShift(20), 50_000_000, "第 20 班 KPI 锚定 5000 万");
+eq(M.CFG.kpiForShift(19), 6_000_000, "第 19 班 KPI 锚定 600 万");
+eq(M.CFG.kpiForShift(20), 20_000_000, "第 20 班 KPI 锚定 2000 万");
+ok(M.CFG.kpiForShift(47) < M.CFG.FACTORY_KPI_CAP, "第 47 班 KPI 仍保留在长期经济上限以下");
+eq(M.CFG.kpiForShift(48), M.CFG.FACTORY_KPI_CAP, "第 48 班 KPI 达到长期经济安全上限");
+eq(M.CFG.kpiForShift(10_000), M.CFG.FACTORY_KPI_CAP, "万班无限局 KPI 仍是可序列化的安全整数");
+eq(M.CFG.kpiForShift(Infinity), M.CFG.FACTORY_KPI_CAP, "非有限的正班次不会进入无限计算循环");
+eq(M.CFG.factoryValueString(Infinity), String(M.CFG.FACTORY_VALUE_CAP), "非有限成绩提交前饱和为后端安全上限");
 ok(
   Array.from({ length: 9 }, (_, i) => M.CFG.kpiForShift(i + 11) / M.CFG.kpiForShift(i + 10))
-    .every((rate) => rate > 1.99 && rate < 2),
-  "第 10~19 班 KPI 以约 ×1.995 平滑增长",
+    .every((rate) => rate > 1.88 && rate < 1.89),
+  "第 10~19 班 KPI 以约 ×1.885 平滑增长",
 );
 ok(
   Array.from({ length: 20 }, (_, i) => M.CFG.billForShift(i + 1, i === 19 ? "audit" : "none"))
@@ -933,8 +975,8 @@ eq(
 const priceDef = M.CFG.CARD_DEFS.find((card) => card.id === "attr.pure");
 eq(
   [0, 1, 2, 3, 4].map((level) => M.cardPrice(priceDef, level, 1000)),
-  [70, 105, 158, 236, 354],
-  "卡价从 Lv.1 起逐级乘 1.5",
+  [70, 210, 630, 1890, 5670],
+  "卡价从 Lv.1 起逐级乘 3",
 );
 eq([1, 2, 3, 4, 5, 6].map((n) => metas[`tier${n}`].baseValue), [15, 12, 9, 6, 4, 3], "基础值按新六工种曲线下降");
 eq([1, 2, 3, 4, 5, 6].map(M.CFG.baseValueForTier), [15, 12, 9, 6, 4, 3], "权威基础分函数覆盖六种规格");
@@ -949,6 +991,13 @@ eq(M.CFG.HIRE_BASE, [0, 3, 4.2, 6, 8.5, 12, 16], "六工种基准价");
 eq(M.CFG.HIRE_INFLATION, [0, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07], "六工种整局通胀率");
 eq(M.CFG.hirePrice({ tierCount: 1, kpi: 100, hiredThisShift: 0 }), 3, "单色首雇");
 eq(M.CFG.hirePrice({ tierCount: 6, kpi: 100, hiredThisShift: 10 }), 31, "六色累计第 11 名");
+eq(
+  M.CFG.hirePrice({ tierCount: 6, kpi: M.CFG.FACTORY_KPI_CAP, hiredThisShift: 10_000 }),
+  M.CFG.FACTORY_VALUE_CAP,
+  "万人累计通胀不会让雇价溢出为 Infinity",
+);
+eq(M.CFG.shopRerollCost(M.CFG.FACTORY_KPI_CAP, 10_000), M.CFG.FACTORY_VALUE_CAP, "超长商店刷新费饱和为安全上限");
+eq(M.cardPrice(priceDef, 10_000, M.CFG.FACTORY_KPI_CAP), M.CFG.FACTORY_VALUE_CAP, "越界卡牌等级的价格不会溢出");
 
 console.log("== 招聘、Reroll、雇佣池与集中扣款");
 const run = new M.RogueRun({
@@ -983,6 +1032,73 @@ eq(run.view().bagPreview.filter(Boolean).length, 3, "雇佣池显示当前与后
 eq(run.view().quotaUsed, 10, "待投库存占用员工名额");
 
 console.log("== 投掷不扣款、员工永久离池");
+console.log("== inspection desk floor keeps one matching scoring desk");
+function inspectionShopRun(species, shiftIndex, seed) {
+  const seedRun = new M.RogueRun({
+    loadout: [species],
+    meta: metas,
+    deskOrder: ["fire", "water", "grass", "electric", "ice", "normal"],
+    seed,
+  });
+  const snap = seedRun.snapshot();
+  return M.RogueRun.restore({
+    ...snap,
+    phase: "shop",
+    shiftIndex,
+    shopOffer: {
+      dims: [1, 2, 3],
+      cards: [[], [], []],
+      resolved: [true, true, true],
+      rerollCounts: [0, 0, 0],
+    },
+  }, metas);
+}
+for (let seed = 1; seed <= 48; seed++) {
+  const monoInspection = inspectionShopRun("tier1", 5, seed);
+  ok(monoInspection != null, `mono inspection seed ${seed} restores`);
+  monoInspection.finishShop();
+  eq(monoInspection.view().disabledDesks.length, 1, "shift 6 still disables one desk");
+  ok(!monoInspection.view().disabledDesks.includes("fire"), "mono loadout keeps its only matching desk");
+
+  const dualInspection = inspectionShopRun("tier2", 10, seed);
+  ok(dualInspection != null, `dual inspection seed ${seed} restores`);
+  dualInspection.finishShop();
+  eq(dualInspection.view().disabledDesks.length, 2, "shift 11 still disables two desks");
+  ok(
+    !["fire", "water"].every((element) => dualInspection.view().disabledDesks.includes(element)),
+    "dual loadout keeps at least one matching desk",
+  );
+}
+
+console.log("== disabled desks cannot bank a free combo");
+const disabledComboRun = inspectionShopRun("tier6", 5, 612);
+ok(disabledComboRun != null, "disabled-desk combo run restores");
+disabledComboRun.finishShop();
+disabledComboRun.debugSetCash(1_000_000);
+const disabledElement = disabledComboRun.view().disabledDesks[0];
+ok(disabledElement != null, "inspection shift exposes one disabled desk");
+const disabledCandidate = disabledComboRun.view().hiring.candidates[0];
+ok(disabledCandidate != null, "disabled-desk combo run offers a worker");
+disabledComboRun.toggleHiringCandidate(disabledCandidate.id);
+ok(disabledComboRun.confirmHiring(), "disabled-desk combo run enters its shift");
+const disabledHead = disabledComboRun.view().bagPreview[0];
+const disabledBodies = [];
+disabledComboRun.registerSnapshots({
+  bodies: () => disabledBodies,
+  desks: () => [{ element: disabledElement, x: -10, w: 20, top: 10 }],
+});
+ok(disabledHead != null && disabledComboRun.onThrow(10_061, disabledHead.species), "worker can be dropped on the disabled desk");
+disabledBodies.push({ ...body(10_061, 0, 0, [disabledElement]), species: disabledHead.species });
+disabledComboRun.onSettled(10_061);
+eq(disabledComboRun.view().revenueShift, 0, "disabled desk still awards zero revenue");
+eq(disabledComboRun.view().combo, 0, "disabled desk does not prime the next scoring combo");
+eq(disabledComboRun.view().stats.maxCombo, 0, "zero-value pulse does not inflate max combo stats");
+eq(
+  disabledComboRun.takePulses()[0]?.disabledDeskElements,
+  [disabledElement],
+  "zero-value pulse keeps the disabled-desk feedback payload",
+);
+
 const head = run.view().bagPreview[0];
 const cashBeforeThrow = run.view().cash;
 ok(head != null && run.onThrow(1001, head.species), "可投掷雇佣池头部员工");
@@ -1081,6 +1197,22 @@ ok(
 );
 finalRun.tick(1_000);
 eq(finalRun.view().rushDeadline, 301_000, "第 20 班赶工时限为 5 分钟");
+const inspectionSnap = finalRun.snapshot();
+eq(inspectionSnap?.v, 10, "检查日续局写入 v10 剩余时间存档");
+eq(inspectionSnap?.rushRemainingMs, 300_000, "续局保存赶工剩余有效游玩时间");
+eq(inspectionSnap?.windSign, Math.sign(finalRun.windAx()), "续局保存当前大风方向");
+const inspectionResumed = M.RogueRun.restore(inspectionSnap, metas);
+eq(Math.sign(inspectionResumed?.windAx()), Math.sign(finalRun.windAx()), "读档不会改变大风方向");
+inspectionResumed?.tick(10_000);
+eq(inspectionResumed?.view().rushDeadline, 310_000, "读档后按剩余时间重建赶工墙钟而非重置进度");
+const windBeforePause = Math.sign(finalRun.windAx());
+finalRun.resumeClock(610_000, 10_000);
+eq(finalRun.view().rushDeadline, 901_000, "切到后台 10 分钟会把赶工截止时间等量顺延");
+finalRun.tick(610_000);
+eq(finalRun.view().phase, "shift", "恢复窗口时不会因旧截止时间已经过去而瞬间破产");
+eq(Math.sign(finalRun.windAx()), windBeforePause, "恢复窗口时不会立即翻转大风方向");
+finalRun.tick(901_001);
+eq(finalRun.view().phase, "bankrupt", "恢复后新的赶工截止时间仍会正常判定失败");
 
 console.log("== 一般系吸收合并、人口释放与基础分继承");
 const normalMeta = {
@@ -1115,6 +1247,7 @@ absorbRun.onSettled(7002);
 eq(absorbRun.takeBodyMutations(), [{ kind: "absorb", sourceUid: 7002, targetUid: 7001 }], "满级吸收命中后生成合并指令");
 eq(absorbRun.view().quotaUsed, 9, "吸收后两个单位只占一个人口");
 eq(absorbRun.view().bodyStates.find((state) => state.uid === 7002)?.sizeLevel, 2, "吸收者体型合并为 2 级");
+ok(absorbRun.countsForStrike(7002), "吸收者没有永久个体罢工豁免");
 eq(absorbRun.snapshot()?.bodyEconomy.find((item) => item.uid === 7002)?.base, 30, "吸收者继承两个单位的完整基础分");
 eq(absorbRun.bodyScale(7002), 1.5, "首次吸收后的角色半径明显增大到 1.5 倍");
 
@@ -1236,6 +1369,19 @@ const budgetRun = new M.RogueRun({
   seed: 99,
 });
 const budgetSnap = budgetRun.snapshot();
+const overflowSnap = structuredClone(budgetSnap);
+overflowSnap.cash = Infinity;
+overflowSnap.revenueTotal = Infinity;
+overflowSnap.revenueShift = Infinity;
+overflowSnap.kpi = Infinity;
+overflowSnap.bill = Infinity;
+overflowSnap.stats.maxPulse = Infinity;
+const recoveredOverflowRun = M.RogueRun.restore(overflowSnap, metas);
+ok(recoveredOverflowRun != null, "旧版超长局的非有限经济快照仍可恢复");
+eq(recoveredOverflowRun?.view().cash, M.CFG.FACTORY_VALUE_CAP, "恢复时现金收敛到安全上限");
+eq(recoveredOverflowRun?.view().revenueTotal, M.CFG.FACTORY_VALUE_CAP, "恢复时累计营收收敛到安全上限");
+eq(recoveredOverflowRun?.view().kpi, M.CFG.FACTORY_KPI_CAP, "恢复时 KPI 收敛到保留经济余量的上限");
+eq(recoveredOverflowRun?.view().stats.maxPulse, M.CFG.FACTORY_VALUE_CAP, "恢复时最高脉冲收敛到安全上限");
 budgetSnap.hiringCandidates[0].selected = true;
 budgetSnap.cash = 0;
 const poorRun = M.RogueRun.restore(budgetSnap, metas);
@@ -1369,9 +1515,29 @@ const dismissalBody = body(8182, 50, 110);
 dismissalBody.species = dismissalWorker.species;
 dismissalBodies.push(dismissalBody);
 dismissalRun.debugGrantCard("staff.fire3");
+eq(
+  dismissalRun.departureFeedback(8182, 1),
+  { accepted: true, refund: dismissalWorker.price },
+  "解雇反馈在入账前给出该角色的精确退款金额",
+);
+ok(M.FACTORY_ROGUE.zh.operationDismissSceneHint.includes("100% 最近雇价"), "中文解雇提示在点击前说明退款口径");
+ok(M.FACTORY_ROGUE.en.operationDismissSceneHint.includes("100% of its latest hire price"), "英文解雇提示在点击前说明退款口径");
 const cashBeforeDismissal = dismissalRun.view().cash;
 dismissalRun.onDismissPick(8182);
 eq(dismissalRun.view().cash - cashBeforeDismissal, dismissalWorker.price, "解雇返还 100% 最近雇价");
+eq(dismissalRun.departureFeedback(8182, 1), { accepted: false, refund: 0 }, "已结算解雇不会再次生成退款反馈");
+const dismissalAfterFirstPick = dismissalRun.view();
+for (let index = 0; index < 24; index++) dismissalRun.onDismissPick(8182);
+eq(dismissalRun.view().cash, dismissalAfterFirstPick.cash, "同一只解雇动画中的咕噜被重复点击不会重复退款");
+eq(dismissalRun.view().pendingDismiss, dismissalAfterFirstPick.pendingDismiss, "重复点击同一只咕噜不会消耗更多解雇名额");
+eq(dismissalRun.view().stats.dismissals, dismissalAfterFirstPick.stats.dismissals, "重复点击同一只咕噜不会虚增解雇统计");
+const dismissalPendingSnap = dismissalRun.snapshot();
+const dismissalResumed = dismissalPendingSnap == null ? null : M.RogueRun.restore(dismissalPendingSnap, metas);
+const dismissalResumedBefore = dismissalResumed?.view();
+dismissalResumed?.registerSnapshots({ bodies: () => dismissalBodies, desks: () => deskCardDesks });
+dismissalResumed?.onDismissPick(8182);
+eq(dismissalResumed?.view().cash, dismissalResumedBefore?.cash, "解雇退出动画中切后台续局不会再次退款");
+eq(dismissalResumed?.view().pendingDismiss, dismissalResumedBefore?.pendingDismiss, "续局保留已结算离场标记和剩余解雇名额");
 
 const severanceRun = new M.RogueRun({
   loadout: ["tier1"],
@@ -1388,14 +1554,118 @@ const severanceBody = body(9101, 50, 110);
 severanceBody.species = severanceWorker.species;
 severanceBodies.push(severanceBody);
 severanceRun.debugGrantCard("staff.severance", 5);
+const maxSeveranceRefund = severanceWorker.price * 3;
+eq(
+  severanceRun.departureFeedback(9101),
+  { accepted: true, refund: maxSeveranceRefund },
+  "遣散反馈与罢工实际退款使用同一精确账本口径",
+);
 const cashBeforeSeverance = severanceRun.view().cash;
 severanceRun.onStrike([9101], severanceWorker.species);
 eq(
   severanceRun.view().cash - cashBeforeSeverance,
-  severanceWorker.price,
-  "遣散费 Lv.5 返还 100% 最新雇价",
+  maxSeveranceRefund,
+  "遣散费 Lv.5 返还 300% 最新雇价",
 );
+const severanceAfterFirstStrike = severanceRun.view();
+severanceRun.onStrike([9101], severanceWorker.species);
+eq(severanceRun.view().cash, severanceAfterFirstStrike.cash, "重复罢工上报不会重复结算遣散费");
+eq(severanceRun.view().stats.strikes, severanceAfterFirstStrike.stats.strikes, "重复罢工上报不会虚增罢工统计");
 eq(severanceRun.takePulses(), [], "遣散费不再产生抗议结算脉冲");
+
+const bulkDepartureTemplate = new M.RogueRun({
+  loadout: ["tier1"],
+  meta: metas,
+  deskOrder: ["fire", "water", "grass", "electric", "ice", "normal"],
+  seed: 9210,
+});
+ok(bulkDepartureTemplate.confirmHiring(), "200 人批量离场测试局完成招聘");
+const bulkDepartureBodies = Array.from({ length: 200 }, (_, index) => {
+  const worker = body(92_100 + index, 20 + (index % 20) * 24, 80 + Math.floor(index / 20) * 18);
+  worker.species = "tier1";
+  return worker;
+});
+bulkDepartureTemplate.registerSnapshots({ bodies: () => bulkDepartureBodies, desks: () => deskCardDesks });
+const bulkDepartureSnapshot = bulkDepartureTemplate.snapshot();
+if (bulkDepartureSnapshot != null) {
+  bulkDepartureSnapshot.cash = 1_000;
+  bulkDepartureSnapshot.bodies = bulkDepartureBodies;
+  bulkDepartureSnapshot.bodyEconomy = bulkDepartureBodies.map((worker, index) => ({
+    uid: worker.uid,
+    species: "tier1",
+    cost: index + 1,
+    base: 15,
+  }));
+}
+const bulkDepartureRun = bulkDepartureSnapshot == null
+  ? null
+  : M.RogueRun.restore(bulkDepartureSnapshot, metas);
+bulkDepartureRun?.registerSnapshots({ bodies: () => bulkDepartureBodies, desks: () => deskCardDesks });
+bulkDepartureRun?.debugGrantCard("staff.severance", 5);
+const bulkDepartureUids = bulkDepartureBodies.map((worker) => worker.uid);
+const bulkRefundExpected = 60_300;
+const cashBeforeBulkDeparture = bulkDepartureRun?.view().cash ?? 0;
+bulkDepartureRun?.onStrike(bulkDepartureUids, "tier1");
+eq(
+  (bulkDepartureRun?.view().cash ?? 0) - cashBeforeBulkDeparture,
+  bulkRefundExpected,
+  "200 人批量罢工按各自最近雇价准确退款",
+);
+bulkDepartureRun?.debugEndShift();
+eq(
+  bulkDepartureRun?.view().settlement?.cashFlows.filter((flow) => flow.kind === "refund"),
+  [{ kind: "refund", amount: bulkRefundExpected }],
+  "200 笔退款在结算单压缩为一条准确总额",
+);
+
+const capDepartureTemplate = new M.RogueRun({
+  loadout: ["tier1"],
+  meta: metas,
+  deskOrder: ["fire", "water", "grass", "electric", "ice", "normal"],
+  seed: 9211,
+});
+ok(capDepartureTemplate.confirmHiring(), "现金上限离场测试局完成招聘");
+const capDepartureBody = body(93_001, 50, 110);
+capDepartureBody.species = "tier1";
+capDepartureTemplate.registerSnapshots({ bodies: () => [capDepartureBody], desks: () => deskCardDesks });
+const capDepartureSnapshot = capDepartureTemplate.snapshot();
+if (capDepartureSnapshot != null) {
+  capDepartureSnapshot.cash = M.CFG.FACTORY_VALUE_CAP - 7;
+  capDepartureSnapshot.bodies = [capDepartureBody];
+  capDepartureSnapshot.bodyEconomy = [{ uid: capDepartureBody.uid, species: "tier1", cost: 100, base: 15 }];
+}
+const capDepartureRun = capDepartureSnapshot == null ? null : M.RogueRun.restore(capDepartureSnapshot, metas);
+capDepartureRun?.registerSnapshots({ bodies: () => [capDepartureBody], desks: () => deskCardDesks });
+capDepartureRun?.debugGrantCard("staff.severance", 5);
+eq(
+  capDepartureRun?.departureFeedback(capDepartureBody.uid),
+  { accepted: true, refund: 7 },
+  "接近安全上限时反馈只显示真正可到账的退款",
+);
+capDepartureRun?.onStrike([capDepartureBody.uid], "tier1");
+eq(capDepartureRun?.view().cash, M.CFG.FACTORY_VALUE_CAP, "上限边界退款精确填满钱包且不溢出");
+capDepartureRun?.debugEndShift();
+eq(
+  capDepartureRun?.view().settlement?.cashFlows.filter((flow) => flow.kind === "refund"),
+  [{ kind: "refund", amount: 7 }],
+  "上限边界结算单记录实际到账额而非名义退款",
+);
+
+eq(
+  M.settlementIncomeFlows([
+    { kind: "hire", amount: -30 },
+    { kind: "reroll", amount: -6 },
+    { kind: "refund", amount: 5 },
+    { kind: "trickle", amount: 3 },
+    { kind: "kpiBonus", amount: 9 },
+  ]),
+  [
+    { kind: "refund", amount: 5 },
+    { kind: "trickle", amount: 3 },
+    { kind: "kpiBonus", amount: 9 },
+  ],
+  "结算收入明细排除已计入本班花费的招聘与重抽支出",
+);
 
 console.log("== 水镜同化确定目标数量");
 const convertMeta = {
@@ -1447,7 +1717,9 @@ eq(
   "waterSource",
   "满级水镜同化确定改写最高业绩非水目标",
 );
-ok(convertRun.countsForStrike(8283), "同化目标不再携带隐藏的当班罢工保护");
+ok(convertRun.countsForStrike(8283), "同化目标没有永久个体罢工豁免");
+const restoredConvertRun = M.RogueRun.restore(convertRun.snapshot(), convertMeta);
+ok(restoredConvertRun.countsForStrike(8283), "同化连接豁免交由物理结构快照跨回合维护");
 
 console.log("== 加班时间自动投放与 KPI/账单闭环");
 const overtimeRun = new M.RogueRun({
@@ -1534,7 +1806,7 @@ ok(overtimeRun.confirmHiring() && overtimeRun.nextCarried() != null, "下一班�
 
 console.log("== 续局保存招聘池与整局通胀");
 const snap = run.snapshot();
-ok(snap != null && snap.v === 9, "新存档 schema v9");
+ok(snap != null && snap.v === 10, "新存档 schema v10");
 ok((snap?.hirePool.length ?? 0) === 9, "存档保留未投雇佣池");
 ok((snap?.hireInflation.reduce((a, b) => a + b, 0) ?? 0) === 10, "存档保留整局通胀计数");
 
@@ -1573,6 +1845,41 @@ const factSnap = factRun.snapshot();
 const factResumed = factSnap == null ? null : M.RogueRun.restore(factSnap, metas);
 ok(factResumed?.view().strikeClearEver, "续局保留罢工后过班事实");
 ok(factResumed?.view().usedLoanEver, "续局保留贷款使用史");
+
+console.log("== 贷款还款结算与临界破产原子性");
+factRun.phase = "shift";
+factRun.shopOffer = null;
+factRun.viewCache = null;
+factRun.bump();
+const exactLoanPayment = factRun.view().loan.perShift;
+const exactRequired = factRun.view().bill + exactLoanPayment;
+const remainingKpiPotential = Math.max(0, factRun.view().kpi - factRun.view().revenueShift);
+factRun.debugSetCash(Math.max(0, factRun.view().bill - remainingKpiPotential));
+ok(factRun.view().dangerBankrupt, "破产预警把本期贷款计入必要支付，不会在班中误报安全");
+factRun.debugSetCash(exactRequired);
+factRun.debugEndShift();
+eq(factRun.view().settlement.loanPayment, exactLoanPayment, "工资单明确冻结本班贷款还款额");
+eq(factRun.view().settlement.requiredPayment, exactRequired, "工资单明确冻结账单加贷款总应付");
+eq(factRun.view().settlement.cashAfterPayment, 0, "刚好足额时工资单预测最终余额为零");
+ok(factRun.confirmSettlement(), "现金刚好覆盖账单和贷款时原子支付成功");
+eq(factRun.view().cash, 0, "足额原子支付后余额恰好归零");
+eq(factRun.view().loan, { perShift: 84, remaining: 168, shiftsLeft: 2 }, "首期还款只推进一次贷款计划");
+
+factRun.phase = "shift";
+factRun.shopOffer = null;
+factRun.viewCache = null;
+factRun.bump();
+const shortLoanPayment = factRun.view().loan.perShift;
+const shortRequired = factRun.view().bill + shortLoanPayment;
+factRun.debugSetCash(shortRequired - 1);
+factRun.debugEndShift();
+const cashBeforeShortfall = factRun.view().cash;
+const loanBeforeShortfall = factRun.view().loan;
+eq(factRun.view().settlement.shortfall, 1, "只差 1 元时工资单明确显示 1 元缺口");
+ok(!factRun.confirmSettlement(), "只差 1 元时拒绝必要支付并进入破产");
+eq(factRun.view().phase, "bankrupt", "贷款临界不足进入破产结算");
+eq(factRun.view().cash, cashBeforeShortfall, "必要支付失败不会先部分扣除账单");
+eq(factRun.view().loan, loanBeforeShortfall, "必要支付失败不会推进贷款期数或已还金额");
 
 console.log(`\n${checks - failures}/${checks} checks passed`);
 if (failures > 0) process.exit(1);

@@ -47,8 +47,8 @@ export type RoguePulseFxApi = {
   protest(args: { at: Pt | null; amount: number; tier: number }): void;
   /** 罢工举牌期:三只脚下的橙红「结算阵」环(时长对齐场景 STRIKE_MS)。 */
   strikeRings(points: { x: number; y: number; r: number }[]): void;
-  /** 遣散退款:绿色 +¥ 从离场位飘向钱包(delayMs 等举牌演出走完)。 */
-  severanceRefund(points: Pt[], delayMs: number): void;
+  /** 离场退款:绿色精确金额从离场位飘向钱包(delayMs 等离场演出走完)。 */
+  severanceRefund(points: (Pt & { amount: number })[], delayMs: number): void;
   /** 解雇点选命中:红圈 + 「裁」章 0.5s。 */
   dismissStamp(p: { x: number; y: number; r: number } | null): void;
   /** 连锁罢工:屏幕边缘红闪,level 1~3 强度/次数递增。 */
@@ -139,6 +139,9 @@ export const RoguePulseFx = forwardRef<
   const svgRef = useRef<SVGSVGElement | null>(null);
   const speedRef = useRef<HTMLDivElement | null>(null);
   const confettiEventRef = useRef(0);
+  const reducedMotionRef = useRef(
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
 
   const aliveRef = useRef(true);
   const timersRef = useRef(new Set<number>());
@@ -184,6 +187,16 @@ export const RoguePulseFx = forwardRef<
       rafRef.current = 0;
       flightsRef.current = [];
     };
+  }, []);
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => {
+      reducedMotionRef.current = query.matches;
+    };
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
   }, []);
 
   const elColor = useCallback(
@@ -279,6 +292,13 @@ export const RoguePulseFx = forwardRef<
     (at: Pt, n: number) => {
       const target = getCashPoint();
       if (target == null) return;
+      // 保留一次明确的钱包收款脉冲，但在系统要求减少动态效果时不再创建
+      // 数十枚曲线飞行、持续旋转的金币。账目在上游已经结算，这里只降级演出。
+      if (reducedMotionRef.current) {
+        spawnCoinLand(target);
+        onCashHit?.();
+        return;
+      }
       const load = coinLiveRef.current + coinPendingRef.current;
       // 低负载保留完整钱潮；连续结算时按 40→20→8 枚渐进退化。
       // 每一波仍能分到预算，避免第一条大结算独占整个对象池。
@@ -318,7 +338,7 @@ export const RoguePulseFx = forwardRef<
       // 钱潮抵达计数器的那一拍补收款脉冲(dur 上限 ~720)。
       later(last + 520, () => spawnCoinLand(target));
     },
-    [getCashPoint, later, takeCoin, ensureRaf, spawnCoinLand],
+    [getCashPoint, later, takeCoin, ensureRaf, spawnCoinLand, onCashHit],
   );
 
   /** 一次性飞行文字(遣散 +¥ 等)。 */
@@ -326,6 +346,15 @@ export const RoguePulseFx = forwardRef<
     (text: string, cls: string, from: Pt, to: Pt, dur: number, done: Flight["done"]) => {
       const layer = layerRef.current;
       if (layer == null || nodesRef.current >= NODE_BUDGET) return;
+      if (reducedMotionRef.current) {
+        spawnNode(`${cls} is-reduced`, 560, (el) => {
+          el.textContent = text;
+          el.style.transform = `translate3d(${to.x}px, ${to.y}px, 0)`;
+        });
+        if (done === "coin") onCoinHit?.();
+        else if (done === "cash") onCashHit?.();
+        return;
+      }
       const el = document.createElement("div");
       el.className = cls;
       el.textContent = text;
@@ -348,7 +377,7 @@ export const RoguePulseFx = forwardRef<
       });
       ensureRaf();
     },
-    [ensureRaf],
+    [ensureRaf, spawnNode, onCoinHit, onCashHit],
   );
 
   // ---- 结算链各件 ----
@@ -466,16 +495,19 @@ export const RoguePulseFx = forwardRef<
       nodesRef.current++;
       const len = Math.max(1, poly.getTotalLength());
       poly.style.strokeDasharray = `${len}`;
-      poly.style.strokeDashoffset = `${len}`;
+      const reduced = reducedMotionRef.current;
+      poly.style.strokeDashoffset = reduced ? "0" : `${len}`;
       poly.animate(
-        [
-          { strokeDashoffset: len, opacity: 1 },
-          { strokeDashoffset: 0, opacity: 1, offset: 0.72 },
-          { strokeDashoffset: 0, opacity: 0 },
-        ],
-        { duration: STREAMER_MS + 180, easing: "ease-out", fill: "forwards" },
+        reduced
+          ? [{ opacity: 0 }, { opacity: 0.72, offset: 0.25 }, { opacity: 0 }]
+          : [
+              { strokeDashoffset: len, opacity: 1 },
+              { strokeDashoffset: 0, opacity: 1, offset: 0.72 },
+              { strokeDashoffset: 0, opacity: 0 },
+            ],
+        { duration: reduced ? 180 : STREAMER_MS + 180, easing: "ease-out", fill: "forwards" },
       );
-      later(STREAMER_MS + 220, () => {
+      later(reduced ? 220 : STREAMER_MS + 220, () => {
         poly.remove();
         nodesRef.current--;
       });
@@ -497,11 +529,12 @@ export const RoguePulseFx = forwardRef<
       poly.setAttribute("class", "fr-pillar");
       svg.appendChild(poly);
       nodesRef.current++;
+      const reduced = reducedMotionRef.current;
       poly.animate([{ opacity: 0 }, { opacity: 0.62, offset: 0.25 }, { opacity: 0 }], {
-        duration: 480,
+        duration: reduced ? 180 : 480,
         easing: "ease-out",
       });
-      later(500, () => {
+      later(reduced ? 220 : 500, () => {
         poly.remove();
         nodesRef.current--;
       });
@@ -511,6 +544,7 @@ export const RoguePulseFx = forwardRef<
 
   /** 全屏速度线(jackpot / 彩虹档):常驻节点,重触发 class。 */
   const flashSpeedlines = useCallback(() => {
+    if (reducedMotionRef.current) return;
     const el = speedRef.current;
     if (el == null) return;
     el.classList.remove("is-on");
@@ -545,7 +579,8 @@ export const RoguePulseFx = forwardRef<
 
       // ── jackpot 定格(0.4s):桌色光柱 + 速度线 + ×N 巨字,然后才走结算链 ──
       if (jackpot) {
-        for (const el of a.bd.desks) {
+        const jackpotDesks = reducedMotionRef.current ? a.bd.desks.slice(0, 1) : a.bd.desks;
+        for (const el of jackpotDesks) {
           const d = a.deskOf(el);
           if (d == null) continue; // "prism" 虚拟桌无实体,跳过光柱
           spawnPillar(d, at, elColor(el));
@@ -563,7 +598,7 @@ export const RoguePulseFx = forwardRef<
         if (p != null) pts.push({ uid, point: p }); // 查不到跳过
       }
       pts.sort((p, q) => dist2(p.point, at) - dist2(q.point, at));
-      const shown = pts.slice(0, ABSORB_MAX);
+      const shown = pts.slice(0, reducedMotionRef.current ? 4 : ABSORB_MAX);
       const exploitationByUid = new Map(
         a.bd.contributors
           .filter((part) => part.role === "absorbed")
@@ -579,7 +614,9 @@ export const RoguePulseFx = forwardRef<
 
       // ── 通路流光:每桌一条,桌 → 沿 uid 链 → 落地宠(链序=落地→桌基,反着画) ──
       later(d0 + 60, () => {
-        for (const [el, chain] of Object.entries(a.bd.deskPaths)) {
+        const paths = Object.entries(a.bd.deskPaths);
+        const shownPaths = reducedMotionRef.current ? paths.slice(0, 1) : paths;
+        for (const [el, chain] of shownPaths) {
           const d = a.deskOf(el);
           if (d == null) continue;
           const points: Pt[] = [{ x: d.x + d.w / 2, y: d.top }];
@@ -614,7 +651,7 @@ export const RoguePulseFx = forwardRef<
       // ── 元素技能层:T+220ms 后播，状态改变类优先落在目标身上 ──
       (a.bd.triggers ?? [])
         .filter((trigger) => trigger.kind !== "freeze" && trigger.kind !== "grow")
-        .slice(0, PULSE_TRIGGER_MAX).forEach((trigger, index) => {
+        .slice(0, reducedMotionRef.current ? 3 : PULSE_TRIGGER_MAX).forEach((trigger, index) => {
         later(d0 + 220 + index * 34, () => {
           const targets = (trigger.targetUids ?? []).slice(0, PULSE_TRIGGER_TARGET_MAX);
           if (targets.length === 0) {
@@ -686,16 +723,18 @@ export const RoguePulseFx = forwardRef<
         el.style.top = `${at.y}px`;
       });
       const bits = ["✊", "✊", "✊", "🪧", "🪧", "💢"];
-      bits.forEach((ch, i) => {
-        spawnNode("fr-protest-bit", 780, (el) => {
-          el.textContent = ch;
-          el.style.left = `${at.x}px`;
-          el.style.top = `${at.y}px`;
-          const ang = (i / bits.length) * Math.PI * 2 + Math.random() * 0.6;
-          el.style.setProperty("--dx", `${Math.round(Math.cos(ang) * (40 + Math.random() * 30))}px`);
-          el.style.setProperty("--dy", `${Math.round(Math.sin(ang) * (30 + Math.random() * 24) - 26)}px`);
+      if (!reducedMotionRef.current) {
+        bits.forEach((ch, i) => {
+          spawnNode("fr-protest-bit", 780, (el) => {
+            el.textContent = ch;
+            el.style.left = `${at.x}px`;
+            el.style.top = `${at.y}px`;
+            const ang = (i / bits.length) * Math.PI * 2 + Math.random() * 0.6;
+            el.style.setProperty("--dx", `${Math.round(Math.cos(ang) * (40 + Math.random() * 30))}px`);
+            el.style.setProperty("--dy", `${Math.round(Math.sin(ang) * (30 + Math.random() * 24) - 26)}px`);
+          });
         });
-      });
+      }
       // 蓄意引爆的爽感与 jackpot 同级:金币照常喷向总营收(GDD 04 §4)
       coinBurst(at, COIN_BY_TIER[Math.max(0, Math.min(4, a.tier))]);
     },
@@ -704,7 +743,7 @@ export const RoguePulseFx = forwardRef<
 
   const strikeRings = useCallback(
     (points: { x: number; y: number; r: number }[]) => {
-      points.slice(0, 6).forEach((p) => {
+      points.slice(0, reducedMotionRef.current ? 2 : 6).forEach((p) => {
         spawnNode("fr-strike-ring", STRIKE_RING_MS, (el) => {
           const w = Math.max(46, p.r * 2.6);
           el.style.left = `${p.x}px`;
@@ -718,12 +757,12 @@ export const RoguePulseFx = forwardRef<
   );
 
   const severanceRefund = useCallback(
-    (points: Pt[], delayMs: number) => {
+    (points: (Pt & { amount: number })[], delayMs: number) => {
       later(delayMs, () => {
         const to = getCashPoint();
         if (to == null) return;
         points.slice(0, 6).forEach((p, i) => {
-          later(i * 80, () => flyText("+¥", "fr-refund-fly", p, to, 700, "cash"));
+          later(i * 80, () => flyText(`+¥${formatCount(p.amount)}`, "fr-refund-fly", p, to, 700, "cash"));
         });
       });
     },
@@ -754,13 +793,15 @@ export const RoguePulseFx = forwardRef<
       const lv = Math.max(1, Math.min(3, Math.round(level)));
       spawnNode("fr-edge-flash", 520 * lv + 140, (el) => {
         el.style.setProperty("--fr-edge-a", `${0.28 + 0.16 * lv}`);
-        el.style.animationIterationCount = `${lv}`;
+        el.style.animationIterationCount = `${reducedMotionRef.current ? 1 : lv}`;
       });
     },
     [spawnNode],
   );
 
   const confetti = useCallback(() => {
+    // CSS 也会隐藏彩纸；这里提前返回，避免为不可见演出创建 48 个节点和定时器。
+    if (reducedMotionRef.current) return;
     const layer = layerRef.current;
     if (layer == null) return;
     const w = layer.clientWidth || 800;
@@ -811,9 +852,14 @@ export const RoguePulseFx = forwardRef<
   );
 
   return (
-    <div ref={layerRef} className="fr-fx-layer" aria-hidden="true">
-      <svg ref={svgRef} className="fr-fx-svg" />
-      <div ref={speedRef} className="fr-speedlines" />
-    </div>
+    <>
+      {/* Speed lines are scenery-wide feedback, so keep them below every HUD/tutorial surface. */}
+      <div className="fr-fx-backdrop" aria-hidden="true">
+        <div ref={speedRef} className="fr-speedlines" />
+      </div>
+      <div ref={layerRef} className="fr-fx-layer" aria-hidden="true">
+        <svg ref={svgRef} className="fr-fx-svg" />
+      </div>
+    </>
   );
 });

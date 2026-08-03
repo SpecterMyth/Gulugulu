@@ -63,6 +63,7 @@ node scripts/verify_achievements.mjs
 - `total_coins_earned`
 - `total_fusions`
 - `total_tokens_fed`
+- `total_tokens_observed`
 - `total_keys_charged`
 - `highest_tier`
 - `login_streak`
@@ -152,7 +153,7 @@ ACH_FACTORY_REVENUE_III
 | `ACH_AI_FIRST` | AI 造物 / AI's Own Design | 生成你的第一个 AI 变种 / Generate your first AI-designed variant | `recipe_ai_slots` 有非空槽 |  |
 | `ACH_AI_COLLECT_20` | AI 图鉴 / Variant Curator | 收集 20 个不同的 AI 变种 / Collect 20 distinct AI variants | 非固定图鉴数 ≥ 20 |  |
 | `ACH_TOKENS_1M` | 代码小食 / Code Snack | 累计喂食 100 万 Token / Feed 1M tokens | `total_tokens_fed ≥ 1,000,000` |  |
-| `ACH_TOKENS_1B` | 代码盛宴 / Code Banquet | 累计喂食 10 亿 Token / Feed 1B tokens | `total_tokens_fed ≥ 1,000,000,000` |  |
+| `ACH_TOKENS_1B` | 代码盛宴 / Code Banquet | 累计使用 10 亿 Token / Use 1B tokens in total | `total_tokens_observed ≥ 1,000,000,000`（input / cache create / cache read / output 原始数量直接求和，不区分产出；旧档从四分账本回填） |  |
 | `ACH_KEYS_100K` | 键盘伙伴 / Keystroke Companion | 累计记录 10 万次键盘充能 / Charge your companion with 100K keystrokes | `total_keys_charged ≥ 100,000` |  |
 | `ACH_COINS_1M` | 小有积蓄 / Nest Egg | 累计赚取 100 万金币 / Earn 1M coins in total | `total_coins_earned ≥ 1,000,000` |  |
 | `ACH_WORKSHOP_IMPORT` | 换装 / Dress Up | 导入你的第一款额外皮肤 / Import your first extra skin | `species_skins` 至少一项非空 |  |

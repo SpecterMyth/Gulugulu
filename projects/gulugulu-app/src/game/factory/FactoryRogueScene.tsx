@@ -36,7 +36,13 @@ import { formatCount } from "../format";
 import { fmt } from "../../i18n";
 import { elementName } from "../../i18n/species";
 import { FACTORY_ROGUE } from "../../i18n/factoryRogue";
-import { PULSE_TIERS, hasWindRule, shuffleDeskOrder, type CardId } from "./rogueConfig";
+import {
+  PULSE_TIERS,
+  factoryValueString,
+  hasWindRule,
+  shuffleDeskOrder,
+  type CardId,
+} from "./rogueConfig";
 import { pulseSpotlightUids } from "./roguePulse";
 import { clearRunSnapshot, loadRunSnapshot, RogueRun, saveRunSnapshot } from "./rogueRun";
 import { buildSpeciesMeta } from "./rogueSpecies";
@@ -68,7 +74,10 @@ import { encodeLeaderboardLoadout } from "./leaderboardSpecies";
 import "./rogue.css";
 
 const PULSE_PUMP_MS = 200; // 演出泵间隔(04 §8:浮字对象池 ≤6 并发,多余合并)
+const PASSIVE_SCENE_AUDIT_MS = 500; // 无脉冲时只需低频同步标记/常驻身体状态
 const TICK_MS = 250; // 逻辑滴答(契约:检查日滴入/扣精/风向翻转/破产复查)
+const RUN_SNAPSHOT_MIN_INTERVAL_MS = 2000;
+const RUN_SNAPSHOT_IDLE_TIMEOUT_MS = 750;
 const FLOAT_MS = 900; // 单条浮字生命周期(与 rogue.css fr-float-rise 同拍)
 const FLOAT_MAX = 20; // 同屏主浮字上限；连续追加计分通过队列逐条进入，不会被此上限吞掉
 const PART_FLOAT_MAX = 5; // 每次结算额外允许的「各宠自身数值」横向浮字条数
@@ -116,7 +125,7 @@ function rememberStrikeWarning(): void {
 }
 
 /** 大风日全屏演出。风线和飞屑共用逻辑层的瞬时方向，翻向时整层同步反转。 */
-function WindFx({ direction }: { direction: "left" | "right" }) {
+export function FactoryWindFx({ direction }: { direction: "left" | "right" }) {
   return (
     <div className={`fr-wind-fx is-${direction}`} aria-hidden="true">
       {Array.from({ length: 18 }, (_, index) => (
@@ -644,9 +653,9 @@ function RogueRunStage({
     const snapshot: FactoryRogueAchievementSnapshot = {
       runsStarted: records.starts,
       runsFinished: records.runs,
-      bestRevenue: Math.max(0, Math.trunc(view.revenueTotal)).toString(),
+      bestRevenue: factoryValueString(view.revenueTotal),
       bestShift: Math.max(0, cleared),
-      bestPulse: Math.max(0, Math.trunc(view.stats.maxPulse)).toString(),
+      bestPulse: factoryValueString(view.stats.maxPulse),
       bestCombo: Math.max(0, Math.trunc(view.stats.maxCombo)),
       bestDesks: Math.max(0, Math.trunc(view.stats.maxDesks)),
       maxUpgradeLevels: Math.max(0, Math.trunc(upgradeLevels)),
@@ -660,7 +669,7 @@ function RogueRunStage({
       graduatedWithoutLoan: view.graduated && !view.usedLoanEver,
       rewardCoins:
         view.phase === "summary" || view.phase === "bankrupt"
-          ? Math.max(0, Math.trunc(view.revenueTotal)).toString()
+          ? factoryValueString(view.revenueTotal)
           : undefined,
     };
     const key = JSON.stringify(snapshot);
@@ -699,7 +708,7 @@ function RogueRunStage({
   useEffect(() => {
     if (view.phase !== "summary" && view.phase !== "bankrupt") return;
     const result = {
-      revenueTotal: Math.max(0, Math.trunc(view.revenueTotal)).toString(),
+      revenueTotal: factoryValueString(view.revenueTotal),
       bestShift: Math.max(0, cleared),
       endless: view.endless,
       balanceVersion: FACTORY_BALANCE_VERSION,
@@ -937,7 +946,15 @@ function RogueRunStage({
   // ---- 浮字兜底推送(弹开原因/没接桌提示;满池即丢,提示优先级最低) ----
   const floatIdRef = useRef(1);
   const [floats, setFloats] = useState<FloatItem[]>([]);
-  const [connectionFailure, setConnectionFailure] = useState<{ uid: number; token: number; text: string } | null>(null);
+  const [connectionFailure, setConnectionFailure] = useState<{
+    uid: number;
+    species?: string;
+    x?: number;
+    y?: number;
+    r?: number;
+    token: number;
+    text: string;
+  } | null>(null);
   const spotTokenRef = useRef(1);
   const pushHintFloat = useCallback((p: { x: number; y: number } | null, text: string) => {
     const nowT = Date.now();
@@ -965,21 +982,21 @@ function RogueRunStage({
       const bodies = snapshotRef.current?.bodies() ?? [];
       const byUid = new Map(bodies.map((b) => [b.uid, b]));
       const now = Date.now();
-      const pts: { x: number; y: number; r: number }[] = [];
+      const pts: { x: number; y: number; r: number; amount: number }[] = [];
       for (const uid of uids) {
+        const feedback = run.departureFeedback(uid);
+        if (!feedback.accepted) continue;
         const b = byUid.get(uid);
         if (b == null) continue;
         goneRef.current.set(uid, { x: b.x, y: b.y, r: b.r, at: now });
-        pts.push({ x: b.x, y: b.y, r: b.r });
+        pts.push({ x: b.x, y: b.y, r: b.r, amount: feedback.refund });
       }
       const fx = fxRef.current;
       if (fx == null || pts.length === 0) return;
       // 举牌期脚下橙红「结算阵」(举牌演出是场景的,阵是演出层叠的)
       fx.strikeRings(pts);
-      // 遣散费级 ≥1:退款绿 +¥ 等举牌走完、走人瞬间从罢工位飘向钱包(04 §4)
-      if ((run.view().cards["staff.severance"] ?? 0) >= 1) {
-        fx.severanceRefund(pts.map((p) => ({ x: p.x, y: p.y })), 1050);
-      }
+      // Only workers with a real severance amount emit a precise green refund.
+      fx.severanceRefund(pts.filter((p) => p.amount > 0), 1050);
       // 连锁罢工:窗口内第 2 组起屏幕边缘红闪,强度随组数递增
       const times = strikeTimesRef.current.filter((t) => now - t < STRIKE_CHAIN_WINDOW_MS);
       times.push(now);
@@ -990,30 +1007,27 @@ function RogueRunStage({
   );
   const tapDismiss = useCallback(
     (uid: number) => {
+      const feedback = run.departureFeedback(uid, 1);
+      if (!feedback.accepted) return;
       const b = snapshotRef.current?.bodies().find((x) => x.uid === uid);
       if (b == null) return;
       goneRef.current.set(uid, { x: b.x, y: b.y, r: b.r, at: Date.now() });
       const fx = fxRef.current;
       fx?.dismissStamp({ x: b.x, y: b.y, r: b.r });
-      // 解雇同样走遣散退款(settleDeparture 共用);跑路快,延迟短
-      if ((run.view().cards["staff.severance"] ?? 0) >= 1) {
-        fx?.severanceRefund([{ x: b.x, y: b.y }], 320);
-      }
+      // Manual dismissal always refunds 100% of the recorded hire price.
+      if (feedback.refund > 0) fx?.severanceRefund([{ x: b.x, y: b.y, amount: feedback.refund }], 320);
     },
     [run],
   );
   const tapBounce = useCallback(
     (uid: number) => {
       // 弹开确定(落地未粘):即时原因浮字(04 §11「失败从不无声」)。
-      // 滚出场外的失投此刻已不在快照,查不到就不弹。
+      // 滚出场外的失投此刻已不在快照,查不到就不弹。失投角色会继续滚走，
+      // 因此这里只显示浮字；红色角色重绘仅属于“已落定但未接桌”的失败演出，
+      // 否则本体逃走后会在原落点留下一个静止残影。
       const b = snapshotRef.current?.bodies().find((x) => x.uid === uid);
       if (b == null) return;
       pushHintFloat({ x: b.x, y: b.y - b.r - 6 }, RRef.current.hintNoShare);
-      setConnectionFailure({
-        uid,
-        token: spotTokenRef.current++,
-        text: RRef.current.landingFailed,
-      });
     },
     [pushHintFloat],
   );
@@ -1095,6 +1109,10 @@ function RogueRunStage({
       // P3 桥接线:hit-stop 慢镜(场景 rAF 每帧乘 dt)与首班教学宽桌(重排管线)
       timeScale: () => run.timeScale(),
       deskWiden: () => run.deskWiden(),
+      showDropGuide: () => {
+        const current = run.view();
+        return current.phase === "shift" && current.shiftIndex === 1 && current.stats.throws < 3;
+      },
       clickMode: () => run.clickMode(),
       isBodyFrozen: (uid) => run.isBodyFrozen(uid),
       isBodyGenerated: (uid) => run.isBodyGenerated(uid),
@@ -1140,49 +1158,99 @@ function RogueRunStage({
     ],
   );
 
+  const [resumeNoticeSeconds, setResumeNoticeSeconds] = useState<number | null>(null);
+
   // 逻辑滴答(250ms):赶工墙钟、限电末次投放判定、风向翻转、破产复查全在逻辑层。
+  // 切到后台时暂停绝对墙钟；恢复时顺延截止时间，避免玩家因切窗被瞬间判负。
   useEffect(() => {
-    const timer = window.setInterval(() => run.tick(Date.now()), TICK_MS);
-    return () => window.clearInterval(timer);
+    let hiddenAt = document.hidden ? Date.now() : null;
+    let noticeTimer: number | undefined;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) run.tick(Date.now());
+    }, TICK_MS);
+    const onVisibilityChange = () => {
+      const now = Date.now();
+      if (document.hidden) {
+        hiddenAt ??= now;
+        return;
+      }
+      if (hiddenAt == null) return;
+      const pausedMs = Math.max(0, now - hiddenAt);
+      run.resumeClock(now, hiddenAt);
+      hiddenAt = null;
+      if (pausedMs < 500) return;
+      setResumeNoticeSeconds(Math.max(1, Math.round(pausedMs / 1000)));
+      if (noticeTimer != null) window.clearTimeout(noticeTimer);
+      noticeTimer = window.setTimeout(() => setResumeNoticeSeconds(null), 1800);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      if (noticeTimer != null) window.clearTimeout(noticeTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [run]);
 
   // 续局存档:订阅局变更,把「与物理堆无关」的经济/班次/商店态落 localStorage。
-  // 节流至多 ~2/s(局内每次落地/滴答都 bump,不节流会刷爆 localStorage);
+  // 节流至多 0.5/s，并在浏览器空闲段做数组复制/JSON 序列化；检查日 250ms 滴答
+  // 也会 bump，若同步 2/s 落盘会形成肉眼可见的固定节奏主线程尖峰。
   // 挂载即写一次、卸载(离开工厂/结算)强制补写最后一帧。snapshot()==null(结算/破产)
   // 时 saveRunSnapshot 清盘,故一局打完后再进工厂不会误弹「继续」。
   useEffect(() => {
     let timer: number | undefined;
+    let idle: number | undefined;
     let lastAt = 0;
     let dirty = false;
     const flush = () => {
+      if (timer != null) window.clearTimeout(timer);
+      if (idle != null) window.cancelIdleCallback(idle);
       timer = undefined;
+      idle = undefined;
       dirty = false;
       lastAt = performance.now();
       const snapshot = run.snapshot();
       if (snapshot != null) snapshot.rewards = { ...runRewardsRef.current };
       saveRunSnapshot(snapshot);
     };
-    const schedule = () => {
-      if (timer != null) {
-        dirty = true;
-        return;
-      }
-      const wait = Math.max(0, 500 - (performance.now() - lastAt));
-      if (wait === 0) {
-        flush();
-        return;
-      }
-      dirty = true;
-      timer = window.setTimeout(() => {
+    const flushWhenIdle = () => {
+      idle = window.requestIdleCallback(() => {
+        idle = undefined;
         if (dirty) flush();
-        else timer = undefined;
+      }, { timeout: RUN_SNAPSHOT_IDLE_TIMEOUT_MS });
+    };
+    const schedule = () => {
+      dirty = true;
+      if (timer != null || idle != null) {
+        return;
+      }
+      const wait = Math.max(0, RUN_SNAPSHOT_MIN_INTERVAL_MS - (performance.now() - lastAt));
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        if (!dirty) return;
+        // WebView2/Chromium 支持 requestIdleCallback；把同步 localStorage 写入放到
+        // 帧间空隙，timeout 只用于持续繁忙时保证续局快照不会无限拖延。
+        flushWhenIdle();
       }, wait);
     };
     const unsub = run.subscribe(schedule);
+    // Shop peel animations can synchronously commit a pending buy/skip/reroll
+    // from their own pagehide/visibility listeners. Defer persistence to the
+    // event's microtask checkpoint so every same-event state commit is included,
+    // while still completing before the browser freezes or discards the page.
+    const flushAfterInterruptionEvent = () => queueMicrotask(flush);
+    const flushOnPageHide = () => flushAfterInterruptionEvent();
+    const flushOnVisibilityChange = () => {
+      if (document.hidden) flushAfterInterruptionEvent();
+    };
+    window.addEventListener("pagehide", flushOnPageHide);
+    document.addEventListener("visibilitychange", flushOnVisibilityChange);
     flush(); // 进局即写一版(承接刚 restore 的续局态 / 记录新局起点)
     return () => {
       unsub();
+      window.removeEventListener("pagehide", flushOnPageHide);
+      document.removeEventListener("visibilitychange", flushOnVisibilityChange);
       if (timer != null) window.clearTimeout(timer);
+      if (idle != null) window.cancelIdleCallback(idle);
       flush(); // 卸载补写:离开工厂时把最新一帧存下,供下次「继续」
     };
   }, [run]);
@@ -1217,12 +1285,24 @@ function RogueRunStage({
 
   useEffect(() => {
     const delayedFloatTimers = new Set<number>();
+    let nextPassiveAuditAt = 0;
     const timer = window.setInterval(() => {
       const nowT = Date.now();
       const pulses = run.takePulses();
       // view() 会组装招聘、卡牌、身体状态等完整 UI 快照；一轮演出泵只取一次，
       // 避免百人场景每 200ms 为三个独立读取重复分配同一批数组/对象。
       const currentView = run.view();
+      // 非交互阶段的场景已冻结并被弹层遮住；丢弃刚收班时残留的视觉脉冲，
+      // 不再分配 bodies 数组、位置 Map 和完整身体状态投影。
+      if (currentView.phase !== "shift" && currentView.phase !== "overtime") return;
+      if (pulses.length === 0 && nowT < nextPassiveAuditAt) {
+        // 过期演出仍按 200ms 回收，但稳定场景不重复构造 bodies/Map。
+        setFloats((items) => (items.some((item) => item.until <= nowT) ? items.filter((item) => item.until > nowT) : items));
+        setHotDesks((items) => (items.some((item) => item.until <= nowT) ? items.filter((item) => item.until > nowT) : items));
+        setScoreBursts((items) => (items.some((item) => item.until <= nowT) ? items.filter((item) => item.until > nowT) : items));
+        return;
+      }
+      if (pulses.length === 0) nextPassiveAuditAt = nowT + PASSIVE_SCENE_AUDIT_MS;
       const snap = snapshotRef.current;
       const bodies = snap?.bodies() ?? [];
       const gone = goneRef.current;
@@ -1588,6 +1668,20 @@ function RogueRunStage({
 
   const sealLine = `${R.sealText} ✕ ${R.sealText} ✕ ${R.sealText}`;
   const windDirection = run.windAx() >= 0 ? "right" : "left";
+  const sceneActive = view.phase === "shift" || view.phase === "overtime";
+
+  // 弹层出现后不再保留场景演出节点。它们都在弹层下方不可见，继续存活只会
+  // 维持 CSS 动画和 200ms 清理泵，尤其会放大透明 WebView 的合成成本。
+  useEffect(() => {
+    if (sceneActive) return;
+    setFloats((items) => (items.length === 0 ? items : []));
+    setHotDesks((items) => (items.length === 0 ? items : []));
+    setMarks((items) => (items.length === 0 ? items : []));
+    setBodyStateMarks((items) => (items.length === 0 ? items : []));
+    setScoreBursts((items) => (items.length === 0 ? items : []));
+    setSpotlight(null);
+    setConnectionFailure(null);
+  }, [sceneActive]);
 
   return (
     <div ref={stageRef} className="fr-stage" onPointerDownCapture={onSpendCapture}>
@@ -1601,6 +1695,7 @@ function RogueRunStage({
           config={config}
           onBack={onExit}
           rogue={bridge}
+          paused={!sceneActive}
           spotlight={spotlight}
           connectionFailure={connectionFailure}
           coachTarget={
@@ -1612,7 +1707,7 @@ function RogueRunStage({
       </div>
 
       {view.phase === "shift" && hasWindRule(view.modifier) && (
-        <WindFx direction={windDirection} />
+        <FactoryWindFx direction={windDirection} />
       )}
 
       <RogueHud
@@ -1623,6 +1718,14 @@ function RogueRunStage({
         revenueRef={revenueRef}
         cashRef={cashRef}
       />
+      {resumeNoticeSeconds != null && (
+        <div className="fr-resume-notice" role="status" aria-live="polite">
+          <span aria-hidden="true">⏸</span>
+          {lang === "zh"
+            ? `后台计时已暂停 ${resumeNoticeSeconds} 秒，继续开工！`
+            : `Paused safely for ${resumeNoticeSeconds}s — back to work!`}
+        </div>
+      )}
       {view.phase === "hiring" && (
         <RogueHiring
           run={run}

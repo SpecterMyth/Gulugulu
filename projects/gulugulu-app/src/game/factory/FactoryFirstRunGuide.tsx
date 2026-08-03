@@ -45,13 +45,13 @@ export const FACTORY_FIRST_RUN_COPY: Record<Language, FactoryGuideCopy> = {
     hiringStart:
       "候选已经默认全选。检查咕噜池、付款后现金和预留账单，再直接点【付款并开工】。",
     dropRetry:
-      "刚才没有接稳。等运输机飞到同元素办公桌上方，按空格键重试；也可以点击运输机。",
+      "刚才没接稳。落点圈在同元素办公桌上变绿时，按空格或点运输机重试。",
     dropFirst:
-      "看吊挂同事的元素。等运输机飞到同元素办公桌上方，按空格键投放；也可以点击运输机。",
+      "看吊挂同事的元素；落点圈在同元素办公桌上变绿时，按空格或点运输机投放。",
     dropSecond:
-      "等运输机飞到已落定同事上方，按空格键投放（也可以点击运输机）。注意：三只同物种连在一起会集体罢工并全部离场，同种第三只要放远。",
+      "让第二只叠到第一只上；对准后按空格或点运输机。别让三只同物种连成一片，否则会一起罢工离场。",
     dropContinue:
-      "继续看准位置按空格键投放，也可以点击运输机，把右上角本班业绩填到 KPI。达标后剩余同事会自动进入加班结算。",
+      "继续看准位置投放，把右上角本班业绩填到 KPI；达标后剩余同事会自动进入加班结算。",
     settlement:
       "这是本班真实工资单。看完团队业绩、账单和付款后余额，点【确认并缴账单】。",
     shopFirst:
@@ -77,13 +77,13 @@ export const FACTORY_FIRST_RUN_COPY: Record<Language, FactoryGuideCopy> = {
     hiringStart:
       "Every candidate starts selected. Check the Gulu pool, cash after payment, and reserved bill, then choose Pay and Start.",
     dropRetry:
-      "That one did not settle. Wait until the conveyor is above a desk with the matching element, then press Space to retry. You can also click the conveyor.",
+      "That one missed. When the landing ring turns green on a matching desk, press Space or click the conveyor to retry.",
     dropFirst:
-      "Check the hanging coworker's element. When the conveyor reaches a matching desk, press Space to drop. You can also click the conveyor.",
+      "Match the hanging coworker's element. When its landing ring turns green over that desk, press Space or click the conveyor.",
     dropSecond:
-      "Wait until the conveyor is above the settled coworker, then press Space to drop. Three connected coworkers of the same species will strike and all leave, so place the third one farther away.",
+      "Stack the second coworker on the first, then press Space or click the conveyor. Keep matching trios apart or all three strike.",
     dropContinue:
-      "Keep aiming and press Space to drop, or click the conveyor, until the shift KPI in the upper-right is full. Remaining coworkers then enter overtime automatically.",
+      "Keep dropping until the upper-right shift KPI is full. Remaining coworkers then enter overtime automatically.",
     settlement:
       "This is the shift's real payroll sheet. Review team revenue, the bill, and the balance after payment, then choose Confirm and Pay Bill.",
     shopFirst:
@@ -263,9 +263,7 @@ export function FactoryFirstRunGuide({
       ? null
       : {
           step: directive.step,
-          // FactoryFirstRunGuide renders its own localized Space key. CoachFx keeps
-          // tracking the moving conveyor with the hand, without its Chinese-only keycap.
-          gesture: directive.gesture === "drop" ? "tap" : directive.gesture,
+          gesture: directive.gesture,
           ring: directive.ring,
           label: directive.label,
           target: { kind: directive.targetKey },
@@ -274,15 +272,11 @@ export function FactoryFirstRunGuide({
   return (
     <>
       <CoachFx directive={coach} />
-      {directive?.gesture === "drop" && (
-        <div className="factory-guide-drop-key" aria-hidden="true">
-          {guideCopy(lang).dropKey}
-        </div>
-      )}
       <OnboardingGoal
         directive={directive}
         onAction={onAction}
         onRecover={() => {}}
+        targetNote={directive?.gesture === "drop" ? guideCopy(lang).dropKey : undefined}
       />
     </>
   );

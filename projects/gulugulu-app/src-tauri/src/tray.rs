@@ -103,8 +103,22 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let sep2 = PredefinedMenuItem::separator(app)?;
-    let lang_zh = CheckMenuItem::with_id(app, "lang_zh", l.lang_zh, true, settings.language == "zh", None::<&str>)?;
-    let lang_en = CheckMenuItem::with_id(app, "lang_en", l.lang_en, true, settings.language == "en", None::<&str>)?;
+    let lang_zh = CheckMenuItem::with_id(
+        app,
+        "lang_zh",
+        l.lang_zh,
+        true,
+        settings.language == "zh",
+        None::<&str>,
+    )?;
+    let lang_en = CheckMenuItem::with_id(
+        app,
+        "lang_en",
+        l.lang_en,
+        true,
+        settings.language == "en",
+        None::<&str>,
+    )?;
     let language = Submenu::with_items(app, l.language, true, &[&lang_zh, &lang_en])?;
     let sep3 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", l.quit, true, None::<&str>)?;
@@ -186,7 +200,7 @@ fn on_menu_event(app: &AppHandle, id: &str) {
         "lang_en" => {
             let _ = settings::set_language(app.clone(), "en".to_string());
         }
-        "quit" => app.exit(0),
+        "quit" => crate::exit_app(app),
         _ => {}
     }
 }

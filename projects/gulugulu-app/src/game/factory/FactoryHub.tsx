@@ -4,13 +4,45 @@
 // 入口触发,通过 variant="demo" 承载(见 App.tsx 的 factoryVariant 状态)。
 // 两种模式的返回都直接透传 onBack → 回到主界面菜单态。
 
+import { useEffect, useState } from "react";
 import type { GameConfig, GameSave } from "../../types";
 import { FactoryScene } from "../FactoryScene";
 import { FactoryRogueScene } from "./FactoryRogueScene";
+import "./factoryFps.css";
 import "./rogue.css";
 
 /** 工厂模式变体:默认 rogue(危楼打工记),demo 仅经 Debug 面板进入(经典演示沙盒)。 */
 export type FactoryVariant = "rogue" | "demo";
+
+function FactoryFps() {
+  const [fps, setFps] = useState<number | null>(null);
+
+  useEffect(() => {
+    let animationFrame = 0;
+    let frameCount = 0;
+    let sampleStartedAt = performance.now();
+
+    const sample = (now: number) => {
+      frameCount += 1;
+      const elapsed = now - sampleStartedAt;
+      if (elapsed >= 500) {
+        setFps(Math.round((frameCount * 1000) / elapsed));
+        frameCount = 0;
+        sampleStartedAt = now;
+      }
+      animationFrame = window.requestAnimationFrame(sample);
+    };
+
+    animationFrame = window.requestAnimationFrame(sample);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, []);
+
+  return (
+    <output className="factory-fps" aria-label={fps == null ? "FPS" : `FPS: ${fps}`}>
+      {fps == null ? "--" : fps} FPS
+    </output>
+  );
+}
 
 export function FactoryHub({
   save,
@@ -35,17 +67,25 @@ export function FactoryHub({
 }) {
   if (variant === "demo") {
     // 经典演示沙盒:无关卡制、不产出材料;返回直接回主界面。
-    return <FactoryScene save={save} config={config} onBack={onBack} />;
+    return (
+      <>
+        <FactoryScene save={save} config={config} onBack={onBack} />
+        <FactoryFps />
+      </>
+    );
   }
   return (
-    <FactoryRogueScene
-      save={save}
-      config={config}
-      onBack={onBack}
-      onClaimFactoryLevels={onClaimFactoryLevels}
-      onSave={onSave}
-      onRunStart={onFormalStart}
-      onFirstShiftComplete={onFirstShiftComplete}
-    />
+    <>
+      <FactoryRogueScene
+        save={save}
+        config={config}
+        onBack={onBack}
+        onClaimFactoryLevels={onClaimFactoryLevels}
+        onSave={onSave}
+        onRunStart={onFormalStart}
+        onFirstShiftComplete={onFirstShiftComplete}
+      />
+      <FactoryFps />
+    </>
   );
 }

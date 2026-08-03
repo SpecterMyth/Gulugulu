@@ -216,6 +216,19 @@ pub(crate) fn migrate_save(
         save.version = 10;
         changed = true;
     }
+    // 「代码盛宴」改为累计全部原始 Token 后，为已有存档从四分账本基线回填历史总量。
+    // 这是 serde-default 的加法字段，不升 schema 版本；仅在新字段仍为 0 时执行一次，
+    // 后续增量由 ledger_breakdown_diff 单调累加。
+    if save.stats.total_tokens_observed == 0 {
+        let observed = save
+            .last_seen_project_breakdown
+            .values()
+            .fold(0u64, |sum, breakdown| sum.saturating_add(breakdown.total()));
+        if observed > 0 {
+            save.stats.total_tokens_observed = observed;
+            changed = true;
+        }
+    }
     // 清档后 Steam 库存会立即回填旧宠物。导入逻辑过去会顺手把第一只设为主宠，
     // 但新档仍停在 A01（收教学蛋），于是舞台优先渲染主宠、强引导又只放行蛋，
     // 形成无法点击的死锁。A01 的教学蛋才是此时的权威舞台目标；保留导入宠物，
@@ -445,14 +458,21 @@ pub(crate) fn ledger_breakdown_diff(
     project_path: &str,
     project_breakdown: crate::codex_adapter::TokenBreakdown,
 ) -> crate::codex_adapter::TokenBreakdown {
-    let last = save
-        .last_seen_project_breakdown
-        .get(project_path)
-        .copied()
-        .unwrap_or(project_breakdown); // 首见 → 播种当前值，本次 diff 归零
+    let last = save.last_seen_project_breakdown.get(project_path).copied();
     save.last_seen_project_breakdown
         .insert(project_path.to_string(), project_breakdown);
-    project_breakdown.saturating_sub(&last)
+    let diff = last
+        .map(|baseline| project_breakdown.saturating_sub(&baseline))
+        .unwrap_or_default(); // 首见 → 播种当前值，本次喂养 diff 归零
+                              // 「代码盛宴」按真实总用量累计：四类 Token 一视同仁、每个都只计 1 次。
+                              // 首见项目计入已有累计，但不拿历史喂宠；之后沿用单调差分，避免重启重放或
+                              // 项目计数回退造成重复累计。
+    let observed_delta = last.map_or_else(|| project_breakdown.total(), |_| diff.total());
+    save.stats.total_tokens_observed = save
+        .stats
+        .total_tokens_observed
+        .saturating_add(observed_delta);
+    diff
 }
 
 /// Token feed entry point called from the codex adapter watcher threads.

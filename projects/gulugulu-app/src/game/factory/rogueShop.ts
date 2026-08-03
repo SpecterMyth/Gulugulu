@@ -5,7 +5,12 @@
 // CardDef.requires;已满级卡排除;贷款在还时排除。
 // 纯函数:rng 由调用方注入(RogueRun 的 mulberry32),check 脚本可复现。
 
-import { CARD_DEFS, CARD_LEVEL_PRICE_MULTIPLIER, CARD_PRICE_RATE } from "./rogueConfig";
+import {
+  CARD_DEFS,
+  CARD_LEVEL_PRICE_MULTIPLIER,
+  CARD_PRICE_RATE,
+  clampFactoryValue,
+} from "./rogueConfig";
 import type { CardDef, CardDim, RogueElement, ShopOffer } from "./rogueTypes";
 
 export type OfferArgs = {
@@ -25,13 +30,12 @@ export function cardDef(id: string): CardDef | undefined {
   return DEF_BY_ID.get(id);
 }
 
-/** 单卡现价 = 稀有度率 × 当班 KPI × 3^当前已持有等级；免费卡(贷款)恒 0。 */
+/** 单卡现价 = 稀有度率 × 当班 KPI × 2^当前已持有等级；免费卡(贷款)恒 0。 */
 export function cardPrice(def: CardDef, level: number, kpi: number): number {
   if (def.free) return 0;
   const rate = CARD_PRICE_RATE[def.rarity] ?? CARD_PRICE_RATE.common;
-  return Math.max(
-    0,
-    Math.round(rate * kpi * Math.pow(CARD_LEVEL_PRICE_MULTIPLIER, Math.max(0, level))),
+  return clampFactoryValue(
+    rate * kpi * Math.pow(CARD_LEVEL_PRICE_MULTIPLIER, Math.max(0, level)),
   );
 }
 

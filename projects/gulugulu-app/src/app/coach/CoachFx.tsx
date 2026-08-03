@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { CoachDirective, CoachTarget } from "./coachTypes";
 import { CoachHand } from "./CoachHand";
+import { useT } from "../../useT";
 import "./coach.css";
 
 // 教练手势层（docs/gdd/OnboardingGuidance.md §4）：全窗口固定覆盖、pointer-events:none
@@ -29,6 +30,7 @@ function overlapArea(
 }
 
 export function CoachFx({ directive }: { directive: CoachDirective | null }) {
+  const { lang } = useT();
   const ringRef = useRef<HTMLDivElement>(null);
   const handRef = useRef<HTMLDivElement>(null);
   const handInnerRef = useRef<HTMLDivElement>(null);
@@ -126,8 +128,9 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
       if (isArrow) {
         show(keysRef.current, true, `translate(${vw / 2}px, ${vh - 46}px)`);
       } else if (gesture === "drop") {
-        // 投放时空格是主操作：大键帽固定在屏幕下方中央，不跟着运输机左右漂。
-        show(keysRef.current, true, `translate(${vw / 2}px, ${Math.max(72, vh - 112)}px)`);
+        // Keep the primary drop input unmistakable: the animated keycap stays
+        // in the exact center of the viewport while the conveyor moves below it.
+        show(keysRef.current, true, `translate(${vw / 2}px, ${vh / 2}px)`);
       } else {
         // #2 键帽放目标「脚下」（不再压在头顶气泡上）：贴 rect 底、夹进视口内。
         const showKeys = gesture === "keys" || gesture === "moveKeys";
@@ -178,8 +181,10 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
             </>
           ) : gesture === "drop" ? (
             <span className="coach-key is-space">
-              <span className="coach-space-label">空格键</span>
-              <span className="coach-space-action">按下投放</span>
+              <span className="coach-space-label">{lang === "zh" ? "空格键" : "SPACE"}</span>
+              <span className="coach-space-action">
+                {lang === "zh" ? "按下投放" : "PRESS TO DROP"}
+              </span>
             </span>
           ) : (
             <span className="coach-key is-wide">⌨</span>

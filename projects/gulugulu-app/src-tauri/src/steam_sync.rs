@@ -85,6 +85,19 @@ pub fn pending_mint_for(save: &GameSave, pet_id: &str) -> Option<usize> {
         .position(|op| matches!(op, SteamOp::MintTier1 { pet_id: p, .. } if p == pet_id))
 }
 
+/// Drop MintTier1 receipts whose local target no longer exists. This is run after
+/// `attach_mints`: if Steam already granted the item, normal claiming gets first chance;
+/// otherwise retrying the orphan would waste a rate-limited drop window and delay every
+/// live tutorial reward behind it.
+pub fn prune_orphan_mints(save: &mut GameSave) -> bool {
+    let live_pet_ids: BTreeSet<String> = save.pets.iter().map(|pet| pet.id.clone()).collect();
+    let before = save.steam_outbox.len();
+    save.steam_outbox.retain(|op| {
+        !matches!(op, SteamOp::MintTier1 { pet_id, .. } if !live_pet_ids.contains(pet_id.as_str()))
+    });
+    save.steam_outbox.len() != before
+}
+
 /// 不可认领/不可导入的物品 id：本地实体（宠物/蛋）已绑定的，加上**本地先行**排队待
 /// 在 Steam 上消耗的材料：
 /// - applied Release 的放生物品（待 ConsumeItem）；
@@ -221,7 +234,7 @@ pub fn resolve_intents(
                                     crate::game::FALLBACK_SPECIES.to_string(),
                                 ]
                             });
-                            apply_fused_result(
+                            let rebound = apply_fused_result(
                                 config,
                                 save,
                                 found.item_id,
@@ -232,7 +245,11 @@ pub fn resolve_intents(
                                 pet_id.as_deref(),
                                 now,
                             );
-                            true
+                            // Never acknowledge the durable Fuse receipt until its Steam
+                            // result is attached to the current egg/pet target.  The target
+                            // can change during tutorial early-collect (egg -> pet); keeping
+                            // the op lets the next snapshot retry instead of orphaning the pet.
+                            rebound
                         } else {
                             // 若上一轮的缺失只是瞬时不完整快照，而材料本轮重新出现，则回到可兑换态；
                             // 否则进入纯“等待结果”态，禁止拿已经消失的材料 id 再次 ExchangeItems。
@@ -660,7 +677,7 @@ pub fn apply_fused_result(
     egg_id: Option<&str>,
     pet_id: Option<&str>,
     now: i64,
-) {
+) -> bool {
     let (species, pending) =
         resolve_fused_species(config, save, granted_def, recipe_key, parents, now);
     if let Some(egg_id) = egg_id {
@@ -702,6 +719,7 @@ pub fn apply_fused_result(
             }
             egg.steam_item_id = Some(granted_item_id);
             egg.steam_item_def = Some(granted_def);
+            return true;
         }
     } else if let Some(pet_id) = pet_id {
         if let Some(pet) = save.pets.iter_mut().find(|p| p.id == pet_id) {
@@ -711,8 +729,10 @@ pub fn apply_fused_result(
             }
             pet.steam_item_id = Some(granted_item_id);
             pet.steam_item_def = Some(granted_def);
+            return true;
         }
     }
+    false
 }
 
 fn push_tombstone(save: &mut GameSave, pet: &PetInstance, now: i64) {
@@ -945,29 +965,53 @@ pub fn reconcile_respecting_onboarding(
         return reconcile(config, save, snapshot, grace, now);
     }
 
-    // 先认领本档自己刚铸出的物品；它们不是“旧库存导入”，必须照常回绑。
+    // Before the first fusion is collected, inventory snapshots are intentionally hidden
+    // from the local roster.  Do not run full reconciliation on a filtered/partial snapshot:
+    // Steam may briefly omit an item around consecutive grants, and treating that omission
+    // as authoritative would prune the first max-level coworker during the tutorial.
     let attached = attach_mints(save, snapshot);
+    let mut report = ReconcileReport {
+        changed: attached,
+        ..ReconcileReport::default()
+    };
+
+    // Heal saves already hit by that prune.  Reuse a real unbound Steam Normal item (never
+    // mint a replacement), restore the guide's promised max level, and keep its item binding.
+    if save.onboarding.status == "active"
+        && save.onboarding.tutorial_fusions == 0
+        && !save.tutorial_first_fusion_done
+        && matches!(
+            save.onboarding.step.as_str(),
+            "B01" | "B02" | "B03" | "B04" | "B05"
+        )
+    {
+        if let Some(normal_species) = config.species_by_recipe.get("normal").cloned() {
+            let has_normal = save.pets.iter().any(|pet| pet.species == normal_species);
+            let normal_def = config.steam_def_for_species(&normal_species);
+            if !has_normal {
+                let bound = bound_item_ids(save);
+                if let Some(item) = snapshot.iter().find(|item| {
+                    Some(item.def) == normal_def && !bound.contains(&item.item_id)
+                }) {
+                    if let Some(mut pet) = build_imported_pet(config, save, item, now) {
+                        pet.level = config.max_level_for_tier(1);
+                        let pet_id = pet.id.clone();
+                        save.pets.push(pet);
+                        if save.active_pet_id.is_none() {
+                            save.active_pet_id = Some(pet_id);
+                        }
+                        report.changed = true;
+                    }
+                }
+            }
+        }
+    }
+
     let bound = bound_item_ids(save);
-    let locked = op_locked_ids(save);
-    let owned_snapshot: Vec<SnapItem> = snapshot
-        .iter()
-        .filter(|item| {
-            bound.contains(&item.item_id)
-                || locked.contains(&item.item_id)
-                || grace.contains(&item.item_id)
-        })
-        .cloned()
-        .collect();
-    let mut report = reconcile(config, save, &owned_snapshot, grace, now);
-    report.changed |= attached;
     report.unclaimed.extend(
         snapshot
             .iter()
-            .filter(|item| {
-                !owned_snapshot
-                    .iter()
-                    .any(|owned| owned.item_id == item.item_id)
-            })
+            .filter(|item| !bound.contains(&item.item_id) && !grace.contains(&item.item_id))
             .cloned(),
     );
     report
@@ -1172,22 +1216,32 @@ pub fn repair_unbound_tier2(config: &GameConfig, save: &mut GameSave) -> bool {
             }
         }
         let Some((i, j)) = pair else {
-            // v6 onboarding's second guided fusion is Water + Electric. Older builds
-            // consumed the two locally granted parents before creating a Steam Fuse op,
-            // leaving the resulting Voltmare permanently local. There are consequently
-            // no parent instances left for the conservative repair above to consume.
+            // Guided fusions can consume locally granted/hatched parents before their
+            // Steam material mints settle.  If the durable Fuse receipt was lost in the
+            // egg -> pet early-collect hand-off, there are consequently no parent
+            // instances left for the conservative repair above to consume.
             //
             // Reconstruct only this precisely identifiable tutorial receipt. The pump
             // still mints both tier-1 materials through their normal server generators
             // and exchanges them atomically; it never grants/binds the tier-2 item
             // directly. This preserves Steam as the ownership authority while making
             // old saves converge with the current local-first fusion flow.
-            if recipe_key == "electric+water"
+            let tutorial_elements = if recipe_key == "fire+normal"
+                && save.tutorial_first_fusion_done
+                && save.onboarding.tutorial_fusions >= 1
+            {
+                Some(["fire", "normal"])
+            } else if recipe_key == "electric+water"
                 && save.onboarding.tutorial_fusions >= 2
                 && save.onboarding.starter_trio_claimed
             {
-                let parent_species = ["electric", "water"]
-                    .map(|element| config.species_by_recipe.get(element).cloned());
+                Some(["electric", "water"])
+            } else {
+                None
+            };
+            if let Some(elements) = tutorial_elements {
+                let parent_species =
+                    elements.map(|element| config.species_by_recipe.get(element).cloned());
                 let parent_defs = parent_species.clone().map(|species| {
                     species
                         .as_ref()
@@ -1601,6 +1655,35 @@ mod tests {
         let report = reconcile(&config, &mut save, &snapshot, &BTreeSet::new(), 2000);
         assert_eq!(report.imported_pets, 0, "认领优先于导入：不得重复铸宠");
         assert_eq!(save.pets.len(), 2);
+    }
+
+    #[test]
+    fn orphan_mint_is_pruned_without_touching_live_mints() {
+        let config = config();
+        let mut save = fresh(&config);
+        let live = add_pet(&mut save, "guluduck", 1, 10);
+        queue_mint(&mut save, "consumed-parent", "emberfox", 102);
+        queue_mint(&mut save, &live, "guluduck", 101);
+
+        assert!(prune_orphan_mints(&mut save));
+        assert_eq!(save.steam_outbox.len(), 1);
+        assert!(matches!(
+            &save.steam_outbox[0],
+            SteamOp::MintTier1 { pet_id, .. } if pet_id == &live
+        ));
+        assert!(!prune_orphan_mints(&mut save), "repeated sweep is idempotent");
+    }
+
+    #[test]
+    fn granted_orphan_mint_is_claimed_before_pruning() {
+        let config = config();
+        let mut save = fresh(&config);
+        queue_mint(&mut save, "consumed-parent", "emberfox", 102);
+        let granted = snap(&[("steam-fire", 102)]);
+
+        assert!(attach_mints(&mut save, &granted));
+        assert!(save.steam_outbox.is_empty());
+        assert!(!prune_orphan_mints(&mut save));
     }
 
     #[test]
@@ -2769,6 +2852,34 @@ mod tests {
     }
 
     #[test]
+    fn repair_tutorial_waxlamb_reconstructs_lost_early_collect_receipt() {
+        let config = config();
+        let mut save = fresh(&config);
+        save.tutorial_first_fusion_done = true;
+        save.onboarding.tutorial_fusions = 1;
+        let waxlamb = add_pet(&mut save, "waxlamb", 2, 20);
+
+        assert!(repair_unbound_tier2(&config, &mut save));
+        let SteamOp::Fuse {
+            pet_id,
+            item_a,
+            item_b,
+            mat_def_a,
+            mat_def_b,
+            recipe_key,
+            ..
+        } = &save.steam_outbox[0]
+        else {
+            panic!("tutorial receipt repair must enqueue a Fuse op");
+        };
+        assert_eq!(pet_id.as_deref(), Some(waxlamb.as_str()));
+        assert!(item_a.is_empty() && item_b.is_empty());
+        assert_eq!(recipe_key, "fire+normal");
+        assert_eq!((*mat_def_a, *mat_def_b), (102, 101));
+        assert!(!repair_unbound_tier2(&config, &mut save));
+    }
+
+    #[test]
     fn repair_unproven_local_voltmare_does_not_mint_assets() {
         let config = config();
         let mut save = fresh(&config);
@@ -2839,6 +2950,49 @@ mod tests {
     }
 
     #[test]
+    fn tutorial_early_collect_never_acknowledges_result_before_pet_rebind() {
+        let config = config();
+        let mut save = fresh(&config);
+        save.steam_outbox.push(SteamOp::Fuse {
+            op_id: "op-tutorial".into(),
+            pet_a: "parent-a".into(),
+            pet_b: "parent-b".into(),
+            item_a: "minted-normal".into(),
+            item_b: "minted-fire".into(),
+            egg_def: exchange_target_def(&config, "fire+normal").unwrap(),
+            recipe_key: "fire+normal".into(),
+            applied: true,
+            awaiting_result: true,
+            mat_def_a: 0,
+            mat_def_b: 0,
+            egg_id: None,
+            pet_id: Some("tutorial-result-pet".into()),
+            parents: Some(["guluduck".into(), "emberfox".into()]),
+            attempts: 0,
+            next_retry_at: 0,
+        });
+
+        let result = snap(&[("steam-waxlamb", 608)]);
+        assert!(
+            !resolve_intents(&config, &mut save, &result, 6_000),
+            "missing early-collect target must not acknowledge the Fuse receipt"
+        );
+        assert_eq!(save.steam_outbox.len(), 1);
+
+        let pet = add_pet(&mut save, "waxlamb", 2, 20);
+        save.pets.iter_mut().find(|p| p.id == pet).unwrap().id = "tutorial-result-pet".into();
+        assert!(resolve_intents(&config, &mut save, &result, 6_001));
+        assert!(save.steam_outbox.is_empty());
+        let rebound = save
+            .pets
+            .iter()
+            .find(|p| p.id == "tutorial-result-pet")
+            .unwrap();
+        assert_eq!(rebound.steam_item_id.as_deref(), Some("steam-waxlamb"));
+        assert_eq!(rebound.steam_item_def, Some(608));
+    }
+
+    #[test]
     fn retarget_fixes_cross_species_canonical_target() {
         // 早期 bug：跨物种融合 op 目标误设为 canonical 物种 def(611=potturtle,grass+normal)→兑换卡死。
         let config = config();
@@ -2893,5 +3047,47 @@ mod tests {
             reconcile_respecting_onboarding(&config, &mut save, &inventory, &BTreeSet::new(), 1001);
         assert_eq!(after_fusion.imported_pets, 1);
         assert_eq!(save.pets.len(), 1, "首融后后台对账自动恢复导入");
+    }
+
+    #[test]
+    fn onboarding_partial_snapshot_never_prunes_first_coworker() {
+        let config = config();
+        let mut save = fresh(&config);
+        let normal = add_pet(&mut save, "guluduck", 1, 10);
+        bind(&mut save, &normal, "steam-normal", 101);
+
+        let report = reconcile_respecting_onboarding(
+            &config,
+            &mut save,
+            &snap(&[("steam-fire", 102)]),
+            &BTreeSet::new(),
+            1_000,
+        );
+        assert!(save.pets.iter().any(|pet| pet.id == normal));
+        assert_eq!(report.removed_pets, 0);
+    }
+
+    #[test]
+    fn onboarding_restores_pruned_normal_from_real_steam_item() {
+        let config = config();
+        let mut save = fresh(&config);
+        save.onboarding.step = "B01".into();
+
+        let report = reconcile_respecting_onboarding(
+            &config,
+            &mut save,
+            &snap(&[("steam-normal", 101), ("steam-fire", 102)]),
+            &BTreeSet::new(),
+            1_000,
+        );
+        assert!(report.changed);
+        let normal = save
+            .pets
+            .iter()
+            .find(|pet| pet.species == "guluduck")
+            .expect("guide Normal coworker must be restored");
+        assert_eq!(normal.level, config.max_level_for_tier(1));
+        assert_eq!(normal.steam_item_id.as_deref(), Some("steam-normal"));
+        assert_eq!(report.unclaimed.len(), 1, "unrelated Fire remains hidden");
     }
 }

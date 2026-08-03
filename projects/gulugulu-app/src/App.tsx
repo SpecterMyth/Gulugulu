@@ -84,6 +84,7 @@ import { OnboardingGoal } from "./app/onboarding/OnboardingGoal";
 import { useOnboardingDirector } from "./app/onboarding/useOnboardingDirector";
 import { useWelcomeBack } from "./app/hooks/useWelcomeBack";
 import { emitPaperFx, PaperFxProvider } from "./ui/PaperFx";
+import { GameDialog, useGameDialog } from "./app/GameDialog";
 
 const DRAG_THRESHOLD_PX = 4;
 const AUTONOMOUS_MOVE_DELAY_MS = 18_000;
@@ -191,11 +192,14 @@ export default function App() {
   // 预览截图 rig:?ui= 指定初始面板(仅 !isTauri 生效,见 preview/shotParams)。
   const requestedInitialUiMode = previewUiMode() as UiMode | null;
   const initialUiMode =
-    requestedInitialUiMode === "debug" && !DEBUG_UI_ENABLED
+    requestedInitialUiMode === "debug"
       ? "pet"
       : (requestedInitialUiMode ?? "pet");
   const [uiMode, setUiMode] = useState<UiMode>(initialUiMode);
   const uiModeRef = useRef<UiMode>(initialUiMode);
+  // Debug authorization is deliberately process-local. Never persist it: each
+  // fresh app launch must require the passphrase again.
+  const [debugUnlocked, setDebugUnlocked] = useState(false);
   // Full-work-area scenes temporarily replace the compact pet window geometry.
   // Keep the last compact position in physical pixels so leaving the factory
   // restores the pet exactly where the user had placed it.
@@ -205,6 +209,7 @@ export default function App() {
     previewFactoryShot() == null ? "rogue" : "demo",
   );
   const [gameBusy, setGameBusy] = useState(false);
+  const { dialog: gameDialog, confirm: confirmGameDialog, settle: settleGameDialog } = useGameDialog();
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const [codexUpgradeOpen, setCodexUpgradeOpen] = useState(false);
   const toastIdRef = useRef(0);
@@ -757,11 +762,11 @@ export default function App() {
   }, [uiMode, goBack, save?.onboarding?.status]);
 
   const selectPanel = useCallback((mode: Exclude<UiMode, "pet" | "menu">) => {
-    if (mode === "debug" && !DEBUG_UI_ENABLED) return;
+    if (mode === "debug" && (!DEBUG_UI_ENABLED || !debugUnlocked)) return;
     // 从菜单进工厂一律走 roguelike 局(《危楼打工记》);经典演示只有 Debug 才进得去。
     if (mode === "factory") setFactoryVariant("rogue");
     setUiMode(mode);
-  }, []);
+  }, [debugUnlocked]);
 
   // Debug 面板专属:直接进入「经典演示」沙盒(FactoryScene 不传 rogue)。
   // 复用 uiMode==="factory" 的整套窗口停靠;onBack 走 goBack 回主界面。
@@ -1158,12 +1163,12 @@ export default function App() {
   useClickThrough(
     // 强引导已经用输入互斥只放行当前目标；此时不要再让透明窗口的像素级
     // 穿透与目标抢首个 pointerdown（A01 的蛋在边缘像素上尤其容易被穿掉）。
-    !coach.active && (uiMode === "pet" || uiMode === "backyard" || uiMode === "factory"),
+    !coach.active && gameDialog == null && (uiMode === "pet" || uiMode === "backyard" || uiMode === "factory"),
     dragRef,
     uiMode === "backyard" ? BACKYARD_RESIZE_GRIP_PX : 0,
   );
 
-  const steamStatus = useSteamStatus(bridge, setSave, showToastMsg);
+  const steamStatus = useSteamStatus(bridge, setSave, showToastMsg, language, confirmGameDialog);
   // 自定义物种设定图离屏渲染缓存（创意工坊缩略图；Tauri 专属 best-effort）。
   useSpeciesPreviews(bridge, gameConfig, save);
 
@@ -1335,7 +1340,8 @@ export default function App() {
               .join(" · ");
             emitPaperFx({
               intensity: 2,
-              preset: "reward",
+              preset: "material",
+              anchor: { x: window.innerWidth / 2, y: window.innerHeight * 0.72 },
               label:
                 languageRef.current === "zh"
                   ? `材料到账：${materialDetails}`
@@ -2026,12 +2032,6 @@ export default function App() {
 
   const skipOnboarding = useCallback(() => {
     if (!coach.active) return;
-    const confirmed = window.confirm(
-      languageRef.current === "zh"
-        ? "确定跳过整个新手引导吗？你仍然可以直接使用全部正常玩法。"
-        : "Skip the entire onboarding? You can still use all normal game features.",
-    );
-    if (!confirmed) return;
     void coach.skipMain().catch((error) => showToastMsg(errorMessage(error)));
   }, [coach.active, coach.skipMain, showToastMsg]);
 
@@ -2128,6 +2128,7 @@ export default function App() {
         onAction={handleOnboardingAction}
         onRecover={recoverOnboardingRoute}
         onSkip={coach.active ? skipOnboarding : undefined}
+        busy={coach.busy}
       />
 
       {/* 连击累计读数（点击游戏爽快感）：置于对话气泡上方的窗口顶部，
@@ -2251,10 +2252,12 @@ export default function App() {
             handleDefaultAgent={handleDefaultAgent}
             handleDefaultModel={handleDefaultModel}
             selectPanel={selectPanel}
+            debugUnlocked={debugUnlocked}
+            onDebugUnlock={() => setDebugUnlocked(true)}
             closePet={closePet}
           />
         )
-      ) : DEBUG_UI_ENABLED && DebugPanel ? (
+      ) : DEBUG_UI_ENABLED && debugUnlocked && DebugPanel ? (
         gameReady && (
           <PanelShell title={copy.debug} backLabel={copy.back} onBack={goBack}>
             <Suspense fallback={null}>
@@ -2266,6 +2269,7 @@ export default function App() {
                 onToast={showToastMsg}
                 onFeedTokens={bridge.debugFeedTokens ? debugFeed : undefined}
                 onOpenFactoryDemo={openFactoryDemo}
+                onConfirm={confirmGameDialog}
               />
             </Suspense>
           </PanelShell>
@@ -2322,6 +2326,8 @@ export default function App() {
         codexUpgradeOpen={codexUpgradeOpen}
         onCodexUpgradeClose={() => setCodexUpgradeOpen(false)}
       />
+
+      <GameDialog dialog={gameDialog} onSettle={settleGameDialog} />
 
     </main>
     </PaperFxProvider>

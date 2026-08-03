@@ -523,7 +523,10 @@ pub fn logic_resolve_fusion_target(
     let Some(pet_index) = save.pets.iter().position(|pet| {
         pet.pending_fusion.as_ref().is_some_and(|pending| {
             pending.recipe_key == recipe_key
-                && pending.forced_codename.as_deref().is_none_or(|forced| forced == codename)
+                && pending
+                    .forced_codename
+                    .as_deref()
+                    .is_none_or(|forced| forced == codename)
         })
     }) else {
         return Err("#eggGone".to_string());
@@ -550,7 +553,9 @@ pub fn logic_reuse_fusion_target(
         return logic_reuse_fusion_egg(save, egg_id, codename);
     }
     let Some(pet_index) = save.pets.iter().position(|pet| {
-        pet.pending_fusion.as_ref().is_some_and(|pending| pending.recipe_key == recipe_key)
+        pet.pending_fusion
+            .as_ref()
+            .is_some_and(|pending| pending.recipe_key == recipe_key)
     }) else {
         return Err("#eggGone".to_string());
     };
@@ -615,10 +620,17 @@ pub fn logic_mark_fusion_egg(
     error: Option<String>,
     bump_attempt: bool,
 ) -> Result<(), String> {
-    let pending = save.eggs.iter_mut().find(|e| e.id == egg_id)
+    let pending = save
+        .eggs
+        .iter_mut()
+        .find(|e| e.id == egg_id)
         .and_then(|egg| egg.pending_fusion.as_mut())
-        .or_else(|| save.pets.iter_mut().find(|p| p.id == egg_id)
-            .and_then(|pet| pet.pending_fusion.as_mut()));
+        .or_else(|| {
+            save.pets
+                .iter_mut()
+                .find(|p| p.id == egg_id)
+                .and_then(|pet| pet.pending_fusion.as_mut())
+        });
     let Some(pending) = pending else {
         return Err("#eggNoPendingFusion".to_string());
     };

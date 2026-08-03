@@ -36,7 +36,9 @@ pub fn logic_feed_keys(
     let pet = save.pets.iter_mut().find(|p| p.id == target_id).unwrap();
     let rate = config.keys_per_stamina_for(pet.tier).max(1);
     let room_points = (config.stamina_max - pet.stamina).max(0) as u64;
-    let need_units = room_points.saturating_mul(rate).saturating_sub(pet.key_buffer);
+    let need_units = room_points
+        .saturating_mul(rate)
+        .saturating_sub(pet.key_buffer);
     let take = count.min(need_units);
     outcome.wasted = count - take;
     pet.key_buffer += take;

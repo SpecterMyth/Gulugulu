@@ -65,8 +65,8 @@ mod win {
                 }
             }
         }
-        if let Ok(steam) = RegKey::predef(HKEY_LOCAL_MACHINE)
-            .open_subkey(r"SOFTWARE\WOW6432Node\Valve\Steam")
+        if let Ok(steam) =
+            RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(r"SOFTWARE\WOW6432Node\Valve\Steam")
         {
             if let Ok(dir) = steam.get_value::<String, _>("InstallPath") {
                 let path = PathBuf::from(dir).join("steam.exe");

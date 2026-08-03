@@ -15,7 +15,8 @@ pub fn logic_upgrade_hatchery(
         .hatchery_upgrade_costs
         .get(level - 1)
         .ok_or_else(|| "#missingUpgradeCost".to_string())?;
-    let reimbursed = save.onboarding.status == "active" && save.hatchery_level == 1;
+    let reimbursed = save.onboarding.status == "active"
+        && (save.hatchery_level == 1 || save.onboarding.step == "A13");
     if save.coins < cost && !reimbursed {
         return Err("#notEnoughCoins".to_string());
     }

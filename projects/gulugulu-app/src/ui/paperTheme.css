@@ -812,6 +812,18 @@
   box-shadow: inset 0 5px 0 var(--paper-yellow), var(--paper-shadow-mid);
 }
 
+.paper-app .by-shop-card.is-unaffordable {
+  background-color: var(--paper-guide-deep);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: inset 0 5px 0 var(--paper-guide-shadow), var(--paper-shadow);
+  filter: none;
+  opacity: 1;
+}
+
+.paper-app .by-shop-price .is-short {
+  color: var(--paper-danger);
+}
+
 .paper-app .by-shop-note,
 .paper-app .by-poi-note {
   color: var(--paper-secondary);
@@ -1307,6 +1319,18 @@
   background-color: var(--paper-cta);
   color: #fff;
   box-shadow: var(--paper-shadow-cta);
+}
+
+.paper-app .fr-card-buybar.is-unaffordable {
+  background-color: var(--paper-guide-deep);
+  color: var(--paper-secondary);
+  box-shadow: var(--paper-shadow);
+  filter: none;
+  opacity: 1;
+}
+
+.paper-app .fr-shop-price-short {
+  color: var(--paper-danger);
 }
 
 .paper-app .fr-hub-panel {
@@ -1845,7 +1869,10 @@
 }
 
 .paper-app .by-char-say {
-  transform: rotate(-0.85deg) translateY(1px);
+  /* Preserve the base centering transform. Otherwise the pop animation ends
+     centered, then this theme override snaps the bubble's left edge onto the
+     character and leaves the tail detached from their head. */
+  transform: translateX(-50%) rotate(-0.85deg) translateY(1px);
   transform-origin: 50% 85%;
 }
 
@@ -2744,11 +2771,12 @@
 }
 
 .paper-app .by-board-dex {
-  background-color: var(--paper-blue);
-  color: var(--paper-blue-ink);
+  background-color: transparent;
+  background-image: none;
+  color: var(--paper-ink, #4a3313);
   text-align: center;
-  box-shadow: var(--paper-shadow);
-  transform: rotate(0.25deg);
+  box-shadow: none;
+  transform: none;
 }
 
 .paper-app .by-board-love {
@@ -2767,25 +2795,68 @@
   transform: none;
 }
 
-.paper-app .by-upgrade-btn {
-  --paper-note-tilt: 0deg;
-  --paper-note-y: 0px;
-  gap: 1px;
-  padding: 6px 14px 7px;
-  border: 3px solid #6b4520;
-  border-radius: 9px;
-  background-color: #b07b44;
-  background-image:
+.paper-app .by-upgrade-shell {
+  transform: rotate(-1deg);
+}
+
+.paper-app .by-upgrade-frame {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 4px solid #6b4520;
+  border-radius: 10px;
+  background:
     repeating-linear-gradient(92deg, rgba(59, 32, 10, 0.14) 0 2px, transparent 2px 24px),
-    linear-gradient(180deg, #c08a4e, #a06a33);
-  color: #fff3d9;
-  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.4);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.22),
-    0 4px 0 #6b4520,
-    0 10px 18px rgba(43, 26, 8, 0.28);
+    linear-gradient(180deg, #b07b44, #96622f);
+  box-shadow: 0 8px 14px rgba(43, 26, 8, 0.34);
   filter: var(--by-scene-grade-ui, none);
+  pointer-events: none;
+}
+
+.paper-app .by-upgrade-shell .by-upgrade-btn {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 2px;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  text-shadow: none;
+  box-shadow: var(--paper-shadow);
+  filter: none;
   transform: none;
+}
+
+.paper-app .by-upgrade-post {
+  display: block;
+  border: 2px solid #6b4520;
+  background-color: #96622f !important;
+  background-image:
+    repeating-linear-gradient(92deg, rgba(59, 32, 10, 0.16) 0 2px, transparent 2px 18px),
+    linear-gradient(90deg, #855329, #b07b44 48%, #855329) !important;
+  box-shadow: 3px 5px 0 rgba(43, 26, 8, 0.24);
+  filter: var(--by-scene-grade-ui, none);
+}
+
+.paper-app .by-upgrade-btn::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 42px;
+  height: 14px;
+  background: var(--paper-blue);
+  box-shadow: 0 1px 2px rgba(74, 52, 24, 0.18);
+  opacity: 1;
+  transform: translateX(-50%) rotate(1.5deg);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .paper-app .by-upgrade-btn::after {
@@ -2793,19 +2864,23 @@
 }
 
 .paper-app .by-upgrade-btn:not(:disabled):hover {
-  filter: var(--by-scene-grade-ui, none) brightness(1.07);
+  filter: brightness(1.035);
   transform: translateY(-1px);
 }
 
 .paper-app .by-upgrade-btn:not(:disabled):active {
-  filter: var(--by-scene-grade-ui, none);
-  transform: translateY(2px);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.22),
-    0 2px 0 #6b4520,
-    0 5px 10px rgba(43, 26, 8, 0.28);
+  filter: none;
+  transform: translateY(2px) rotate(0deg) scale(0.98);
+  box-shadow: var(--paper-shadow);
 }
 
 .paper-app .by-upgrade-btn:disabled {
-  filter: var(--by-scene-grade-ui, none) grayscale(0.45) brightness(0.92);
+  color: var(--paper-muted-ink);
+  filter: none;
+  opacity: 1;
+}
+
+.paper-app .by-upgrade-btn .by-upgrade-sub .is-short {
+  color: var(--paper-danger);
+  font-weight: 800;
 }

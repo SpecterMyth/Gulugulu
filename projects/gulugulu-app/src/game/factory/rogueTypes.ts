@@ -66,6 +66,12 @@ export type BodyLike = {
   settled: boolean;
   /** 因塌方重新落体中(泥石流连携的重粘判定用;落定后清)。 */
   fromCollapse?: boolean;
+  /** 状态效果形成的罢工豁免连接快照；连接或位置变化后失效。 */
+  strikeProtection?: {
+    species: string;
+    members: number[];
+    positions: Array<{ uid: number; x: number; y: number }>;
+  };
 };
 
 export type RogueBodyState = {
@@ -77,7 +83,7 @@ export type RogueBodyState = {
   /** 水镜同化后的逻辑物种与固有元素覆写。 */
   speciesOverride?: string;
   elementsOverride?: RogueElement[];
-  /** 水镜同化当班的罢工保护；班次推进后自然失效。 */
+  /** 旧存档兼容：早期版本曾按班次记录同化罢工保护。 */
   strikeImmuneShift?: number;
   /** 旧存档兼容；新一般系不再生成额外标签。 */
   extraTags?: RogueElement[];
@@ -281,13 +287,33 @@ export type ShiftCashFlow = {
   amount: number;
 };
 
+/** Settlement detail rows only contain credited income. Hiring and rerolling
+ * are already represented by spentTotal, so rendering them again as positive
+ * flows would be both duplicate accounting and misleading UI. */
+export function settlementIncomeFlows(cashFlows: readonly ShiftCashFlow[]): ShiftCashFlow[] {
+  return cashFlows.filter((flow) => (
+    flow.amount > 0
+    && flow.kind !== "hire"
+    && flow.kind !== "reroll"
+  ));
+}
+
 export type ShiftSettlement = {
   shiftIndex: number;
   spentTotal: number;
   receivedTotal: number;
   bill: number;
   cashBeforeBill: number;
+  /** 兼容旧续档：只扣常规账单后的余额；新 UI 使用 cashAfterPayment。 */
   cashAfterBill: number;
+  /** 本班必须偿还的贷款金额；无贷款为 0。 */
+  loanPayment?: number;
+  /** 常规账单 + 本班贷款还款。 */
+  requiredPayment?: number;
+  /** 全部必要支付成功后的余额；不足时为 0。 */
+  cashAfterPayment?: number;
+  /** 现金不足以覆盖全部必要支付时的缺口。 */
+  shortfall?: number;
   pulses: PulseBreakdown[];
   cashFlows: ShiftCashFlow[];
 };
@@ -380,7 +406,7 @@ export type RogueSceneBridge = {
   disabledDesks?: RogueElement[];
   /** 罢工阈值（默认 3；工休只改变含水罢工组）。 */
   strikeCount: (elements?: readonly string[]) => number;
-  /** 水镜同化目标在同化当班不计入罢工人数。 */
+  /** 旧版按个体记录的当班豁免兼容入口。 */
   countsForStrike?: (uid: number) => boolean;
   /** 粘连判定覆写(万金油):返回 null = 按默认交集;true/false = 强制。 */
   stickOverride?: (a: BodyLike, b: BodyLike) => boolean | null;
@@ -390,6 +416,8 @@ export type RogueSceneBridge = {
   timeScale?: () => number;
   /** 桌宽倍率(首班教学加宽,04 §11;1=正常)。变更 → 场景重排桌子。 */
   deskWiden?: () => number;
+  /** 首班前几次投放的落点指示；只读提示，不修改真实投放物理。 */
+  showDropGuide?: () => boolean;
   /** 点击落定宠的行为:none=忽略(默认),dismiss=点选解雇。 */
   clickMode: () => "none" | "dismiss";
   /** 冻结状态供画布渲染层读取：冻结宠物定格姿态，只随冰块整体浮动。 */
@@ -509,7 +537,14 @@ export type RogueRunSnapshot = {
   /** 当前班桌面上的宠物。 */
   bodies: BodyLike[];
   /** 每只在场宠物的雇佣账务，供退款、成长与脉冲继续使用。 */
-  bodyEconomy: { uid: number; species: string; cost: number; base: number }[];
+  bodyEconomy: {
+    uid: number;
+    species: string;
+    cost: number;
+    base: number;
+    /** Departure ledger already settled while the scene exit animation is pending. */
+    departed?: boolean;
+  }[];
   bodyStates?: RogueBodyState[];
   /** mulberry32 内部状态(续局后随机序列可复现)。 */
   rngState: number;
@@ -549,6 +584,11 @@ export type RogueRunSnapshot = {
   settlement: ShiftSettlement | null;
   /** 限电日剩余手动投放次数；v9 旧档缺失时按完整额度迁移。 */
   powerThrowsLeft?: number | null;
+  /** 赶工墙钟剩余的有效游玩时间；v9 旧档缺失时按完整时限迁移。 */
+  rushRemainingMs?: number | null;
+  /** 大风当前方向与距离下次翻向的有效游玩时间。 */
+  windSign?: 1 | -1;
+  windFlipRemainingMs?: number | null;
   stats: RunStats;
   deskSwapPending: boolean;
   deskSwapFirst: RogueElement | null;

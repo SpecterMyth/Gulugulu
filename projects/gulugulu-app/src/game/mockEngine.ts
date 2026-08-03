@@ -628,6 +628,11 @@ export class MockGameEngine {
       throw new Error("#shopLevelTooLow");
     }
     if (config.eggPrices[element] == null) throw new Error("#noSuchElementEgg");
+    const guidedFirePurchasePending =
+      this.save.onboarding?.status === "active" && this.save.onboarding.step === "A12";
+    if (guidedFirePurchasePending && !(element === "fire" && tier === 1)) {
+      throw new Error("#onboardingTargetOnly");
+    }
     // 每日产出上限（EconomyScaling.md §7.5；限频 generator 的客户端镜像）：达上限拒绝孵化。
     const mintKey = `${element}:${tier}`;
     const cap = eggDailyMintCap(config, tier);
@@ -1161,7 +1166,9 @@ export class MockGameEngine {
     if (level >= config.hatcherySlots.length) throw new Error("#hatcheryMaxLevel");
     const cost = config.hatcheryUpgradeCosts[level - 1];
     if (cost == null) throw new Error("#missingUpgradeCost");
-    const reimbursed = this.save.onboarding?.status === "active" && level === 1;
+    const reimbursed =
+      this.save.onboarding?.status === "active" &&
+      (level === 1 || this.save.onboarding.step === "A13");
     if (this.save.coins < cost && !reimbursed) throw new Error("#notEnoughCoins");
     if (!reimbursed) this.save.coins -= cost;
     this.save.hatcheryLevel += 1;
@@ -1441,15 +1448,15 @@ export class MockGameEngine {
     return this.commit();
   }
 
-  private grantOnboardingPet(element: string, capacityExempt: boolean): void {
-    const species = this.config.speciesByRecipe?.[element];
-    if (!species) throw new Error(`#missingRecipe|recipe=${element}`);
+  private grantOnboardingPet(recipe: string, capacityExempt: boolean, tier = 1): void {
+    const species = this.config.speciesByRecipe?.[recipe];
+    if (!species) throw new Error(`#missingRecipe|recipe=${recipe}`);
     const id = newId("pet");
     this.save.pets.push({
       id,
       species,
-      tier: 1,
-      level: maxLevelForTier(this.config, 1),
+      tier,
+      level: maxLevelForTier(this.config, tier),
       exp: 0,
       stamina: this.config.staminaMax,
       staminaUpdatedAt: nowSecs(),
@@ -1461,7 +1468,7 @@ export class MockGameEngine {
     this.save.dexObtained[species] = (this.save.dexObtained[species] ?? 0) + 1;
     this.save.stats ??= {};
     this.save.stats.firstMaxlevelDone = true;
-    this.save.stats.highestTier = Math.max(this.save.stats.highestTier ?? 0, 1);
+    this.save.stats.highestTier = Math.max(this.save.stats.highestTier ?? 0, tier);
     if (capacityExempt) {
       this.save.capacityExemptPetIds ??= [];
       if (!this.save.capacityExemptPetIds.includes(id)) this.save.capacityExemptPetIds.push(id);
@@ -1494,7 +1501,7 @@ export class MockGameEngine {
     } else if (completedStep === "A15") {
       state.tutorialWorkClicks = 0;
     } else if (completedStep === "B05" && !state.starterTrioClaimed) {
-      for (const element of ["water", "electric", "ice"]) this.grantOnboardingPet(element, false);
+      for (const element of ["normal", "fire", "electric"]) this.grantOnboardingPet(element, false);
       state.starterTrioClaimed = true;
     } else if (completedStep === "C12") {
       if (!state.postPracticeRosterClaimed) {
@@ -1543,6 +1550,19 @@ export class MockGameEngine {
 
   skipOnboardingAgent(): GameSave {
     if (this.save.onboarding) this.save.onboarding.agentPromptSkipped = true;
+    return this.commit();
+  }
+
+  grantSkippedOnboardingFusions(): GameSave {
+    const state = this.save.onboarding;
+    if (!state || state.status !== "active") return this.commit();
+    const recipes = ["fire+normal", "electric+water"];
+    const completed = Math.min(2, Math.max(0, state.tutorialFusions ?? 0));
+    for (const recipe of recipes.slice(completed)) {
+      this.grantOnboardingPet(recipe, true, 2);
+    }
+    state.tutorialFusions = 2;
+    this.save.tutorialFirstFusionDone = true;
     return this.commit();
   }
 

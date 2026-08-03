@@ -281,7 +281,10 @@ mod tests {
     #[test]
     fn element_set_key_dedups_sorts_joins() {
         assert_eq!(element_set_key(&["fire".into()]), "fire");
-        assert_eq!(element_set_key(&["water".into(), "fire".into()]), "fire+water");
+        assert_eq!(
+            element_set_key(&["water".into(), "fire".into()]),
+            "fire+water"
+        );
         // 去重 + 字典序：同物种融合的并集即自身。
         assert_eq!(element_set_key(&["fire".into(), "fire".into()]), "fire");
         assert_eq!(
@@ -346,7 +349,11 @@ mod tests {
         assert_eq!(weights_sum(&w), 100 * (1u64 << (m - 1)), "sum a={a} m={m}");
         // AI 池（1..）占比恒等于 A(e)。
         let ai: u64 = w[1..].iter().sum();
-        assert_eq!(ai * 100, a * weights_sum(&w), "AI 总占比应 = {a}% (a={a} m={m})");
+        assert_eq!(
+            ai * 100,
+            a * weights_sum(&w),
+            "AI 总占比应 = {a}% (a={a} m={m})"
+        );
     }
 
     #[test]
@@ -481,9 +488,15 @@ mod tests {
     fn recipe_slot_weights_composes_and_degrades() {
         // fire+water(e=2), 已获得 {0,1}, 已注册 1 个 AI 变种, CLI 可用：
         // u=1 → m=2；前沿 2 号需生成（m>registered）→ eff=2 → [80,60,60]。
-        assert_eq!(recipe_slot_weights(2, &set(&[0, 1]), 1, true), vec![80, 60, 60]);
+        assert_eq!(
+            recipe_slot_weights(2, &set(&[0, 1]), 1, true),
+            vec![80, 60, 60]
+        );
         // 同上但 CLI 不可用：前沿新槽去掉 → eff=1 → [40,60]（AI 总仍 60%）。
-        assert_eq!(recipe_slot_weights(2, &set(&[0, 1]), 1, false), vec![40, 60]);
+        assert_eq!(
+            recipe_slot_weights(2, &set(&[0, 1]), 1, false),
+            vec![40, 60]
+        );
         // 全新配方 CLI 不可用：eff=0 → [1]（100% 固定，与旧行为一致）。
         assert_eq!(recipe_slot_weights(2, &set(&[]), 0, false), vec![1]);
         // 单元素配方：a=0 → 0 号独占（不该掷 AI）。
@@ -505,15 +518,20 @@ mod tests {
         // 掷点落在 AI 区间 → 生成 1 号。
         let s = roll_slot(&slot_weights(a, m), 40);
         assert_eq!(s, 1);
-        assert_eq!(classify_slot(s, registered), SlotOutcome::Generate { slot: 1 });
+        assert_eq!(
+            classify_slot(s, registered),
+            SlotOutcome::Generate { slot: 1 }
+        );
         registered = 1;
         obtained.insert(1); // 孵出 → 1 号已获得（0 号仍缺）。
 
         // 2) obtained={1}, u=-1, m=1 → 仍 {0,1}，掷 1 号=复用。
         let m = frontier_m(obtained_prefix(&obtained));
         assert_eq!(m, 1);
-        assert_eq!(classify_slot(roll_slot(&slot_weights(a, m), 40), registered),
-                   SlotOutcome::Reuse { slot: 1 });
+        assert_eq!(
+            classify_slot(roll_slot(&slot_weights(a, m), 40), registered),
+            SlotOutcome::Reuse { slot: 1 }
+        );
 
         // 3) 掷中 0 号 → 拿到固定物种；obtained={0,1}, u=1, m=2 → 40/30/30。
         obtained.insert(0);
@@ -523,7 +541,10 @@ mod tests {
         // 掷中 2 号（前沿新槽）→ 生成。
         let s = roll_slot(&slot_weights(a, m), 140);
         assert_eq!(s, 2);
-        assert_eq!(classify_slot(s, registered), SlotOutcome::Generate { slot: 2 });
+        assert_eq!(
+            classify_slot(s, registered),
+            SlotOutcome::Generate { slot: 2 }
+        );
         registered = 2;
         obtained.insert(2);
 
@@ -616,7 +637,10 @@ mod tests {
                 let name = slot_codename(ord, slot);
                 assert_eq!(name.len(), 7, "codename 长度 {name}");
                 assert!(name.starts_with("aif"), "codename 前缀 {name}");
-                assert!(name[3..].chars().all(|c| c.is_ascii_digit()), "codename 尾数 {name}");
+                assert!(
+                    name[3..].chars().all(|c| c.is_ascii_digit()),
+                    "codename 尾数 {name}"
+                );
                 assert!(names.insert(name.clone()), "codename 重复 {name}");
             }
         }

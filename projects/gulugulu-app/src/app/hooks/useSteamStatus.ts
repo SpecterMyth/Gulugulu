@@ -1,8 +1,9 @@
 import { type SetStateAction, useEffect, useRef, useState } from "react";
 import type { GameBridge } from "../../game/bridge";
 import type { GameSave, SteamStatus } from "../../types";
+import { t, type Language } from "../../i18n";
 import { errorMessage } from "../geometry";
-import { useT } from "../../useT";
+import type { ConfirmGameDialog } from "../GameDialog";
 
 /** Steam 集成状态：连接点/待发放/待认领（交易所面板显示；阻断项预先禁用）。
  *  跨账号存档：阻塞式确认后剥离绑定并重打当前账号（00-decisions.md）。 */
@@ -10,8 +11,10 @@ export function useSteamStatus(
   bridge: GameBridge,
   setSave: (action: SetStateAction<GameSave | null>) => void,
   showToastMsg: (text: string) => void,
+  language: Language,
+  confirmDialog: ConfirmGameDialog,
 ): SteamStatus | null {
-  const { T } = useT();
+  const T = t(language);
   const [steamStatus, setSteamStatus] = useState<SteamStatus | null>(null);
   const ownerPromptedRef = useRef(false);
   useEffect(() => {
@@ -49,17 +52,29 @@ export function useSteamStatus(
   useEffect(() => {
     if (!steamStatus?.ownerMismatch || ownerPromptedRef.current) return;
     ownerPromptedRef.current = true;
-    const ok = window.confirm(T.sh.toast.steamRebindConfirm);
-    if (ok) {
+    let cancelled = false;
+    void confirmDialog({
+      title: T.sh.dialog.steamRebindTitle,
+      message: T.sh.toast.steamRebindConfirm,
+      confirmLabel: T.sh.dialog.confirm,
+      cancelLabel: T.sh.dialog.cancel,
+    }).then((accepted) => {
+      if (!accepted || cancelled) return;
       bridge
         .steamConfirmRebind()
         .then((next) => {
+          if (cancelled) return;
           setSave(next);
           showToastMsg(T.sh.toast.steamRebindDone);
         })
-        .catch((error) => showToastMsg(errorMessage(error)));
-    }
-  }, [steamStatus, bridge, setSave, showToastMsg, T]);
+        .catch((error) => {
+          if (!cancelled) showToastMsg(errorMessage(error));
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [steamStatus, bridge, setSave, showToastMsg, T, confirmDialog]);
 
   return steamStatus;
 }

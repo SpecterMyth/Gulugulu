@@ -35,6 +35,7 @@ import { previewFacPile } from "../preview/shotParams";
 import { registerHitRegion } from "../app/hooks/useClickThrough";
 import type { BodyLike, RogueSceneBridge } from "./factory/rogueTypes";
 import { buildAdjacency } from "./factory/rogueGraph";
+import { projectFactoryDropGuide } from "./factory/dropGuide";
 import { FACTORY_ROGUE } from "../i18n/factoryRogue";
 import { FactoryHudPosts, demoHudData, type FactoryHudData } from "./factory/ui/FactoryHudPosts";
 import { listen } from "@tauri-apps/api/event";
@@ -423,7 +424,49 @@ type Body = {
     fromSpecies: string;
     switchAt: number;
   };
+  /** 状态效果形成的连接快照；成员、物种或位置变化后不再豁免罢工。 */
+  strikeProtection?: {
+    species: string;
+    members: number[];
+    positions: Array<{ uid: number; x: number; y: number }>;
+  };
+  /** 生长体首次落定时，为它所在的连接结构建立豁免快照。 */
+  protectStrikeOnSettle?: boolean;
 };
+
+function sameSpeciesComponent(seed: Body, bodies: Iterable<Body>): Body[] {
+  const candidates = Array.from(bodies).filter((body) => body.settled && body.species === seed.species);
+  const component: Body[] = [];
+  const queued = [seed];
+  const seen = new Set<number>();
+  while (queued.length > 0) {
+    const body = queued.pop()!;
+    if (seen.has(body.uid)) continue;
+    seen.add(body.uid);
+    component.push(body);
+    for (const candidate of candidates) {
+      if (seen.has(candidate.uid)) continue;
+      const rr = (body.r + candidate.r) * CONTACT_SLACK;
+      const dx = body.x - candidate.x;
+      const dy = body.y - candidate.y;
+      if (dx * dx + dy * dy <= rr * rr) queued.push(candidate);
+    }
+  }
+  return component;
+}
+
+function protectStrikeComponent(members: Body[]): void {
+  if (members.length === 0) return;
+  const protection = {
+    species: members[0].species,
+    members: members.map((member) => member.uid).sort((a, b) => a - b),
+    positions: members.map((member) => ({ uid: member.uid, x: member.x, y: member.y })),
+  };
+  members.forEach((member) => {
+    member.strikeProtection = protection;
+    member.protectStrikeOnSettle = false;
+  });
+}
 
 type SpawnedPet = { uid: number; species: string; landed: boolean };
 type CarriedPet = { uid: number; species: string };
@@ -478,10 +521,12 @@ const FRAME_COUNT = 6;
 const WORK_CYCLE_MS = 550; // 与 sprites.css rig-work-* 同拍
 const SLEEP_CYCLE_MS = 3400; // 与 sprites.css rig-sleep-breathe 同拍
 const PATH_SLEEP_AUDIT_MS = 400;
+/** 画布角色只有 6 张离散帧；30fps 已能覆盖翻页，也保留压扁/光晕缓动。 */
+const PILE_BASE_FRAME_MS = 1000 / 30;
 /** 角色山很密时只降画布动画采样率，物理与满屏数字仍保持逐帧更新。 */
 const PILE_BUSY_COUNT = 48;
 const PILE_CROWDED_COUNT = 96;
-const PILE_BUSY_FRAME_MS = 1000 / 30;
+const PILE_BUSY_FRAME_MS = 1000 / 24;
 const PILE_CROWDED_FRAME_MS = 1000 / 20;
 /** 单次结算最多让多少只高亮角色播放完整骨骼/粒子动画。 */
 const SPOTLIGHT_ANIMATED_HERO_MAX = 8;
@@ -700,6 +745,7 @@ export function FactoryScene({
   config,
   onBack,
   rogue,
+  paused = false,
   hud,
   spotlight,
   connectionFailure,
@@ -711,11 +757,21 @@ export function FactoryScene({
   /** 《危楼打工记》场景桥：存在即 rogue 模式（载宠/闸门/事件/桌序全由逻辑层驱动）；
    *  缺省 = 现行演示,行为零变化。 */
   rogue?: RogueSceneBridge;
+  /** 弹层阶段冻结背后的场景。物理状态保留，恢复后从新的 rAF 时基继续。 */
+  paused?: boolean;
   /** N1 结算聚光信号（token 变即触发一次 ~2s 高亮）：高亮 uids + 结算桌 deskEls 保持
    *  彩色，其余宠灰显定格、其余桌灰显后缓慢恢复。缺省/demo 不传 → 无聚光。 */
   spotlight?: { uids: number[]; deskEls: string[]; token: number; durationMs?: number } | null;
   /** 投掷落定后未连通任何桌子的失败演出。 */
-  connectionFailure?: { uid: number; token: number; text: string } | null;
+  connectionFailure?: {
+    uid: number;
+    species?: string;
+    x?: number;
+    y?: number;
+    r?: number;
+    token: number;
+    text: string;
+  } | null;
   /** 首次真实局强引导使用；锚到会随运输机移动的真实投放目标。 */
   coachTarget?: string;
   /** 双立柱 HUD 的显示数据（设计定稿 6a）。**纯展示，场景不生产也不消费它**。
@@ -760,12 +816,14 @@ export function FactoryScene({
   const [runners, setRunners] = useState<RunnerUi[]>([]);
 
   const bodiesRef = useRef<Map<number, Body>>(new Map());
+  const pendingStrikeProtectionRef = useRef<Set<number>>(new Set());
   const [sleepingPathUids, setSleepingPathUids] = useState<Set<number>>(new Set());
   const sleepingPathUidsRef = useRef<Set<number>>(sleepingPathUids);
   const outerRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const innerRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const planeElRef = useRef<HTMLDivElement | null>(null);
   const hangElRef = useRef<HTMLDivElement | null>(null);
+  const dropGuideElRef = useRef<HTMLDivElement | null>(null);
   const pileCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // x 首帧被巡航区间夹取；speed 每帧按「固定横穿时长」由巡航区宽反算。
   const planeRef = useRef({ x: 200, dir: 1 as 1 | -1, reloadAt: 0, speed: 200 });
@@ -872,13 +930,21 @@ export function FactoryScene({
   useEffect(() => {
     if (rogue == null || connectionFailure == null) return;
     const b = bodiesRef.current.get(connectionFailure.uid);
-    if (b == null) return;
+    if (
+      b == null
+      && (
+        connectionFailure.species == null
+        || connectionFailure.x == null
+        || connectionFailure.y == null
+        || connectionFailure.r == null
+      )
+    ) return;
     setFailedPet({
-      uid: b.uid,
-      species: b.species,
-      x: b.x,
-      y: b.y,
-      r: b.r,
+      uid: b?.uid ?? connectionFailure.uid,
+      species: b?.species ?? connectionFailure.species!,
+      x: b?.x ?? connectionFailure.x!,
+      y: b?.y ?? connectionFailure.y!,
+      r: b?.r ?? connectionFailure.r!,
       text: connectionFailure.text,
     });
     const done = window.setTimeout(() => setFailedPet(null), 1800);
@@ -1398,6 +1464,7 @@ export function FactoryScene({
         fromCollapse: false,
         bounced: false,
         rogueReported: true,
+        protectStrikeOnSettle: true,
       };
       bodiesRef.current.set(uid, body);
       setPets((prev) => [...prev, { uid, species: request.species, landed: false }]);
@@ -1472,6 +1539,11 @@ export function FactoryScene({
         fromCollapse: false,
         bounced: false,
         rogueReported: true,
+        strikeProtection: saved.strikeProtection == null ? undefined : {
+          species: saved.strikeProtection.species,
+          members: saved.strikeProtection.members.slice(),
+          positions: saved.strikeProtection.positions.map((position) => ({ ...position })),
+        },
       });
       ensureAtlas(saved.species);
     }
@@ -1659,7 +1731,7 @@ export function FactoryScene({
         && (rogueRef.current?.countsForStrike?.(b.uid) ?? true)
       ) settled.push(b);
     });
-    if (settled.length < STRIKE_COUNT) return;
+    if (settled.length === 0) return;
     const parent = new Map<number, number>();
     const bySpecies = new Map<string, Body[]>();
     settled.forEach((b) => parent.set(b.uid, b.uid));
@@ -1699,14 +1771,32 @@ export function FactoryScene({
       if (list) list.push(b);
       else groups.set(root, [b]);
     }
+    const pendingProtection = pendingStrikeProtectionRef.current;
+    const sameSnapshot = (members: Body[], protection: NonNullable<Body["strikeProtection"]>): boolean => {
+      if (protection.species !== members[0]?.species || protection.members.length !== members.length) return false;
+      const memberIds = members.map((member) => member.uid).sort((a, b) => a - b);
+      if (memberIds.some((uid, index) => uid !== protection.members[index])) return false;
+      return members.every((member) => {
+        const position = protection.positions.find((candidate) => candidate.uid === member.uid);
+        return position != null && Math.hypot(member.x - position.x, member.y - position.y) <= 0.5;
+      });
+    };
     let struck = false;
     groups.forEach((members) => {
+      if (members.some((member) => pendingProtection.has(member.uid) || member.protectStrikeOnSettle === true)) {
+        protectStrikeComponent(members);
+        return;
+      }
+      const protection = members.find((member) => member.strikeProtection != null)?.strikeProtection;
+      if (protection != null && sameSnapshot(members, protection)) return;
+      members.forEach((member) => { member.strikeProtection = undefined; });
       const strikeLine = rogueRef.current?.strikeCount(members[0]?.elements) ?? STRIKE_COUNT;
       if (members.length >= strikeLine) {
         startStrike(members);
         struck = true;
       }
     });
+    pendingProtection.clear();
     if (struck) collapseUnsupported();
   }, [collapseUnsupported, startStrike]);
 
@@ -1877,6 +1967,9 @@ export function FactoryScene({
 
   // ---- 物理 + 巡航 + 打工山画布绘制主循环 ----
   useEffect(() => {
+    // 结算/商店/总结都把场景完全盖住。继续跑 60Hz 会白白重画整座 Canvas，
+    // 透明 WebView 下还会迫使桌面合成器持续重组背后的窗口。
+    if (paused) return;
     let raf = 0;
     let last = performance.now();
     let nextPathSleepAudit = 0;
@@ -2046,7 +2139,7 @@ export function FactoryScene({
       const sc = sceneRef.current;
       const groundY = sc.h - FLOOR_H;
 
-      // 一般系【吸收】由逻辑层先完成账务和连接转移；场景这里只移除被吃物理体。
+      // 一般系【吸收】由逻辑层先完成账务和连接转移；场景将保留体移到双方中点，再移除被吃物理体。
       const mutations = rogueRef.current?.takeBodyMutations?.() ?? [];
       if (mutations.length > 0) {
         const removed = new Set<number>();
@@ -2054,8 +2147,15 @@ export function FactoryScene({
         const nextAssimilations: AssimilationFx[] = [];
         for (const mutation of mutations) {
           if (mutation.kind === "absorb") {
+            const absorber = bodiesRef.current.get(mutation.sourceUid);
+            const absorbed = bodiesRef.current.get(mutation.targetUid);
+            if (absorber != null && absorbed != null) {
+              absorber.x = (absorber.x + absorbed.x) / 2;
+              absorber.y = (absorber.y + absorbed.y) / 2;
+            }
             bodiesRef.current.delete(mutation.targetUid);
             removed.add(mutation.targetUid);
+            pendingStrikeProtectionRef.current.add(mutation.sourceUid);
             continue;
           }
           const body = bodiesRef.current.get(mutation.targetUid);
@@ -2065,6 +2165,7 @@ export function FactoryScene({
           body.elements = mutation.elements.slice();
           ensureAtlas(mutation.species);
           converted.set(body.uid, mutation.species);
+          pendingStrikeProtectionRef.current.add(body.uid);
           if (fromSpecies !== mutation.species) {
             body.visualSwap = {
               fromSpecies,
@@ -2104,6 +2205,15 @@ export function FactoryScene({
             ...nextAssimilations,
           ].slice(-8));
         }
+        // 在效果改变结构的同一帧固定豁免基线。这样之后手动投放的新同名成员
+        // 不会被误收进豁免，而会作为成员变化正常触发罢工重判。
+        for (const uid of pendingStrikeProtectionRef.current) {
+          const seed = bodiesRef.current.get(uid);
+          if (seed?.settled === true) {
+            protectStrikeComponent(sameSpeciesComponent(seed, bodiesRef.current.values()));
+          }
+        }
+        pendingStrikeProtectionRef.current.clear();
       }
 
       // 运输机巡航（左右往返，折返转向）。横穿一趟的时间固定：速度按巡航区宽反算，
@@ -2124,6 +2234,25 @@ export function FactoryScene({
       if (planeEl) {
         planeEl.style.transform = `translate3d(${plane.x - PLANE_W / 2}px, ${PLANE_TOP}px, 0)`;
         planeEl.classList.toggle("fac-plane-flip", plane.dir < 0);
+      }
+      const dropGuideEl = dropGuideElRef.current;
+      const guideElements = carriedElemsRef.current;
+      if (dropGuideEl != null && guideElements != null) {
+        const projection = projectFactoryDropGuide({
+          planeX: plane.x,
+          planeDir: plane.dir,
+          planeSpeed: plane.speed,
+          startFeetY: HANG_TOP + PET_SIZE * FEET_RATIO,
+          groundY: sc.h - FLOOR_H,
+          gravity: GRAVITY,
+          sceneWidth: sc.w,
+          elements: guideElements,
+          desks: desksSnapRef.current,
+        });
+        dropGuideEl.style.transform = `translate3d(${projection.x - 24}px, ${projection.y - 14}px, 0)`;
+        const state = projection.ready ? "ready" : "wait";
+        if (dropGuideEl.dataset.state !== state) dropGuideEl.dataset.state = state;
+        dropGuideEl.classList.toggle("is-ready", projection.ready);
       }
       // rogue：机上载宠陈旧校对（低频 500ms）。跨班洗袋/罢工扣签后袋头可能已换人，
       // 旧载宠会被 onThrow 的「只认袋头」恒拒且占着钩子永不重询 → 软锁（D 线缺陷 #1）。
@@ -2462,12 +2591,14 @@ export function FactoryScene({
       if (rolledOff.length > 0 && rg != null) {
         const goneIds = new Set<number>();
         for (const b of rolledOff) {
-          bodies.delete(b.uid);
-          goneIds.add(b.uid);
           if (b.rogueReported !== true) {
             b.rogueReported = true;
+            // Report while the physical snapshot still owns the body so the
+            // failure layer can capture an exact exit position before removal.
             rg.onBounced(b.uid, b.species); // 出场也是「弹开确定」：清连击/回流退款
           }
+          bodies.delete(b.uid);
+          goneIds.add(b.uid);
           rg.onGone(b.uid, "rolloff");
         }
         setPets((prev) => prev.filter((p) => !goneIds.has(p.uid)));
@@ -2479,12 +2610,14 @@ export function FactoryScene({
         const goneIds = new Set<number>();
         const added: RunnerUi[] = [];
         for (const b of deserted) {
-          bodies.delete(b.uid);
-          goneIds.add(b.uid);
           if (b.rogueReported !== true) {
             b.rogueReported = true;
+            // Capture the miss before moving this body out of the physics map;
+            // otherwise the most common first-drop failure has no visible cue.
             rg.onBounced(b.uid, b.species);
           }
+          bodies.delete(b.uid);
+          goneIds.add(b.uid);
           const dir: 1 | -1 = b.x < sc.w / 2 ? -1 : 1;
           runnersRef.current.set(b.uid, {
             uid: b.uid,
@@ -2595,12 +2728,12 @@ export function FactoryScene({
         ? PILE_CROWDED_FRAME_MS
         : bodies.size >= PILE_BUSY_COUNT
           ? PILE_BUSY_FRAME_MS
-          : 0;
+          : PILE_BASE_FRAME_MS;
       if (now >= nextPileDraw) {
         const pileDt = Math.min(0.1, Math.max(dt, (now - lastPileDraw) / 1000));
         drawPile(now, pileDt);
         lastPileDraw = now;
-        nextPileDraw = pileFrameMs > 0 ? now + pileFrameMs : now;
+        nextPileDraw = now + pileFrameMs;
       }
     };
     raf = requestAnimationFrame(step);
@@ -2608,6 +2741,7 @@ export function FactoryScene({
   }, [
     commitSettled,
     ensureAtlas,
+    paused,
     releaseOvertimeWorkers,
     reportRogueSettles,
     spawnCarried,
@@ -2677,7 +2811,7 @@ export function FactoryScene({
   return (
     <div
       ref={rootRef}
-      className={`fac-stage${sceneDimActive ? " is-spotlighting" : ""}${sceneDimRestoring ? " is-spotlight-restoring" : ""}${failedPet != null ? " is-connect-failed" : ""}`}
+      className={`fac-stage${paused ? " is-paused" : ""}${sceneDimActive ? " is-spotlighting" : ""}${sceneDimRestoring ? " is-spotlight-restoring" : ""}${failedPet != null ? " is-connect-failed" : ""}`}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.preventDefault();
@@ -2748,6 +2882,15 @@ export function FactoryScene({
           disabledLabel={FACTORY_ROGUE[lang].disabledDeskStamp}
         />
       ))}
+
+      {rogue?.showDropGuide?.() === true && carried != null && (
+        <div
+          ref={dropGuideElRef}
+          className="fac-drop-guide"
+          data-state="wait"
+          aria-hidden="true"
+        />
+      )}
 
       {/* 前景小装饰物（纸箱/雪糕筒/盆栽/扫帚水桶/木托盘——纯装饰零碰撞，
           压在打工山之上读作最前景） */}
@@ -2856,7 +2999,8 @@ export function FactoryScene({
               top: failedPet.y + failedPet.r - PET_SIZE * FEET_RATIO,
               width: PET_SIZE,
               height: PET_SIZE,
-            }}
+              "--fac-failure-anchor-x": `${failedPet.x}px`,
+            } as CSSProperties}
           >
             <SvgSprite species={failedPet.species} config={config} petState="error" className="fac-pet-sprite" />
             <div className="fac-failure-text" lang={lang}>{failedPet.text}</div>
@@ -2990,7 +3134,6 @@ const CREAM = "#FFF7DC";
 const WALL_FILL = "#EAE0CB";
 const WAINSCOT = "#E2D6BC";
 const SKIRTING = "#DBCFB2";
-const SASH = "#D8CCB0";
 /** 元素桌配色（每张桌的「剪影 = 元素」，看形状不用读字）。 */
 const DESK_SKIN: Record<
   string,
@@ -3032,41 +3175,7 @@ function PlaneArt() {
   );
 }
 
-// ---- 背景（窗外远景 + 墙 + 中景家具 + 地板） ---------------------------------
-
-/** 窗外远景：一扇 420×244 的车间大窗（半透明，透出玩家桌面壁纸当"天光"）。
- *  设计稿 §远景：6px 窗框 #D8CCB0（等比放大到 13）、中梃、天空渐变、城市剪影、
- *  漂移的白云胶囊、暖黄太阳。整扇 opacity 0.8 —— 这是**唯一**允许半透明的一层，
- *  因为它本就该透出壁纸。 */
-function FactoryWindow({ x, y, sun }: { x: number; y: number; sun: boolean }) {
-  const W = 420;
-  const H = 244;
-  return (
-    <g transform={`translate(${x} ${y})`} opacity={0.8}>
-      <clipPath id={`fac-win-${x}`}>
-        <rect x={7} y={7} width={W - 14} height={H - 14} rx={12} />
-      </clipPath>
-      {/* 天空 */}
-      <rect x={0} y={0} width={W} height={H} rx={18} fill="url(#fac-sky)" />
-      <g clipPath={`url(#fac-win-${x})`}>
-        {/* 城市剪影（近远两档灰蓝） */}
-        <rect x={18} y={H - 66} width={75} height={66} fill="rgba(150,170,190,0.5)" />
-        <rect x={106} y={H - 97} width={58} height={97} fill="rgba(150,170,190,0.42)" />
-        <rect x={176} y={H - 52} width={44} height={52} fill="rgba(150,170,190,0.5)" />
-        <rect x={236} y={H - 84} width={62} height={84} fill="rgba(150,170,190,0.44)" />
-        <rect x={312} y={H - 60} width={70} height={60} fill="rgba(150,170,190,0.5)" />
-        {sun && <circle cx={W - 74} cy={40} r={33} fill="rgba(245,227,168,0.9)" />}
-        {/* 白云胶囊：左右缓慢漂移（10–12s） */}
-        <rect className="fac-win-cloud" x={W - 150} y={26} width={97} height={31} rx={16} fill="rgba(255,255,255,0.75)" />
-        <rect className="fac-win-cloud fac-win-cloud-b" x={40} y={72} width={72} height={24} rx={12} fill="rgba(255,255,255,0.6)" />
-      </g>
-      {/* 窗框 + 中梃 */}
-      <rect x={6.5} y={6.5} width={W - 13} height={H - 13} rx={12} fill="none" stroke={SASH} strokeWidth={13} />
-      <rect x={W * 0.43 - 6.5} y={7} width={13} height={H - 14} fill={SASH} />
-      <rect x={7} y={H * 0.52 - 6.5} width={W - 14} height={13} fill={SASH} />
-    </g>
-  );
-}
+// ---- 背景（墙 + 中景家具 + 地板） -------------------------------------------
 
 /** 中景家具（实色淡彩、**无描边**、低饱和）：沙发 / 公告板 / 货架 / 落地风扇 /
  *  纸杯塔 / 绿柜 / 绿植。全部站在地板顶线上，允许高过墙顶（那一截就是贴着桌面
@@ -3150,21 +3259,11 @@ function MidPlant() {
   );
 }
 
-/** 办公室背景（不参与碰撞）：窗外远景 → 背景墙 → 中景家具 → 地板。
- *  按屏宽等比铺开：窗以 WIN_PITCH、家具以 FURN_PITCH 循环，护墙板/踢脚线/地板缝
- *  按固定节拍重复；散列抖动保证同一屏内每次进场一致。 */
+/** 办公室背景（不参与碰撞）：背景墙 → 中景家具 → 地板。
+ *  按屏宽等比铺开：家具以 FURN_PITCH 循环，护墙板/踢脚线/地板缝按固定节拍重复；
+ *  散列抖动保证同一屏内每次进场一致。 */
 function OfficeBackdrop({ width }: { width: number }) {
   const w = Math.max(width, 320);
-
-  // 窗（浮在墙顶之上，透出桌面壁纸）
-  const WIN_PITCH = 900;
-  const winY = WALL_TOP_Y - 276; // 窗底 = 墙顶上方 32px
-  const windows: ReactNode[] = [];
-  for (let i = 0; i * WIN_PITCH + 120 < w; i++) {
-    const hash = (i * 2654435761) >>> 0;
-    const wx = 120 + i * WIN_PITCH + ((hash % 61) - 30);
-    windows.push(<FactoryWindow key={i} x={wx} y={winY + (hash % 3) * 14} sun={i % 3 === 1} />);
-  }
 
   // 护墙板分格（120×40 @180 → 等比 264×88 @396）
   const panels: ReactNode[] = [];
@@ -3228,20 +3327,13 @@ function OfficeBackdrop({ width }: { width: number }) {
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="fac-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(205,224,236,0.62)" />
-          <stop offset="100%" stopColor="rgba(232,240,244,0.55)" />
-        </linearGradient>
         <linearGradient id="fac-floor" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#C7A876" />
           <stop offset="100%" stopColor="#A9814F" />
         </linearGradient>
       </defs>
 
-      {/* ① 窗外远景（唯一半透明层：本就该透出壁纸） */}
-      {windows}
-
-      {/* ② 背景墙：不透明。顶边条 + 细竖纹 + 护墙板分格 + 插座/挂画 + 踢脚线 */}
+      {/* ① 背景墙：不透明。顶边条 + 细竖纹 + 护墙板分格 + 插座/挂画 + 踢脚线 */}
       <rect x={0} y={WALL_TOP_Y} width={w} height={WALL_H} fill={WALL_FILL} />
       <rect x={0} y={WALL_TOP_Y} width={w} height={9} fill="#D9CBA8" />
       {grain}
@@ -3249,10 +3341,10 @@ function OfficeBackdrop({ width }: { width: number }) {
       {wallBits}
       <rect x={0} y={FLOOR_TOP_Y - 31} width={w} height={31} fill={SKIRTING} />
 
-      {/* ③ 中景家具：实色淡彩、无描边、无 opacity（高过墙顶的部分 = 贴壁纸的平涂剪影） */}
+      {/* ② 中景家具：实色淡彩、无描边、无 opacity（高过墙顶的部分 = 贴壁纸的平涂剪影） */}
       {furniture}
 
-      {/* ④ 地板：木板条 + 深色顶边（前景桌/宠物都站在这条线上） */}
+      {/* ③ 地板：木板条 + 深色顶边（前景桌/宠物都站在这条线上） */}
       <rect x={0} y={FLOOR_TOP_Y} width={w} height={FLOOR_H} fill="url(#fac-floor)" />
       <rect x={0} y={FLOOR_TOP_Y} width={w} height={8} fill={INK_WOOD} />
       {seams}
@@ -3518,6 +3610,30 @@ function DeskArt({
   disabledLabel: string;
 }) {
   const w = desk.w;
+  // The warning seal is deliberately narrow. Keep whitespace-delimited
+  // translations on at most two balanced lines instead of letting a long
+  // English sentence escape the SVG label (CJK copy naturally stays on one).
+  const disabledWords = disabledLabel.trim().split(/\s+/).filter(Boolean);
+  const disabledLines = disabledWords.length <= 1
+    ? [disabledLabel]
+    : disabledWords.slice(1).reduce<string[]>((lines, word) => {
+        if (lines.length === 1 && `${lines[0]} ${word}`.length <= 10) {
+          lines[0] = `${lines[0]} ${word}`;
+        } else if (lines.length < 2) {
+          lines.push(word);
+        } else {
+          lines[1] = `${lines[1]} ${word}`;
+        }
+        return lines;
+      }, [disabledWords[0]]);
+  const disabledLineFontSize = disabledLines.length > 1 ? 13 : 16;
+  const disabledLineSpacing = disabledLines.length > 1 ? 0.55 : 1;
+  const disabledLineMaxWidth = Math.max(18, w - 30);
+  const disabledLineWidths = disabledLines.map((line) => (
+    [...line].reduce((width, char) => (
+      width + (/[^\u0000-\u00ff]/.test(char) ? disabledLineFontSize : char === " " ? disabledLineFontSize * 0.34 : disabledLineFontSize * 0.62)
+    ), 0) + Math.max(0, line.length - 1) * disabledLineSpacing
+  ));
   const slabY = DESK_ITEM_H;
   const legTop = slabY + DESK_SLAB_H;
   const h = DESK_ITEM_H + Math.max(DESK_SLAB_H, groundY - desk.top);
@@ -3660,7 +3776,28 @@ function DeskArt({
             height={32}
             rx={4}
           />
-          <text x={w / 2} y={legTop + 44} textAnchor="middle">{disabledLabel}</text>
+          <text
+            className={disabledLines.length > 1 ? "is-multiline" : undefined}
+            x={w / 2}
+            y={disabledLines.length > 1 ? legTop + 35 : legTop + 44}
+            textAnchor="middle"
+          >
+            {disabledLines.map((line, index) => {
+              const estimatedWidth = disabledLineWidths[index];
+              const fittedWidth = Math.min(estimatedWidth, disabledLineMaxWidth);
+              return (
+                <tspan
+                  key={`${line}-${index}`}
+                  x={w / 2}
+                  dy={index === 0 ? 0 : 14}
+                  textLength={fittedWidth < estimatedWidth ? fittedWidth : undefined}
+                  lengthAdjust={fittedWidth < estimatedWidth ? "spacingAndGlyphs" : undefined}
+                >
+                  {line}
+                </tspan>
+              );
+            })}
+          </text>
         </g>
       )}
     </svg>

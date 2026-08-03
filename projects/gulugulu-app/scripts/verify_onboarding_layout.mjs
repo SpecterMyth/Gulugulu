@@ -30,6 +30,70 @@ const scenarios = [
     fx: [{ left: 225, top: 233, width: 46, height: 66 }],
   },
   {
+    name: "A01 compact English guide clears the stage egg including paper shadow",
+    viewport: { width: 280, height: 320 },
+    card: { width: 260, height: 125 },
+    target: { left: 40, top: 143, width: 200, height: 178 },
+    fx: [],
+    speech: [
+      {
+        left: 40,
+        top: 143,
+        width: 200,
+        height: 178,
+        preferred: true,
+      },
+    ],
+    expectAboveSpeech: true,
+    minPaintedGap: 8,
+  },
+  {
+    name: "A01 compact Chinese guide clears the stage egg including paper shadow",
+    viewport: { width: 280, height: 320 },
+    card: { width: 260, height: 110 },
+    target: { left: 40, top: 153, width: 200, height: 168 },
+    fx: [],
+    speech: [
+      {
+        left: 40,
+        top: 153,
+        width: 200,
+        height: 168,
+        preferred: true,
+      },
+    ],
+    expectAboveSpeech: true,
+    minPaintedGap: 12,
+  },
+  {
+    name: "small-window English acknowledgement clears the companion including paper shadow",
+    viewport: { width: 280, height: 320 },
+    card: { width: 260, height: 125 },
+    target: null,
+    fx: [],
+    speech: [{ left: 40, top: 143, width: 200, height: 178, preferred: true }],
+    expectAboveSpeech: true,
+    minSpeechPaintedGap: 10,
+  },
+  {
+    name: "small-window late English target step clears the companion",
+    viewport: { width: 280, height: 452 },
+    card: { width: 260, height: 115 },
+    target: { left: 40, top: 143, width: 200, height: 178 },
+    fx: [],
+    speech: [{ left: 40, top: 143, width: 200, height: 178, preferred: true }],
+    expectAboveSpeech: true,
+    minPaintedGap: 12,
+  },
+  {
+    name: "long acknowledgement can abandon a blocked preferred anchor",
+    viewport: { width: 760, height: 560 },
+    card: { width: 520, height: 200 },
+    target: null,
+    fx: [],
+    speech: [{ left: 250, top: 180, width: 260, height: 120, preferred: true }],
+  },
+  {
     name: "pet click target in 280x320 pet window",
     viewport: { width: 280, height: 320 },
     card: { width: 252, height: 137 },
@@ -163,13 +227,29 @@ for (const scenario of scenarios) {
       `${scenario.name}: fixed guide position changed with the character`,
     );
   }
+  if (scenario.minPaintedGap) {
+    const paintedBottom = cardRect.top + cardRect.height + 8;
+    assert.ok(
+      paintedBottom + scenario.minPaintedGap <= scenario.target.top,
+      `${scenario.name}: rotated paper edge or shadow can cover the target`,
+    );
+  }
+  if (scenario.minSpeechPaintedGap) {
+    const paintedBottom = cardRect.top + cardRect.height + 8;
+    assert.ok(
+      paintedBottom + scenario.minSpeechPaintedGap <= scenario.speech[0].top,
+      `${scenario.name}: decorated paper card is too close to the subject`,
+    );
+  }
   assert.ok(placed.left >= 0 && placed.top >= 0, `${scenario.name}: card starts outside viewport`);
   assert.ok(
     placed.left + scenario.card.width <= scenario.viewport.width &&
       placed.top + scenario.card.height <= scenario.viewport.height,
     `${scenario.name}: card ends outside viewport`,
   );
-  assert.equal(area(cardRect, scenario.target), 0, `${scenario.name}: card covers target`);
+  if (scenario.target) {
+    assert.equal(area(cardRect, scenario.target), 0, `${scenario.name}: card covers target`);
+  }
   for (const fx of scenario.fx) {
     assert.equal(area(cardRect, fx), 0, `${scenario.name}: card covers guide gesture`);
   }

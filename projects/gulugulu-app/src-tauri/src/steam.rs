@@ -1324,6 +1324,15 @@ fn outbox_pass(
         let mut changed = steam_sync::resolve_intents(config, save, &snapshot, now);
         changed |= steam_sync::claim_unbound_tier2_results(config, save, &snapshot, now);
         changed |= steam_sync::attach_mints(save, &snapshot);
+        changed |= steam_sync::prune_orphan_mints(save);
+        // A guided fusion result is created after startup, so the one-shot startup repair
+        // cannot recover an egg -> pet receipt lost later in the tutorial. Re-run the
+        // conservative repair while onboarding is active; its receipt checks and op
+        // references make it idempotent, and it still mints materials + exchanges them
+        // through Steam rather than granting a tier-2 item locally.
+        if save.onboarding.status == "active" && save.onboarding.tutorial_fusions > 0 {
+            changed |= steam_sync::repair_unbound_tier2(config, save);
+        }
         let due = save.steam_outbox.iter().find_map(|op| match op {
             SteamOp::MintTier1 {
                 op_id,
@@ -1671,7 +1680,7 @@ fn outbox_pass(
                                     crate::game::FALLBACK_SPECIES.to_string(),
                                 ]
                             });
-                            steam_sync::apply_fused_result(
+                            let rebound = steam_sync::apply_fused_result(
                                 config,
                                 save,
                                 bind_id.clone(),
@@ -1682,8 +1691,22 @@ fn outbox_pass(
                                 pet_id.as_deref(),
                                 now,
                             );
-                            save.steam_outbox.remove(index);
-                            eprintln!("[steam] fuse exchange {op_id}: 已烧材料+铸结果 def={bind_def}，回绑完成");
+                            if rebound {
+                                save.steam_outbox.remove(index);
+                                eprintln!("[steam] fuse exchange {op_id}: 已烧材料+铸结果 def={bind_def}，回绑完成");
+                            } else if let SteamOp::Fuse {
+                                awaiting_result,
+                                next_retry_at,
+                                ..
+                            } = &mut save.steam_outbox[index]
+                            {
+                                // Exchange succeeded, so never spend the materials again.
+                                // A concurrent tutorial collect may have moved the target;
+                                // snapshot reconciliation will attach this exact result.
+                                *awaiting_result = true;
+                                *next_retry_at = 0;
+                                eprintln!("[steam] fuse exchange {op_id}: 结果已铸出，目标暂不可见，保留 op 等待回绑");
+                            }
                             Ok(true)
                         }
                         (OpOutcome::Uncertain, _) => Ok(false), // 下轮 resolve_intents 对照快照兜底。

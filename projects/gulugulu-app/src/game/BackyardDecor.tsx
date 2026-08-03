@@ -186,10 +186,10 @@ export const MidDecor = memo(function MidDecor() {
 
       {/* —— 具象点缀（尺寸/比例各异，不规则散布） —— */}
       {/* 左端装饰带后方的远树（一高一矮双冠） */}
-      {/* 训练馆（近景 -580..-260）后方留空，中景树左移到 -760 免得从屋顶里长出来 */}
-      <div style={abs({ left: -760, bottom: 168, width: 14, height: 64, borderRadius: 7, background: "#A98D6B" })} />
-      <div style={abs({ left: -804, bottom: 218, width: 100, height: 86, borderRadius: "50%", background: "#7EAD79", opacity: 0.95 })} />
-      <div style={abs({ left: -774, bottom: 258, width: 56, height: 46, borderRadius: "50%", background: "#9BC06E", opacity: 0.9 })} />
+      {/* 训练馆（近景 -580..-260）后方留空，中景树移入扩展后的林间空地。 */}
+      <div style={abs({ left: -920, bottom: 168, width: 14, height: 64, borderRadius: 7, background: "#A98D6B" })} />
+      <div style={abs({ left: -964, bottom: 218, width: 100, height: 86, borderRadius: "50%", background: "#7EAD79", opacity: 0.95 })} />
+      <div style={abs({ left: -934, bottom: 258, width: 56, height: 46, borderRadius: "50%", background: "#9BC06E", opacity: 0.9 })} />
 
       {/* 风车 */}
       <div style={abs({ left: 860, bottom: 168, width: 32, height: 132, borderRadius: "9px 9px 4px 4px", background: "linear-gradient(90deg,#C9B08C,#B9A07C)", opacity: 0.95 })} />
@@ -251,11 +251,11 @@ export const NearDecor = memo(function NearDecor() {
       />
 
       {/* ── 左尽头·林间空地（训练馆之前的收边装饰） ── */}
-      <EdgeFence left={-880} />
-      <Bush left={-828} w={110} h={56} color="#93B98A" />
-      <RoundTree left={-770} tone="#7CBE5F" />
-      <Flower left={-648} color="#F5917B" />
-      <SignPost left={-624} label={T.bk.decor.glade} />
+      <EdgeFence left={-1040} />
+      <Bush left={-988} w={110} h={56} color="#93B98A" />
+      <RoundTree left={-930} tone="#7CBE5F" />
+      <Flower left={-808} color="#F5917B" />
+      <SignPost left={-784} label={T.bk.decor.glade} />
 
       {/* ── 训练馆（世界 x≈-420，孵化区左侧） ──
            馆体、屋顶、门窗和器械统一画在同一张 SVG 坐标系里，避免缩放时屋顶分层错位。
@@ -439,8 +439,8 @@ export const NearDecor = memo(function NearDecor() {
       {/* ── 公告板骨架（内容动态；板体 2240..2588 · 底 208 · 顶 396） ── */}
       <div style={abs({ left: 2288, bottom: 150, width: 11, height: 90, borderRadius: 5, background: "linear-gradient(90deg,#8A6437,#A9814F)" })} />
       <div style={abs({ left: 2529, bottom: 150, width: 11, height: 90, borderRadius: 5, background: "linear-gradient(90deg,#8A6437,#A9814F)" })} />
-      {/* 标题牌骑在板体上缘：底部与板框相接（板顶 396），完整露出文字 */}
-      <div className="by-scene-note" style={abs({ left: 2353, bottom: 394, padding: "5px 18px 6px", fontSize: 16, lineHeight: 1.2, whiteSpace: "nowrap", zIndex: 1 })}>
+      {/* 标题牌悬在板框上方，和内容纸完全分离（板顶 426）。 */}
+      <div className="by-scene-note" style={abs({ left: 2353, bottom: 436, padding: "5px 18px 6px", fontSize: 16, lineHeight: 1.2, whiteSpace: "nowrap", zIndex: 1 })}>
         {T.bk.decor.board}
       </div>
 
@@ -528,8 +528,8 @@ export const NearDecor = memo(function NearDecor() {
       ))}
 
       {/* ── 蘑菇簇（林间/树根/果园） ── */}
-      <Mushroom left={-700} cap="#D9553F" />
-      <Mushroom left={-684} bottom={150} cap="#E8843B" s={0.8} />
+      <Mushroom left={-860} cap="#D9553F" />
+      <Mushroom left={-844} bottom={150} cap="#E8843B" s={0.8} />
       <Mushroom left={-406} cap="#C74631" s={1.1} />
       <Mushroom left={2764} cap="#C74631" />
       <Mushroom left={4246} cap="#D9553F" />
@@ -559,7 +559,7 @@ export const NearUiNotes = memo(function NearUiNotes() {
   const { T } = useT();
   return (
     <div className="by-scene-notes" aria-hidden="true">
-      <div className="by-scene-note" style={abs({ left: -624, bottom: 198, padding: "3px 12px 4px", fontSize: 13, whiteSpace: "nowrap", transform: "rotate(-2deg)" })}>
+      <div className="by-scene-note" style={abs({ left: -784, bottom: 198, padding: "3px 12px 4px", fontSize: 13, whiteSpace: "nowrap", transform: "rotate(-2deg)" })}>
         {T.bk.decor.glade}
       </div>
       <div className="by-scene-note" style={abs({ left: -472, bottom: 338, padding: "4px 16px 5px", fontSize: 16, whiteSpace: "nowrap", zIndex: 1 })}>
@@ -571,7 +571,7 @@ export const NearUiNotes = memo(function NearUiNotes() {
       <div className="by-scene-note" style={abs({ left: 1104, bottom: 306, padding: "4px 18px 5px", fontSize: 17, whiteSpace: "nowrap" })}>
         {T.bk.decor.shop}
       </div>
-      <div className="by-scene-note" style={abs({ left: 2353, bottom: 394, padding: "5px 18px 6px", fontSize: 16, lineHeight: 1.2, whiteSpace: "nowrap", zIndex: 1 })}>
+      <div className="by-scene-note" style={abs({ left: 2353, bottom: 436, padding: "5px 18px 6px", fontSize: 16, lineHeight: 1.2, whiteSpace: "nowrap", zIndex: 1 })}>
         {T.bk.decor.board}
       </div>
       <div className="by-scene-note" style={abs({ left: 3248, bottom: 352, padding: "4px 16px 5px", fontSize: 15, lineHeight: 1.2, whiteSpace: "nowrap" })}>

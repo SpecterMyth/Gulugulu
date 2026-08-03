@@ -118,7 +118,7 @@ ok(evalSave({}).size === 0, "空存档零成就");
 // 5. 品阶 / 融合 / 经济 高水位。
 {
   const got = evalSave({
-    stats: { highestTier: 5, totalFusions: 50, totalCoinsEarned: 1_000_000, totalTokensFed: 50_000_000, totalKeysCharged: 100_000 },
+    stats: { highestTier: 5, totalFusions: 50, totalCoinsEarned: 1_000_000, totalTokensFed: 50_000_000, totalTokensObserved: 50_000_000, totalKeysCharged: 100_000 },
     hatcheryLevel: config.hatcherySlots.length,
     yardLevel: config.yardCapacity.length,
     shopLevel: config.shopMaxLevel ?? 4,
@@ -131,6 +131,14 @@ ok(evalSave({}).size === 0, "空存档零成就");
   ok(got.has("ACH_COINS_1M") && !got.has("ACH_TREASURY"), "赚 100万不含 1亿");
   ok(!got.has("ACH_HATCHERY_MAX") && !got.has("ACH_YARD_MAX") && !got.has("ACH_SHOP_MAX"), "旧设施条件不解锁复用 ID");
   ok(!got.has("ACH_FULL_HOUSE"), "旧 20 宠条件不解锁复用 ID");
+}
+
+// 5.1 代码盛宴按四类原始 Token 总和，不看加权喂养单位。
+{
+  const below = evalSave({ stats: { totalTokensFed: 1_000_000_000, totalTokensObserved: 999_999_999 } });
+  ok(!below.has("ACH_TOKENS_1B"), "加权喂养单位不解锁代码盛宴");
+  const reached = evalSave({ stats: { totalTokensObserved: 1_000_000_000 } });
+  ok(reached.has("ACH_TOKENS_1B"), "四类原始 Token 累计 10 亿解锁代码盛宴");
 }
 
 // 6. 工坊 + 隐藏。

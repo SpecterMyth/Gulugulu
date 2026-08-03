@@ -38,6 +38,11 @@ const GUIDE_DEFERRED_CARD_IDS = new Set(["staff.fire3", "staff.movedesk", "staff
 const PEEL_FLY_MS = 800;
 const PEEL_OFF_MS = 620;
 const SHOP_COMPLETE_MS = 2000;
+const REDUCED_ACTION_MS = 40;
+const REDUCED_COMPLETE_MS = 120;
+
+const motionDelay = (authoredMs: number, reducedMs = REDUCED_ACTION_MS) =>
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true ? reducedMs : authoredMs;
 
 /** 稀有度顶边色(design §Rarity)。 */
 const RARITY_EDGE: Record<string, string> = {
@@ -50,15 +55,18 @@ const RARITY_EDGE: Record<string, string> = {
 const TILTS = [-3, 0, 3];
 const PRICECUT_TIER_COLORS = ["#8BCF73", "#62C7AE", "#65AEEA", "#8E91E8", "#D486D5", "#F29A63"];
 
-/** 展示价:稀有度基价 ×3^当前已持有级× 当班 KPI(与逻辑层同一公式源)。 */
+/** 展示价:稀有度基价 ×2^当前已持有级× 当班 KPI(与逻辑层同一公式源)。 */
 function displayPrice(def: CardDef, kpi: number, ownedLv: number): number {
-  const rate = CARD_PRICE_RATE[def.rarity] ?? 0.06;
+  const rate = CARD_PRICE_RATE[def.rarity] ?? CARD_PRICE_RATE.common;
   return Math.max(1, Math.round(rate * kpi * Math.pow(CARD_LEVEL_PRICE_MULTIPLIER, ownedLv)));
 }
 
 function ShopComplete({ run, message }: { run: RogueRunApi; message: string }) {
   useEffect(() => {
-    const timer = window.setTimeout(() => run.finishShop(), SHOP_COMPLETE_MS);
+    const timer = window.setTimeout(
+      () => run.finishShop(),
+      motionDelay(SHOP_COMPLETE_MS, REDUCED_COMPLETE_MS),
+    );
     return () => window.clearTimeout(timer);
   }, [run]);
 
@@ -101,7 +109,32 @@ export function RogueShop({
   const [focusedKeyword, setFocusedKeyword] = useState<RogueKeywordId | null>(null);
   const [tipsOpen, setTipsOpen] = useState(false);
   const timerRef = useRef<number | null>(null);
-  useEffect(() => () => { if (timerRef.current != null) window.clearTimeout(timerRef.current); }, []);
+  const pendingCommitRef = useRef<(() => void) | null>(null);
+  const flushPendingCommit = () => {
+    const pending = pendingCommitRef.current;
+    if (pending == null) return;
+    pendingCommitRef.current = null;
+    if (timerRef.current != null) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+    pending();
+  };
+  useEffect(() => {
+    const flushOnVisibilityChange = () => {
+      if (document.hidden) flushPendingCommit();
+    };
+    // Capture phase runs before FactoryRogueScene's persistence listener, so a
+    // click already acknowledged by the peel animation is included in the
+    // hidden/pagehide snapshot instead of being lost on close.
+    window.addEventListener("pagehide", flushPendingCommit, true);
+    document.addEventListener("visibilitychange", flushOnVisibilityChange, true);
+    return () => {
+      window.removeEventListener("pagehide", flushPendingCommit, true);
+      document.removeEventListener("visibilitychange", flushOnVisibilityChange, true);
+      if (timerRef.current != null) window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+      pendingCommitRef.current = null;
+    };
+  }, []);
 
   // 当前步 = 首个未敲定维度(-1 = 三步全敲定)。
   const activeIndex = shop?.resolved.findIndex((resolved) => !resolved) ?? -1;
@@ -127,12 +160,13 @@ export function RogueShop({
   // ---- 演出后再调逻辑层(拦住点击 → 放动画 → 提交) ----
   const runAfter = (ms: number, fn: () => void) => {
     if (timerRef.current != null) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(fn, ms);
+    pendingCommitRef.current = fn;
+    timerRef.current = window.setTimeout(flushPendingCommit, ms);
   };
   const onBuy = (dimIndex: 0 | 1 | 2, id: string, i: number, anchor: DOMRect) => {
     if (busy) return;
     setAnim({ kind: "buy", idx: i });
-    runAfter(PEEL_FLY_MS, () => {
+    runAfter(motionDelay(PEEL_FLY_MS), () => {
       const bought = run.buyCard(dimIndex, id);
       // A rejected purchase does not change the step, so release the local lock.
       if (!bought) {
@@ -150,12 +184,16 @@ export function RogueShop({
   const onSkip = (dimIndex: 0 | 1 | 2) => {
     if (busy) return;
     setAnim({ kind: "skip", idx: -1 });
-    runAfter(PEEL_OFF_MS, () => run.skipDim(dimIndex));
+    runAfter(motionDelay(PEEL_OFF_MS), () => run.skipDim(dimIndex));
   };
   const onReroll = (dimIndex: 0 | 1 | 2) => {
     if (busy) return;
     setAnim({ kind: "reroll", idx: -1 });
-    runAfter(PEEL_OFF_MS, () => run.rerollDim(dimIndex));
+    runAfter(motionDelay(PEEL_OFF_MS), () => {
+      // Affordability can change while the peel is playing (resume/restore or
+      // another state source). A rejected commit must not leave the shop locked.
+      if (!run.rerollDim(dimIndex)) setAnim(null);
+    });
   };
   // 每张卡的入场/离场动画(stickOn 入场;buy → 选中 peelFly、其余 peelOff;skip/reroll → 全 peelOff)。
   const cardAnim = (i: number): string => {
@@ -411,7 +449,7 @@ export function RogueShop({
 
                           <button
                             type="button"
-                            className={`fr-card-buybar ${barCls}`}
+                            className={`fr-card-buybar ${barCls}${!affordable ? " is-unaffordable" : ""}`}
                             data-coach={
                               firstRunGuide && i === guideCardIndex
                                 ? "factoryShopChoice"
@@ -420,9 +458,16 @@ export function RogueShop({
                             disabled={disabled}
                             onClick={(event) => onBuy(dimIndex, id, i, event.currentTarget.getBoundingClientRect())}
                           >
-                            {def.free
+                            {loanBusy
+                              ? R.shopLoanActive
+                              : def.free
                               ? isZh ? "免费拿" : "TAKE IT"
-                              : `${R.shopBuy} ¥${formatCount(price)}`}
+                              : <>
+                                  {R.shopBuy} ¥
+                                  <span className={affordable ? undefined : "fr-shop-price-short"}>
+                                    {formatCount(price)}
+                                  </span>
+                                </>}
                           </button>
                         </div>
                       </div>
