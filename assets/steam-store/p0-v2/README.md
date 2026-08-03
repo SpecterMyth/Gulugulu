@@ -6,34 +6,36 @@ This folder contains the P0 store-page refresh prepared for the Early Access lau
 
 English:
 
-> An AI-aware desktop pet that eats your coding agent's tokens—then sends your 63-creature collection into a 20-shift physics roguelite. No AI required.
+> An AI-aware desktop pet that reacts to Claude Code and Codex, eats their output tokens, and helps you hatch 63 creatures. Then draft 3–10 favorites into Office Stack-Up, a 20-shift physics roguelite of elemental desks, KPI targets, and upgrades. No AI required.
 
 Simplified Chinese:
 
-> 让桌面宠物吃掉编程 Agent 消耗的 Token，再把 63 种咕噜带进 20 回合的物理堆叠 Roguelite。无需 AI 也能玩。
+> 一款会对 Claude Code 与 Codex 实时做出反应的桌面宠物游戏。用编程 Agent 消耗的输出 Token 喂养咕噜，点击赚金币、孵蛋、融合并收集 63 种生物；再从收藏中挑选 3–10 只，投入完整 20 回合的《职场叠叠乐》物理 Roguelite。连接六种元素办公桌、完成 KPI、购买升级，在摇摇欲坠的办公室里把团队堆到下班。无需 AI 也能完整游玩；AI 功能只提供额外反应和本地变种，不会收集 API Key。
 
-## Recommended top-20 tag order
+## Published top-20 tag order
 
-1. Desktop Companion
+1. Idler
 2. Creature Collector
-3. Physics
-4. Idler
+3. Life Sim
+4. Management
 5. Roguelite
-6. Cute
-7. Management
-8. Relaxing
-9. Life Sim
-10. Casual
-11. Singleplayer
-12. 2D
-13. Animals
-14. Artificial Intelligence
-15. Resource Management
-16. Collectathon
-17. Simulation
-18. Colorful
-19. Indie
-20. Early Access
+6. Artificial Intelligence
+7. Resource Management
+8. Animals
+9. Rogue-like
+10. Cute
+11. 2D
+12. Casual
+13. Simulation
+14. Colorful
+15. Cartoon
+16. Singleplayer
+17. Early Access
+18. Indie
+19. Relaxing
+20. Physics
+
+The August 3 Steamworks tag refresh added `Physics` and `Relaxing`, retained `Early Access` and `Indie`, and removed `Procedural Generation` and `Inventory Management`. Steam's tag wizard did not expose a `Desktop Companion` partner tag for this app.
 
 ## Upload order
 
