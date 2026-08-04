@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "include": [
+    ".gitattributes",
+    ".gitignore",
+    "start.bat",
+    "stop.bat",
+    "scripts/run-dev.ps1",
+    "projects/gulugulu-app/.gitignore",
+    "projects/gulugulu-app/index.html",
+    "projects/gulugulu-app/package.json",
+    "projects/gulugulu-app/package-lock.json",
+    "projects/gulugulu-app/tsconfig.json",
+    "projects/gulugulu-app/vite.config.ts",
+    "projects/gulugulu-app/assets/text",
+    "projects/gulugulu-app/public",
+    "projects/gulugulu-app/src",
+    "projects/gulugulu-app/src-tauri/Cargo.toml",
+    "projects/gulugulu-app/src-tauri/Cargo.lock",
+    "projects/gulugulu-app/src-tauri/build.rs",
+    "projects/gulugulu-app/src-tauri/tauri.conf.json",
+    "projects/gulugulu-app/src-tauri/assets",
+    "projects/gulugulu-app/src-tauri/capabilities",
+    "projects/gulugulu-app/src-tauri/icons",
+    "projects/gulugulu-app/src-tauri/src"
+  ],
+  "forbiddenPrefixes": [
+    "docs/", "plans/", "progress/", "codex/", "claude/", "specification/",
+    "ops/", "arts/", "assets/", "test/", "tools/", "build/", "outputs/"
+  ],
+  "forbiddenNames": [
+    ".env", "ops_info.json", "avatar-providers.json"
+  ]
+}
