@@ -14,6 +14,9 @@ import { buildItemdefs } from "./build_itemdefs_core.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CONFIG = join(ROOT, "projects", "gulugulu-app", "src", "game", "config.json");
+const ITEMDEF_LOCALES = join(ROOT, "scripts", "steam", "localization", "itemdefs.json");
+const RUNTIME_LOCALES = join(ROOT, "projects", "gulugulu-app", "src", "i18n", "generated", "runtimeLocales.json");
+const LANGUAGE_SUPPORT = join(ROOT, "scripts", "steam", "localization", "language-support.json");
 const ICON_BASE = "https://raw.githubusercontent.com/SpecterMyth/Gulugulu/main/assets/steam-icons";
 
 const args = process.argv.slice(2);
@@ -28,6 +31,13 @@ const OUT = opt("--out", join(ROOT, "scripts", "steam", "out", "itemdefs.json"))
 const SEED_OUT = join(dirname(OUT), "seed.json");
 
 const cfg = JSON.parse(readFileSync(CONFIG, "utf8"));
+const steamLocales = JSON.parse(readFileSync(ITEMDEF_LOCALES, "utf8"));
+const runtimeLocales = JSON.parse(readFileSync(RUNTIME_LOCALES, "utf8"));
+const languageSupport = JSON.parse(readFileSync(LANGUAGE_SUPPORT, "utf8"));
+for (const { app, steam } of languageSupport.languages) {
+  if (!steam || !steamLocales[steam] || !runtimeLocales[app]?.speciesNames) continue;
+  steamLocales[steam].speciesNames = runtimeLocales[app].speciesNames;
+}
 const seed = {
   withIcons: WITH_ICONS,
   iconBase: ICON_BASE,
@@ -46,6 +56,7 @@ const seed = {
   eggDailyMintCaps: cfg.eggDailyMintCaps,
   aiTotalChanceByElementCount: cfg.aiTotalChanceByElementCount,
   eggRarityFalloffDenom: cfg.eggRarityFalloffDenom,
+  steamLocales,
 };
 
 const items = buildItemdefs(seed);

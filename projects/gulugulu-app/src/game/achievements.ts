@@ -4,6 +4,8 @@
 // Rust↔TS 必须逐条一致。
 
 import type { GameConfig, GameSave } from "../types";
+import { normalizeLanguage } from "../i18n/core";
+import { GENERATED_RUNTIME_LOCALES } from "../i18n/generatedLocales";
 
 /** 48 个成就 ID（发布后冻结；顺序 = §8 清单）。 */
 export const ALL_ACHIEVEMENT_IDS: readonly string[] = [
@@ -229,5 +231,8 @@ export const ACHIEVEMENT_NAMES: Record<string, { zh: string; en: string }> = {
 export function achievementDisplayName(id: string, lang: string): string {
   const n = ACHIEVEMENT_NAMES[id];
   if (!n) return id;
-  return lang === "zh" ? n.zh : n.en;
+  const language = normalizeLanguage(lang) ?? "en";
+  if (language === "zh-Hans") return n.zh;
+  if (language === "en") return n.en;
+  return GENERATED_RUNTIME_LOCALES[language]?.achievements[id] ?? n.en;
 }

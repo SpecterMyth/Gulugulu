@@ -17,12 +17,12 @@ import type {
   SteamStatus,
   TokenStats,
 } from "../types";
-import { fmt, localizeGameMessage, speciesDisplayName, type Language } from "../i18n";
+import { elementName, fmt, localizeGameMessage, speciesDisplayName, type Language } from "../i18n";
 import { useT } from "../useT";
 import type { CelebrationEmitPayload } from "../app/hooks/useFxOverlay";
 import { getCustomSpeciesEntry } from "../sprites/customSpecies";
 import { isTauri } from "../tauri";
-import { previewPanel, previewTimeOfDay } from "../preview/shotParams";
+import { previewDexFull, previewPanel, previewTimeOfDay } from "../preview/shotParams";
 import { SvgSprite } from "../sprites/SvgSprite";
 import { CoinBurst } from "../sprites/parts/vfx";
 import { WorkBurst, resolveWorkFx } from "../sprites/parts/workFx";
@@ -356,7 +356,7 @@ export function BackyardScene({
   const speciesName = (code: string, zhFallback = ""): string => {
     const nameZh = config.species[code]?.nameZh;
     const nameEn = config.species[code]?.nameEn;
-    return lang === "zh" ? nameZh ?? zhFallback : speciesDisplayName(code, lang, nameZh, nameEn);
+    return lang.startsWith("zh") ? nameZh ?? zhFallback : speciesDisplayName(code, lang, nameZh, nameEn);
   };
   const now = useNowSeconds(true);
   // 训练弹窗（选宠升阶）：开合与就地错误都留在后院内部，成功后由 onGameSave 刷存档。
@@ -1055,7 +1055,7 @@ export function BackyardScene({
           key={element}
           badge={info.badge}
           color={info.color}
-          title={info.nameZh}
+          title={elementName(element, lang)}
           size={10}
         />
       ) : null;
@@ -1391,7 +1391,7 @@ export function BackyardScene({
 
           {/* 升级后院入口；纸张主题使用木框便签牌面和单根立柱。 */}
           <div className="by-upgrade-post" style={abs({ left: 2680, bottom: 150, width: 8, height: 104, borderRadius: 4, background: "#8A6437" })} />
-          <div className="by-upgrade-shell" style={abs({ left: 2620, bottom: 240, width: 130, height: 78 })}>
+          <div className="by-upgrade-shell" style={abs({ left: 2610, bottom: 240, width: 150, height: 78 })}>
             <div className="by-upgrade-frame" aria-hidden="true" />
             <button
               type="button"
@@ -1794,7 +1794,30 @@ export function BackyardScene({
                   ✕
                 </button>
               </header>
-              <div className="by-dex-body">
+              <div className={`by-dex-body${previewDexFull() ? " by-dex-full-body" : ""}`}>
+                {previewDexFull() ? (
+                  <div className="by-dex-full-grid">
+                    {[...pokedexModel.baseSlots, ...pokedexModel.recipes.map((recipe) => recipe.slots[0])].map(
+                      (slot, index) => (
+                        <DexCell
+                          key={slot.codename ?? `fixed-${index}`}
+                          slot={slot}
+                          config={config}
+                          onOpen={() => {
+                            if (index < pokedexModel.baseSlots.length) {
+                              setDexDetail({ recipeKey: null, slotIndex: index });
+                            } else {
+                              const recipe = pokedexModel.recipes[index - pokedexModel.baseSlots.length];
+                              setDexDetail({ recipeKey: recipe.key, slotIndex: 0 });
+                            }
+                          }}
+                          skinCount={skinCountFor(slot)}
+                        />
+                      ),
+                    )}
+                  </div>
+                ) : (
+                  <>
                 <div className="by-dex-section-label">{bk.dex.baseSection}</div>
                 <div className="by-dex-baserow">
                   {pokedexModel.baseSlots.map((slot, index) => (
@@ -1817,6 +1840,8 @@ export function BackyardScene({
                     skinCountFor={skinCountFor}
                   />
                 ))}
+                  </>
+                )}
               </div>
             </div>
           </div>

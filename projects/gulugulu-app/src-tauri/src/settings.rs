@@ -25,9 +25,9 @@ pub struct AppSettings {
     pub keyboard_capture: bool,
     /// 后台动态台词是否可以调用玩家已登录的 Claude/Codex CLI。
     ///
-    /// 与 AI 融合偏好相互独立；新安装以及旧版本设置文件都默认关闭，只有用户在
-    /// 设置页明确开启后 worker 才能启动。关闭后不影响内置静态台词。
-    #[serde(default)]
+    /// 与 AI 融合偏好相互独立；默认开启，已有文件里的明确选择原样保留。
+    /// 关闭后不影响内置静态台词。
+    #[serde(default = "default_true")]
     pub dynamic_quote_ai: bool,
     /// 桌宠窗口在非后院模式下总在最前。
     #[serde(default = "default_true")]
@@ -35,7 +35,7 @@ pub struct AppSettings {
     /// 角色在桌面上的随机漫步/移动。
     #[serde(default = "default_true")]
     pub random_movement: bool,
-    /// 界面语言（`"zh"` | `"en"`；留字符串以便将来扩展更多语言）。
+    /// 界面语言（BCP-47；旧版 `"zh"` 在读取时迁移为 `"zh-Hans"`）。
     #[serde(default = "default_language")]
     pub language: String,
     /// 开机自动启动（默认关闭）。真源是操作系统注册项（HKCU Run / LaunchAgent /
@@ -61,7 +61,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             keyboard_capture: true,
-            dynamic_quote_ai: false,
+            dynamic_quote_ai: true,
             always_on_top: true,
             random_movement: true,
             language: default_language(),
@@ -81,6 +81,35 @@ fn default_language() -> String {
     "en".to_string()
 }
 
+const SUPPORTED_LANGUAGES: [&str; 21] = [
+    "en", "zh-Hans", "zh-Hant", "ja", "ko", "fr", "de", "es-ES", "es-419",
+    "pt-BR", "pt-PT", "ru", "it", "pl", "tr", "uk", "ar", "th", "vi", "id", "nl",
+];
+
+fn normalize_language(language: &str) -> String {
+    let trimmed = language.trim();
+    if SUPPORTED_LANGUAGES.contains(&trimmed) {
+        return trimmed.to_string();
+    }
+    let lower = trimmed.replace('_', "-").to_lowercase();
+    match lower.as_str() {
+        "zh" | "zh-cn" | "zh-sg" | "zh-hans" => "zh-Hans".to_string(),
+        "zh-tw" | "zh-hk" | "zh-mo" | "zh-hant" => "zh-Hant".to_string(),
+        "pt" | "pt-br" => "pt-BR".to_string(),
+        "pt-pt" => "pt-PT".to_string(),
+        "es-mx" | "es-ar" | "es-cl" | "es-co" | "es-pe" | "es-us" => "es-419".to_string(),
+        "es" => "es-ES".to_string(),
+        "ua" => "uk".to_string(),
+        "in" => "id".to_string(),
+        _ => SUPPORTED_LANGUAGES
+            .iter()
+            .find(|candidate| candidate.to_lowercase() == lower)
+            .copied()
+            .unwrap_or("en")
+            .to_string(),
+    }
+}
+
 fn default_agent() -> String {
     "claude".to_string()
 }
@@ -98,10 +127,12 @@ fn settings_path(app: &AppHandle) -> Option<PathBuf> {
 
 /// 读取设置；文件缺失/损坏时回退默认值（缺字段由 serde default 补齐）。
 pub fn load(app: &AppHandle) -> AppSettings {
-    settings_path(app)
+    let mut settings: AppSettings = settings_path(app)
         .and_then(|path| fs::read_to_string(path).ok())
         .and_then(|raw| serde_json::from_str(&raw).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    settings.language = normalize_language(&settings.language);
+    settings
 }
 
 fn persist(app: &AppHandle, settings: &AppSettings) {
@@ -299,7 +330,8 @@ pub fn set_random_movement(app: AppHandle, enabled: bool) -> AppSettings {
 
 #[tauri::command]
 pub fn set_language(app: AppHandle, language: String) -> AppSettings {
-    let settings = update(&app, |s| s.language = language);
+    let normalized = normalize_language(&language);
+    let settings = update(&app, |s| s.language = normalized);
     crate::tray::sync_from_settings(&settings);
     settings
 }
@@ -360,13 +392,22 @@ pub fn set_default_model(app: AppHandle, model: String) -> AppSettings {
 
 #[cfg(test)]
 mod privacy_setting_tests {
-    use super::AppSettings;
+    use super::{normalize_language, AppSettings};
 
     #[test]
     fn fresh_install_enables_keyboard_charging_by_default() {
         let settings = AppSettings::default();
         assert!(settings.keyboard_capture);
-        assert!(!settings.dynamic_quote_ai);
+        assert!(settings.dynamic_quote_ai);
+    }
+
+    #[test]
+    fn language_codes_are_canonicalized_and_validated() {
+        assert_eq!(normalize_language("zh"), "zh-Hans");
+        assert_eq!(normalize_language("zh_TW"), "zh-Hant");
+        assert_eq!(normalize_language("pt-PT"), "pt-PT");
+        assert_eq!(normalize_language("es-MX"), "es-419");
+        assert_eq!(normalize_language("not-a-language"), "en");
     }
 
     #[test]
@@ -381,7 +422,7 @@ mod privacy_setting_tests {
         .expect("legacy settings should still deserialize");
 
         assert!(settings.keyboard_capture);
-        assert!(!settings.dynamic_quote_ai);
+        assert!(settings.dynamic_quote_ai);
     }
 
     #[test]
@@ -393,18 +434,22 @@ mod privacy_setting_tests {
 
         assert!(enabled.keyboard_capture);
         assert!(!disabled.keyboard_capture);
-        assert!(!enabled.dynamic_quote_ai);
-        assert!(!disabled.dynamic_quote_ai);
+        assert!(enabled.dynamic_quote_ai);
+        assert!(disabled.dynamic_quote_ai);
     }
 
     #[test]
-    fn explicit_dynamic_quote_consent_roundtrips() {
-        let settings: AppSettings =
+    fn explicit_dynamic_quote_choice_is_preserved() {
+        let enabled: AppSettings =
             serde_json::from_str(r#"{"keyboardCapture":false,"dynamicQuoteAi":true}"#)
                 .expect("explicit dynamic quote consent should deserialize");
-        let serialized = serde_json::to_value(&settings).expect("settings should serialize");
+        let disabled: AppSettings =
+            serde_json::from_str(r#"{"keyboardCapture":false,"dynamicQuoteAi":false}"#)
+                .expect("explicit disabled dynamic quote choice should deserialize");
+        let serialized = serde_json::to_value(&enabled).expect("settings should serialize");
 
-        assert!(settings.dynamic_quote_ai);
+        assert!(enabled.dynamic_quote_ai);
+        assert!(!disabled.dynamic_quote_ai);
         assert_eq!(
             serialized
                 .get("dynamicQuoteAi")

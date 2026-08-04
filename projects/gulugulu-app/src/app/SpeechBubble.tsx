@@ -1,5 +1,7 @@
 import type { CSSProperties, RefObject } from "react";
 import { ElementIcon } from "../game/ElementIcon";
+import { elementName } from "../i18n";
+import { useT } from "../useT";
 
 type SpeechBubbleProps = {
   speechRef: RefObject<HTMLElement | null>;
@@ -20,6 +22,7 @@ export function SpeechBubble({
   stageElements,
   lastBubbleTextRef,
 }: SpeechBubbleProps) {
+  const { lang } = useT();
   return (
     <section
       ref={speechRef}
@@ -37,7 +40,7 @@ export function SpeechBubble({
               key={element.id}
               badge={element.badge}
               color={element.color}
-              title={element.nameZh}
+              title={elementName(element.id, lang)}
               size={15}
             />
           ))}

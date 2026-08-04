@@ -21,10 +21,7 @@ const MILESTONES = [1e4, 1e5, 1e6, 1e8] as const;
 const MILE_COOLDOWN_MS = 10_000;
 const KPI_CEREMONY_MS = 3_200;
 const OVERTIME_INTRO_MS = 1_000;
-const KPI_NOTE_CHARS = {
-  zh: ["K", "P", "I", "达", "成"],
-  en: ["K", "P", "I", "DO", "NE"],
-} as const;
+const KPI_NOTE_CHARS = ["K", "P", "I", "✓"] as const;
 // UI may be remounted while a run is still alive (for example by StrictMode or a
 // surrounding scene refresh). Keep the shift-clear receipt outside the component
 // so the same run/shift can never replay its bell and confetti on a remount.
@@ -61,8 +58,6 @@ export function RogueBanners({
 }) {
   const { lang } = useT();
   const R = FACTORY_ROGUE[lang];
-  const kpiNoteChars = KPI_NOTE_CHARS[lang];
-  const kpiAchievedLabel = lang === "zh" ? "KPI 达成" : "KPI achieved";
 
   // ---- 班次节点:下班铃 + 检查日开班公告 ----
   const prevPhaseRef = useRef<RunPhase | null>(null);
@@ -224,14 +219,14 @@ export function RogueBanners({
               <i key={i} className={`fr-kpi-scrap fr-kpi-scrap-${i + 1}`} />
             ))}
           </div>
-          <div className="fr-kpi-note-word" aria-label={kpiAchievedLabel}>
-            {kpiNoteChars.map((char, index) => (
+          <div className="fr-kpi-note-word" aria-label={R.kpiAchieved}>
+            {KPI_NOTE_CHARS.map((char, index) => (
               <span key={`${char}-${index}`} className={`fr-kpi-note fr-kpi-note-${index + 1}`}>
                 {char}
               </span>
             ))}
             <div className="fr-kpi-note-stamp">
-              {lang === "zh" ? "KPI 达成！" : "KPI ACHIEVED!"}
+              {R.kpiAchieved}
             </div>
           </div>
           <div className="fr-kpi-bonus">

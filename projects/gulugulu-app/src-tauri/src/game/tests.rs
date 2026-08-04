@@ -1760,14 +1760,14 @@ fn empty_drop_message_splits_three_causes() {
     let cd = empty_drop_message(2, 8, 100_050, 100_100); // 距上次 50s
     assert_eq!(cd, "#dropCooldown", "冷却档: {cd}");
     assert_ne!(cd, daily, "冷却档应区别于领满档");
-    // ③ 攒时长：未满 + 无近期成功（时间戳久远/为 0）→ 「再玩会儿」。
-    let warmup = empty_drop_message(0, 8, 0, 100_000);
-    assert_eq!(warmup, "#dropPlaytimeShort", "攒时长档: {warmup}");
-    assert_ne!(warmup, cd, "攒时长档应区别于冷却档");
-    // 边界：距上次 90s（含）不再算冷却，回落攒时长档。
-    assert_eq!(empty_drop_message(2, 8, 100_000, 100_090), warmup);
+    // ③ Steam 暂未放行：未满 + 无近期成功（时间戳久远/为 0）→ 通用稍后重试提示。
+    let pending = empty_drop_message(0, 8, 0, 100_000);
+    assert_eq!(pending, "#dropPlaytimeShort", "暂未放行档: {pending}");
+    assert_ne!(pending, cd, "暂未放行档应区别于冷却档");
+    // 边界：距上次 90s（含）不再算冷却，回落暂未放行档。
+    assert_eq!(empty_drop_message(2, 8, 100_000, 100_090), pending);
     // cap=0（理论无上限）不误判为领满。
-    assert_eq!(empty_drop_message(99, 0, 0, 100_000), warmup);
+    assert_eq!(empty_drop_message(99, 0, 0, 100_000), pending);
 }
 
 #[test]

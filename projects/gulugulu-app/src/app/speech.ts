@@ -1,8 +1,9 @@
-import { fmt, type Language, t } from "../i18n";
+import { LANGUAGES, fmt, normalizeLanguage, type Language, t } from "../i18n";
 import type { PetEvent, PetEventType, PetState } from "../types";
 import { randomItem } from "./geometry";
 import { formatCount } from "../game/format";
 import quotesData from "../../assets/text/ai_quotes.json";
+import { GENERATED_RUNTIME_LOCALES } from "../i18n/generatedLocales";
 
 export const LANGUAGE_STORAGE_KEY = "gulugulu.language";
 
@@ -13,23 +14,45 @@ export type QuoteEntry = {
   tags: string[];
 };
 
-const quotes = quotesData.quotes as QuoteEntry[];
-const quotesByLanguage: Record<Language, QuoteEntry[]> = {
-  zh: quotes.filter((quote) => quote.lang === "zh"),
-  en: quotes.filter((quote) => quote.lang === "en"),
-};
+const authoredQuotes = (quotesData.quotes as Array<Omit<QuoteEntry, "lang"> & { lang: string }>).map((quote) => ({
+  ...quote,
+  lang: normalizeLanguage(quote.lang) ?? "en",
+}));
+const englishQuotes = authoredQuotes.filter((quote) => quote.lang === "en");
+const generatedQuotes = Object.entries(GENERATED_RUNTIME_LOCALES).flatMap(([language, locale]) =>
+  englishQuotes.flatMap((quote) => {
+    const text = locale?.quotes[quote.id];
+    return text == null
+      ? []
+      : [{ ...quote, id: `${language}:${quote.id}`, lang: language as Language, text }];
+  }),
+);
+const quotes: QuoteEntry[] = [...authoredQuotes, ...generatedQuotes];
+const quotesByLanguage = Object.fromEntries(
+  LANGUAGES.map(({ id }) => {
+    const localized = quotes.filter((quote) => quote.lang === id);
+    const fallback = id === "zh-Hans" || id === "zh-Hant"
+      ? quotes.filter((quote) => quote.lang === "zh-Hans")
+      : quotes.filter((quote) => quote.lang === "en");
+    return [id, localized.length > 0 ? localized : fallback];
+  }),
+) as Record<Language, QuoteEntry[]>;
 
 // —— 动态台词池（连接 Claude/Codex 后由后台预生成，App 挂载时灌入；见 setDynamicQuotes）——
 // 结构与静态池一致；非空时 chooseQuote 有 50% 概率改抽动态句（§随机台词生成规则）。
-const dynamicByLanguage: Record<Language, QuoteEntry[]> = { zh: [], en: [] };
-const dynamicDecks: Record<Language, Set<string>> = { zh: new Set(), en: new Set() };
+const dynamicByLanguage = Object.fromEntries(
+  LANGUAGES.map(({ id }) => [id, [] as QuoteEntry[]]),
+) as unknown as Record<Language, QuoteEntry[]>;
+const dynamicDecks = Object.fromEntries(LANGUAGES.map(({ id }) => [id, new Set<string>()])) as Record<Language, Set<string>>;
 
 /** 后台生成的一批动态台词到达后调用：按语言重建动态池 + 重置其无重复袋。 */
-export function setDynamicQuotes(entries: QuoteEntry[]): void {
-  dynamicByLanguage.zh = entries.filter((quote) => quote.lang === "zh");
-  dynamicByLanguage.en = entries.filter((quote) => quote.lang === "en");
-  dynamicDecks.zh = new Set(dynamicByLanguage.zh.map((quote) => quote.id));
-  dynamicDecks.en = new Set(dynamicByLanguage.en.map((quote) => quote.id));
+export function setDynamicQuotes(entries: Array<Omit<QuoteEntry, "lang"> & { lang: string }>): void {
+  for (const { id } of LANGUAGES) {
+    dynamicByLanguage[id] = entries
+      .filter((quote) => normalizeLanguage(quote.lang) === id)
+      .map((quote) => ({ ...quote, lang: id }));
+    dynamicDecks[id] = new Set(dynamicByLanguage[id].map((quote) => quote.id));
+  }
 }
 
 const speechContextTags: Record<PetState, string[]> = {
@@ -88,8 +111,8 @@ export function loadInitialLanguage(): Language {
     .find((language): language is Language => language != null);
   const language =
     supportedLanguageForLocale(previewLanguage) ??
-    systemLanguage ??
     supportedLanguageForLocale(savedLanguage) ??
+    systemLanguage ??
     "en";
 
   try {
@@ -102,15 +125,13 @@ export function loadInitialLanguage(): Language {
 
 /** Match BCP-47 locales such as zh-CN/en-US to the languages shipped by the game. */
 export function supportedLanguageForLocale(locale: string | null | undefined): Language | null {
-  const language = locale?.trim().toLowerCase().split(/[-_]/, 1)[0];
-  return language === "zh" || language === "en" ? language : null;
+  return normalizeLanguage(locale);
 }
 
 export function createQuoteDecks(): Record<Language, Set<string>> {
-  return {
-    zh: new Set(quotesByLanguage.zh.map((quote) => quote.id)),
-    en: new Set(quotesByLanguage.en.map((quote) => quote.id)),
-  };
+  return Object.fromEntries(
+    LANGUAGES.map(({ id }) => [id, new Set(quotesByLanguage[id].map((quote) => quote.id))]),
+  ) as Record<Language, Set<string>>;
 }
 
 /** 从给定池（按语言分区 + 无重复袋）里按状态 tag 优先挑一条：上下文候选优先，

@@ -25,7 +25,16 @@ import type {
 } from "./types";
 import { breakdownTotal, EMPTY_BREAKDOWN } from "./types";
 import { isTauri } from "./tauri";
-import { elementName, fmt, type Language, localizeGameMessage, speciesDisplayName, t } from "./i18n";
+import {
+  applyDocumentLanguage,
+  elementName,
+  fmt,
+  isChineseLanguage,
+  type Language,
+  localizeGameMessage,
+  speciesDisplayName,
+  t,
+} from "./i18n";
 import { LanguageContext } from "./useT";
 import { previewFactoryShot, previewFx, previewPetState, previewUiMode } from "./preview/shotParams";
 import { useGame, useNowSeconds } from "./game/useGame";
@@ -369,7 +378,7 @@ export default function App() {
     return species.elements.flatMap((id) => {
       const info = gameConfig.elements[id];
       if (!info) return [];
-      const name = language === "zh" ? info.nameZh : elementName(id, language);
+      const name = isChineseLanguage(language) ? info.nameZh : elementName(id, language);
       return [{ id, badge: info.badge, color: info.color, nameZh: name }];
     });
   }, [gameConfig, activePet, language]);
@@ -542,9 +551,18 @@ export default function App() {
     if (nextLanguage === languageRef.current) return;
     languageRef.current = nextLanguage;
     setLanguage(nextLanguage);
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
+    applyDocumentLanguage(nextLanguage);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
+    } catch {
+      // State still carries the selection for this session.
+    }
     setSpeechLine(chooseQuote(nextLanguage, stateRef.current, quoteDecksRef.current));
   }, []);
+
+  useEffect(() => {
+    applyDocumentLanguage(language);
+  }, [language]);
 
   // 用户主动切换语言：更新 UI + 推给 Rust（持久化并同步托盘菜单文案）。
   const changeLanguage = useCallback(
@@ -1343,7 +1361,7 @@ export default function App() {
               preset: "material",
               anchor: { x: window.innerWidth / 2, y: window.innerHeight * 0.72 },
               label:
-                languageRef.current === "zh"
+                isChineseLanguage(languageRef.current)
                   ? `材料到账：${materialDetails}`
                   : `MATERIALS RECEIVED: ${materialDetails}`,
               eventId: `factory-material:${maxLevel}:${Object.entries(gainedByMaterial).join("|")}`,

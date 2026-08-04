@@ -148,8 +148,8 @@ pub(crate) enum CollectPlan {
 
 /// 商店蛋 `TriggerItemDrop` 成功但零物品时，据收取侧本地信号区分三类幽默文案。
 ///
-/// Valve 对「24h 窗口满」「per-def `drop_interval:1` 分钟级限频」「游玩时长不足」都统一
-/// 回「成功 + 0 物品」，客户端**无法从 API 分辨**（steam_inventory::collect_items 只见空集）。
+/// Valve 对「24h 窗口满」「TriggerItemDrop 分钟级节流」等情况都可能统一回
+/// 「成功 + 0 物品」，客户端**无法从 API 分辨**（steam_inventory::collect_items 只见空集）。
 /// 于是用本地收取侧计数 / 时间戳**近似归因**——不追求精确（Valve 是 24h 滚动窗口、本地按
 /// 日历日计数，跨午夜会有偏差），三类落点都是「稍后再收」，只为把提示说人话。
 pub(crate) fn empty_drop_message(
@@ -158,7 +158,7 @@ pub(crate) fn empty_drop_message(
     last_drop_at: i64,
     now: i64,
 ) -> String {
-    // per-def `drop_interval:1`（1 分钟游玩时长）+ 服务器侧时长聚合滞后 → 冷却从宽判 90s。
+    // TriggerItemDrop 客户端节流约 1 次/分钟，冷却从宽判 90s。
     const DROP_COOLDOWN_SECS: i64 = 90;
     if cap > 0 && collects_today >= cap {
         format!("#dropWindowCapped|cap={cap}")
@@ -313,7 +313,7 @@ pub(crate) fn collect_hatched_blocking(
             crate::steam_inventory::OpOutcome::Granted(items) if !items.is_empty() => {
                 items[0].clone()
             }
-            // 成功但零物品：Valve 对窗口满/分钟级限频/时长不足统一如此回 → 本地归因分档。
+            // 成功但零物品：Valve 对窗口满/分钟级节流统一如此回 → 本地归因分档。
             crate::steam_inventory::OpOutcome::Granted(_) => {
                 return Err(empty_drop_message(collects_today, cap, last_drop_at, now))
             }

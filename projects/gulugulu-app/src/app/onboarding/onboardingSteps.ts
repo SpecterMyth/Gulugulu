@@ -1,10 +1,13 @@
 import type { UiMode } from "../../game/GamePanels";
 import { hatcherySlotCount, maxLevelForTier } from "../../game/config";
 import type { Language } from "../../i18n/core";
+import { GENERATED_RUNTIME_LOCALES } from "../../i18n/generatedLocales";
 import type { GameConfig, GameSave } from "../../types";
 import {
   ONBOARDING_EN_COPY,
   ONBOARDING_STEP_IDS,
+  ONBOARDING_UI_EN,
+  ONBOARDING_UI_ZH,
   onboardingLanguageFromStorage,
   type OnboardingStepId,
 } from "./onboardingCopy";
@@ -151,11 +154,15 @@ export function onboardingDirective(
   const index = Math.max(0, ONBOARDING_STEP_IDS.indexOf(state.step as OnboardingStepId));
   const localized = language === "en"
     ? ONBOARDING_EN_COPY[state.step as OnboardingStepId]
-    : null;
+    : language.startsWith("zh")
+      ? null
+      : GENERATED_RUNTIME_LOCALES[language]?.onboarding[state.step];
   const recoveryLabel = a13NeedsPitRecovery
-    ? language === "en"
-      ? "Another egg took the open pit. Unlock one more pit; your Fire Egg is still safe in inventory."
-      : "空蛋坑被别的蛋占了。先再解锁一个蛋坑，火蛋仍安全地待在库存里。"
+    ? language === "zh-Hans"
+      ? ONBOARDING_UI_ZH.occupiedPit
+      : language === "en"
+        ? ONBOARDING_UI_EN.occupiedPit
+        : GENERATED_RUNTIME_LOCALES[language]?.onboardingUi.occupiedPit ?? ONBOARDING_UI_EN.occupiedPit
     : null;
   // Walking hints are useful until the player reaches a pet. Once the contextual
   // Follow/Fuse button is present, keep only the click cue so the movement keys do

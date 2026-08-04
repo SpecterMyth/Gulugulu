@@ -11,6 +11,7 @@ import { COPY } from "./copy";
 export const CFG = localGameConfig;
 /** 本次播放语言(?lang=zh = 全中文版)。模块级读取:URL 不会中途改变。 */
 export const LANG = trLang();
+const UI_LANG = LANG === "zh" ? "zh-Hans" : "en";
 const C = COPY[LANG];
 
 // ---- 物种名单(全部从真实 config 派生,绝不硬编码不存在的 codename)----
@@ -45,7 +46,7 @@ export function flagship(): string {
 }
 /** 物种显示名:英文版 = TitleCase codename;中文版 = config 的 nameZh。 */
 export function speciesName(code: string): string {
-  return speciesDisplayName(code, LANG, CFG.species[code]?.nameZh);
+  return speciesDisplayName(code, UI_LANG, CFG.species[code]?.nameZh);
 }
 export function tierOf(code: string): number {
   return CFG.species[code]?.elements?.length ?? 1;
@@ -58,7 +59,7 @@ export const ELEMENTS: Array<{ id: string; name: string; color: string }> = [
   "grass",
   "ice",
   "normal",
-].map((id) => ({ id, name: elementName(id, LANG), color: CFG.elements[id]?.color ?? "#888" }));
+].map((id) => ({ id, name: elementName(id, UI_LANG), color: CFG.elements[id]?.color ?? "#888" }));
 
 // ---- 记忆化精灵 ----
 

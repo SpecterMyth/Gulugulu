@@ -1,6 +1,6 @@
 import { type RefObject, useCallback, useEffect, useState } from "react";
 import { FALLBACK_AGENT_MODELS, type GameBridge } from "../../game/bridge";
-import type { Language } from "../../i18n";
+import { normalizeLanguage, type Language } from "../../i18n";
 import type { AgentModels, AppSettings } from "../../types";
 import { setDynamicQuotes } from "../speech";
 
@@ -56,7 +56,8 @@ export function useAppSettings(
     const dispose = bridge.onSettingsChanged((next) => {
       setAppSettings(next);
       // 托盘切换语言 → 回流同步 UI（applyLanguage 自身对同语言幂等，不成环）。
-      if (next.language === "zh" || next.language === "en") applyLanguage(next.language);
+      const nextLanguage = normalizeLanguage(next.language);
+      if (nextLanguage) applyLanguage(nextLanguage);
     });
     return () => {
       disposed = true;

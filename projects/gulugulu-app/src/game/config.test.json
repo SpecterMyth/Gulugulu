@@ -1524,7 +1524,7 @@
   "fusionDailyMintCaps": [2, 2, 1, 1, 1, 1],
   "fusionMaxResultTier": 3,
   "trainingMaterials": ["ironBadge", "copperGoggles", "silverHelmet", "goldWrench", "platinumVest"],
-  "trainingMaterialCounts": [2, 3, 4, 5, 6],
+  "trainingMaterialCounts": [1, 2, 4, 10, 20],
   "trainingCosts": [10, 80, 640, 5120, 40960],
   "trainingSeconds": [60, 120, 240, 480, 960],
   "trainingHallUpgradeCosts": [20, 100, 500, 2500, 12500],

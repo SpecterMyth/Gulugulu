@@ -563,7 +563,7 @@ class MockBridge implements GameBridge {
   // 预览模式没有 Rust 单一真源：设置存内存；键盘充能与正式版一样默认开启。
   private appSettings: AppSettings = {
     keyboardCapture: true,
-    dynamicQuoteAi: false,
+    dynamicQuoteAi: true,
     alwaysOnTop: true,
     randomMovement: true,
     language: window.localStorage.getItem("gulugulu.language") ?? "en",

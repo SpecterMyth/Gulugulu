@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { GameConfig } from "../../../types";
-import { elementName, speciesDisplayName } from "../../../i18n";
+import { elementName, fmt, speciesDisplayName } from "../../../i18n";
+import { FACTORY_ROGUE } from "../../../i18n/factoryRogue";
 import { useT } from "../../../useT";
 import { SvgSprite } from "../../../sprites/SvgSprite";
 import { ElementIcon } from "../../ElementIcon";
@@ -46,9 +47,9 @@ export function RogueHiring({
   onGuideCandidateToggle?: () => void;
 }) {
   const { lang } = useT();
+  const R = FACTORY_ROGUE[lang];
   const hiring = view.hiring;
   if (hiring == null) return null;
-  const zh = lang === "zh";
   const total = hiring.hireCost + hiring.rerollSpent;
   const after = view.cash - total;
   const afterBill = after - view.bill;
@@ -148,25 +149,23 @@ export function RogueHiring({
     <div className="fr-overlay fr-hiring-overlay" onPointerDown={(event) => event.stopPropagation()}>
       <section className="fr-hiring-panel">
         <header className="fr-hiring-head">
-          <div className="fr-hiring-title-note">{zh ? "咕噜招聘" : "GULU HIRING"}</div>
+          <div className="fr-hiring-title-note">{R.hireTitle}</div>
           <div className="fr-hiring-shift-note">
-            {zh ? `第 ${view.shiftIndex} 班 · 招聘 ${hiring.round}/${hiring.roundsMax}` : `Shift ${view.shiftIndex} · Draft ${hiring.round}/${hiring.roundsMax}`}
+            {fmt(R.hireShiftRound, { shift: view.shiftIndex, round: hiring.round, max: hiring.roundsMax })}
           </div>
           <div className="fr-hiring-head-spacer" />
           <div className="fr-hiring-cash-note">
-            <small>{zh ? "现有现金" : "CASH"}</small>
+            <small>{R.hireCash}</small>
             <b>${formatCount(view.cash)}</b>
           </div>
           <div className="fr-hiring-quota-note">
-            <small>{zh ? "咕噜池" : "GULU POOL"}</small>
+            <small>{R.hirePool}</small>
             <b>{view.quotaUsed}/{view.quotaMax}</b>
           </div>
         </header>
 
         <p className="fr-hiring-tip">
-          {zh
-            ? "所有咕噜均已预选；取消不需要的咕噜后一次付款。已选咕噜不会被刷新。"
-            : "All Gulus are preselected. Uncheck any you do not want, then pay once. Selected Gulus survive rerolls."}
+          {R.hireTip}
         </p>
 
         <div className="fr-hiring-candidates">
@@ -205,7 +204,7 @@ export function RogueHiring({
               >
                 <span className="fr-hiring-card-stripe" aria-hidden="true" />
                 <span className="fr-hiring-card-state">
-                  {candidate.selected ? (zh ? "录用 ✓" : "IN ✓") : (zh ? "待选" : "PICK")}
+                  {candidate.selected ? R.hireSelected : R.hirePick}
                 </span>
                 <span className="fr-hiring-sprite">
                   <SvgSprite species={candidate.species} config={config} petState="idle" />
@@ -225,7 +224,7 @@ export function RogueHiring({
                   </span>
                   <span
                     className="fr-hiring-base"
-                    title={zh ? "打工业绩" : "Work Performance"}
+                    title={R.hireWorkPerformance}
                   >
                     ★{candidate.baseValue}
                   </span>
@@ -233,12 +232,12 @@ export function RogueHiring({
                 <span className="fr-hiring-card-bottom">
                   <b
                     className="fr-hiring-reach"
-                    title={zh ? "压榨数" : "Exploitation Count"}
+                    title={R.hireExploitCount}
                   >
                     ⛓ {candidate.reach}
                   </b>
                   <span className="fr-hiring-pricebar">
-                    {candidate.price < 1000 && <small>{zh ? "雇佣" : "HIRE"}</small>}
+                    {candidate.price < 1000 && <small>{R.hireVerb}</small>}
                     ${formatCount(candidate.price)}
                   </span>
                 </span>
@@ -248,13 +247,13 @@ export function RogueHiring({
         </div>
 
         <div className="fr-hiring-pool">
-          <strong>{zh ? "当前咕噜池" : "CURRENT GULU POOL"}</strong>
+          <strong>{R.hirePoolCurrent}</strong>
           <b className={hiring.poolTotal < 10 ? "is-low" : ""}>
-            {zh ? `共 ${hiring.poolTotal} 只` : `${hiring.poolTotal} TOTAL`}
+            {fmt(R.hirePoolTotal, { count: hiring.poolTotal })}
           </b>
           <div className="fr-hiring-pool-list">
             {hiring.poolCounts.length === 0 ? (
-              <span className="is-empty">{zh ? "咕噜池为空" : "GULU POOL IS EMPTY"}</span>
+              <span className="is-empty">{R.hirePoolEmpty}</span>
             ) : hiring.poolCounts.map(({ species, count }) => {
               const info = config.species[species];
               return (
@@ -275,11 +274,11 @@ export function RogueHiring({
         </div>
 
         <div className="fr-hiring-money">
-          <div><small>{zh ? "本轮已选" : "PICKED"}</small><b>{hiring.selectedCount}/{hiring.candidates.length}</b></div>
-          <div><small>{zh ? "雇佣费用" : "HIRE COST"}</small><b>${formatCount(hiring.hireCost)}</b></div>
-          <div><small>REROLL</small><b>${formatCount(hiring.rerollSpent)}</b></div>
-          <div className="is-primary"><small>{zh ? "支付后现金" : "CASH AFTER PAY"}</small><b>${formatCount(after)}</b></div>
-          <div className={afterBill < 0 ? "is-danger" : ""}><small>{zh ? "预留账单后" : "AFTER BILL"}</small><b>${formatCount(afterBill)}</b></div>
+          <div><small>{R.hirePicked}</small><b>{hiring.selectedCount}/{hiring.candidates.length}</b></div>
+          <div><small>{R.hireCost}</small><b>${formatCount(hiring.hireCost)}</b></div>
+          <div><small>{R.hireRerollSpent}</small><b>${formatCount(hiring.rerollSpent)}</b></div>
+          <div className="is-primary"><small>{R.hireCashAfter}</small><b>${formatCount(after)}</b></div>
+          <div className={afterBill < 0 ? "is-danger" : ""}><small>{R.hireAfterBill}</small><b>${formatCount(afterBill)}</b></div>
         </div>
 
         <footer className="fr-hiring-foot">
@@ -289,7 +288,7 @@ export function RogueHiring({
             disabled={isFlying || hiring.rerollCost == null || hiring.rerollsUsed >= hiring.rerollsMax}
             onClick={() => run.rerollHiring()}
           >
-            {zh ? "刷新未选咕噜" : "REROLL UNSELECTED GULUS"}
+            {R.hireReroll}
             {hiring.rerollCost != null ? ` · $${formatCount(hiring.rerollCost)}` : ""}
             <small>{hiring.rerollsUsed}/{hiring.rerollsMax}</small>
           </button>
@@ -301,8 +300,8 @@ export function RogueHiring({
             onClick={toggleAllCandidates}
           >
             {allSelected
-              ? (zh ? "取消全选" : "CLEAR ALL")
-              : (zh ? "选取所有" : "SELECT ALL")}
+              ? R.hireClearAll
+              : R.hireSelectAll}
           </button>
           <button
             type="button"
@@ -316,32 +315,30 @@ export function RogueHiring({
             onClick={() => requestAction(hiring.canContinue ? "next" : "clock")}
           >
             {!hiring.canAfford
-              ? (zh ? "钱不够" : "NOT ENOUGH CASH")
+              ? R.hireNoCash
               : !hiring.hasQuota
-                ? (zh ? "咕噜池已满" : "GULU POOL FULL")
+                ? R.hirePoolFull
                 : hiring.canContinue
-                  ? (zh ? "付款并进入下一轮" : "PAY & NEXT DRAFT")
-                  : (zh ? "付款并开工！" : "PAY & CLOCK IN!")}
+                  ? R.hirePayNext
+                  : R.hirePayStart}
           </button>
         </footer>
 
         {pendingAction != null && (
           <div className="fr-hiring-confirm" role="dialog" aria-modal="true">
             <div className="fr-hiring-confirm-note">
-              <strong>{zh ? "确认继续？" : "CONTINUE?"}</strong>
+              <strong>{R.hireConfirmTitle}</strong>
               {hiring.selectedCount === 0 && !isPoolFull && (
-                <p>{zh ? "你这一轮没有选择任何咕噜。" : "You have not selected any Gulu this draft."}</p>
+                <p>{R.hireConfirmEmpty}</p>
               )}
               {pendingAction === "clock" && hiring.projectedPoolTotal < 10 && (
                 <p>
-                  {zh
-                    ? `开工后咕噜池中只有 ${hiring.projectedPoolTotal} 只咕噜，储备已经很少。`
-                    : `Only ${hiring.projectedPoolTotal} Gulus will remain in your Gulu pool. Your reserve is running low.`}
+                  {fmt(R.hireConfirmLowPool, { count: hiring.projectedPoolTotal })}
                 </p>
               )}
               <div>
                 <button type="button" onClick={() => setPendingAction(null)}>
-                  {zh ? "返回招聘" : "GO BACK"}
+                  {R.hireGoBack}
                 </button>
                 <button
                   type="button"
@@ -349,7 +346,7 @@ export function RogueHiring({
                   data-coach={firstRunGuide ? "factoryHiringPay" : undefined}
                   onClick={() => performAction(pendingAction)}
                 >
-                  {zh ? "确认继续" : "CONTINUE"}
+                  {R.hireContinue}
                 </button>
               </div>
             </div>

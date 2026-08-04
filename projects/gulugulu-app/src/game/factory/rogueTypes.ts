@@ -15,7 +15,7 @@ export type SpeciesRogueMeta = {
   tierCount: number;
   /** 元素组编号:目录物种=1;AI 物种=1+组内 AI 创建序;多元素取各组最大。 */
   groupNo: number;
-  /** 吸取层数 = groupNo + 1。 */
+  /** 压榨数:目录宠固定为 2,AI 宠为 groupNo + 2。 */
   reach: number;
   /** 基础值按元素数取 15/12/9/6/4/3，与主线等级无关。 */
   baseValue: number;
@@ -534,6 +534,8 @@ export type RogueRunSnapshot = {
   rewards?: Record<string, number>;
   loadout: string[];
   deskOrder: RogueElement[];
+  /** 当前班次被禁运、不可参与计分的桌子；旧续档缺失时按空列表迁移。 */
+  disabledDesks?: RogueElement[];
   /** 当前班桌面上的宠物。 */
   bodies: BodyLike[];
   /** 每只在场宠物的雇佣账务，供退款、成长与脉冲继续使用。 */

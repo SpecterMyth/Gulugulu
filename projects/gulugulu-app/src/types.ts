@@ -44,7 +44,8 @@ export type PetEvent = {
  *  形状与前端静态台词一致，供随机台词 50/50 混用（App.tsx setDynamicQuotes）。 */
 export type DynamicQuote = {
   id: string;
-  lang: "zh" | "en";
+  /** Backend may still emit legacy `zh`; the UI normalizes any BCP-47 value on receipt. */
+  lang: string;
   text: string;
   tags: string[];
 };
@@ -647,11 +648,11 @@ export type KeyFxEvent = {
 export type AppSettings = {
   /** 全局键盘钩子开关。新安装/缺字段默认 true；已有明确选择原样保留。 */
   keyboardCapture: boolean;
-  /** 允许后台动态台词调用玩家已登录的 Claude/Codex CLI；独立、可撤回，默认 false。 */
+  /** 允许后台动态台词调用玩家已登录的 Claude/Codex CLI；独立、可撤回，默认 true。 */
   dynamicQuoteAi: boolean;
   alwaysOnTop: boolean;
   randomMovement: boolean;
-  /** 界面语言码（"zh" | "en"；留字符串以便扩展更多语言）。 */
+    /** 界面语言码（BCP-47；旧版 "zh" 会在读取时迁移为 "zh-Hans"）。 */
   language: string;
   /** 开机自动启动（默认关闭）。真源为操作系统注册项，get_settings 读取时对账。 */
   autostart: boolean;

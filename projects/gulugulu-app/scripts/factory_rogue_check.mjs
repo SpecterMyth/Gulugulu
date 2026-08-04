@@ -1804,11 +1804,66 @@ eq(overtimeRun.view().phase, "hiring", "商店结束后进入下一班招聘");
 eq(overtimeRun.view().hiring.poolTotal, overtimeWorkerCount, "下一班招聘页仍显示全部加班返池角色");
 ok(overtimeRun.confirmHiring() && overtimeRun.nextCarried() != null, "下一班可以继续投放加班返池角色");
 
+console.log("== 加班零分落点仍去本属性桌并优先粘连");
+const zeroOvertimeSeed = new M.RogueRun({
+  loadout: ["tier1"],
+  meta: metas,
+  deskOrder: ["fire", "water", "grass", "electric", "ice", "normal"],
+  seed: 27182,
+});
+ok(zeroOvertimeSeed.confirmHiring(), "零分加班测试局完成招聘");
+const zeroOvertimeSnap = zeroOvertimeSeed.snapshot();
+zeroOvertimeSnap.phase = "overtime";
+zeroOvertimeSnap.hirePool = [{ species: "tier1", price: 2 }];
+zeroOvertimeSnap.hiringCandidates = [];
+zeroOvertimeSnap.disabledDesks = ["fire"];
+const zeroOvertimeRun = M.RogueRun.restore(zeroOvertimeSnap, metas);
+const zeroAnchor = { ...body(3990, 60, 110, ["fire"]), species: "tier1" };
+zeroOvertimeRun.registerSnapshots({
+  bodies: () => [zeroAnchor],
+  desks: () => [
+    { element: "fire", x: 0, w: 120, top: 120 },
+    { element: "water", x: 200, w: 120, top: 120 },
+  ],
+});
+const zeroTarget = zeroOvertimeRun.onOvertimeThrow(3991, "tier1", 10);
+ok(zeroTarget != null, "本属性桌禁运、无得分点时仍能完成自动投放");
+eq(zeroTarget?.x, zeroAnchor.x, "零分加班角色优先落到本属性桌上的同属性咕噜处粘连");
+ok((zeroTarget?.x ?? 999) < 120, "零分加班角色不会被同分排序投到异属性桌");
+
 console.log("== 续局保存招聘池与整局通胀");
 const snap = run.snapshot();
 ok(snap != null && snap.v === 10, "新存档 schema v10");
 ok((snap?.hirePool.length ?? 0) === 9, "存档保留未投雇佣池");
 ok((snap?.hireInflation.reduce((a, b) => a + b, 0) ?? 0) === 10, "存档保留整局通胀计数");
+
+const midDropRun = new M.RogueRun({
+  loadout: ["tier1", "tier2", "tier3"],
+  meta: metas,
+  deskOrder: ["fire", "water", "grass", "electric", "ice", "normal"],
+  seed: 20260804,
+});
+ok(midDropRun.confirmHiring(), "投放续局测试进入首班");
+const midDropSpecies = midDropRun.nextCarried()?.species;
+ok(midDropSpecies != null && midDropRun.onThrow(9901, midDropSpecies), "投放续局测试抛出一只咕噜");
+midDropRun.registerSnapshots({
+  bodies: () => [{
+    uid: 9901,
+    species: midDropSpecies,
+    elements: metas[midDropSpecies].elements,
+    x: 320,
+    y: 180,
+    r: 28,
+    settled: false,
+  }],
+  desks: () => [],
+});
+const midDropSnap = midDropRun.snapshot();
+eq(midDropSnap?.bodies.length, 0, "退出时不把投放中的咕噜固化为空中塔体");
+eq(midDropSnap?.bodyEconomy.length, 0, "投放中的临时实体不残留在续局账本");
+eq(midDropSnap?.hirePool[0]?.species, midDropSpecies, "投放中的咕噜退回续局投放队首");
+const resumedMidDrop = M.RogueRun.restore(midDropSnap, metas);
+eq(resumedMidDrop?.nextCarried()?.species, midDropSpecies, "续局后可重新投放退出时悬空的咕噜");
 
 console.log("== 成就单局事实可续局");
 const factRun = new M.RogueRun({

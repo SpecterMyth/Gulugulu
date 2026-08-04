@@ -21,6 +21,8 @@ import { TOOLS } from "./parts/tools";
 import { FxLayer, type FxLevel } from "./parts/vfx";
 import { GradeHalo, SleepZzz, SweatDrop, ThinkDots } from "./parts/common";
 import { RIGS2 } from "./species2";
+import { speciesDisplayName } from "../i18n/species";
+import { useT } from "../useT";
 
 // -----------------------------------------------------------------------------
 // SvgSprite —— 装配器（计划 §2.2）
@@ -107,6 +109,7 @@ export type SvgSpriteProps = {
 };
 
 export function SvgSprite({ species, config, petState = "idle", tier, visual: visualOverride, className, style }: SvgSpriteProps) {
+  const { lang } = useT();
   const info = config.species[species];
   const visual = visualOverride ?? getSpeciesVisual(species, info, config);
   const Rig = RIGS[visual.rig] ?? DuckRig;
@@ -139,7 +142,7 @@ export function SvgSprite({ species, config, petState = "idle", tier, visual: vi
       className={rootClass}
       style={{ ...visual.cssVars, ...style }}
       role="img"
-      aria-label={info?.nameZh ?? species}
+      aria-label={speciesDisplayName(species, lang, info?.nameZh, info?.nameEn)}
     >
       {/* 地面影子（漂浮物种小影子，与身体留空隙） */}
       <ellipse className="sprite-shadow" cx={128} cy={236} rx={visual.shadowRx ?? 58} ry={10} fill={OUTLINE} opacity={0.14} />

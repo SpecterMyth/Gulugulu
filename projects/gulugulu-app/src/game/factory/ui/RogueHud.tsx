@@ -261,6 +261,8 @@ export function RogueHud({
           back: R.hudBack,
           workPerformance: R.loBaseValue.replace(" {n}", ""),
           exploitationCount: R.loReach.replace(" {n}", ""),
+          cardAria: R.cardAria,
+          levelAria: R.levelAria,
         }}
         onExit={wantExit}
         revenueRef={revenueRef}

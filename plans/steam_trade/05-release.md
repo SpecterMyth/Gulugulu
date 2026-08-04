@@ -12,7 +12,7 @@
 - [ ] R5. 👤 后台填写商店页(素材/文案/系统需求/语言/内容问卷+AI 披露)+ 定价 + 开启创意工坊 → **提交商店页与 build 审核**(用户登录 partner 站,AI 用文本工具驱动填写;**提审/完成发行类点击用户本人**);Coming Soon ≥2 周 + 30 天付费规则(≈2026-08-10)后发售
 - [ ] R6. 发售后:验证宠物市场页出现、marketable 生效(WS4-D5 遗留);市场公开价格接口接入交易所面板行情(可选)
 - [ ] R7. release CI:决定 GitHub 双分发是否保留;若保留,`bundle.resources` 已带 dll(WS2-A3),验证 mac/linux 矩阵联编
-- [ ] R8. **收紧掉落参数**(2026-07-16 改口径:窗口应用级=1440 是**设计值不回改**;`drop_window` 非 per-def,见 00-decisions 实证):发布前把应用级 `inventory_playtime_frequency` 5→45(被动掉落游玩门槛)、`_max_items_per_window` 10→2(401-406 被动掉落每日 2 只;商店 gen 有 per-def max 不受影响)、`_minimum` **保持 1440**;并复核商店 gen per-def `drop_interval:1` 生产是否上调
+- [x] R8. **掉落参数生产化**（2026-08-04）：应用级保持 **0/10/1440**，商店 gen 21011-21046 仅写 per-def `drop_max_per_window`（10/8/6/3），允许窗口内连续领取；401-406 被动掉落显式写 `drop_interval:45` + `drop_max_per_window:2`，不继承应用级 0。30 条定义已增量上传并刷新 Econ 缓存。
 - [ ] R9. **⚠️ 取消勾选 Steam 云「仅为开发人员启用云支持」**(partner 站 App Admin → 云,`hidecloudui`;2026-07-18 为发行前测试勾上)——不取消则**正式玩家上传创意工坊皮肤时预览图会静默失败**(工坊物品缩略图存上传者 per-app 云空间;云配额 100MB/1000 文件已配置勿动,根因实证见 00-decisions 创意工坊落地状态)。改完须走发布页发行生效。
 
 ## 笔记

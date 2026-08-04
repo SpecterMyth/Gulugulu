@@ -276,17 +276,17 @@ P(S) = w(|S.elements|) / Σ_{池内每个物种 s} w(|s.elements|)
 
 ### 7.5 每日产出上限（Steam 24h 窗口封顶 · 服务器强制，2026-07-16）
 
-> 商店宠改为可交易 Steam 资产后（见 [plans/steam_trade/00-decisions.md](../../plans/steam_trade/00-decisions.md)「用户拍板（2026-07-15）· 商店蛋全局池」），"花金币铸可交易宠"本会破「供给只由 Steam 水龙头控制」不变量。**用户拍板（2026-07-16）：用 Steam 的「24 小时窗口封顶」服务器强制每日上限，且不摊开**。⚠️ **2026-07-16 真机实证修正**：`drop_window` **不是 per-def 字段**（上传即被剥，非零也一样）——窗口在合作伙伴网站**应用级**设置（`inventory/inventory_playtime_minimum` = **1440**，已改，对全部 playtimegenerator 生效）；per-def 生效字段 = `drop_interval`（非零才留存）+ `drop_max_per_window`（已验留存）。玩家可在窗口内**一口气领完 N 个再下线**，服务器强制、改客户端也超不过。
+> 商店宠改为可交易 Steam 资产后（见 [plans/steam_trade/00-decisions.md](../../plans/steam_trade/00-decisions.md)「用户拍板（2026-07-15）· 商店蛋全局池」），"花金币铸可交易宠"本会破「供给只由 Steam 水龙头控制」不变量。**用户拍板（2026-07-16）：用 Steam 的「24 小时窗口封顶」服务器强制每日上限，且不摊开**。⚠️ **2026-08-04 真机修正**：短会话游玩时长只在退出后入账，会卡住同属性第二颗蛋；因此应用级设置为 **0/10/1440**，商店 per-def 仅保留 `drop_max_per_window`，缺省 interval 继承应用级 0。401-406 被动免费掉落则显式使用 `drop_interval:45` + `drop_max_per_window:2`，不随应用级 0 放开。
 >
-> **硬约束**：`drop_max_per_window` **Steam 封顶 10**，故所有每日上限设计为 **≤10**；`TriggerItemDrop` 客户端约 1 次/分钟节流 + per-def `drop_interval:1`（1 分钟游玩/个，两者同量级），领 N 个 ≈ N 分钟（非摊开）。**取向：宁可卡到极限手工玩家**（上限远低于孵化屋物理吞吐 8 槽×86400/孵化秒 = 384/192/96）。
+> **硬约束**：`drop_max_per_window` **Steam 封顶 10**，故所有每日上限设计为 **≤10**；`TriggerItemDrop` 客户端仍约 1 次/分钟节流，但商店生成器不再要求新增游玩时长。**取向：宁可卡到极限手工玩家**（上限远低于孵化屋物理吞吐 8 槽×86400/孵化秒 = 384/192/96）。
 >
-> **客户端每日计数是 Steam 窗口的镜像**（已实装）：`logic_buy_egg` + `DailyCounters.egg_mints`（键 `"{element}:{tier}"`，跨天随 `ensure_daily` 重置）达上限即拒绝并 toast「今日『X 阶Y蛋』已达每日孵化上限」——本地先拦，避免玩家孵了却被 Steam 窗口拒发。**一阶被动掉落 faucet（401–406）无 per-def 覆盖**，走应用级参数（窗口同为 1440，interval/数量沿应用级——发布前生产化调参见 05-release R8）。
+> **客户端每日计数是 Steam 窗口的镜像**（已实装）：`logic_buy_egg` + `DailyCounters.egg_mints`（键 `"{element}:{tier}"`，跨天随 `ensure_daily` 重置）达上限即拒绝并 toast「今日『X 阶Y蛋』已达每日孵化上限」——本地先拦，避免玩家孵了却被 Steam 窗口拒发。**一阶被动掉落 faucet（401–406）有独立 per-def 覆盖**：45 分钟门槛、每 24h 窗口最多 2 只。
 
-**商店蛋每日上限（每元素·每阶，`eggDailyMintCaps`，全 ≤10）**——**目录已上架**（2026-07-16，21011–21046 = `21000+阶*10+(一阶def−100)`，存储态已验 `drop_interval:1 + drop_max_per_window` 留存）：
+**商店蛋每日上限（每元素·每阶，`eggDailyMintCaps`，全 ≤10）**——**目录已上架并于 2026-08-04 修正**（21011–21046 = `21000+阶*10+(一阶def−100)`，per-def 仅 `drop_max_per_window`，interval 继承应用级 0）：
 
 | 蛋阶 | 每日上限/元素 | Steam generator 参数（per-def） | 孵化屋物理上限（参考） |
 |---|---|---|---|
-| 1 | **10** | `drop_interval:1, drop_max_per_window:10`（窗口=应用级 1440） | ~2304 |
+| 1 | **10** | `drop_max_per_window:10`（interval=应用级 0，窗口=应用级 1440） | ~2304 |
 | 2 | **8** | 同上、`drop_max_per_window:8` | 384 |
 | 3 | **6** | `drop_max_per_window:6` | 192 |
 | 4（非商店可售，兼容保留） | **3** | 目录/配置保留；`shopMaxLevel=3` 使运行时不可达 | 96 |

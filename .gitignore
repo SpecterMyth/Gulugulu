@@ -68,5 +68,9 @@ build/
 outputs/
 test/auto_test/
 
+# Local machine-translation cache / progress logs (generated locale payload is tracked)
+projects/gulugulu-app/.localization-translation-cache.json
+projects/gulugulu-app/.localization-generation.*.log
+
 # Public repository: keep private operations and outreach data local
 ops/

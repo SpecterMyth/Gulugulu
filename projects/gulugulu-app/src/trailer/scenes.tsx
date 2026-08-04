@@ -127,17 +127,20 @@ const COLD_BUBBLE = COLD_CAPS.ends[1] - 600;
 export const COLD_DUR = COLD_BUBBLE + 1800;
 
 export function ColdOpen({ localT, dur }: SceneProps) {
-  const petState: PetState = localT > COLD_BUBBLE - 200 && localT < COLD_BUBBLE + 1300 ? "success" : "idle";
+  // 前三秒沿用上一版的“经典桌面 + IDE + 单只主宠”构图。宠物状态按时间线
+  // 切换，逐帧导出时仍由真实 SvgSprite 动画驱动，不使用新版静态宣传画。
+  const petState: PetState =
+    localT < 850 ? "thinking" : localT < 1750 ? "working" : localT < 2700 ? "fed" : "success";
   return (
     <SceneFade localT={localT} dur={dur} fade={FADE}>
       <div className="scene">
         <DeskBackdrop />
         <MockIde status="thinking" style={{ left: 150, top: 150, width: 760, height: 360 }} />
-        <div className="pet-box" style={{ right: 150, bottom: 110, width: 210, height: 210 }}>
+        <div className="pet-box" style={{ right: 82, bottom: 76, width: 410, height: 410 }}>
           <Sprite species={DUCK} state={petState} />
         </div>
         {localT > COLD_BUBBLE && (
-          <Speech lines={[{ t: C.cold.bubble }]} nowrap right style={{ right: 190, bottom: 340, opacity: clamp((localT - COLD_BUBBLE) / 240) }} />
+          <Speech lines={[{ t: C.cold.bubble }]} nowrap right style={{ right: 300, bottom: 472, opacity: clamp((localT - COLD_BUBBLE) / 240) }} />
         )}
         <Captions localT={localT} items={COLD_CAPS.items} />
         <SceneGlitch localT={localT} label="> boot gulugulu.exe" />

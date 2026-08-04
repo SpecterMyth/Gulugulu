@@ -14,6 +14,7 @@ import { isTauri } from "../tauri";
 import { localGameConfig } from "../game/config";
 import { buildSeed } from "../game/mockSeeds";
 import { ONBOARDING_STEP_IDS, type OnboardingStepId } from "../app/onboarding/onboardingCopy";
+import { normalizeLanguage } from "../i18n/core";
 
 function params(): URLSearchParams | null {
   if (isTauri()) return null;
@@ -76,6 +77,18 @@ export function previewFacPile(): number {
   return Number.isFinite(v) ? Math.max(0, Math.min(300, Math.floor(v))) : 0;
 }
 
+/** ?facseed=:商店录制中预填打工山的确定性布局种子。 */
+export function previewFacSeed(): number {
+  const raw = Number(params()?.get("facseed"));
+  return Number.isFinite(raw) ? Math.max(1, Math.floor(raw) >>> 0) : 1234567;
+}
+
+/** ?frshowcase=1:允许真实 rogue UI 在录制模式中预填确定性打工山。 */
+export function previewFactoryShowcase(): boolean {
+  const p = params();
+  return p?.get("shot") === "1" && p.get("frdebug") === "1" && p.get("frshowcase") === "1";
+}
+
 /** ?panel= 请求的后院初始落点(无/非法 → null)。 */
 export function previewPanel(): string | null {
   const v = params()?.get("panel");
@@ -121,13 +134,19 @@ export function previewTimeOfDay(): number | null {
   return Number.isFinite(num) && num >= 0 && num <= 24 ? num : null;
 }
 
+/** ?dexFull=1:Steam 截图专用 63 个固定物种大图鉴。 */
+export function previewDexFull(): boolean {
+  const p = params();
+  return p?.get("shot") === "1" && p.get("dexFull") === "1";
+}
+
 /** 预览引导:语言/种子存档/引导压制/截图模式。幂等,真机与无参数时是空操作。 */
 export function applyPreviewBootstrap(): void {
   const p = params();
   if (!p) return;
 
-  const lang = p.get("lang");
-  if (lang === "zh" || lang === "en") {
+  const lang = normalizeLanguage(p.get("lang"));
+  if (lang) {
     try {
       window.localStorage.setItem("gulugulu.language", lang);
     } catch {
@@ -142,6 +161,14 @@ export function applyPreviewBootstrap(): void {
       const today = new Date().toISOString().slice(0, 10);
       const save = buildSeed(seedName, localGameConfig, now, today);
       if (save) {
+        // 商店截图中的“全物种”图鉴仍使用真实存档/真实 DexCell 渲染；这里只在
+        // 确定性的预览存档中把 63 个固定物种标记为已获得。
+        if (p.get("shot") === "1" && p.get("dexFull") === "1") {
+          save.dexObtained ??= {};
+          for (const species of Object.values(localGameConfig.speciesByRecipe ?? {})) {
+            save.dexObtained[species] = Math.max(1, save.dexObtained[species] ?? 0);
+          }
+        }
         // ?hero=<species>:指定跟随主角(截图镜头轮换主角,别每张都是同一只)。
         const hero = p.get("hero");
         if (hero) {
@@ -182,20 +209,21 @@ export function applyPreviewBootstrap(): void {
 
   if (p.get("shot") === "1") {
     document.body.classList.add("shot-mode");
+    if (p.get("dexFull") === "1") document.body.classList.add("shot-dex-full");
     const scale = Number(p.get("scale"));
     if (Number.isFinite(scale) && scale > 0) {
       document.body.style.setProperty("--shot-scale", String(scale));
     }
     // 商店截图背景 = 仿"经典桌面"(壁纸+桌面图标+任务栏),表达桌面挂机场景;
     // 游戏区域由 styles.css 的 shot-mode 规则沉到画面底部。
-    injectDesktopBackdrop(lang === "en" ? "en" : "zh");
+    injectDesktopBackdrop(lang === "en" ? "en" : "zh", p.get("bg"));
   }
 }
 
-/** 仿经典桌面背景(纯内联 SVG,全通用图形,不用任何品牌标识/商标图形)。 */
-function injectDesktopBackdrop(lang: "zh" | "en"): void {
+/** 生成壁纸 + 上一版内联 SVG 桌面图标/任务栏。游戏 UI 仍由实际运行页面渲染。 */
+function injectDesktopBackdrop(lang: "zh" | "en", requestedBg: string | null): void {
   const L =
-    lang === "zh"
+    lang.startsWith("zh")
       ? { pc: "此电脑", bin: "回收站", docs: "文档", pics: "图片", ide: "代码", clock: "10:24" }
       : { pc: "This PC", bin: "Recycle Bin", docs: "Documents", pics: "Pictures", ide: "Code", clock: "10:24" };
   const label = (x: number, y: number, text: string) =>
@@ -213,23 +241,11 @@ function injectDesktopBackdrop(lang: "zh" | "en"): void {
     `<g transform="translate(${x} ${y})"><rect x="6" y="8" width="36" height="32" rx="3" fill="#fffef7" stroke="#8a6410" stroke-width="2.5"/><circle cx="17" cy="19" r="4" fill="#f7d373"/><path d="M9 34 L20 24 L27 30 L33 25 L39 31 L39 37 L9 37 Z" fill="#57b84c"/></g>`;
   const codeWin = (x: number, y: number) =>
     `<g transform="translate(${x} ${y})"><rect x="5" y="8" width="38" height="32" rx="4" fill="#2f3440" stroke="#171b24" stroke-width="2.5"/><rect x="5" y="8" width="38" height="8" rx="4" fill="#454c5e"/><path d="M14 22 L10 26 L14 30" stroke="#8fd8e8" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M22 22 L26 26 L22 30" stroke="#8fd8e8" stroke-width="2.5" fill="none" stroke-linecap="round"/><line x1="30" y1="21" x2="36" y2="31" stroke="#ffd93b" stroke-width="2.5" stroke-linecap="round"/></g>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
-  <defs>
-    <linearGradient id="dtSky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2f7bd0"/><stop offset="55%" stop-color="#79b8ec"/><stop offset="100%" stop-color="#cfe8fa"/>
-    </linearGradient>
-    <linearGradient id="dtHill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#7ec85e"/><stop offset="100%" stop-color="#3f8f31"/>
-    </linearGradient>
-  </defs>
-  <rect width="1920" height="1080" fill="url(#dtSky)"/>
-  <g fill="#ffffff" opacity="0.85">
-    <ellipse cx="420" cy="150" rx="130" ry="42"/><ellipse cx="330" cy="168" rx="80" ry="30"/>
-    <ellipse cx="1480" cy="110" rx="150" ry="46"/><ellipse cx="1590" cy="130" rx="90" ry="32"/>
-    <ellipse cx="1000" cy="230" rx="100" ry="30" opacity="0.6"/>
-  </g>
-  <ellipse cx="620" cy="1210" rx="1400" ry="560" fill="url(#dtHill)"/>
-  <ellipse cx="1750" cy="1330" rx="1200" ry="620" fill="#5fae4c" opacity="0.9"/>
+  const backgrounds = new Set(["twilight", "morning", "rainy_night", "daylight"]);
+  const bg = requestedBg && backgrounds.has(requestedBg) ? requestedBg : "twilight";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1920" height="1080" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <image href="/store-v4/desktop_${bg}.png" xlink:href="/store-v4/desktop_${bg}.png" width="1920" height="1080" preserveAspectRatio="xMidYMid slice"/>
+  <rect width="1920" height="1080" fill="rgba(4,13,28,0.10)"/>
   ${iconSlot(36, 40, monitor(36, 40), L.pc)}
   ${iconSlot(36, 150, bin(36, 150), L.bin)}
   ${iconSlot(36, 260, folder(36, 260), L.docs)}

@@ -18,10 +18,11 @@
 //   · 并集生成器:exchange 枚举「A∪B = S」全部无序对(set:A,set:B;对角 set:S*2),
 //     bundle = 0 号固定 + 10 AI 槽的加权池(全局池,P0=1−A(e)、槽内几何衰减)。
 //     6 元素 364 条 ≈ 20.4KB,真机上传已验收(2026-07-16)。
-//   · 商店生成器:playtimegenerator + drop_interval:0/drop_window:1440/
-//     drop_max_per_window:<eggDailyMintCaps[tier-1]> —— 24h 窗口服务器强制每日上限、
-//     窗口内可 burst;bundle = 「含该元素 ∧ 元素数≤阶」canonical 物种按 denom^(6−c) 加权。
-//   · 一阶掉落生成器 401-406 不带 per-def drop 字段(沿用应用级设置,与商店窗口独立)。
+//   · 商店生成器:playtimegenerator + drop_max_per_window:<eggDailyMintCaps[tier-1]>；
+//     drop_interval 缺省并继承应用级 0，24h 窗口内可 burst；bundle = 「含该元素 ∧
+//     元素数≤阶」canonical 物种按 denom^(6−c) 加权。
+//   · 一阶被动掉落生成器 401-406 显式 drop_interval:45 + drop_max_per_window:2，
+//     避免应用级 0 放开免费可交易宠物水龙头。
 export function buildItemdefs(seed) {
   const {
     withIcons,
@@ -34,6 +35,7 @@ export function buildItemdefs(seed) {
     eggDailyMintCaps,
     aiTotalChanceByElementCount,
     eggRarityFalloffDenom,
+    steamLocales = {},
   } = seed;
 
   // ---- 槽位身份(与 fusionSlots.ts / fusion_slots.rs 镜像) ----
@@ -76,7 +78,7 @@ export function buildItemdefs(seed) {
       ? { icon_url: `${iconBase}/${codename}.png`, icon_url_large: `${iconBase}/${codename}.png` }
       : {};
 
-  // ---- 本地化:英语=默认(基础字段);中文=schinese ----
+  // ---- 本地化:英语=默认基础字段，其余使用 Steam 官方语言码后缀 ----
   const titleCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const loc = (field, english, locals = {}) => {
     const out = { [field]: english };
@@ -85,9 +87,20 @@ export function buildItemdefs(seed) {
     }
     return out;
   };
-  const zhRecipe = (recipe) => recipe.split("+").map((e) => elementsZh[e] ?? e).join("+");
+  const render = (template, args) =>
+    String(template).replace(/\{(\w+)\}/g, (match, key) => (args[key] == null ? match : String(args[key])));
+  const languageEntries = Object.entries(steamLocales).filter(
+    ([language]) => language !== "english" && !language.startsWith("_"),
+  );
+  const localized = (build) => Object.fromEntries(languageEntries.map(([language, strings]) => [language, build(strings, language)]));
+  const recipeFor = (recipe, strings) => recipe.split("+").map((element) => strings.elements?.[element] ?? element).join(" + ");
+  const elementsFor = (list, strings) => list.map((element) => strings.elements?.[element] ?? element).join(", ");
   const petDisplayEn = (s) => (s.tier === 1 ? "Base Pet" : s.tier === 2 ? "Fused Pet" : `${s.elements.length}-Element Pet`);
-  const petDisplayZh = (s) => (s.tier === 1 ? "一阶精灵" : s.tier === 2 ? "二阶精灵" : `${s.elements.length}元素精灵`);
+  const petDisplayFor = (s, strings) =>
+    s.tier === 1 ? strings.basePet : s.tier === 2 ? strings.fusedPet : render(strings.multiPet, { count: s.elements.length });
+  const speciesNameFor = (s, strings, language) =>
+    strings.speciesNames?.[s.codename]
+    ?? (language === "schinese" || language === "tchinese" ? s.nameZh : titleCase(s.codename));
 
   // ---- 宠物标签/自升阶(00-decisions「用户拍板(2026-07-15)」) ----
   // canonical(tier 1 或新 57):set=自身集合键、sp=自身 codename、exchange=sp:*2。
@@ -107,9 +120,10 @@ export function buildItemdefs(seed) {
     push({
       itemdefid: s.def,
       type: "item",
-      ...loc("display_type", petDisplayEn(s), { schinese: petDisplayZh(s) }),
-      ...loc("name", titleCase(s.codename), { schinese: s.nameZh }),
-      ...loc("description", `Gulugulu creature · elements: ${s.elements.join(", ")}.`, { schinese: s.desc }),
+      ...loc("display_type", petDisplayEn(s), localized((strings) => petDisplayFor(s, strings))),
+      ...loc("name", titleCase(s.codename), localized((strings, language) => speciesNameFor(s, strings, language))),
+      ...loc("description", `A Gulugulu creature · Elements: ${s.elements.join(", ")}.`, localized((strings) =>
+        render(strings.petDescription, { elements: elementsFor(s.elements, strings) }))),
       ...icon(s.codename),
       tradable: true,
       marketable: true,
@@ -131,11 +145,12 @@ export function buildItemdefs(seed) {
     push({
       itemdefid: eggDef,
       type: "item",
-      ...loc("display_type", "Fusion Egg", { schinese: "融合蛋" }),
-      ...loc("name", `${titleCase(codename)} Egg`, { schinese: `${s.nameZh}蛋` }),
-      ...loc("description", `Fusion egg (${key}). Account-bound.`, {
-        schinese: `由 ${key} 融合而来的蛋（绑定，不可交易）。`,
-      }),
+      ...loc("display_type", "Fusion Egg", localized((strings) => strings.fusionEgg)),
+      ...loc("name", `${titleCase(codename)} Egg`, localized((strings, language) => render(strings.eggName, {
+        name: speciesNameFor(s, strings, language),
+      }))),
+      ...loc("description", `A fusion egg born from ${key}. Bound to your account.`, localized((strings) =>
+        render(strings.eggDescription, { recipe: recipeFor(key, strings) }))),
       ...icon(codename),
       tradable: false,
       marketable: false,
@@ -151,7 +166,7 @@ export function buildItemdefs(seed) {
     });
   }
 
-  // --- 一阶掉落生成器(playtimegenerator;应用级掉落参数,与商店窗口独立) ---
+  // --- 一阶被动掉落生成器(playtimegenerator;独立 45 分钟门槛 + 每窗口 2 只) ---
   for (const element of elementOrder) {
     const petDef = tier1DefForElement(element);
     const s = byDef.get(petDef);
@@ -160,6 +175,8 @@ export function buildItemdefs(seed) {
       type: "playtimegenerator",
       name: `${s.codename} drop generator`,
       bundle: `${petDef}`,
+      drop_interval: 45,
+      drop_max_per_window: 2,
       hidden: true,
     });
   }
@@ -180,12 +197,13 @@ export function buildItemdefs(seed) {
       push({
         itemdefid: aiItemDef(ord, slot),
         type: "item",
-        ...loc("display_type", "AI Fusion Variant", { schinese: "AI 融合变种" }),
-        ...loc("name", `AI Variant ${slot} · ${recipe}`, { schinese: `AI 变种${slot} · ${zhRecipe(recipe)}` }),
+        ...loc("display_type", "AI Fusion Variant", localized((strings) => strings.aiVariant)),
+        ...loc("name", `AI Variant ${slot} · ${recipe}`, localized((strings) =>
+          render(strings.aiName, { slot, recipe: recipeFor(recipe, strings) }))),
         ...loc(
           "description",
           `AI fusion variant, slot ${slot} of recipe ${recipe}. Appearance is contributed via Steam Workshop (earliest publisher wins).`,
-          { schinese: `${recipe} 配方的第 ${slot} 号 AI 变种槽（形象/名字由首个生成者经创意工坊上传认领）。` },
+          localized((strings) => render(strings.aiDescription, { slot, recipe: recipeFor(recipe, strings) })),
         ),
         ...aiIcon(recipe, slot),
         tradable: true,
@@ -247,9 +265,9 @@ export function buildItemdefs(seed) {
   // --- 商店蛋生成器(24 = 6 元素 × 1..4 阶,21000+tier*10+(一阶def−100)) ---
   // 24h 窗口服务器强制每日上限(EconomyScaling.md §7.5)。⚠️ 2026-07-16 真机实证:
   // `drop_window` **不是 per-def 字段**(上传即被剥,非零也一样)→ 窗口在合作伙伴网站
-  // **应用级**设置(最大授予频率 = 1440);per-def 只写 `drop_interval:1`(1 分钟游玩
-  // ≈即领,与 TriggerItemDrop ~1次/分节流对齐;0 会被当默认剥掉回退应用级)+
-  // `drop_max_per_window` = eggDailyMintCaps[tier−1](全 ≤10 Steam 硬上限,已验存留)。
+  // **应用级**设置为 1440；`drop_interval:0` 也会被剥掉，因此这里故意不写 interval，
+  // 继承应用级 0，避免短会话时长只在退出后入账而卡住同属性的第二颗蛋。
+  // per-def 只写 `drop_max_per_window` = eggDailyMintCaps[tier−1](全 ≤10 Steam 硬上限)。
   const denom = Math.max(1, eggRarityFalloffDenom ?? 3);
   for (let tier = 1; tier <= eggDailyMintCaps.length; tier += 1) {
     for (const element of elementOrder) {
@@ -266,7 +284,6 @@ export function buildItemdefs(seed) {
         type: "playtimegenerator",
         name: `shop generator t${tier} ${element}`,
         bundle,
-        drop_interval: 1,
         drop_max_per_window: eggDailyMintCaps[tier - 1],
         hidden: true,
       });

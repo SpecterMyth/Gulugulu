@@ -7,12 +7,22 @@
 // 扩展一门新语言:给 core.ts 的 Language 加码、各域词表加一套词条、LANGUAGES 加一项,
 // 并在 Rust tray.rs 的 labels() 加一个分支——UI 与托盘即同时支持。
 
-import { type Language } from "./i18n/core";
+import { LANGUAGES, createLanguageMap, type Language } from "./i18n/core";
 import { BACKYARD, type BackyardStrings } from "./i18n/backyard";
 import { FACTORY, type FactoryStrings } from "./i18n/factory";
 import { SHELL, type ShellStrings } from "./i18n/shell";
+import { UI_LOCALES } from "./i18n/uiLocales";
 
-export { LANGUAGES, fmt, type Language } from "./i18n/core";
+export {
+  LANGUAGES,
+  applyDocumentLanguage,
+  fmt,
+  isChineseLanguage,
+  isLanguage,
+  languageDefinition,
+  normalizeLanguage,
+  type Language,
+} from "./i18n/core";
 export { localizeGameMessage, MESSAGES } from "./i18n/messages";
 export {
   ELEMENT_NAMES,
@@ -117,15 +127,14 @@ const en: UiStrings = {
   closePet: "Close pet",
 };
 
-export const STRINGS: Record<Language, UiStrings> = { zh, en };
+export const STRINGS: Record<Language, UiStrings> = createLanguageMap(en, zh, UI_LOCALES);
 
 /** 平铺基础键 + 域词表(bk=后院域,fa=工厂域,sh=壳层域)。 */
 export type AllStrings = UiStrings & { bk: BackyardStrings; fa: FactoryStrings; sh: ShellStrings };
 
-const ALL: Record<Language, AllStrings> = {
-  zh: { ...zh, bk: BACKYARD.zh, fa: FACTORY.zh, sh: SHELL.zh },
-  en: { ...en, bk: BACKYARD.en, fa: FACTORY.en, sh: SHELL.en },
-};
+const ALL = Object.fromEntries(
+  LANGUAGES.map(({ id }) => [id, { ...STRINGS[id], bk: BACKYARD[id], fa: FACTORY[id], sh: SHELL[id] }]),
+) as Record<Language, AllStrings>;
 
 /** 取某语言的词条;未知语言回退英文(与 Rust settings 默认一致)。 */
 export function t(language: Language): AllStrings {

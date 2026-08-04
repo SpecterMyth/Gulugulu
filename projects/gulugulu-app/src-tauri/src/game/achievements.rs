@@ -54,6 +54,7 @@ const FACTORY_STATS_MAX_COMBO: u32 = 1_000_000;
 const FACTORY_STATS_MAX_UPGRADE_LEVELS: u16 = 10_000;
 const FACTORY_STATS_MAX_DESKS: u8 = 6;
 const FACTORY_STATS_MAX_LOADOUT: u8 = 10;
+const FACTORY_COIN_REWARD_CAP: u64 = 10_000_000;
 
 /// 前端提交的工厂成就绝对快照。所有字段可省略；数值字段是终身绝对计数或单局
 /// 历史高水位，后端只取 `max`，重复提交幂等。营收/脉冲使用十进制字符串，避免
@@ -110,8 +111,9 @@ pub(crate) fn logic_record_factory_rogue_achievement_snapshot(
 ) -> Result<bool, String> {
     let best_revenue = parse_factory_stat_score("bestRevenue", snapshot.best_revenue.as_deref())?;
     let best_pulse = parse_factory_stat_score("bestPulse", snapshot.best_pulse.as_deref())?;
-    let reward_coins =
-        parse_factory_stat_score("rewardCoins", snapshot.reward_coins.as_deref())?.unwrap_or(0);
+    let reward_coins = parse_factory_stat_score("rewardCoins", snapshot.reward_coins.as_deref())?
+        .unwrap_or(0)
+        .min(FACTORY_COIN_REWARD_CAP);
 
     if snapshot
         .runs_started
@@ -728,6 +730,17 @@ mod tests {
             save.coins,
             coins_before + 6_000_000,
             "毕业后继续无限应只补发新增营收"
+        );
+        endless.reward_coins = Some("20000000".into());
+        assert!(logic_record_factory_rogue_achievement_snapshot(&mut save, &endless).unwrap());
+        assert_eq!(
+            save.coins,
+            coins_before + FACTORY_COIN_REWARD_CAP,
+            "a single factory run must not grant more than the coin conversion cap"
+        );
+        assert_eq!(
+            save.stats.factory_rogue_rewarded_revenue,
+            FACTORY_COIN_REWARD_CAP
         );
         let lower = FactoryRogueAchievementSnapshot {
             runs_started: Some(1),

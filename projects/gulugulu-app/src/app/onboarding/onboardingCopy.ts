@@ -1,4 +1,4 @@
-import type { Language } from "../../i18n/core";
+import { normalizeLanguage, type Language } from "../../i18n/core";
 
 export const ONBOARDING_STEP_IDS = [
   "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11",
@@ -15,6 +15,32 @@ export type OnboardingLocalizedCopy = {
   chapter: string;
   label: string;
   cta?: string;
+};
+
+export const ONBOARDING_UI_EN = {
+  busy: "Saving…",
+  gotIt: "Got it",
+  recover: "Take me to the right place",
+  targetNote: "Do the glowing step",
+  skip: "Skip onboarding",
+  skipTitle: "Skip the onboarding?",
+  skipBody: "All regular features will remain available, but the guide will be marked complete.",
+  keepLearning: "Keep learning",
+  confirmSkip: "Skip it",
+  occupiedPit: "Another egg took the open pit. Unlock one more pit; your Fire Egg is still safe in inventory.",
+} as const;
+
+export const ONBOARDING_UI_ZH: Record<keyof typeof ONBOARDING_UI_EN, string> = {
+  busy: "正在确认…",
+  gotIt: "知道了",
+  recover: "带我回正确位置",
+  targetNote: "先做发光步骤",
+  skip: "跳过整个新手引导",
+  skipTitle: "要跳过新手引导吗？",
+  skipBody: "之后仍可直接使用全部正常玩法，但引导进度会标记为完成。",
+  keepLearning: "继续引导",
+  confirmSkip: "确认跳过",
+  occupiedPit: "空蛋坑被别的蛋占了。先再解锁一个蛋坑，火蛋仍安全地待在库存里。",
 };
 
 /**
@@ -96,7 +122,7 @@ export const ONBOARDING_EN_COPY: Record<OnboardingStepId, OnboardingLocalizedCop
 export function onboardingLanguageFromStorage(): Language {
   if (typeof window === "undefined") return "en";
   try {
-    return window.localStorage.getItem("gulugulu.language") === "zh" ? "zh" : "en";
+    return normalizeLanguage(window.localStorage.getItem("gulugulu.language")) ?? "en";
   } catch {
     return "en";
   }

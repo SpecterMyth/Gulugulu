@@ -4,7 +4,8 @@
 //
 // 模板占位符走 core.ts 的 fmt():"{n}"/"{name}" 等在渲染点插值。
 
-import type { Language } from "./core";
+import { migrateLegacyLanguageMap, type DeepPartial, type Language } from "./core";
+import { generatedDomainLocales } from "./generatedLocales";
 
 /** 状态提示 / 收益横幅(showToastMsg 通道)。 */
 export interface ShellToastStrings {
@@ -131,6 +132,7 @@ export interface ShellTutorialStrings {
   firstEgg: string;
   noPetMenu: string;
   noPetTry: string;
+  trainingReady: string;
 }
 
 /** 新手强引导教练(coach)的气泡短标签(zh ≤12 字,EN 同样求短)。 */
@@ -249,6 +251,26 @@ export interface ShellAutostartStrings {
   decline: string;
 }
 
+export interface ShellMiscStrings {
+  debugAuthAria: string;
+  developerPassphrase: string;
+  developerPassphraseHint: string;
+  incorrectPassphrase: string;
+  cancel: string;
+  unlock: string;
+  coachSpace: string;
+  coachPressDrop: string;
+  achievementLabel: string;
+  hatchPitUnlocked: string;
+  trainingHallBuilt: string;
+  trainingHallMaxed: string;
+  trainingHallLevel: string;
+  trainingSlotAdded: string;
+  trainingComplete: string;
+  shopMaxed: string;
+  shopUpgradedTier: string;
+}
+
 export interface ShellStrings {
   dialog: {
     steamRebindTitle: string;
@@ -277,9 +299,48 @@ export interface ShellStrings {
   coach: ShellCoachStrings;
   welcome: ShellWelcomeStrings;
   autostart: ShellAutostartStrings;
+  misc: ShellMiscStrings;
 }
 
-export const SHELL: Record<Language, ShellStrings> = {
+/** Reviewed collection terminology used by the lightweight tutorial. */
+export const SHELL_COLLECTION_LOCALES = {
+  "zh-Hant": { tutorial: { graduation: "🎉 第一隻 2 階夥伴誕生！收藏 {collected}/{total}——敲鍵盤回精力、AI Token 餵我漲 EXP、點我打工賺金幣，晚上融合、早上收蛋，明天見", pokedex: "🏡 後院博物館會展示你的收藏 📖——收集越多，蛋池越豐富" } },
+  ja: { tutorial: { graduation: "🎉 初のランク2が誕生！コレクション {collected}/{total}——キー入力でエネルギー回復、AIトークンでEXP、クリックでコイン。夜に合成、朝にタマゴ回収。また明日！", pokedex: "🏡 裏庭の博物館でコレクションを確認できます 📖 集めるほどタマゴのラインナップも充実！" } },
+  ko: { tutorial: { graduation: "🎉 첫 2등급 친구 탄생! 컬렉션 {collected}/{total} — 키를 눌러 에너지를 회복하고, AI 토큰으로 EXP를 먹이고, 클릭해 코인을 벌어요. 밤엔 융합, 아침엔 알 수령. 내일 봐요!", pokedex: "🏡 뒤뜰 박물관에서 컬렉션을 확인하세요 📖 더 많이 모을수록 알 풀이 풍성해져요!" } },
+  fr: { tutorial: { graduation: "🎉 Premier compagnon de rang 2 ! Collection {collected}/{total} — tape pour l’énergie, donne-moi des jetons AI pour l’EXP, clique pour gagner des pièces, fusionne le soir et récupère les œufs au matin. À demain !", pokedex: "Le musée de l’arrière-cour 🏡 expose ta collection 📖 Plus tu collectionnes, plus le choix d’œufs s’agrandit !" } },
+  de: { tutorial: { graduation: "🎉 Erster Begleiter auf Rang 2! Sammlung {collected}/{total} — Tippen gibt Energie, AI-Token geben EXP, Klicks bringen Münzen. Nachts verschmelzen, morgens Eier einsammeln. Bis morgen!", pokedex: "Im Hinterhofmuseum 🏡 siehst du deine Sammlung 📖 Je mehr du sammelst, desto größer wird die Eierauswahl!" } },
+  "es-ES": { tutorial: { graduation: "🎉 ¡Primer compañero de rango 2! Colección {collected}/{total} — teclear recupera energía, los tokens de AI dan EXP y los clics ganan monedas. Fusiona de noche y recoge huevos por la mañana. ¡Hasta mañana!", pokedex: "El museo del patio 🏡 muestra tu colección 📖 ¡Cuanto más colecciones, más variado será el surtido de huevos!" } },
+  "es-419": { tutorial: { graduation: "🎉 ¡Primera mascota de rango 2! Colección {collected}/{total} — teclear recupera energía, los tokens de AI dan EXP y los clics ganan monedas. Fusiona de noche y recoge huevos por la mañana. ¡Nos vemos!", pokedex: "El museo del patio 🏡 muestra tu colección 📖 ¡Mientras más colecciones, más variedad habrá en los huevos!" } },
+  "pt-BR": { tutorial: { graduation: "🎉 Primeiro pet de grau 2! Coleção {collected}/{total} — digitar recupera energia, tokens de AI dão EXP e cliques rendem moedas. Faça fusões à noite e pegue os ovos de manhã. Até amanhã!", pokedex: "O museu do quintal 🏡 mostra sua coleção 📖 Quanto mais você coleciona, mais variada fica a seleção de ovos!" } },
+  "pt-PT": { tutorial: { graduation: "🎉 Primeiro companheiro de grau 2! Coleção {collected}/{total} — escrever recupera energia, tokens de AI dão EXP e os cliques rendem moedas. Faz fusões à noite e recolhe os ovos de manhã. Até amanhã!", pokedex: "O museu do quintal 🏡 mostra a tua coleção 📖 Quanto mais colecionas, maior é a variedade de ovos!" } },
+  ru: { tutorial: { graduation: "🎉 Первый питомец 2-го ранга! Коллекция {collected}/{total} — печатайте для энергии, кормите меня AI-токенами ради EXP и кликайте ради монет. Ночью сливайте, утром забирайте яйца. До завтра!", pokedex: "В музее заднего двора 🏡 хранится ваша коллекция 📖 Чем больше соберёте, тем богаче выбор яиц!" } },
+  it: { tutorial: { graduation: "🎉 Primo compagno di grado 2! Collezione {collected}/{total} — scrivi per recuperare energia, usa i token AI per l’EXP e clicca per guadagnare monete. Fondi di notte e raccogli le uova al mattino. A domani!", pokedex: "Il museo del cortile 🏡 mostra la tua collezione 📖 Più raccogli, più ricca diventa la scelta delle uova!" } },
+  pl: { tutorial: { graduation: "🎉 Pierwszy pupil 2. rangi! Kolekcja {collected}/{total} — pisz, by odzyskać energię, karm mnie tokenami AI dla EXP i klikaj po monety. Łącz nocą, odbieraj jaja rano. Do jutra!", pokedex: "Muzeum na podwórku 🏡 pokazuje twoją kolekcję 📖 Im więcej zbierzesz, tym bogatszy wybór jaj!" } },
+  tr: { tutorial: { graduation: "🎉 İlk 2. kademe dost doğdu! Koleksiyon {collected}/{total} — yazmak enerji, AI jetonları EXP, tıklamak para kazandırır. Gece birleştir, sabah yumurtaları topla. Yarın görüşürüz!", pokedex: "Arka bahçe müzesi 🏡 koleksiyonunu gösterir 📖 Ne kadar çok toplarsan yumurta seçkisi o kadar zenginleşir!" } },
+  uk: { tutorial: { graduation: "🎉 Перший улюбленець 2-го рангу! Колекція {collected}/{total} — друкуйте для енергії, годуйте мене AI-токенами заради EXP і клікайте заради монет. Уночі зливайте, уранці забирайте яйця. До завтра!", pokedex: "У музеї заднього двору 🏡 зберігається ваша колекція 📖 Що більше зберете, то багатший вибір яєць!" } },
+  ar: { tutorial: { graduation: "🎉 وُلد أول رفيق من الرتبة 2! المجموعة {collected}/{total} — اكتب لاستعادة الطاقة، وأطعمني رموز AI لزيادة EXP، واضغط لربح العملات. ادمج ليلًا واجمع البيض صباحًا. أراك غدًا!", pokedex: "يعرض متحف الفناء الخلفي 🏡 مجموعتك 📖 كلما جمعت أكثر، صار تنوع البيض أكبر!" } },
+  th: { tutorial: { graduation: "🎉 เพื่อนขั้น 2 ตัวแรกมาแล้ว! คอลเลกชัน {collected}/{total} — พิมพ์เพื่อฟื้นพลัง ใช้โทเคน AI เพิ่ม EXP และคลิกหาเหรียญ ผสมตอนกลางคืน เก็บไข่ตอนเช้า แล้วเจอกันพรุ่งนี้!", pokedex: "พิพิธภัณฑ์สวนหลังบ้าน 🏡 จะแสดงคอลเลกชันของคุณ 📖 ยิ่งสะสมมาก ตัวเลือกไข่ก็ยิ่งหลากหลาย!" } },
+  vi: { tutorial: { graduation: "🎉 Người bạn bậc 2 đầu tiên đã ra đời! Bộ sưu tập {collected}/{total} — gõ phím để hồi năng lượng, dùng token AI tăng EXP và nhấp để kiếm xu. Dung hợp ban đêm, nhận trứng buổi sáng. Hẹn mai gặp lại!", pokedex: "Bảo tàng sân sau 🏡 trưng bày bộ sưu tập của bạn 📖 Sưu tập càng nhiều, kho trứng càng phong phú!" } },
+  id: { tutorial: { graduation: "🎉 Teman peringkat 2 pertama lahir! Koleksi {collected}/{total} — mengetik memulihkan energi, token AI memberi EXP, dan klik menghasilkan koin. Fusi malam hari, ambil telur pagi hari. Sampai besok!", pokedex: "Museum halaman belakang 🏡 menampilkan koleksimu 📖 Makin banyak yang dikumpulkan, makin beragam pilihan telurnya!" } },
+  nl: { tutorial: { graduation: "🎉 Eerste maatje van rang 2! Verzameling {collected}/{total} — typen geeft energie, AI-tokens geven EXP en klikken levert munten op. 's Nachts fuseren, 's ochtends eieren ophalen. Tot morgen!", pokedex: "Het achtertuinmuseum 🏡 toont je verzameling 📖 Hoe meer je verzamelt, hoe groter de keuze aan eieren!" } },
+} satisfies Partial<Record<Language, DeepPartial<ShellStrings>>>;
+
+const generatedShellLocaleBase = generatedDomainLocales("shell") as Partial<
+  Record<Exclude<Language, "en" | "zh-Hans">, DeepPartial<ShellStrings>>
+>;
+const generatedShellLocales = Object.fromEntries(
+  Object.entries(generatedShellLocaleBase).map(([language, locale]) => {
+    const reviewed = (SHELL_COLLECTION_LOCALES as Partial<
+      Record<Language, DeepPartial<ShellStrings>>
+    >)[language as Language];
+    return [language, {
+      ...locale,
+      tutorial: { ...locale?.tutorial, ...reviewed?.tutorial },
+    }];
+  }),
+) as Partial<Record<Exclude<Language, "en" | "zh-Hans">, DeepPartial<ShellStrings>>>;
+
+export const SHELL: Record<Language, ShellStrings> = migrateLegacyLanguageMap<ShellStrings>({
   zh: {
     dialog: {
       steamRebindTitle: "Steam 存档需要确认",
@@ -348,7 +409,7 @@ export const SHELL: Record<Language, ShellStrings> = {
       milestoneSprint: "最后冲刺！",
       milestoneHits: "{n} 击！",
       maxLevel: "★满级！",
-      combo: "连击 ×{n}",
+      combo: "Combo ×{n}",
     },
     speech: {
       recoveryNap: "嘘…让我睡会，马上就好",
@@ -362,7 +423,7 @@ export const SHELL: Record<Language, ShellStrings> = {
     },
     tutorial: {
       graduation:
-        "🎉 第一只 2 阶诞生！图鉴 {collected}/{total}——敲键盘回精力、AI 的 Token 喂我涨经验、点我打工赚金币，晚上融合早上收蛋，明天见",
+        "🎉 第一只 2 阶诞生！收藏 {collected}/{total}——敲键盘回精力、AI 的 Token 喂我涨经验、点我打工赚金币，晚上融合早上收蛋，明天见",
       collectEgg: "蛋发光啦，点它抱走新伙伴！",
       recovering: "我没坏，只是学会拒绝加班了。先随便按 5 个键领应急电量；以后挂机 / 敲键盘都能回精力⚡",
       capFull: "今日的爱点满💛 现在都是纯摸摸，明天再一起攒经验",
@@ -373,13 +434,14 @@ export const SHELL: Record<Language, ShellStrings> = {
       buySecond: "金币够啦！去🏡后院商店买颗蛋，凑一对好融合",
       shopUpgrade: "升级商店，能买更高阶的蛋（越高阶越强也越贵）",
       release: "后院满了～放生一只或扩容，才能收下新蛋",
-      pokedex: "🏡后院博物馆能看图鉴📖 收集越多、蛋池越丰富",
+      pokedex: "🏡后院博物馆能看收藏📖 收集越多、蛋池越丰富",
       steam: "🏡后院交易所能把伙伴放上 Steam 交易🤝 收下掉落的新蛋",
       capNear: "今天的爱快点满啦（还剩 {left} 下），留着明天继续～",
       menuWork: "点我打工，金币经验一起涨",
       firstEgg: "第一颗蛋在🏡后院孵着，去看看",
       noPetMenu: "点我打开菜单，去看孵化区",
       noPetTry: "点我一下试试！",
+      trainingReady: "升阶条件齐了：去训练馆点【开始训练】。这次晋升不吃同事，已经领先很多公司。",
     },
     coach: {
       openMenu: "戳我一下，菜单蹦出来~",
@@ -492,6 +554,25 @@ export const SHELL: Record<Language, ShellStrings> = {
       accept: "开启",
       decline: "暂不",
     },
+    misc: {
+      debugAuthAria: "调试授权",
+      developerPassphrase: "开发者密码",
+      developerPassphraseHint: "本次启动有效；重新打开游戏后需要再次输入。",
+      incorrectPassphrase: "密码错误。",
+      cancel: "取消",
+      unlock: "解锁",
+      coachSpace: "空格键",
+      coachPressDrop: "按下投放",
+      achievementLabel: "成就解锁 · {names}",
+      hatchPitUnlocked: "孵化坑解锁",
+      trainingHallBuilt: "训练馆落成",
+      trainingHallMaxed: "训练馆满级",
+      trainingHallLevel: "训练馆 Lv.{level}",
+      trainingSlotAdded: "训练位扩建",
+      trainingComplete: "训练完成 · 升阶",
+      shopMaxed: "商店满级",
+      shopUpgradedTier: "商店升级 · {tier}阶",
+    },
   },
   en: {
     dialog: {
@@ -576,7 +657,7 @@ export const SHELL: Record<Language, ShellStrings> = {
     },
     tutorial: {
       graduation:
-        "🎉 First tier-2 born! Dex {collected}/{total} — type for energy, AI tokens feed me EXP, click me for coins, fuse at night, collect at dawn. See you tomorrow",
+        "🎉 First tier-2 born! Collection {collected}/{total} — type for energy, AI tokens feed me EXP, click me for coins, fuse at night, collect at dawn. See you tomorrow",
       collectEgg: "The egg's glowing — tap it to scoop up your new buddy!",
       recovering: "Not broken—just refusing overtime. Press any 5 keys for the one-time rescue; after that, idling or typing restores energy ⚡",
       capFull: "Today's love is maxed 💛 pure pets for now — more EXP tomorrow",
@@ -587,13 +668,14 @@ export const SHELL: Record<Language, ShellStrings> = {
       buySecond: "Coins ready! Buy an egg at the 🏡 backyard shop to make a pair",
       shopUpgrade: "Upgrade the shop to buy higher-tier eggs (stronger, pricier)",
       release: "The yard's full~ release one or expand it to collect the new egg",
-      pokedex: "The 🏡 backyard museum shows your dex 📖 — collect more, richer egg pool",
+      pokedex: "The 🏡 backyard museum shows your collection 📖 — collect more, richer egg pool",
       steam: "The 🏡 backyard exchange puts buddies up for Steam trade 🤝 claim dropped eggs",
       capNear: "Today's love is almost maxed ({left} left) — save some for tomorrow~",
       menuWork: "Click me to work — coins and EXP together",
       firstEgg: "Your first egg is incubating in the 🏡 backyard — go take a look",
       noPetMenu: "Click me to open the menu and visit the hatchery",
       noPetTry: "Give me a click!",
+      trainingReady: "A tier-up is ready: visit the Training Hall and press Start Training. This promotion eats materials, not coworkers.",
     },
     coach: {
       openMenu: "Boop me — menu pops out~",
@@ -706,5 +788,25 @@ export const SHELL: Record<Language, ShellStrings> = {
       accept: "Enable",
       decline: "Not now",
     },
+    misc: {
+      debugAuthAria: "Debug authorization",
+      developerPassphrase: "Developer passphrase",
+      developerPassphraseHint: "Valid for this launch only; required again after restarting.",
+      incorrectPassphrase: "Incorrect passphrase.",
+      cancel: "Cancel",
+      unlock: "Unlock",
+      coachSpace: "SPACE",
+      coachPressDrop: "PRESS TO DROP",
+      achievementLabel: "ACHIEVEMENT · {names}",
+      hatchPitUnlocked: "HATCH PIT UNLOCKED",
+      trainingHallBuilt: "TRAINING HALL BUILT",
+      trainingHallMaxed: "TRAINING HALL MAXED",
+      trainingHallLevel: "TRAINING HALL Lv.{level}",
+      trainingSlotAdded: "TRAINING SLOT ADDED",
+      trainingComplete: "TRAINING COMPLETE",
+      shopMaxed: "SHOP MAXED",
+      shopUpgradedTier: "SHOP UPGRADED · T{tier}",
+    },
   },
-};
+  ...generatedShellLocales,
+});

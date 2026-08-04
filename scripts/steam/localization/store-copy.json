@@ -1,0 +1,159 @@
+{
+  "_meta": {
+    "appid": 4956830,
+    "reviewStatus": "needs_native_review",
+    "note": "Locale-first drafts. Keep English and Simplified Chinese live copy from plans/steam_trade/06-store-page.md; do not publish any locale before native review."
+  },
+  "tchinese": {
+    "short": "AI 在寫程式，你在看進度條？不如看鴨子。Gulugulu 會吃掉 Claude Code／Codex 燒掉的 token、吐槽你的 Agent，還能孵出 63 種精靈，讓 AI 幻覺新品，再放上 Steam 跟朋友交換。",
+    "sections": [
+      ["AI 上班，你負責養鴨", "透明桌面寵物會跟著本機 Claude Code／Codex 的狀態演戲：思考時裝深沉、出錯時先嘆氣，燒掉的 token 則變成經驗值。錢都花了，至少有人吃飽。"],
+      ["沒有 AI 也能完整玩", "點擊打工、攢金幣、買蛋孵蛋、擴建後院與收集 63 種精靈全都能離線進行。鍵盤充能只計按鍵次數，不會讀取、儲存或上傳你輸入的內容。"],
+      ["把幻覺變成收藏", "兩隻滿級精靈可以融合；可選的本機 AI 融合會設計限量變種。首位發現者可透過 Steam 工作坊留下外觀，精靈也能進入 Steam 庫存與交易。"]
+    ]
+  },
+  "japanese": {
+    "short": "AIがコードを書いている間、進捗バーを見る代わりにアヒルを眺めませんか。GuluguluはClaude Code／Codexのtokenをおやつにし、63種の仲間をふ化。AIの幻覚すら限定ペットにしてSteamで交換できます。",
+    "sections": [
+      ["AIが働き、あなたはアヒル係", "デスクトップの隅に住む小さなペットが、ローカルのClaude Code／Codexに合わせて一喜一憂。AIが考えればキメ顔、失敗すれば先にため息、消費したtokenは経験値になります。"],
+      ["AIなしでも、ちゃんと一本のゲーム", "クリックで働かせ、コインを貯め、タマゴをふ化し、裏庭を広げて63種を集める本編はオフラインで完結。キーボード充電は打鍵数だけを数え、入力内容は読み取りも保存も送信もしません。"],
+      ["幻覚をコレクションに", "育て切った仲間同士を融合すると新種が誕生。任意のAI融合では、ログイン済みのローカルCLIが限定デザインを作ります。最初の発見者の姿はSteamワークショップに残り、仲間はSteamインベントリでも交換できます。"]
+    ]
+  },
+  "koreana": {
+    "short": "AI가 코딩하는 동안 진행률만 보고 있나요? 차라리 오리를 보세요. Gulugulu는 Claude Code/Codex가 태운 token을 간식처럼 먹고, 63종을 부화시키며, AI의 환각까지 한정 펫으로 만들어 Steam에서 나눕니다.",
+    "sections": [
+      ["AI는 일하고, 당신은 오리 담당", "화면 구석의 투명한 펫이 로컬 Claude Code/Codex 세션을 따라 연기합니다. 생각할 땐 심각한 척, 오류가 나면 먼저 한숨, 소모한 token은 경험치가 됩니다. 이미 쓴 돈이라면 누군가는 배불러야죠."],
+      ["AI가 없어도 게임은 온전합니다", "클릭 노동, 코인 모으기, 알 부화, 뒷마당 확장, 63종 수집은 전부 오프라인으로 즐길 수 있습니다. 키보드 충전은 누른 횟수만 세며 입력 내용은 읽거나 저장하거나 전송하지 않습니다."],
+      ["환각도 수집품이 되는 곳", "만렙 펫 두 마리를 융합해 새 종을 만들고, 선택형 AI 융합으로 로컬 CLI가 한정 변종을 디자인하게 하세요. 첫 발견자의 모습은 Steam 창작마당에 남고, 펫은 Steam 보관함에서 거래할 수 있습니다."]
+    ]
+  },
+  "french": {
+    "short": "Votre IA code. Vous, vous surveillez une barre de progression. Regardez plutôt un canard : Gulugulu grignote les tokens de Claude Code/Codex, couve 63 espèces et transforme même les hallucinations de l’IA en compagnons à échanger sur Steam.",
+    "sections": [
+      ["L’IA bosse, vous gardez le canard", "Ce petit compagnon transparent vit dans un coin du bureau et joue la comédie avec vos sessions Claude Code/Codex locales : pose intense pendant la réflexion, soupir avant vous à la moindre erreur, et tokens transformés en XP. Tant qu’à payer, autant nourrir quelqu’un."],
+      ["Sans IA, le jeu reste entier", "Cliquer pour travailler, gagner des pièces, faire éclore des œufs, agrandir le jardin et collectionner 63 espèces : tout fonctionne hors ligne. La recharge au clavier compte uniquement les frappes ; elle ne lit, n’enregistre et n’envoie jamais ce que vous tapez."],
+      ["Des hallucinations enfin utiles", "Fusionnez deux compagnons au niveau maximal. En option, votre CLI locale déjà connectée peut inventer une variante limitée. Le premier découvreur laisse son design au Workshop Steam, et les créatures rejoignent aussi votre inventaire Steam échangeable."]
+    ]
+  },
+  "german": {
+    "short": "Die KI programmiert, du starrst auf den Fortschrittsbalken? Schau lieber einer Ente zu. Gulugulu futtert die Tokens von Claude Code/Codex, brütet 63 Arten aus und macht sogar KI-Halluzinationen zu Steam-tauschbaren Haustieren.",
+    "sections": [
+      ["Die KI arbeitet, du hast Entendienst", "Das transparente Desktop-Haustier wohnt in der Bildschirmecke und spielt jede lokale Claude Code/Codex-Sitzung mit: dramatische Denkerpose, Seufzer bei Fehlern und XP für verbrannte Tokens. Wenn das Geld schon weg ist, soll wenigstens jemand satt werden."],
+      ["Ohne KI fehlt kein Spielinhalt", "Klicken, Münzen verdienen, Eier ausbrüten, den Hinterhof ausbauen und 63 Arten sammeln funktioniert komplett offline. Die Tastatur-Aufladung zählt nur Anschläge; sie liest, speichert oder überträgt niemals deine Eingaben."],
+      ["Halluzinationen mit Sammlerwert", "Zwei ausgewachsene Haustiere verschmelzen zu einer neuen Art. Optional entwirft deine bereits angemeldete lokale CLI eine limitierte Variante. Der erste Fund prägt den Steam-Workshop-Look, und Haustiere können über das Steam-Inventar getauscht werden."]
+    ]
+  },
+  "spanish": {
+    "short": "Tu IA programa y tú vigilas una barra. Mejor mira un pato. Gulugulu se zampa los tokens de Claude Code/Codex, incuba 63 especies y convierte hasta las alucinaciones de la IA en mascotas para intercambiar en Steam.",
+    "sections": [
+      ["La IA curra; tú cuidas del pato", "Una mascota transparente vive en una esquina del escritorio y dramatiza tus sesiones locales de Claude Code/Codex: posa cuando piensa, suspira antes que tú cuando falla y convierte los tokens gastados en EXP. Ya que el dinero se ha ido, que al menos coma alguien."],
+      ["Sin IA sigue siendo el juego completo", "Trabaja a clics, gana monedas, incuba huevos, amplía el patio y colecciona 63 especies, todo sin conexión. La carga con teclado solo cuenta pulsaciones: nunca lee, guarda ni envía lo que escribes."],
+      ["Alucinaciones que por fin sirven", "Fusiona dos mascotas al máximo nivel. Si quieres, tu CLI local con sesión iniciada diseñará una variante limitada. El primer hallazgo fija su aspecto en el Workshop de Steam y las criaturas también pasan a tu inventario intercambiable."]
+    ]
+  },
+  "latam": {
+    "short": "Tu IA programa y tú ves cómo avanza una barrita. Mejor mira un pato. Gulugulu se come los tokens de Claude Code/Codex, incuba 63 especies y convierte hasta las alucinaciones de la IA en mascotas para intercambiar en Steam.",
+    "sections": [
+      ["La IA chambea; tú cuidas al pato", "Una mascota transparente vive en la esquina del escritorio y hace drama con tus sesiones locales de Claude Code/Codex: posa cuando piensa, suspira antes que tú cuando algo falla y convierte los tokens gastados en EXP. El dinero ya se fue; que al menos alguien coma bien."],
+      ["Sin IA sigue estando todo el juego", "Trabaja a clics, junta monedas, incuba huevos, agranda el patio y colecciona 63 especies sin conexión. La carga con teclado solo cuenta pulsaciones: jamás lee, guarda ni manda lo que escribes."],
+      ["Alucinaciones que sí sirven", "Fusiona dos mascotas al máximo nivel. Si quieres, tu CLI local con sesión iniciada diseñará una variante limitada. El primer descubrimiento deja su apariencia en el Workshop de Steam y las criaturas también llegan a tu inventario para intercambiarlas."]
+    ]
+  },
+  "brazilian": {
+    "short": "Sua IA está codando e você está olhando uma barrinha? Melhor olhar um pato. Gulugulu mastiga os tokens do Claude Code/Codex, choca 63 espécies e transforma até alucinação de IA em pet para trocar na Steam.",
+    "sections": [
+      ["A IA trampa; você cuida do pato", "Um pet transparente mora no cantinho da tela e acompanha o drama das sessões locais do Claude Code/Codex: faz pose quando pensa, suspira antes de você no erro e transforma token gasto em XP. O dinheiro já foi; pelo menos alguém fica de barriga cheia."],
+      ["Sem IA, o jogo continua completo", "Clique para trabalhar, junte moedas, choque ovos, aumente o quintal e colecione 63 espécies — tudo offline. A recarga pelo teclado só conta toques; nunca lê, salva ou envia o que você digita."],
+      ["Alucinação que vira coleção", "Funda dois pets no nível máximo. Se quiser, sua CLI local já conectada cria uma variante limitada. A primeira descoberta deixa o visual na Oficina Steam, e os bichinhos também entram no seu inventário Steam para troca."]
+    ]
+  },
+  "portuguese": {
+    "short": "A sua IA está a programar e você está a olhar para uma barra? Mais vale olhar para um pato. Gulugulu come os tokens do Claude Code/Codex, incuba 63 espécies e transforma até alucinações de IA em animais para trocar no Steam.",
+    "sections": [
+      ["A IA trabalha; você toma conta do pato", "Um pequeno animal transparente vive no canto do ambiente de trabalho e encena as sessões locais do Claude Code/Codex: faz pose quando pensa, suspira antes de si quando falha e transforma tokens gastos em EXP. O dinheiro já foi; ao menos alguém fica alimentado."],
+      ["Sem IA, continua a ser o jogo completo", "Clique para trabalhar, ganhe moedas, incube ovos, aumente o quintal e colecione 63 espécies — tudo offline. O carregamento pelo teclado só conta teclas; nunca lê, guarda ou envia aquilo que escreve."],
+      ["Alucinações com valor de coleção", "Funda dois animais no nível máximo. Opcionalmente, a sua CLI local com sessão iniciada cria uma variante limitada. A primeira descoberta deixa o visual na Oficina Steam e as criaturas entram também no inventário Steam para troca."]
+    ]
+  },
+  "russian": {
+    "short": "ИИ пишет код, а вы следите за полоской прогресса? Лучше следите за уткой. Gulugulu ест токены Claude Code/Codex, выводит 63 вида и превращает даже галлюцинации ИИ в питомцев для обмена в Steam.",
+    "sections": [
+      ["ИИ работает, вы отвечаете за утку", "Прозрачный питомец живёт в углу рабочего стола и разыгрывает ваши локальные сеансы Claude Code/Codex: принимает умный вид во время размышлений, первым вздыхает при ошибке, а потраченные токены превращает в опыт. Деньги всё равно ушли — пусть хоть кто-то наестся."],
+      ["Без ИИ доступна вся игра", "Кликайте, зарабатывайте монеты, выводите питомцев из яиц, расширяйте дворик и собирайте 63 вида полностью офлайн. Зарядка с клавиатуры считает только нажатия: введённый текст не читается, не сохраняется и не отправляется."],
+      ["Галлюцинации становятся коллекцией", "Слейте двух питомцев максимального уровня. По желанию локальная CLI с активным входом создаст редкий вариант. Первый исследователь закрепит его облик в Мастерской Steam, а питомцы попадут в инвентарь Steam для обмена."]
+    ]
+  },
+  "italian": {
+    "short": "La tua IA programma e tu fissi una barra? Guarda una papera. Gulugulu sgranocchia i token di Claude Code/Codex, fa schiudere 63 specie e trasforma perfino le allucinazioni IA in pet da scambiare su Steam.",
+    "sections": [
+      ["L’IA lavora; tu badì alla papera", "Un piccolo pet trasparente vive nell’angolo del desktop e recita insieme alle sessioni locali di Claude Code/Codex: posa da genio quando pensa, sospira prima di te agli errori e trasforma i token spesi in ESP. I soldi sono partiti comunque: almeno qualcuno mangia."],
+      ["Senza IA, il gioco è completo", "Clicca per lavorare, guadagna monete, fai schiudere uova, amplia il cortile e colleziona 63 specie, tutto offline. La ricarica da tastiera conta solo le pressioni: non legge, salva o invia mai ciò che scrivi."],
+      ["Allucinazioni da collezione", "Fondi due pet al livello massimo. Se vuoi, la CLI locale già collegata creerà una variante limitata. La prima scoperta ne lascia l’aspetto nel Workshop di Steam e le creature entrano anche nell’inventario Steam per gli scambi."]
+    ]
+  },
+  "polish": {
+    "short": "AI pisze kod, a ty patrzysz na pasek postępu? Popatrz na kaczkę. Gulugulu podjada tokeny Claude Code/Codex, wykluwa 63 gatunki i zamienia nawet halucynacje AI w pupile do wymiany na Steam.",
+    "sections": [
+      ["AI pracuje, ty masz dyżur przy kaczce", "Przezroczysty pupil mieszka w rogu pulpitu i odgrywa lokalne sesje Claude Code/Codex: przybiera mądrą pozę podczas myślenia, pierwszy wzdycha przy błędzie, a zużyte tokeny zamienia w PD. Skoro pieniądze już poszły, niech chociaż ktoś się naje."],
+      ["Bez AI nadal dostajesz całą grę", "Klikaj, zarabiaj monety, wykluwaj jaja, rozbudowuj podwórko i zbieraj 63 gatunki całkowicie offline. Ładowanie klawiaturą liczy wyłącznie naciśnięcia — nie czyta, nie zapisuje ani nie wysyła wpisywanej treści."],
+      ["Halucynacje warte kolekcjonowania", "Połącz dwa pupile na maksymalnym poziomie. Opcjonalnie zalogowane lokalne CLI zaprojektuje limitowany wariant. Pierwszy odkrywca zapisze wygląd w Warsztacie Steam, a stworzenia trafią do ekwipunku Steam na wymianę."]
+    ]
+  },
+  "turkish": {
+    "short": "Yapay zekâ kod yazarken ilerleme çubuğunu mu izliyorsun? Ördeği izle. Gulugulu, Claude Code/Codex tokenlarını atıştırır, 63 tür çıkarır ve YZ halüsinasyonlarını bile Steam'de takas edilebilir dosta dönüştürür.",
+    "sections": [
+      ["Yapay zekâ çalışır, ördek sana bakar", "Şeffaf masaüstü dostu ekranın köşesinde yaşar ve yerel Claude Code/Codex oturumlarına tiyatro katar: düşünürken poz keser, hatada senden önce iç çeker, harcanan tokenları TP'ye çevirir. Para gittiğine göre bari biri doysun."],
+      ["Yapay zekâ olmadan da oyun tam", "Tıklayıp çalış, para kazan, yumurta çıkar, arka bahçeyi büyüt ve 63 türü çevrimdışı topla. Klavyeyle şarj yalnızca basışları sayar; yazdıklarını asla okumaz, kaydetmez veya göndermez."],
+      ["Koleksiyonluk halüsinasyonlar", "Maksimum seviyedeki iki dostu birleştir. İstersen oturum açılmış yerel CLI sınırlı bir varyant tasarlar. İlk keşif Steam Atölyesi'ndeki ortak görünümü belirler; dostlar Steam envanterinde takas edilebilir."]
+    ]
+  },
+  "ukrainian": {
+    "short": "ШІ пише код, а ви стежите за смужкою прогресу? Краще стежте за каченям. Gulugulu їсть токени Claude Code/Codex, виводить 63 види й перетворює навіть галюцинації ШІ на улюбленців для обміну в Steam.",
+    "sections": [
+      ["ШІ працює, ви відповідаєте за каченя", "Прозорий улюбленець живе в кутку робочого столу й розігрує локальні сеанси Claude Code/Codex: робить розумний вигляд під час роздумів, першим зітхає при помилці, а витрачені токени перетворює на досвід. Гроші вже пішли — нехай хоч хтось наїсться."],
+      ["Без ШІ доступна вся гра", "Клацайте, заробляйте монети, виводьте улюбленців із яєць, розширюйте подвір’я й збирайте 63 види повністю офлайн. Заряджання клавіатурою рахує лише натискання: введений текст не читається, не зберігається й не надсилається."],
+      ["Галюцинації стають колекцією", "Злийте двох улюбленців максимального рівня. За бажанням локальна CLI з активним входом створить рідкісний варіант. Перший дослідник закріпить його вигляд у Майстерні Steam, а улюбленці потраплять до інвентарю Steam для обміну."]
+    ]
+  },
+  "_appOnlyArabic": {
+    "short": "الذكاء الاصطناعي يكتب الشيفرة وأنت تراقب شريط التقدّم؟ راقب بطة بدلًا منه. يأكل Gulugulu رموز Claude Code/Codex، ويفقّس 63 نوعًا، ويحوّل حتى هلوسات AI إلى رفقاء يمكن مبادلتهم على Steam.",
+    "sections": [
+      ["الذكاء الاصطناعي يعمل، وأنت مسؤول عن البطة", "يعيش رفيق شفاف في زاوية سطح المكتب ويمثّل مع جلسات Claude Code/Codex المحلية: يتخذ وضعية الحكيم عند التفكير، ويتنهّد قبلك عند الخطأ، ويحوّل الرموز المستهلكة إلى خبرة. ما دامت التكلفة دُفعت، فليأكل أحدهم على الأقل."],
+      ["اللعبة كاملة حتى من دون AI", "انقر للعمل، واجمع العملات، وفقّس البيض، ووسّع الفناء، واجمع 63 نوعًا بلا اتصال. الشحن بلوحة المفاتيح يعدّ الضغطات فقط؛ لا يقرأ ما تكتبه ولا يحفظه أو يرسله."],
+      ["هلوسات تستحق الجمع", "ادمج رفيقين في المستوى الأقصى. اختياريًا، تصمم أداة CLI المحلية المسجّل دخولها نسخة محدودة. يثبت أول مكتشف مظهرها في ورشة Steam، وتدخل المخلوقات أيضًا إلى مخزون Steam للمبادلة."]
+    ]
+  },
+  "thai": {
+    "short": "AI กำลังเขียนโค้ด ส่วนคุณกำลังจ้องแถบโหลด? มองเป็ดดีกว่า Gulugulu กิน token ที่ Claude Code/Codex ใช้ ฟักเพื่อน 63 สายพันธุ์ และเปลี่ยนอาการหลอนของ AI ให้เป็นสัตว์เลี้ยงที่แลกกันบน Steam ได้",
+    "sections": [
+      ["AI ทำงาน คุณดูแลเป็ด", "เพื่อนตัวใสอาศัยอยู่มุมเดสก์ท็อปและเล่นใหญ่ตามเซสชัน Claude Code/Codex ในเครื่อง: ทำหน้าครุ่นคิด ถอนหายใจก่อนคุณเมื่อพลาด และเปลี่ยน token ที่ใช้ไปเป็น EXP เงินจ่ายไปแล้ว อย่างน้อยก็มีใครอิ่ม"],
+      ["ไม่มี AI ก็เล่นได้ครบ", "คลิกทำงาน เก็บเหรียญ ฟักไข่ ขยายสวนหลังบ้าน และสะสม 63 สายพันธุ์แบบออฟไลน์ได้ทั้งหมด การชาร์จด้วยแป้นพิมพ์นับแค่จำนวนครั้ง ไม่อ่าน บันทึก หรือส่งสิ่งที่คุณพิมพ์"],
+      ["อาการหลอนที่กลายเป็นของสะสม", "ฟิวชันสัตว์เลี้ยงเลเวลสูงสุดสองตัว หรือเลือกให้ CLI ในเครื่องที่ลงชื่อเข้าใช้สร้างสายพันธุ์ลิมิเต็ด ผู้ค้นพบคนแรกจะกำหนดรูปลักษณ์ในเวิร์กชอป Steam และนำเพื่อนไปแลกผ่านคลัง Steam ได้"]
+    ]
+  },
+  "vietnamese": {
+    "short": "AI đang viết code còn bạn ngồi nhìn thanh tiến trình? Ngắm vịt đi. Gulugulu ăn token của Claude Code/Codex, ấp 63 loài và biến cả những lần AI “ảo tưởng” thành thú cưng có thể trao đổi trên Steam.",
+    "sections": [
+      ["AI đi làm, bạn trông vịt", "Một người bạn trong suốt sống ở góc màn hình và diễn theo phiên Claude Code/Codex trên máy: tạo dáng khi suy nghĩ, thở dài trước bạn lúc lỗi và biến token đã dùng thành EXP. Tiền đã chi rồi, ít nhất cũng có ai đó được ăn no."],
+      ["Không có AI vẫn là game đầy đủ", "Nhấp để làm việc, kiếm xu, ấp trứng, mở rộng sân sau và sưu tầm 63 loài hoàn toàn ngoại tuyến. Sạc bằng bàn phím chỉ đếm lượt nhấn; không đọc, lưu hay gửi nội dung bạn gõ."],
+      ["Ảo tưởng cũng thành đồ sưu tầm", "Dung hợp hai thú cưng cấp tối đa. Nếu muốn, CLI cục bộ đã đăng nhập sẽ thiết kế một biến thể giới hạn. Người phát hiện đầu tiên để lại diện mạo trên Steam Workshop, còn thú cưng có thể trao đổi trong kho Steam."]
+    ]
+  },
+  "indonesian": {
+    "short": "AI sedang ngoding, kamu malah menatap bilah progres? Lihat bebek saja. Gulugulu ngemil token Claude Code/Codex, menetaskan 63 spesies, dan mengubah halusinasi AI menjadi peliharaan yang bisa ditukar di Steam.",
+    "sections": [
+      ["AI ngantor, kamu jaga bebek", "Peliharaan transparan tinggal di sudut desktop dan ikut mendramatisasi sesi Claude Code/Codex lokal: bergaya saat berpikir, menghela napas duluan ketika error, lalu mengubah token terpakai menjadi EXP. Uangnya sudah keluar; setidaknya ada yang kenyang."],
+      ["Tanpa AI pun gamenya tetap lengkap", "Klik untuk bekerja, kumpulkan koin, tetaskan telur, perluas halaman, dan koleksi 63 spesies sepenuhnya offline. Isi daya lewat keyboard hanya menghitung ketukan; tidak pernah membaca, menyimpan, atau mengirim yang kamu ketik."],
+      ["Halusinasi yang layak dikoleksi", "Fusikan dua peliharaan level maksimal. Kalau mau, CLI lokal yang sudah masuk akan merancang varian terbatas. Penemu pertama menetapkan tampilannya di Steam Workshop, dan peliharaan dapat ditukar melalui inventaris Steam."]
+    ]
+  },
+  "dutch": {
+    "short": "Je AI programmeert en jij staart naar een voortgangsbalk? Kijk naar een eend. Gulugulu snoept de tokens van Claude Code/Codex op, broedt 63 soorten uit en maakt zelfs AI-hallucinaties tot huisdieren die je op Steam kunt ruilen.",
+    "sections": [
+      ["De AI werkt; jij hebt eendendienst", "Een transparant huisdier woont in de hoek van je bureaublad en speelt lokale Claude Code/Codex-sessies na: een diepe denkhouding, als eerste zuchten bij een fout en XP voor verbrande tokens. Het geld is toch weg — dan kan er beter iemand van eten."],
+      ["Zonder AI blijft het hele spel over", "Klik om te werken, verdien munten, broed eieren uit, breid de achtertuin uit en verzamel 63 soorten volledig offline. Opladen via het toetsenbord telt alleen aanslagen; het leest, bewaart of verstuurt nooit wat je typt."],
+      ["Hallucinaties om te verzamelen", "Fuseer twee huisdieren op het hoogste niveau. Optioneel ontwerpt je aangemelde lokale CLI een gelimiteerde variant. De eerste ontdekker bepaalt de gedeelde Steam Workshop-look en huisdieren kunnen via de Steam-inventaris worden geruild."]
+    ]
+  }
+}

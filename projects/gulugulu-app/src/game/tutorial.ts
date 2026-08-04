@@ -258,9 +258,7 @@ export function computeTutorialHint({
     if (readyPet) {
       const h = make(
         "training-ready",
-        lang === "zh"
-          ? "升阶条件齐了：去训练馆点【开始训练】。这次晋升不吃同事，已经领先很多公司。"
-          : "A tier-up is ready: visit the Training Hall and press Start Training. This promotion eats materials, not coworkers.",
+        TT.trainingReady,
         { budget: 1 },
       );
       if (h) return h;

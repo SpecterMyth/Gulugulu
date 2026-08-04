@@ -1,0 +1,165 @@
+{
+  "revision": 7,
+  "shiftSenseCorrections": {
+    "zh-Hant": [
+      { "pattern": "移位|轉變|移動", "replacement": "班次" }
+    ],
+    "ja": [
+      { "pattern": "移動", "replacement": "シフト" }
+    ],
+    "ko": [
+      { "pattern": "이동", "replacement": "근무" }
+    ],
+    "fr": [
+      { "pattern": "déplacements?", "replacement": "service" },
+      { "pattern": "changements?", "replacement": "service" }
+    ],
+    "de": [
+      { "pattern": "Verschieb\\w*", "replacement": "Schicht" },
+      { "pattern": "Umschalt\\w*", "replacement": "Schicht" }
+    ],
+    "es-ES": [
+      { "pattern": "cambios", "replacement": "turnos" },
+      { "pattern": "cambio", "replacement": "turno" },
+      { "pattern": "desplaz\\w*", "replacement": "turno" }
+    ],
+    "es-419": [
+      { "pattern": "cambios", "replacement": "turnos" },
+      { "pattern": "cambio", "replacement": "turno" },
+      { "pattern": "desplaz\\w*", "replacement": "turno" }
+    ],
+    "pt-BR": [
+      { "pattern": "mudanças", "replacement": "turnos" },
+      { "pattern": "mudança", "replacement": "turno" },
+      { "pattern": "desloc\\w*", "replacement": "turno" }
+    ],
+    "pt-PT": [
+      { "pattern": "mudanças", "replacement": "turnos" },
+      { "pattern": "mudança", "replacement": "turno" },
+      { "pattern": "desloc\\w*", "replacement": "turno" }
+    ],
+    "ru": [
+      { "pattern": "сдвиг\\w*", "replacement": "смена" }
+    ],
+    "it": [
+      { "pattern": "spostament\\w*", "replacement": "turno" },
+      { "pattern": "cambi\\w*", "replacement": "turno" }
+    ],
+    "pl": [
+      { "pattern": "przesunię\\w*", "replacement": "zmiana" }
+    ],
+    "tr": [
+      { "pattern": "değişim\\w*", "replacement": "vardiya" }
+    ],
+    "uk": [
+      { "pattern": "зсув\\w*", "replacement": "зміна" },
+      { "pattern": "шифт\\w*", "replacement": "зміна" }
+    ],
+    "ar": [
+      { "pattern": "التحول", "replacement": "الوردية" },
+      { "pattern": "الشحن", "replacement": "الوردية" }
+    ],
+    "th": [
+      { "pattern": "เลื่อนบิต", "replacement": "กะ" },
+      { "pattern": "การเปลี่ยนแปลง", "replacement": "กะ" }
+    ],
+    "vi": [
+      { "pattern": "Dịch", "replacement": "Ca làm" },
+      { "pattern": "dịch", "replacement": "ca làm" },
+      { "pattern": "thay đổi", "replacement": "ca làm" }
+    ],
+    "id": [
+      { "pattern": "pergeseran", "replacement": "sif" }
+    ],
+    "nl": [
+      { "pattern": "verschuiving\\w*", "replacement": "dienst" }
+    ]
+  },
+  "patternExclusions": [
+    "Full shift done! This bar: 🪙+{coins} ✨+{exp}"
+  ],
+  "patterns": [
+    {
+      "pattern": "\\bshifts\\b",
+      "replacement": "work shifts",
+      "flags": "gi"
+    },
+    {
+      "pattern": "\\bshift\\b",
+      "replacement": "work shift",
+      "flags": "gi"
+    }
+  ],
+  "clarifications": {
+    "Gulu Draft": "Choose the Gulu hires",
+    "PAY & NEXT DRAFT": "PAY & CONTINUE HIRING",
+    "You have not selected any Gulu this draft.": "You have not selected any Gulu in this hiring round.",
+    "Hiring Pool": "Available Gulu roster",
+    "Hiring pool empty": "No Gulus are available to hire",
+    "GULU POOL": "AVAILABLE GULU ROSTER",
+    "CURRENT GULU POOL": "CURRENT AVAILABLE GULU ROSTER",
+    "GULU POOL IS EMPTY": "NO GULU AVAILABLE TO HIRE",
+    "GULU POOL FULL": "AVAILABLE GULU ROSTER FULL",
+    "Only {count} Gulus will remain in your Gulu pool. Your reserve is running low.": "Only {count} Gulus will remain in your available Gulu roster. Your reserve roster is running low.",
+    "Resume run": "Resume the saved game",
+    "Run it back": "Play another game",
+    "Runs": "Games played",
+    "Endless run over": "Endless game finished",
+    "Run performance": "Performance this game",
+    "Last run: Shift {n}": "Last game: work shift {n}",
+    "Not ranked · Finish a run to submit a score": "Not ranked · Finish a game to submit performance points",
+    "No new rank-up items this run": "No new rank-up items earned in this game",
+    "Coins earned this run": "Coins earned in this game",
+    "Items earned this run": "Items earned in this game",
+    "This run's desk map (random — the Desk Shuffle card can swap)": "Workstation layout for this game (random — the Desk Shuffle card can swap)",
+    "Desk Shuffle": "Swap Workstations",
+    "Desk shuffle: pick two desks to swap": "Workstation swap: choose two workstations to exchange",
+    "Choose desks to swap": "Choose two workstations to exchange",
+    "Pick two desks; swapping returns every Gulu on them to the hiring pool": "Choose two workstations; exchanging them returns every Gulu there to the available roster",
+    "{count} desk(s)": "{count} workstations",
+    "Bill {v} due": "Payment due: {v}",
+    "Bill Due": "Payment due",
+    "AFTER BILL": "AFTER PAYMENT",
+    "Confirm & pay bill": "Confirm and make payment",
+    "Shift bill {v}": "Work-shift payment {v}",
+    "Shift Statement": "Work-shift summary",
+    "SHIFT {shift} · CLOCK-OUT RECEIPT": "WORK SHIFT {shift} · END-OF-WORK RECEIPT",
+    "SHIFT CLEARED — CLOCK OUT!": "WORK SHIFT COMPLETE — FINISH WORK!",
+    "Clock in!": "Start the work shift!",
+    "PAY & CLOCK IN!": "PAY & START WORK!",
+    "OVERTIME! Reserve Gulus clock in to earn Team Performance": "OVERTIME! Reserve Gulus start work to earn Team Performance",
+    "Only {n} manual drops this shift. Every release costs 1; hit KPI before they run out (overtime is free)": "This work shift allows only {n} manual Gulu placements. Each placement costs 1; reach KPI before all placements are used (overtime placements are free)",
+    "{n} drops left": "{n} manual placements left",
+    "Crosswind bends your drops; flips every 20s — watch the flag!": "Crosswind bends falling Gulus; direction flips every 20s — watch the flag!",
+    "Drop a Gulu onto the glowing matching desk!": "Place a Gulu on the glowing matching workstation!",
+    "SPACE · DROP": "SPACE · PLACE GULU",
+    "PRESS TO DROP": "PRESS TO PLACE GULU",
+    "{element} SCORES NOTHING THIS SHIFT": "{element} EARNS NO POINTS THIS WORK SHIFT",
+    "NO SCORE THIS SHIFT": "NO POINTS THIS WORK SHIFT",
+    "★ WORK PERFORMANCE = score produced by the Gulu": "★ WORK PERFORMANCE = points produced by the Gulu",
+    "Best work score": "Best work-performance score",
+    "Refund": "Money returned",
+    "Skip +{v}": "Skip this choice and receive +{v}",
+    "Reroll −{v}": "Draw new choices −{v}",
+    "REROLL": "DRAW AGAIN",
+    "REROLL UNSELECTED GULUS": "DRAW NEW UNSELECTED GULUS",
+    "Fusion Ritual": "Creature fusion ritual",
+    "Fuse": "Start creature fusion",
+    "✨ Fuse!": "✨ Start fusion!",
+    "Release": "Let this pet go",
+    "Sure? +{refund} 🪙": "Let this pet go? +{refund} 🪙",
+    "Tier-up materials": "Rank-up materials",
+    "Pick a buddy to tier up": "Pick a buddy to raise one rank",
+    "Keep the buddy and its level. Raise only its tier.": "Keep the buddy and its level. Raise only its rank.",
+    "No max-level buddies ready to tier up": "No max-level buddies are ready to rank up",
+    "Already top tier": "Already at the highest rank",
+    "Tier {tier}": "Rank {tier}",
+    "Lower tier eggs": "Lower-rank eggs",
+    "Higher tier eggs": "Higher-rank eggs",
+    "Factory shift paid out ×{count} materials — go tier up at the Training Hall": "Factory work shift awarded ×{count} materials — raise a Gulu's rank at the Training Hall",
+    "REVENUE / SHIFT / MODE / RECORD LINEUP": "REVENUE / WORK SHIFT / GAME MODE / RECORD TEAM",
+    "Lineup unavailable for legacy record": "Team roster unavailable for this old record",
+    "NORMAL": "STANDARD GAME MODE",
+    "Idle": "Waiting for work"
+  }
+}

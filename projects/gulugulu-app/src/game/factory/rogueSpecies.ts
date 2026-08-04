@@ -1,11 +1,10 @@
 // 物种进局元数据推导(工种/编号/吸取层数/基础值)。
 // 规则:docs/gdd/factory_working/02-numbers.md §1 + plans/factory_rogue/PLAN.md §2「编号推导」。
 //  · 目录物种 groupNo=1;AI/自定义物种按「其元素组内 AI 物种的创建序」取 1,2,3…
-//    (组内第 1 个 AI=1 → 吸取 2 层、第 10 个=10 → 吸取 11 层,对齐 GDD 拍板 #4
-//    「默认宠/1 号 AI 宠取 2 层,10 号取 11 层」);多元素取各组编号最大值。
+//    (组内第 1 个 AI=1 → 压榨 3 只、第 10 个=10 → 压榨 12 只);多元素取各组编号最大值。
 //  · 创建序从存档结构推导:save.customSpecies 的 createdAt 升序,平局按插入序
 //    (Record 字符串键保序;与 recipeAiSlots 的槽号口径一致)。
-//  · reach = groupNo + 1;baseValue = 8 + 2 × 该物种最高等级在养宠(无在养按 1 级)。
+//  · 目录宠 reach = 2;AI 宠 reach = groupNo + 2;baseValue 按元素数计算。
 
 import type { GameConfig, GameSave } from "../../types";
 import { baseValueForTier } from "./rogueConfig";
@@ -54,13 +53,14 @@ export function buildSpeciesMeta(config: GameConfig, save: GameSave): Record<str
     const info = config.species[species] ?? save.customSpecies?.[species]?.info;
     if (!info) continue;
     const elements = normalizeElements(info?.elements);
-    const groupNo = aiGroupNos.get(species) ?? 1;
+    const aiGroupNo = aiGroupNos.get(species);
+    const groupNo = aiGroupNo ?? 1;
     out[species] = {
       species,
       elements,
       tierCount: Math.min(6, Math.max(1, elements.length)),
       groupNo,
-      reach: groupNo + 1,
+      reach: aiGroupNo == null ? 2 : aiGroupNo + 2,
       baseValue: baseValueForTier(elements.length),
     };
   }

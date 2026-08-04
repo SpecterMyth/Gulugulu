@@ -2,7 +2,9 @@
 
 :root {
   /* 木质 UI 调色板（claude_design/游戏UI风格设计-handoff） */
-  --font-ui: "PingFang SC", "Microsoft YaHei", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-ui: Inter, "Segoe UI", "Noto Sans", "Noto Sans Arabic", "Noto Sans Thai",
+    "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Yu Gothic UI", Meiryo,
+    "Malgun Gothic", ui-sans-serif, system-ui, sans-serif;
   /* 全局统一为系统黑体：display 不再单独用圆润体，避免与正文割裂 */
   --font-display: var(--font-ui);
   --wood-border: #6b4520;
@@ -37,6 +39,26 @@ body,
   margin: 0;
   background: transparent;
   overflow: hidden;
+}
+
+/* BCP-47/RTL 由 applyDocumentLanguage() 写入 html；表单和混排数字显式跟随。 */
+html[dir="rtl"] body {
+  direction: rtl;
+}
+
+html[dir="rtl"] input,
+html[dir="rtl"] select,
+html[dir="rtl"] textarea,
+html[dir="rtl"] .settings-label,
+html[dir="rtl"] .panel-title,
+html[dir="rtl"] .speech,
+html[dir="rtl"] .toast {
+  direction: rtl;
+  text-align: right;
+}
+
+html[dir="rtl"] .settings-select {
+  padding-inline: 8px 26px;
 }
 
 /* 整个宠物界面禁用文本选中：连点睡觉角色时 SVG 的 "Zzz" 会被选中（调试面板无文本输入框，安全） */
@@ -123,6 +145,19 @@ body.shot-mode .pet-shell.is-preview.ui-backyard {
   width: 100% !important;
   height: 25% !important;
   overflow: hidden;
+}
+/* 全物种镜头使用同一个真实后院窗口，但把窗口放大到桌面主体区域，避免 63 格图鉴
+   被普通“底部横条”展示规则压扁。仍保留左侧旧 SVG 图标和底部任务栏。 */
+body.shot-mode.shot-dex-full .pet-shell.is-preview.ui-backyard {
+  left: 108px;
+  right: 44px;
+  top: 54px !important;
+  bottom: 62px;
+  width: auto !important;
+  height: auto !important;
+  border: 2px solid rgba(235, 247, 255, 0.78);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(4, 13, 28, 0.42);
 }
 /* 宠物/菜单小窗:右下角贴任务栏,像真实桌宠停靠位 */
 body.shot-mode .pet-shell.is-preview:not(.ui-backyard):not(.ui-factory) {
@@ -897,11 +932,6 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   stroke: #315f44;
 }
 
-.menu-icon-sun {
-  fill: #ffd75b;
-  stroke: #d37c27;
-}
-
 .menu-icon-tree {
   fill: #58ae68;
   stroke: #315f44;
@@ -962,12 +992,14 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
 
 .menu-item-label {
   font-family: var(--font-display);
-  /* 三键并排（后院/工厂/设置，面板态再加头像位）后每键更窄：字号收一档 +
-     禁止换行截断，总宽仍由 flex:1 均分保持不变 */
+  /* 面板态会出现头像 + 三个入口，德语/印尼语等标签单行放不下。
+     允许两行完整显示；图标行会自动让出高度，菜单总高保持不变。 */
   font-size: 12px;
-  white-space: nowrap;
+  line-height: 1.02;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   max-width: 100%;
-  overflow: hidden;
 }
 
 .menu-badge {
@@ -2672,6 +2704,17 @@ body.shot-mode .exp-pop:nth-of-type(5n + 5) { transform: translate3d(-52px, -8px
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 3px 8px rgba(43, 26, 8, 0.35);
+}
+
+/* AI 设计与 Steam 发放是两条不同流水线：紫色机器人 = 设计，蓝色手柄 = Steam。 */
+.by-pit-fusion.is-ai {
+  background: linear-gradient(180deg, #6d54c9, #52399f);
+  color: #f3ecff;
+}
+
+.by-pit-fusion.is-steam {
+  background: linear-gradient(180deg, #397fd1, #245da8);
+  color: #eff7ff;
 }
 
 /* 同一颗蛋同时有融合徽标时，同步徽标抬到上一行，避免两标重叠 */

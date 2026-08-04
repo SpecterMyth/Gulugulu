@@ -7,6 +7,10 @@ import type { GameBridge } from "./bridge";
 import { formatCount } from "./format";
 import { ROGUE_RUN_STORAGE_KEY, ROGUE_STORAGE_KEY } from "./factory/rogueTypes";
 import type { ConfirmGameDialog } from "../app/GameDialog";
+import { useT } from "../useT";
+import { DEBUG_STRINGS } from "../i18n/debug";
+import { fmt } from "../i18n/core";
+import { speciesDisplayName } from "../i18n/species";
 
 // -----------------------------------------------------------------------------
 // 动画调试面板（计划 §四）：逐个选择 27 只角色，预览全部状态动画。
@@ -14,18 +18,7 @@ import type { ConfirmGameDialog } from "../app/GameDialog";
 // -----------------------------------------------------------------------------
 
 // 已合并的重复动画不再单列：打工=工作、力竭=睡眠、被拎起=拖拽中
-const DEBUG_STATES: Array<{ state: PetState; label: string }> = [
-  { state: "idle", label: "待机" },
-  { state: "moving", label: "移动" },
-  { state: "working", label: "工作" },
-  { state: "success", label: "庆祝" },
-  { state: "fed", label: "进食" },
-  { state: "thinking", label: "思考" },
-  { state: "sleeping", label: "睡眠" },
-  { state: "dragging", label: "拖拽" },
-  { state: "drop", label: "落地" },
-  { state: "error", label: "出错" },
-];
+const DEBUG_STATES: PetState[] = ["idle", "moving", "working", "success", "fed", "thinking", "sleeping", "dragging", "drop", "error"];
 
 /** one-shot 状态在预览中自动循环重播的间隔（动画时长 + 缓冲） */
 const ONE_SHOT_REPLAY_MS: Partial<Record<PetState, number>> = {
@@ -40,9 +33,9 @@ const CYCLE_INTERVAL_MS = 2500;
 /** Coins granted per click of the “增加金币” debug button. */
 const DEBUG_COIN_GRANT = 10000;
 
-function debugErrorText(error: unknown): string {
+function debugErrorText(error: unknown, fallback: string): string {
   if (error instanceof Error) return error.message;
-  return typeof error === "string" ? error : "操作失败";
+  return typeof error === "string" ? error : fallback;
 }
 
 export function DebugPanel({
@@ -67,6 +60,8 @@ export function DebugPanel({
   /** 所有危险操作统一走游戏内便签确认，不调用浏览器原生对话框。 */
   onConfirm: ConfirmGameDialog;
 }) {
+  const { lang } = useT();
+  const D = DEBUG_STRINGS[lang];
   const [species, setSpecies] = useState("guluduck");
   const [petState, setPetState] = useState<PetState>("idle");
   const [facing, setFacing] = useState<"left" | "right">("right");
@@ -87,14 +82,14 @@ export function DebugPanel({
         onSave(next);
         onToast(describe(next));
       })
-      .catch((error) => onToast(debugErrorText(error)))
+      .catch((error) => onToast(debugErrorText(error, D.error)))
       .finally(() => setSaveBusy(false));
   };
 
   const debugAddCoins = () =>
     runSaveDebug(
       () => bridge.debugAddCoins(DEBUG_COIN_GRANT),
-      (next) => `+${DEBUG_COIN_GRANT} 金币（当前 ${next.coins}）`,
+      (next) => fmt(D.coinAdded, { amount: DEBUG_COIN_GRANT, coins: next.coins }),
     );
 
   const debugHatchNow = () =>
@@ -102,63 +97,63 @@ export function DebugPanel({
       () => bridge.debugHatchNow(),
       (next) => {
         const ready = next.eggs.filter((egg) => egg.slot != null).length;
-        return ready > 0 ? `已完成 ${ready} 颗蛋的孵化，可立即领取` : "当前没有正在孵化的蛋";
+        return ready > 0 ? fmt(D.hatchReady, { count: ready }) : D.hatchNone;
       },
     );
 
   const debugMaxPets = () =>
     runSaveDebug(
       () => bridge.debugMaxPets(),
-      (next) => (next.pets.length > 0 ? `${next.pets.length} 只精灵已升到满级` : "还没有精灵"),
+      (next) => (next.pets.length > 0 ? fmt(D.petsMaxed, { count: next.pets.length }) : D.petsNone),
     );
 
   const confirmDanger = (message: string) =>
     onConfirm({
-      title: "危险操作确认",
+      title: D.dangerTitle,
       message,
-      confirmLabel: "确认执行",
-      cancelLabel: "取消",
+      confirmLabel: D.confirm,
+      cancelLabel: D.cancel,
       tone: "danger",
     });
 
   const debugClearSave = async () => {
-    if (!(await confirmDanger("确定清除存档并回到初始状态？此操作不可撤销。"))) return;
+    if (!(await confirmDanger(D.clearSavePrompt))) return;
     runSaveDebug(
       () => bridge.debugClearSave(),
-      () => "存档已清除，回到初始状态",
+      () => D.clearSaveDone,
     );
   };
 
   const debugDrainStamina = () =>
     runSaveDebug(
       () => bridge.debugDrainStamina(),
-      () => "主宠精力已放空（验证恢复期/唤醒/键盘充能）",
+      () => D.staminaDrained,
     );
 
   const debugFeedKeys = () =>
     runSaveDebug(
       () => bridge.debugFeedKeys(30),
-      () => "模拟敲了 30 个键（只给陪伴宠回精力，按阶换算入账）",
+      () => D.keysFed,
     );
 
   // 清空本账号在本游戏发布的全部创意工坊内容（真机 Steam 侧删除，不可逆）。
   // 复用 saveBusy 作在途闸门（删除可能耗时，期间禁其余调试按钮）。
   const debugClearWorkshop = async () => {
     if (saveBusy) return;
-    if (!(await confirmDanger("确定删除本账号在创意工坊发布的本游戏全部内容？此操作不可撤销。"))) return;
+    if (!(await confirmDanger(D.clearWorkshopPrompt))) return;
     setSaveBusy(true);
     bridge
       .debugClearWorkshop()
       .then(({ deleted, failed }) => {
         onToast(
           failed > 0
-            ? `已删除 ${deleted} 件创意工坊物品，${failed} 件失败（详见日志）`
+            ? fmt(D.workshopPartial, { deleted, failed })
             : deleted > 0
-              ? `已删除 ${deleted} 件创意工坊物品`
-              : "创意工坊没有可删除的本游戏物品",
+              ? fmt(D.workshopDeleted, { deleted })
+              : D.workshopEmpty,
         );
       })
-      .catch((error) => onToast(debugErrorText(error)))
+      .catch((error) => onToast(debugErrorText(error, D.error)))
       .finally(() => setSaveBusy(false));
   };
 
@@ -168,21 +163,21 @@ export function DebugPanel({
   const debugClearInventory = async () => {
     if (saveBusy) return;
     if (!(await confirmDanger(
-      "确定清除本账号在 Steam 的本游戏全部库存物品？\n此操作不可撤销；若本地存档仍有宠物，集成会稍后自动重新发放（彻底清零请配合「清除存档」）。",
+      D.clearInventoryPrompt,
     ))) return;
     setSaveBusy(true);
     bridge
       .debugClearInventory()
       .then((count) => {
-        onToast(count > 0 ? `已清除 ${count} 件库存物品` : "库存已空，无可清除");
+        onToast(count > 0 ? fmt(D.inventoryDeleted, { count }) : D.inventoryEmpty);
       })
-      .catch((error) => onToast(debugErrorText(error)))
+      .catch((error) => onToast(debugErrorText(error, D.error)))
       .finally(() => setSaveBusy(false));
   };
 
   const debugClearFactory = async () => {
     if (saveBusy) return;
-    if (!(await confirmDanger("确定清除 Steam 工厂排行、本地工厂历史、续局和今日工厂奖励数据？此操作不可撤销。"))) return;
+    if (!(await confirmDanger(D.clearFactoryPrompt))) return;
     setSaveBusy(true);
     bridge.debugClearFactoryLeaderboard()
       .then(() => bridge.debugClearFactoryData())
@@ -190,9 +185,9 @@ export function DebugPanel({
         window.localStorage.removeItem(ROGUE_STORAGE_KEY);
         window.localStorage.removeItem(ROGUE_RUN_STORAGE_KEY);
         onSave(next);
-        onToast("工厂数据与 Steam 排行成绩已清除，可以从头测试");
+        onToast(D.clearFactoryDone);
       })
-      .catch((error) => onToast(debugErrorText(error)))
+      .catch((error) => onToast(debugErrorText(error, D.error)))
       .finally(() => setSaveBusy(false));
   };
 
@@ -216,8 +211,8 @@ export function DebugPanel({
     if (!cycling) return;
     const timer = window.setInterval(() => {
       setPetState((prev) => {
-        const index = DEBUG_STATES.findIndex((item) => item.state === prev);
-        return DEBUG_STATES[(index + 1) % DEBUG_STATES.length].state;
+        const index = DEBUG_STATES.indexOf(prev);
+        return DEBUG_STATES[(index + 1) % DEBUG_STATES.length];
       });
     }, CYCLE_INTERVAL_MS);
     return () => window.clearInterval(timer);
@@ -266,28 +261,28 @@ export function DebugPanel({
     <div className="debug-panel">
       {/* 存档调试：真实读写游戏存档 */}
       <div className="debug-game">
-        <span className="debug-group-label">存档调试</span>
+        <span className="debug-group-label">{D.saveDebug}</span>
         <div className="debug-game-readout">
-          金币 {formatCount(save?.coins ?? 0)} · 精灵 {save?.pets.length ?? 0} · 蛋 {save?.eggs.length ?? 0}
+          {fmt(D.readout, { coins: formatCount(save?.coins ?? 0, lang), pets: save?.pets.length ?? 0, eggs: save?.eggs.length ?? 0 })}
         </div>
         <div className="debug-game-row">
           <button type="button" disabled={saveBusy} onClick={debugAddCoins}>
-            增加金币 +{DEBUG_COIN_GRANT}
+            {fmt(D.addCoins, { amount: DEBUG_COIN_GRANT })}
           </button>
           <button type="button" disabled={saveBusy} onClick={debugHatchNow}>
-            立即孵化
+            {D.hatchNow}
           </button>
           <button type="button" disabled={saveBusy} onClick={debugMaxPets}>
-            立即满级
+            {D.maxNow}
           </button>
           <button type="button" className="is-danger" disabled={saveBusy} onClick={debugClearSave}>
-            清除存档
+            {D.clearSave}
           </button>
           <button type="button" disabled={saveBusy} onClick={debugDrainStamina}>
-            放空精力
+            {D.drainStamina}
           </button>
           <button type="button" disabled={saveBusy} onClick={debugFeedKeys}>
-            模拟 30 键
+            {D.simulateKeys}
           </button>
           {onFeedTokens && (
             <>
@@ -307,13 +302,13 @@ export function DebugPanel({
 
       {/* Steam 调试：真机 Steam 侧操作（开发版 + 集成开启才生效，否则后端回错误提示） */}
       <div className="debug-game">
-        <span className="debug-group-label">Steam 调试</span>
+        <span className="debug-group-label">{D.steamDebug}</span>
         <div className="debug-game-row">
           <button type="button" className="is-danger" disabled={saveBusy} onClick={debugClearWorkshop}>
-            清空我的创意工坊
+            {D.clearWorkshop}
           </button>
           <button type="button" className="is-danger" disabled={saveBusy} onClick={debugClearInventory}>
-            清空我的库存资产
+            {D.clearInventory}
           </button>
         </div>
       </div>
@@ -321,13 +316,13 @@ export function DebugPanel({
       {/* 工厂调试：经典演示沙盒（旧 FactoryScene，无关卡制/不产材料）。 */}
       {onOpenFactoryDemo && (
         <div className="debug-game">
-          <span className="debug-group-label">工厂调试</span>
+          <span className="debug-group-label">{D.factoryDebug}</span>
           <div className="debug-game-row">
             <button type="button" className="is-danger" disabled={saveBusy} onClick={debugClearFactory}>
-              🧹 清除工厂数据记录
+              {D.clearFactory}
             </button>
             <button type="button" onClick={onOpenFactoryDemo}>
-              🛝 经典演示 Classic Sandbox
+              {D.classicDemo}
             </button>
           </div>
         </div>
@@ -335,7 +330,7 @@ export function DebugPanel({
 
       {/* 预览台：复用主舞台的 state/facing CSS（含 facing-left 镜像） */}
       <div className={`debug-stage state-${petState} facing-${facing}`}>
-        <div className="duck-facing debug-preview" onPointerDown={triggerReaction} title="点击预览点击反馈">
+        <div className="duck-facing debug-preview" onPointerDown={triggerReaction} title={D.previewTitle}>
           <div className={`pet-react-pulse ${pulseClass}`}>
             <SvgSprite
               key={`${species}-${petState}-${replayTick}`}
@@ -354,8 +349,8 @@ export function DebugPanel({
         </div>
       </div>
       <div className="debug-info">
-        <strong>{info?.nameZh ?? species}</strong>
-        <span>{DEBUG_STATES.find((item) => item.state === petState)?.label ?? petState}</span>
+        <strong>{speciesDisplayName(species, lang, info?.nameZh, info?.nameEn)}</strong>
+        <span>{D.states[petState] ?? petState}</span>
         <span className="debug-info-dim">{species}</span>
       </div>
 
@@ -366,48 +361,48 @@ export function DebugPanel({
           className={facing === "left" ? "is-active" : ""}
           onClick={() => setFacing("left")}
         >
-          ← 朝左
+          {D.faceLeft}
         </button>
         <button
           type="button"
           className={facing === "right" ? "is-active" : ""}
           onClick={() => setFacing("right")}
         >
-          朝右 →
+          {D.faceRight}
         </button>
         <button type="button" onClick={triggerReaction}>
-          点击反馈
+          {D.clickFeedback}
         </button>
         <button
           type="button"
           className={cycling ? "is-active" : ""}
           onClick={() => setCycling((value) => !value)}
         >
-          {cycling ? "停止轮播" : "自动轮播"}
+          {cycling ? D.stopCycle : D.autoCycle}
         </button>
       </div>
 
       {/* 状态选择 */}
       <div className="debug-states">
-        {DEBUG_STATES.map((item) => (
+        {DEBUG_STATES.map((state) => (
           <button
-            key={item.state}
+            key={state}
             type="button"
-            className={petState === item.state ? "is-active" : ""}
+            className={petState === state ? "is-active" : ""}
             onClick={() => {
               setCycling(false);
-              setPetState(item.state);
+              setPetState(state);
               setReplayTick((tick) => tick + 1);
             }}
           >
-            {item.label}
+            {D.states[state] ?? state}
           </button>
         ))}
       </div>
 
       {/* 物种选择 */}
       <div className="debug-species">
-        <span className="debug-group-label">单元素（{tier1.length}）</span>
+        <span className="debug-group-label">{fmt(D.singleElement, { count: tier1.length })}</span>
         <div className="debug-species-grid">
           {tier1.map(([codename, speciesInfo]) => (
             <button
@@ -418,11 +413,11 @@ export function DebugPanel({
               title={codename}
             >
               <SvgSprite species={codename} config={config} petState="idle" className="debug-thumb" />
-              <span>{speciesInfo.nameZh}</span>
+              <span>{speciesDisplayName(codename, lang, speciesInfo.nameZh, speciesInfo.nameEn)}</span>
             </button>
           ))}
         </div>
-        <span className="debug-group-label">多元素融合（{tier2.length}）</span>
+        <span className="debug-group-label">{fmt(D.multiElement, { count: tier2.length })}</span>
         <div className="debug-species-grid">
           {tier2.map(([codename, speciesInfo]) => (
             <button
@@ -433,7 +428,7 @@ export function DebugPanel({
               title={codename}
             >
               <SvgSprite species={codename} config={config} petState="idle" className="debug-thumb" />
-              <span>{speciesInfo.nameZh}</span>
+              <span>{speciesDisplayName(codename, lang, speciesInfo.nameZh, speciesInfo.nameEn)}</span>
             </button>
           ))}
         </div>

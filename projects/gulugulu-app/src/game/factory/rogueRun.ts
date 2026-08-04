@@ -780,7 +780,8 @@ export class RogueRun implements RogueRunApi {
     const enabledDesks = desks.filter(
       (desk) => !this.disabledDesks.includes(desk.element as RogueElement),
     );
-    if (enabledDesks.length === 0) return null;
+    const matchingDesks = desks.filter((desk) => meta.elements.includes(desk.element as RogueElement));
+    if (enabledDesks.length === 0 && matchingDesks.length === 0) return null;
 
     const r = Math.max(8, radius);
     const landingY = (x: number, deskTop: number): number => {
@@ -829,6 +830,39 @@ export class RogueRun implements RogueRunApi {
       candidates.push({ x: body.x, y: landingY(body.x, desk.top) });
     }
 
+    // 零分兜底不沿用“所有可用桌”的同分排序。优先落到本属性桌上已有的
+    // 同属性咕噜顶端，确保临时员工也会实际粘连一下；没有可粘对象时才直接
+    // 落在本属性桌面。禁运桌虽然不计分，仍是该属性咕噜应去的演出落点。
+    const fallbackCandidates: { x: number; y: number }[] = [];
+    for (const body of bodies) {
+      const canStick = meta.elements.some((element) => body.elements.includes(element))
+        || this.stickOverride(
+          {
+            uid,
+            species,
+            elements: meta.elements,
+            x: body.x,
+            y: body.y - body.r - r,
+            r,
+            settled: true,
+          },
+          body,
+        ) === true;
+      if (!canStick) continue;
+      const desk = matchingDesks.find((item) => body.x + body.r > item.x && body.x - body.r < item.x + item.w);
+      if (desk != null) fallbackCandidates.push({ x: body.x, y: landingY(body.x, desk.top) });
+    }
+    for (const desk of matchingDesks) {
+      const left = desk.x + r * 0.55;
+      const right = desk.x + desk.w - r * 0.55;
+      const slots = 7;
+      for (let i = 0; i < slots; i++) {
+        const x = left + ((right - left) * i) / (slots - 1);
+        fallbackCandidates.push({ x, y: landingY(x, desk.top) });
+      }
+    }
+    if (candidates.length === 0 && fallbackCandidates.length === 0) return null;
+
     this.uidSpecies.set(uid, species);
     this.uidCost.set(uid, this.bag[0]?.price ?? 0);
     this.uidBase.set(uid, meta.baseValue);
@@ -837,7 +871,7 @@ export class RogueRun implements RogueRunApi {
     const pulseStickOverride = stickOverrideForCards(pulseCards) ?? undefined;
     const pulseStateOf = (targetUid: number) => this.stateFor(targetUid);
     const baseAdjacency = buildPulseAdjacency(logicalBodies, pulseStateOf, pulseStickOverride);
-    let best = candidates[0];
+    let best = candidates[0] ?? fallbackCandidates[0];
     let bestGain = Number.NEGATIVE_INFINITY;
     for (const candidate of candidates) {
       const hypothetical: BodyLike = {
@@ -867,6 +901,8 @@ export class RogueRun implements RogueRunApi {
         bestGain = gain;
       }
     }
+
+    if (bestGain <= 0 && fallbackCandidates.length > 0) best = fallbackCandidates[0];
 
     const worker = this.bag.shift();
     if (worker == null) return null;
@@ -2249,12 +2285,31 @@ export class RogueRun implements RogueRunApi {
           this.overtimeScored.has(uid) ? [] : [{ ...worker }]
         ))
       : [];
+    const sceneBodies = this.snap?.bodies() ?? [];
+    // A normal throw is removed from `bag` before physics settles it. Persisting
+    // that transient body made restore treat its mid-air coordinates as a
+    // permanent settled worker. Put fresh in-flight throws back at the front of
+    // the hiring pool instead, so the player can drop them again after resume.
+    const retryThrowUids = new Set(
+      this.phase === "shift"
+        ? sceneBodies
+            .filter((body) => !body.settled && body.fromCollapse !== true)
+            .map((body) => body.uid)
+        : [],
+    );
+    const retryThrows = sceneBodies.flatMap((body) => {
+      if (!retryThrowUids.has(body.uid)) return [];
+      const species = this.uidSpecies.get(body.uid) ?? body.species;
+      return [{ species, price: this.uidCost.get(body.uid) ?? 0 }];
+    });
     const pendingDeskDx = new Map(this.deskMoves.map((move) => [move.uid, move.dx]));
     return {
       v: RUN_SNAPSHOT_VERSION,
       loadout: this.loadout.slice(),
       deskOrder: this.deskOrderArr.slice(),
-      bodies: (this.snap?.bodies() ?? [])
+      disabledDesks: this.disabledDesks.slice(),
+      bodies: sceneBodies
+        .filter((body) => !retryThrowUids.has(body.uid))
         .filter((body) => !this.overtimePending.has(body.uid))
         .map((body) => ({
           ...body,
@@ -2268,14 +2323,14 @@ export class RogueRun implements RogueRunApi {
           base: this.uidBase.get(uid) ?? this.meta[species]?.baseValue ?? 0,
           departed: this.refunded.has(uid) || undefined,
         }))
-        .filter((item) => !this.overtimePending.has(item.uid)),
+        .filter((item) => !retryThrowUids.has(item.uid) && !this.overtimePending.has(item.uid)),
       bodyStates: Array.from(this.bodyStates.values(), (state) => ({
         ...state,
         elementsOverride: state.elementsOverride?.slice(),
         extraTags: state.extraTags?.slice(),
         absorbedLinks: state.absorbedLinks?.slice(),
         absorbedDesks: state.absorbedDesks?.slice(),
-      })).filter((state) => !this.overtimePending.has(state.uid)),
+      })).filter((state) => !retryThrowUids.has(state.uid) && !this.overtimePending.has(state.uid)),
       rngState: this.rngState.a >>> 0,
       phase: this.phase,
       shiftIndex: this.shiftIndex,
@@ -2289,7 +2344,7 @@ export class RogueRun implements RogueRunApi {
       quotaMax: this.quotaMax,
       quotaUsed: this.quotaUsed,
       hireInflation: this.hiredThisShift.slice(),
-      hirePool: [...retryOvertime, ...this.bag.map((x) => ({ ...x }))],
+      hirePool: [...retryOvertime, ...retryThrows, ...this.bag.map((x) => ({ ...x }))],
       overtimeReturned: this.overtimeReturned.map((item) => ({ ...item })),
       hiringCandidates: this.hiringCandidates.map((x) => ({ ...x })),
       hiringRound: this.hiringRound,
@@ -2336,7 +2391,12 @@ export class RogueRun implements RogueRunApi {
         })),
         cashFlows: this.settlement.cashFlows.map((x) => ({ ...x })),
       },
-      powerThrowsLeft: this.powerThrowsLeftVal,
+      powerThrowsLeft: this.powerThrowsLeftVal == null
+        ? null
+        : Math.min(
+            powerThrowLimitFor(this.modifier),
+            this.powerThrowsLeftVal + retryThrowUids.size,
+          ),
       rushRemainingMs: this.rushDeadline != null && this.lastTickAt != null
         ? Math.max(0, this.rushDeadline - this.lastTickAt)
         : this.rushResumeRemainingMs,
@@ -2375,6 +2435,9 @@ export class RogueRun implements RogueRunApi {
     run.shiftIndex = snap.shiftIndex;
     run.endless = snap.endless;
     run.modifier = snap.modifier;
+    run.disabledDesks = Array.isArray(snap.disabledDesks)
+      ? snap.disabledDesks.filter((element): element is RogueElement => run.deskOrderArr.includes(element))
+      : [];
     run.cash = clampFactoryValue(snap.cash);
     run.revenueTotal = clampFactoryValue(snap.revenueTotal);
     run.revenueShift = clampFactoryValue(snap.revenueShift);

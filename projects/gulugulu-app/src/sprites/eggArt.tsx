@@ -2,6 +2,10 @@ import { useEffect, useId, useMemo, useState, type ReactElement } from "react";
 import type { GameConfig } from "../types";
 import { OUTLINE } from "./rigTypes";
 import { BADGE_PATHS } from "../game/ElementIcon";
+import { useT } from "../useT";
+import { speciesDisplayName } from "../i18n/species";
+import { BACKYARD } from "../i18n/backyard";
+import { fmt } from "../i18n/core";
 
 // -----------------------------------------------------------------------------
 // EggSvg —— 分阶蛋美术（生物蛋方向 · 圆润拼接）
@@ -317,6 +321,7 @@ export function EggSvg({
   mystery = false,
   className,
 }: EggSvgProps) {
+  const { lang } = useT();
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const clipId = `egg-clip-${uid}`;
 
@@ -368,7 +373,9 @@ export function EggSvg({
       viewBox="0 0 128 128"
       className={`egg-svg ${phaseClass} ${className ?? ""}`}
       role="img"
-      aria-label={`${info?.nameZh ?? species}的蛋`}
+      aria-label={fmt(BACKYARD[lang].hatchery.speciesEggTitle, {
+        name: speciesDisplayName(species, lang, info?.nameZh, info?.nameEn),
+      })}
     >
       <defs>
         <clipPath id={clipId}>

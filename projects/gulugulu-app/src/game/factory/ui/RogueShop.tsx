@@ -100,7 +100,6 @@ export function RogueShop({
 }) {
   const { lang } = useT();
   const R = FACTORY_ROGUE[lang];
-  const isZh = lang === "zh";
   const shop = view.shop;
   const pendingSwap = run.pendingDeskSwap();
 
@@ -305,7 +304,7 @@ export function RogueShop({
         {!allResolved && <div className="fr-shop-head">
           <div className="fr-note fr-note-yellow fr-shop-title">
             <span className="fr-fold" />
-            {isZh ? "班末商店" : "SHIFT-END SHOP"}
+            {R.shopHeader}
           </div>
           <span className="fr-note fr-note-mint fr-shop-round">
             {fmt(R.shopStep, { n: (activeIndex as number) + 1, total: 3 })} ·{" "}
@@ -461,7 +460,7 @@ export function RogueShop({
                             {loanBusy
                               ? R.shopLoanActive
                               : def.free
-                              ? isZh ? "免费拿" : "TAKE IT"
+                              ? R.shopTakeFree
                               : <>
                                   {R.shopBuy} ¥
                                   <span className={affordable ? undefined : "fr-shop-price-short"}>
@@ -501,18 +500,18 @@ export function RogueShop({
                   </div>
                   <aside
                     className={`fr-shop-keyword-panel${tipsOpen ? " is-open" : ""}`}
-                    aria-label={isZh ? "关键词说明" : "Keyword tips"}
+                    aria-label={R.shopKeywordAria}
                   >
                     <button
                       type="button"
                       className="fr-shop-keyword-title"
                       onClick={() => setTipsOpen((open) => !open)}
                     >
-                      {isZh ? "关键词说明" : "KEYWORD TIPS"}
+                      {R.shopKeywordTitle}
                     </button>
                     {keywordIds.length === 0 ? (
                       <div className="fr-shop-keyword-empty">
-                        {isZh ? "当前卡片没有额外关键词" : "No extra keywords on these cards"}
+                        {R.shopKeywordEmpty}
                       </div>
                     ) : keywordIds.map((keyword) => {
                       const text = rogueKeywordText(keyword, lang);

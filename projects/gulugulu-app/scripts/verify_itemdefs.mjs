@@ -46,6 +46,16 @@ for (let d = 301; d <= 321; d += 1) present(d); // 旧二阶蛋
 for (let d = 401; d <= 406; d += 1) present(d); // 一阶掉落生成器
 for (let d = 501; d <= 521; d += 1) present(d); // 旧二阶孵化生成器
 
+// 应用级游玩时长已为商店 burst 设为 0；被动免费掉落必须显式保留自己的水龙头。
+for (let d = 401; d <= 406; d += 1) {
+  const it = byId.get(d);
+  eq(
+    [it.drop_interval, it.drop_max_per_window],
+    [45, 2],
+    `一阶被动 gen ${d} 时长/窗口上限`,
+  );
+}
+
 // ---- 新固定宠 601-657 = 601 + recipeOrdinal；英语=默认名、简中=name_schinese=nameZh，
 //      与 config.species[codename].steamItemDef 一致 --------------------
 const ordered = M.multiElementRecipesOrdered(Object.keys(cfg.speciesByRecipe));
@@ -182,11 +192,11 @@ for (let tier = 1; tier <= 4; tier += 1) {
     const it = byId.get(def);
     if (!it) { fail(`缺商店生成器 ${def}（t${tier} ${element}）`); continue; }
     eq(it.type === "playtimegenerator" && it.hidden === true, true, `商店 gen ${def} 类型/hidden`);
-    // drop_window 非 per-def 字段(2026-07-16 真机实证,应用级=1440);per-def 只有
-    // interval(1 分钟≈即领)+ max_per_window(每日上限)。
+    // drop_window 非 per-def 字段(2026-07-16 真机实证,应用级=1440)；商店 interval
+    // 缺省并继承应用级 0，避免 Steam 短会话时长延迟入账卡住同属性连续领取。
     eq(
       [it.drop_interval, it.drop_max_per_window, "drop_window" in it],
-      [1, cfg.eggDailyMintCaps[tier - 1], false],
+      [undefined, cfg.eggDailyMintCaps[tier - 1], false],
       `商店 gen ${def} 窗口参数`,
     );
     const pool = Object.entries(cfg.species)

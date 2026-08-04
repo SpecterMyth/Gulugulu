@@ -3,6 +3,8 @@ import { useT } from "../../useT";
 import type { OnboardingDirective } from "./onboardingSteps";
 import { placeOnboardingCard } from "./onboardingPlacement";
 import "./onboarding.css";
+import { GENERATED_RUNTIME_LOCALES } from "../../i18n/generatedLocales";
+import { ONBOARDING_UI_EN, ONBOARDING_UI_ZH } from "./onboardingCopy";
 
 export function OnboardingGoal({
   directive,
@@ -232,7 +234,12 @@ export function OnboardingGoal({
 
   if (!directive) return null;
   const showAction = directive.action !== "target";
-  const busyLabel = lang === "zh" ? "正在确认…" : "Saving…";
+  const ui = lang === "zh-Hans"
+    ? ONBOARDING_UI_ZH
+    : lang === "en"
+      ? ONBOARDING_UI_EN
+      : GENERATED_RUNTIME_LOCALES[lang]?.onboardingUi ?? ONBOARDING_UI_EN;
+  const busyLabel = ui.busy;
   return (
     <section
       ref={goalRef}
@@ -252,15 +259,15 @@ export function OnboardingGoal({
         <p>{directive.label}</p>
         {showAction ? (
           <button type="button" data-onboarding-allow disabled={busy} onClick={onAction}>
-            {busy ? busyLabel : directive.cta ?? (lang === "zh" ? "知道了" : "Got it")}
+            {busy ? busyLabel : directive.cta ?? ui.gotIt}
           </button>
         ) : !targetPresent ? (
           <button type="button" data-onboarding-allow disabled={busy} onClick={onRecover}>
-            {busy ? busyLabel : lang === "zh" ? "带我回正确位置" : "Take me to the right place"}
+            {busy ? busyLabel : ui.recover}
           </button>
         ) : (
           <div className="onboarding-target-note">
-            {targetNote ?? (lang === "zh" ? "先做发光步骤" : "Do the glowing step")}
+            {targetNote ?? ui.targetNote}
           </div>
         )}
         {onSkip && (
@@ -271,7 +278,7 @@ export function OnboardingGoal({
             disabled={busy}
             onClick={() => setSkipConfirmOpen(true)}
           >
-            {busy ? busyLabel : lang === "zh" ? "跳过整个新手引导" : "Skip onboarding"}
+            {busy ? busyLabel : ui.skip}
           </button>
         )}
       </div>
@@ -293,12 +300,10 @@ export function OnboardingGoal({
           >
             <span className="onboarding-confirm-tape" aria-hidden="true" />
             <strong id="onboarding-skip-title">
-              {lang === "zh" ? "要跳过新手引导吗？" : "Skip the onboarding?"}
+              {ui.skipTitle}
             </strong>
             <p id="onboarding-skip-description">
-              {lang === "zh"
-                ? "之后仍可直接使用全部正常玩法，但引导进度会标记为完成。"
-                : "All regular features will remain available, but the guide will be marked complete."}
+              {ui.skipBody}
             </p>
             <div className="onboarding-confirm-actions">
               <button
@@ -309,7 +314,7 @@ export function OnboardingGoal({
                 disabled={busy}
                 onClick={() => setSkipConfirmOpen(false)}
               >
-                {lang === "zh" ? "继续引导" : "Keep learning"}
+                {ui.keepLearning}
               </button>
               <button
                 type="button"
@@ -321,7 +326,7 @@ export function OnboardingGoal({
                   onSkip();
                 }}
               >
-                {busy ? busyLabel : lang === "zh" ? "确认跳过" : "Skip it"}
+                {busy ? busyLabel : ui.confirmSkip}
               </button>
             </div>
           </div>

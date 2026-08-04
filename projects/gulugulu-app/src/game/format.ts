@@ -2,13 +2,13 @@
 // 所有面向玩家的金额/经验/Token 显示都走 formatCount，指数经济下才可读。
 // 语言默认取当前 UI 语言（localStorage `gulugulu.language`，随设置切换实时生效）。
 
+import { languageDefinition, normalizeLanguage, type Language } from "../i18n/core";
+
 const LANGUAGE_STORAGE_KEY = "gulugulu.language";
 
-type Lang = "zh" | "en";
-
-function currentLang(): Lang {
+function currentLang(): Language {
   try {
-    return window.localStorage.getItem(LANGUAGE_STORAGE_KEY) === "zh" ? "zh" : "en";
+    return normalizeLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)) ?? "en";
   } catch {
     return "en";
   }
@@ -27,20 +27,21 @@ function sig3(n: number): string {
  * - 其它（短刻度）：`< 1K` 原样整数；`K`(1e3)、`M`(1e6)、`B`(1e9)。
  * 负数保留前导 `-`。
  */
-export function formatCount(value: number, lang: Lang = currentLang()): string {
+export function formatCount(value: number, lang: Language = currentLang()): string {
   if (!Number.isFinite(value)) return "0";
   const neg = value < 0;
   const v = Math.abs(value);
   let body: string;
-  if (lang === "zh") {
+  if (lang.startsWith("zh")) {
     if (v < 1e4) body = String(Math.round(v));
-    else if (v < 1e8) body = `${sig3(v / 1e4)}万`;
-    else body = `${sig3(v / 1e8)}亿`;
+    else if (v < 1e8) body = `${sig3(v / 1e4)}${lang === "zh-Hant" ? "萬" : "万"}`;
+    else body = `${sig3(v / 1e8)}${lang === "zh-Hant" ? "億" : "亿"}`;
   } else {
-    if (v < 1e3) body = String(Math.round(v));
-    else if (v < 1e6) body = `${sig3(v / 1e3)}K`;
-    else if (v < 1e9) body = `${sig3(v / 1e6)}M`;
-    else body = `${sig3(v / 1e9)}B`;
+    body = new Intl.NumberFormat(languageDefinition(lang).htmlLang, {
+      notation: v >= 1e3 ? "compact" : "standard",
+      maximumSignificantDigits: 3,
+      maximumFractionDigits: 1,
+    }).format(v);
   }
   return neg ? `-${body}` : body;
 }

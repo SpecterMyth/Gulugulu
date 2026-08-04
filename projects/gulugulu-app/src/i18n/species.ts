@@ -8,12 +8,33 @@
 // 加语种时:元素/目录名在此文件补表;AI 专名只有 zh/en 两源(nameZh/nameEn),第三语种
 // 需扩展生成器产出与本地兜底,或退回 en 名。
 
-import type { Language } from "./core";
+import { isChineseLanguage, migrateLegacyLanguageMap, type Language } from "./core";
+import { GENERATED_RUNTIME_LOCALES } from "./generatedLocales";
+import { CURATED_SPECIES_NAMES } from "./speciesNames";
 
-export const ELEMENT_NAMES: Record<Language, Record<string, string>> = {
+export const ELEMENT_NAMES: Record<Language, Record<string, string>> = migrateLegacyLanguageMap({
   zh: { normal: "一般", fire: "火", electric: "电", water: "水", grass: "草", ice: "冰" },
   en: { normal: "Normal", fire: "Fire", electric: "Electric", water: "Water", grass: "Grass", ice: "Ice" },
-};
+  "zh-Hant": { normal: "一般", fire: "火", electric: "電", water: "水", grass: "草", ice: "冰" },
+  ja: { normal: "ノーマル", fire: "ほのお", electric: "でんき", water: "みず", grass: "くさ", ice: "こおり" },
+  ko: { normal: "노말", fire: "불꽃", electric: "전기", water: "물", grass: "풀", ice: "얼음" },
+  fr: { normal: "Normal", fire: "Feu", electric: "Électrik", water: "Eau", grass: "Plante", ice: "Glace" },
+  de: { normal: "Normal", fire: "Feuer", electric: "Elektro", water: "Wasser", grass: "Pflanze", ice: "Eis" },
+  "es-ES": { normal: "Normal", fire: "Fuego", electric: "Eléctrico", water: "Agua", grass: "Planta", ice: "Hielo" },
+  "es-419": { normal: "Normal", fire: "Fuego", electric: "Eléctrico", water: "Agua", grass: "Planta", ice: "Hielo" },
+  "pt-BR": { normal: "Normal", fire: "Fogo", electric: "Elétrico", water: "Água", grass: "Planta", ice: "Gelo" },
+  "pt-PT": { normal: "Normal", fire: "Fogo", electric: "Elétrico", water: "Água", grass: "Planta", ice: "Gelo" },
+  ru: { normal: "Обычный", fire: "Огонь", electric: "Электричество", water: "Вода", grass: "Растение", ice: "Лёд" },
+  it: { normal: "Normale", fire: "Fuoco", electric: "Elettro", water: "Acqua", grass: "Erba", ice: "Ghiaccio" },
+  pl: { normal: "Zwykły", fire: "Ogień", electric: "Prąd", water: "Woda", grass: "Roślina", ice: "Lód" },
+  tr: { normal: "Normal", fire: "Ateş", electric: "Elektrik", water: "Su", grass: "Bitki", ice: "Buz" },
+  uk: { normal: "Звичайний", fire: "Вогонь", electric: "Електрика", water: "Вода", grass: "Рослина", ice: "Лід" },
+  ar: { normal: "عادي", fire: "نار", electric: "كهرباء", water: "ماء", grass: "نبات", ice: "جليد" },
+  th: { normal: "ธรรมดา", fire: "ไฟ", electric: "ไฟฟ้า", water: "น้ำ", grass: "พืช", ice: "น้ำแข็ง" },
+  vi: { normal: "Thường", fire: "Lửa", electric: "Điện", water: "Nước", grass: "Cỏ", ice: "Băng" },
+  id: { normal: "Normal", fire: "Api", electric: "Listrik", water: "Air", grass: "Tumbuhan", ice: "Es" },
+  nl: { normal: "Normaal", fire: "Vuur", electric: "Elektrisch", water: "Water", grass: "Plant", ice: "IJs" },
+});
 
 export function elementName(element: string, lang: Language): string {
   return ELEMENT_NAMES[lang]?.[element] ?? element;
@@ -22,7 +43,7 @@ export function elementName(element: string, lang: Language): string {
 /** 配方键(如 "fire+water")→ 本地化元素连写("火+水" / "Fire + Water")。 */
 export function recipeLabel(key: string, lang: Language): string {
   const parts = key.split("+").map((e) => elementName(e, lang));
-  return lang === "zh" ? parts.join("+") : parts.join(" + ");
+  return lang.startsWith("zh") ? parts.join("+") : parts.join(" + ");
 }
 
 export function titleCaseCode(code: string): string {
@@ -33,6 +54,165 @@ export function titleCaseCode(code: string): string {
 export function isAiCodename(code: string): boolean {
   return /^aif[0-9a-f]{4,6}$/i.test(code);
 }
+
+/**
+ * Translation-friendly source names for every authored species in config.json.
+ * English keeps the established codename branding; the locale generator uses
+ * these semantic names so other languages receive real names instead of an
+ * unchanged portmanteau such as `Bubblefrog` or `Prismkirin`.
+ */
+export const SPECIES_EN_NAMES: Record<string, string> = {
+  guluduck: "Gulu Duck",
+  emberfox: "Ember Fox",
+  voltmouse: "Thunder Mouse",
+  bubblefrog: "Bubble Whale",
+  sproutcap: "Sprout Mushroom",
+  frostpeng: "Frost Beast",
+  guluswan: "Gulu Swan",
+  infernofox: "Inferno Fox",
+  thunderking: "Thunder Mouse King",
+  tidefrog: "Tidal Whale",
+  mycobeast: "Mushroom Forest Beast",
+  glacierpeng: "Glacier Beast King",
+  blazeduck: "Blazing Feather Duck",
+  sparkduck: "Spark Duck",
+  rippleduck: "Ripple Duck",
+  mossduck: "Moss Feather Duck",
+  frostduck: "Frost Feather Duck",
+  plasmatanuki: "Plasma Fox",
+  steamander: "Steam Whale",
+  cinderleaf: "Cinder Mushroom",
+  thermowolf: "Thermal Frost Wolf",
+  stormeel: "Storm Whale",
+  vinevolt: "Electric Vine Mouse",
+  auroramink: "Aurora Mink",
+  lotusturtle: "Lotus Whale",
+  floeseal: "Ice Floe Beast",
+  frostbunny: "Frost Bunny Mushroom",
+  weldbug: "Welding Bug",
+  voltquill: "Electric Leaf Hedgehog",
+  aurowl: "Aurora Owl",
+  zapbun: "Static Bunny",
+  voltmare: "Thunder Seahorse",
+  chilizard: "Chili Lizard",
+  onsenmonk: "Hot Spring Monkey",
+  waxlamb: "Candle Flame Lamb",
+  steamalotl: "Steam Axolotl",
+  pinefawn: "Snow Pine Deer",
+  potturtle: "Flowerpot Turtle",
+  lilyfrog: "Lotus Leaf Frog",
+  snowcub: "Snowball Bear",
+  icejelly: "Ice Crystal Jellyfish",
+  sudsotter: "Bubble Bath Otter",
+  pyrepeacock: "Firework Peacock",
+  stormdrake: "Storm Dragon",
+  rockrooster: "Rock Music Rooster",
+  boilshrimp: "Boiling Shrimp",
+  glowhum: "Glowing Hummingbird",
+  windmole: "Windmill Mole",
+  glowfly: "Glowing Firefly",
+  waddleskate: "Ice Skating Penguin",
+  frostangler: "Frost Lantern Fish",
+  maildove: "Messenger Dove",
+  seasonleon: "Four Seasons Dragon",
+  toastybara: "Warm Capybara",
+  bobamingo: "Bubble Tea Flamingo",
+  lattegolem: "Latte Snowman",
+  saunapuff: "Sauna Pufferfish",
+  ramencoon: "Ramen Raccoon",
+  yarncat: "Yarn Cat",
+  terrasnail: "Moss Shell Snail",
+  scaresprout: "Little Scarecrow",
+  bowlrus: "Ice Walrus",
+  lanternloong: "Lantern Parade Dragon",
+  discobloom: "Dancing Sunflower",
+  juicepitcher: "Honey Pitcher Plant",
+  mochipop: "Bursting Mochi",
+  meteoropus: "Cloud Octopus",
+  grillgator: "Barbecue Alligator",
+  chimebell: "Wind Chime Flower",
+  frostclione: "Sea Angel",
+  mistyox: "Grain Rain Ox",
+  subhermit: "Submarine Hermit Crab",
+  teapir: "Matcha Tapir",
+  brewbat: "Potion Bat",
+  porkchef: "Chef Pig",
+  spadolphin: "Hot Spring Dolphin",
+  snowbonsai: "Snow Bonsai",
+  liondance: "Lion Dance",
+  manacorn: "Spirit Unicorn",
+  queenbuzz: "Queen Bee",
+  gargoylite: "Little Gargoyle",
+  crystalwing: "Crystal Dragonfly",
+  claypango: "Terracotta Pangolin",
+  prismkirin: "Crystal Kirin",
+};
+
+/** Reviewed short-name overrides where sentence translation models are weak. */
+export const SPECIES_NAME_OVERRIDES: Partial<Record<Language, Record<string, string>>> = {
+  "zh-Hant": {
+    rippleduck: "漣漪鴨",
+    saunapuff: "桑拿河豚",
+    frostclione: "海天使",
+  },
+  ja: {
+    guluduck: "グルダック", emberfox: "エンバーフォックス", voltmouse: "サンダーマウス", bubblefrog: "バブルクジラ",
+    sproutcap: "芽吹きキノコ", frostpeng: "霜雪獣", guluswan: "グルスワン", infernofox: "インフェルノフォックス",
+    thunderking: "サンダーマウスキング", tidefrog: "タイドクジラ", mycobeast: "キノコ森獣", glacierpeng: "氷河獣王",
+    blazeduck: "炎羽ダック", sparkduck: "スパークダック", rippleduck: "さざ波ダック", mossduck: "苔羽ダック",
+    frostduck: "霜羽ダック", plasmatanuki: "プラズマフォックス", steamander: "蒸気クジラ", cinderleaf: "残り火キノコ",
+    thermowolf: "熱霜オオカミ", stormeel: "嵐クジラ", vinevolt: "電気ツルネズミ", auroramink: "オーロラミンク",
+    lotusturtle: "蓮葉クジラ", floeseal: "浮氷獣", frostbunny: "霜ウサギキノコ", weldbug: "溶接ムシ",
+    voltquill: "電気葉ハリネズミ", aurowl: "オーロラフクロウ", zapbun: "静電ウサギ", voltmare: "サンダータツノオトシゴ",
+    chilizard: "トウガラシトカゲ", onsenmonk: "温泉ザル", waxlamb: "ろうそく羊", steamalotl: "蒸気ウーパールーパー",
+    pinefawn: "雪松ジカ", potturtle: "植木鉢ガメ", lilyfrog: "蓮葉ガエル", snowcub: "雪玉グマ",
+    icejelly: "氷晶クラゲ", sudsotter: "泡風呂カワウソ", pyrepeacock: "花火クジャク", stormdrake: "嵐ドラゴン",
+    rockrooster: "ロックオンドリ", boilshrimp: "沸騰エビ", glowhum: "光ハチドリ", windmole: "風車モグラ",
+    glowfly: "光ホタル", waddleskate: "スケートペンギン", frostangler: "霜灯魚", maildove: "伝書バト",
+    seasonleon: "四季ドラゴン", toastybara: "ぽかぽかカピバラ", bobamingo: "タピオカフラミンゴ", lattegolem: "ラテ雪だるま",
+    saunapuff: "サウナフグ", ramencoon: "ラーメンアライグマ", yarncat: "毛糸ネコ", terrasnail: "苔殻カタツムリ",
+    scaresprout: "ちびカカシ", bowlrus: "氷セイウチ", lanternloong: "灯籠パレードドラゴン", discobloom: "ダンスヒマワリ",
+    juicepitcher: "ハニーツボ草", mochipop: "はじけモチ", meteoropus: "雲ダコ", grillgator: "バーベキューワニ",
+    chimebell: "風鈴花", frostclione: "海天使", mistyox: "穀雨ウシ", subhermit: "潜水艦ヤドカリ",
+    teapir: "抹茶バク", brewbat: "ポーションコウモリ", porkchef: "シェフブタ", spadolphin: "温泉イルカ",
+    snowbonsai: "雪盆栽", liondance: "獅子舞", manacorn: "精霊ユニコーン", queenbuzz: "女王バチ",
+    gargoylite: "ちびガーゴイル", crystalwing: "水晶トンボ", claypango: "赤陶センザンコウ", prismkirin: "水晶キリン",
+  },
+  ko: {
+    guluduck: "굴루오리", emberfox: "불씨여우", voltmouse: "천둥쥐", bubblefrog: "거품고래", sproutcap: "새싹버섯", frostpeng: "서리괴수",
+    guluswan: "굴루백조", infernofox: "지옥불여우", thunderking: "천둥쥐황제", tidefrog: "파도고래", mycobeast: "버섯숲괴수", glacierpeng: "빙하괴수왕",
+    blazeduck: "불꽃깃오리", sparkduck: "불꽃오리", rippleduck: "물결오리", mossduck: "이끼깃오리", frostduck: "서리깃오리", plasmatanuki: "플라즈마여우",
+    steamander: "증기고래", cinderleaf: "잉걸불버섯", thermowolf: "열서리늑대", stormeel: "폭풍고래", vinevolt: "전기덩굴쥐", auroramink: "오로라밍크",
+    lotusturtle: "연잎고래", floeseal: "유빙괴수", frostbunny: "서리토끼버섯", weldbug: "용접벌레", voltquill: "전기잎고슴도치", aurowl: "오로라부엉이",
+    zapbun: "정전기토끼", voltmare: "천둥해마", chilizard: "고추도마뱀", onsenmonk: "온천원숭이", waxlamb: "촛불양", steamalotl: "증기우파루파",
+    pinefawn: "눈소나무사슴", potturtle: "화분거북", lilyfrog: "연잎개구리", snowcub: "눈덩이곰", icejelly: "얼음수정해파리", sudsotter: "거품목욕수달",
+    pyrepeacock: "불꽃놀이공작", stormdrake: "폭풍용", rockrooster: "록수탉", boilshrimp: "끓는새우", glowhum: "빛벌새", windmole: "풍차두더지",
+    glowfly: "빛반딧불이", waddleskate: "스케이트펭귄", frostangler: "서리등불물고기", maildove: "전서구", seasonleon: "사계절용", toastybara: "따뜻한카피바라",
+    bobamingo: "버블티플라밍고", lattegolem: "라떼눈사람", saunapuff: "사우나복어", ramencoon: "라면너구리", yarncat: "털실고양이", terrasnail: "이끼껍질달팽이",
+    scaresprout: "꼬마허수아비", bowlrus: "얼음바다코끼리", lanternloong: "등불행렬용", discobloom: "춤추는해바라기", juicepitcher: "꿀항아리풀", mochipop: "터지는모치",
+    meteoropus: "구름문어", grillgator: "바비큐악어", chimebell: "풍경꽃", frostclione: "바다천사", mistyox: "곡우소", subhermit: "잠수함소라게",
+    teapir: "말차맥", brewbat: "물약박쥐", porkchef: "요리사돼지", spadolphin: "온천돌고래", snowbonsai: "눈분재", liondance: "사자춤",
+    manacorn: "정령유니콘", queenbuzz: "여왕벌", gargoylite: "꼬마가고일", crystalwing: "수정잠자리", claypango: "테라코타천산갑", prismkirin: "수정기린",
+  },
+  ru: { saunapuff: "саунный иглобрюх" },
+  uk: {
+    tidefrog: "припливний кит", glacierpeng: "король льодовикових звірів", rippleduck: "качка-брижинка", mossduck: "мохокрила качка",
+    cinderleaf: "жарогриб", vinevolt: "електрична лозяна миша", aurowl: "сяйна сова", rockrooster: "рок-півень",
+    chimebell: "квітка-дзвіночок", manacorn: "духоріг", prismkirin: "кришталевий кірін",
+  },
+  ar: {
+    steamalotl: "سمندر البخار", lilyfrog: "ضفدع ورقة اللوتس", bobamingo: "نحام شاي الفقاعات", windmole: "خلد طاحونة الهواء",
+  },
+  th: { prismkirin: "กิเลนคริสตัล" },
+  vi: {
+    guluduck: "Vịt Gulu", emberfox: "Cáo than hồng", guluswan: "Thiên nga Gulu", infernofox: "Cáo địa ngục", tidefrog: "Cá voi thủy triều",
+    voltquill: "Nhím lá điện", aurowl: "Cú cực quang", chilizard: "Thằn lằn ớt", windmole: "Chuột chũi cối xay gió",
+    ramencoon: "Gấu mèo ramen", terrasnail: "Ốc sên vỏ rêu", juicepitcher: "Cây nắp ấm mật ong", subhermit: "Cua ẩn sĩ tàu ngầm",
+    teapir: "Lợn vòi matcha", brewbat: "Dơi dược liệu", crystalwing: "Chuồn chuồn pha lê", prismkirin: "Kỳ lân pha lê",
+  },
+  // Complete hand-authored locale tables supersede the older spot fixes.
+  ...CURATED_SPECIES_NAMES,
+};
 
 /**
  * 物种显示名。
@@ -47,11 +227,19 @@ export function speciesDisplayName(
   nameZh?: string,
   nameEn?: string,
 ): string {
-  if (lang === "zh") return nameZh ?? titleCaseCode(code);
+  if (lang === "zh-Hans") return nameZh ?? titleCaseCode(code);
   if (isAiCodename(code)) {
+    if (lang === "zh-Hant") return nameZh ?? titleCaseCode(code);
     const en = nameEn?.trim();
     if (en) return en;
-    return nameZh ?? titleCaseCode(code);
+    // A legacy/custom entry may predate multilingual generated names. Never
+    // leak its Chinese-only proper name into another language's interface.
+    return titleCaseCode(code);
+  }
+  if (lang !== "en") {
+    const localized = SPECIES_NAME_OVERRIDES[lang]?.[code]?.trim()
+      ?? GENERATED_RUNTIME_LOCALES[lang]?.speciesNames?.[code]?.trim();
+    if (localized) return localized.charAt(0).toLocaleUpperCase(lang) + localized.slice(1);
   }
   return titleCaseCode(code);
 }
@@ -168,7 +356,12 @@ export function speciesDesc(
   descZh?: string,
   descEn?: string,
 ): string {
-  if (lang === "zh") return descZh ?? "";
+  if (isChineseLanguage(lang)) return descZh ?? "";
+  if (lang !== "en") {
+    const localized = GENERATED_RUNTIME_LOCALES[lang]?.speciesDescriptions[code];
+    if (localized) return localized;
+    return GENERATED_RUNTIME_LOCALES[lang]?.speciesGenericDescription ?? "";
+  }
   const en = descEn?.trim();
   if (en) return en;
   return SPECIES_EN_DESC[code] ?? (descZh ? "A mysterious Gulugulu creature." : "");

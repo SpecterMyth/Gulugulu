@@ -3,7 +3,8 @@ import type { CoachDirective } from "../../app/coach/coachTypes";
 import { OnboardingGoal } from "../../app/onboarding/OnboardingGoal";
 import { onboardingLanguageFromStorage } from "../../app/onboarding/onboardingCopy";
 import type { OnboardingDirective } from "../../app/onboarding/onboardingSteps";
-import type { Language } from "../../i18n/core";
+import { migrateLegacyLanguageMap, type DeepPartial, type Language } from "../../i18n/core";
+import { generatedDomainLocales } from "../../i18n/generatedLocales";
 import { useT } from "../../useT";
 import type { RunView } from "./rogueTypes";
 
@@ -29,7 +30,11 @@ type FactoryGuideCopy = {
   dropKey: string;
 };
 
-export const FACTORY_FIRST_RUN_COPY: Record<Language, FactoryGuideCopy> = {
+const generatedGuideLocales = generatedDomainLocales("factoryFirstRun") as Partial<
+  Record<Exclude<Language, "en" | "zh-Hans">, DeepPartial<FactoryGuideCopy>>
+>;
+
+export const FACTORY_FIRST_RUN_COPY: Record<Language, FactoryGuideCopy> = migrateLegacyLanguageMap<FactoryGuideCopy>({
   zh: {
     chapter: "职场叠叠乐入职",
     resumeProgress: "继续教学",
@@ -94,7 +99,8 @@ export const FACTORY_FIRST_RUN_COPY: Record<Language, FactoryGuideCopy> = {
       "Last upgrade category: choose one card to finish. The next shift starts automatically.",
     dropKey: "SPACE · DROP",
   },
-};
+  ...generatedGuideLocales,
+});
 
 function guideCopy(language: Language = onboardingLanguageFromStorage()): FactoryGuideCopy {
   return FACTORY_FIRST_RUN_COPY[language];

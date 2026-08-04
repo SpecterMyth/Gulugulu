@@ -184,9 +184,10 @@ try {
     for (let i = 0; i < frames; i++) {
       const T = Math.min(total, Math.round(i * FRAME_MS));
       await page.evaluate((t) => window.__seek(t), T);
-      const shot = page.screenshot({ type: "png", clip: { x: 0, y: 0, width: 1920, height: 1080 }, captureBeyondViewport: false });
-      const png = await Promise.race([shot, new Promise((_, rej) => setTimeout(() => rej(new Error("screenshot 超时")), 20000))]);
-      await writeFrame(png);
+      // JPEG 截图显著降低 CDP 传输/编码开销；质量 94 在 1080p 商店视频中无可见文字损失。
+      const shot = page.screenshot({ type: "jpeg", quality: 94, clip: { x: 0, y: 0, width: 1920, height: 1080 }, captureBeyondViewport: false });
+      const jpg = await Promise.race([shot, new Promise((_, rej) => setTimeout(() => rej(new Error("screenshot 超时")), 20000))]);
+      await writeFrame(Buffer.from(jpg));
       if (i % 30 === 0 || i === frames - 1) {
         const pct = (((i + 1) / frames) * 100).toFixed(0);
         const eta = i > 0 ? ((((Date.now() - t0) / (i + 1)) * (frames - i - 1)) / 1000).toFixed(0) : "?";

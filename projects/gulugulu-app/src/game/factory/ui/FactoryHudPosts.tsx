@@ -148,6 +148,8 @@ export type FactoryHudLabels = {
   back: string;
   workPerformance: string;
   exploitationCount: string;
+  cardAria: string;
+  levelAria: string;
 };
 
 /** 一张签卡（头签放大 + 后两签递减不透明度，做出"排队感"）。 */
@@ -284,12 +286,15 @@ export function FactoryHudPosts({
                 className="fhp-active-card"
                 data-card-id={card.id}
                 key={card.id}
-                aria-label={`${card.name}, level ${card.level}. ${card.description}`}
+                aria-label={labels.cardAria
+                  .replace("{name}", card.name)
+                  .replace("{level}", String(card.level))
+                  .replace("{description}", card.description)}
                 aria-expanded={openCardId === card.id}
                 onClick={() => setOpenCardId((current) => current === card.id ? null : card.id)}
               >
                 <RogueCardIcon id={card.id} title={card.name} />
-                <b aria-label={`Level ${card.level}`}>{card.level}</b>
+                <b aria-label={labels.levelAria.replace("{level}", String(card.level))}>{card.level}</b>
               </button>
             ))}
           </div>

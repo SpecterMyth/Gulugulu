@@ -1,22 +1,22 @@
 // 昨日战报的纯逻辑（无 React / 无 Tauri）：日期格式化 + 狠辣吐槽选择。
 // 抽成独立模块便于 scripts/verify_welcome_report.mjs 离线单测（esbuild+Node）。
 
-import { fmt, type Language, type ShellStrings } from "../i18n";
+import { fmt, languageDefinition, type Language, type ShellStrings } from "../i18n";
 import type { DaySummary } from "../types";
 import { formatCount } from "./format";
 
 type WelcomeStrings = ShellStrings["welcome"];
 
-const EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** ISO 日期（YYYY-MM-DD）→ 人话短日期：zh「7月20日」/ en「Jul 20」。解析失败原样返回。 */
+/** ISO 日期（YYYY-MM-DD）→ 当前地区的短日期；解析失败原样返回。 */
 export function formatReportDate(iso: string, lang: Language): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return iso;
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  if (lang === "zh") return `${month}月${day}日`;
-  return `${EN_MONTHS[month - 1] ?? m[2]} ${day}`;
+  const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return new Intl.DateTimeFormat(languageDefinition(lang).htmlLang, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 /** raw token（含 cache_read，与公告板同口径）落哪个吐槽档（T0–T5）。导出供单测钉边界。 */

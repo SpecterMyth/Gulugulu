@@ -534,7 +534,7 @@ fn default_training_materials() -> Vec<String> {
 }
 
 fn default_training_material_counts() -> Vec<u32> {
-    vec![5, 8, 12, 18, 28]
+    vec![1, 2, 4, 10, 20]
 }
 
 fn default_training_costs() -> Vec<u64> {

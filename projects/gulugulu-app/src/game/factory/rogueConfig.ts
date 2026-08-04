@@ -21,6 +21,8 @@ export const LOADOUT_MAX = 10;
  * 继续得分只保留“已封顶”的事实，避免 Infinity 被序列化成 null 或显示成 0。
  */
 export const FACTORY_VALUE_CAP = Number.MAX_SAFE_INTEGER;
+/** A finished factory run can convert at most this much revenue into wallet coins. */
+export const FACTORY_COIN_REWARD_CAP = 10_000_000;
 /**
  * KPI 只占经济上限的 5%，为最高级卡价（最高 16.2× KPI）、贷款、账单和同班收入
  * 留出可同时存在的安全空间。标准 20 班不受影响，超长无限局约在第 48 班封顶。

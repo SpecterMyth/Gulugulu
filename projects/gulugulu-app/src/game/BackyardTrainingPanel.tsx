@@ -71,15 +71,16 @@ export function BackyardTrainingPanel({
         preset: built ? "unlock" : "upgrade",
         intensity: built || maxed ? 3 : 2,
         anchor: rootRef.current,
-        label:
-          lang === "zh"
-            ? built ? "训练馆落成" : maxed ? "训练馆满级" : `训练馆 Lv.${hallLevel}`
-            : built ? "TRAINING HALL BUILT" : maxed ? "TRAINING HALL MAXED" : `TRAINING HALL Lv.${hallLevel}`,
+        label: built
+          ? T.sh.misc.trainingHallBuilt
+          : maxed
+            ? T.sh.misc.trainingHallMaxed
+            : fmt(T.sh.misc.trainingHallLevel, { level: hallLevel }),
         dedupeKey: `training-hall:${hallLevel}`,
       });
     }
     prevHallLevelRef.current = hallLevel;
-  }, [config, hallLevel, lang]);
+  }, [T.sh.misc.trainingHallBuilt, T.sh.misc.trainingHallLevel, T.sh.misc.trainingHallMaxed, config, hallLevel]);
 
   useEffect(() => {
     const slotLevel = save.trainingSlotLevel ?? 1;
@@ -88,12 +89,12 @@ export function BackyardTrainingPanel({
         preset: "unlock",
         intensity: trainingSlotUpgradeCost(config, slotLevel) == null ? 3 : 2,
         anchor: rootRef.current,
-        label: lang === "zh" ? "训练位扩建" : "TRAINING SLOT ADDED",
+        label: T.sh.misc.trainingSlotAdded,
         dedupeKey: `training-slots:${slotLevel}`,
       });
     }
     prevSlotLevelRef.current = slotLevel;
-  }, [config, lang, save.trainingSlotLevel]);
+  }, [T.sh.misc.trainingSlotAdded, config, save.trainingSlotLevel]);
 
   useEffect(() => {
     const previous = prevJobsRef.current;
@@ -112,13 +113,13 @@ export function BackyardTrainingPanel({
           preset: "training",
           intensity: 3,
           anchor: rootRef.current,
-          label: lang === "zh" ? "训练完成 · 升阶" : "TRAINING COMPLETE",
+          label: T.sh.misc.trainingComplete,
           dedupeKey: `training-complete:${jobId}`,
         });
       }
     }
     prevJobsRef.current = current;
-  }, [jobs, lang]);
+  }, [T.sh.misc.trainingComplete, jobs]);
   // 材料条：五种升阶材料 + 万能券，按 config 顺序（= 阶梯顺序）展示，0 个也占位，
   // 让玩家一眼看出「卡在哪一档」。
   const materialIds = [...(config.trainingMaterials ?? []), universalMaterial(config)];

@@ -156,7 +156,7 @@ export function BackyardDexDetail({
   const speciesName = (code: string, zhFallback = ""): string => {
     const nameZh = config.species[code]?.nameZh;
     const nameEn = config.species[code]?.nameEn;
-    return lang === "zh" ? nameZh ?? zhFallback : speciesDisplayName(code, lang, nameZh, nameEn);
+    return lang.startsWith("zh") ? nameZh ?? zhFallback : speciesDisplayName(code, lang, nameZh, nameEn);
   };
   const msgOf = (error: unknown): string =>
     localizeGameMessage(error instanceof Error ? error.message : String(error), lang);

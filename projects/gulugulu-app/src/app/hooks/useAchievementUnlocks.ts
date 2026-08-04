@@ -5,6 +5,7 @@ import { makePetEvent } from "../speech";
 import type { PetEvent } from "../../types";
 import { useT } from "../../useT";
 import { emitPaperFx } from "../../ui/PaperFx";
+import { fmt } from "../../i18n";
 
 /** 成就解锁的应用内庆祝（SteamAchievements.md §5，用户定 P1）：🏆 toast + 宠物欢呼
  *  （success 庆祝跳）。无边框置顶小窗 + Steam 覆盖层可能被关，故不依赖覆盖层作唯一反馈。
@@ -14,7 +15,7 @@ export function useAchievementUnlocks(
   _showToastMsg: (text: string) => void,
   dispatchPetEvent: (event: PetEvent) => void,
 ): void {
-  const { lang } = useT();
+  const { lang, T } = useT();
   useEffect(() => {
     const pending = new Map<string, string>();
     let timer: number | null = null;
@@ -24,11 +25,11 @@ export function useAchievementUnlocks(
       const ids = [...pending.keys()].sort();
       const names = [...pending.values()];
       pending.clear();
-      const joined = names.join(lang === "zh" ? "、" : ", ");
+      const joined = new Intl.ListFormat(lang, { style: "short", type: "conjunction" }).format(names);
       emitPaperFx({
         intensity: 2,
         preset: "achievement",
-        label: lang === "zh" ? `成就解锁 · ${joined}` : `ACHIEVEMENT · ${joined}`,
+        label: fmt(T.sh.misc.achievementLabel, { names: joined }),
         eventId: `achievement:${ids.join("+")}`,
         dedupeKey: `achievement:${ids.join("+")}`,
         palette: ["#ffd75a", "#fff1a8", "#ef6d5a", "#63b7a7", "#fffdf1"],
@@ -44,5 +45,5 @@ export function useAchievementUnlocks(
       unsubscribe();
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [bridge, dispatchPetEvent, lang]);
+  }, [bridge, dispatchPetEvent, lang, T.sh.misc.achievementLabel]);
 }

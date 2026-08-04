@@ -139,7 +139,7 @@ Keyboard charging counts keystrokes per second; the characters become a 250 ms k
 | 类型 | 休闲(主)+ 模拟 |
 | 标签(向导,前 5 权重最高) | Creature Collector · Idler · Casual · Cute · Clicker · Life Sim · Simulation · Relaxing · 2D · Singleplayer · Colorful(以向导有效项为准) |
 | 类别勾选 | 单人 Single-player + **Steam 创意工坊**(工坊配置见 G) |
-| 支持语言 | 界面+完整支持:简体中文、英语;音频列全不勾(游戏无任何音频);其余语言不勾 |
+| 支持语言 | 当前后台仍只勾选已验证的简体中文、英语界面支持；音频与字幕列全不勾。应用已加入 21 语种选择，18 个新增 Steam 商店语言文案于 2026-08-04 上传为未发布草稿；其余界面语言必须在 `verify:i18n:strict` 通过并完成母语审校后再逐项勾选。阿拉伯语仅应用内支持（Steamworks 无对应平台语言码）。 |
 | 支持邮箱 | **steamdev@mobigames.cn** |
 | 支持 URL / 主页 | 暂空(GitHub 仓库转公开后可补——icon_url 待决项同源) |
 | 成人内容 | 无 |
@@ -210,10 +210,11 @@ AI disclosure (en):
 - [ ] 定价(I)$0.99/¥6 保存 —— 待填(用户授权填草稿不发布)
 - [ ] 商店页预览走查(zh/en)
 - [ ] Checklist 全绿 → **停,交用户本人点提审**
-- [ ] 全程不碰:「奇蛋生物」3950480、掉落参数(R8)、itemdefs
+- [ ] 商店发布阶段不改动线上「奇蛋生物」3950480、掉落参数(R8)或线上 itemdefs；多语种 itemdefs 仅生成并校验本地草稿，待独立审核后再上传
 
 ## K. 上传日志
 
+- 2026-08-04 本地化 tab:从 Steamworks 导出最新“所有语言”JSON,以白名单方式只合并 18 个新增 Steam 官方语言的版权、短简介和详细介绍,共 54 个字段;上传后保持“更改未发布”。再次导出回读,54/54 字段与上传包一致,英语与简体中文逐字段未变。未修改游戏内语言复选框,也未发布商店更改。
 - 2026-07-18 商店编辑器 `/admin/game/edit/1247252` POST `/admin/game/save/1247252`:基本信息+中英说明全量保存,回执 SuccessMsg "Changes saved",逐字段回读通过。
 - 2026-07-18 图形素材上传技术勘察:合成 DragEvent/input.files 赋值/localhost 中转(fetch 与 `<img>`)全部被 Steam+浏览器安全策略封死;页面内部函数 `LoadImageFilesForUpload([File])` 是唯一注入通道(已验证:small_capsule 成功进预览、Steam 按尺寸自动锁类型 "Small Capsule")。但 20+ 张 base64 逐张过对话不经济 → 改用户手动拖入。
 

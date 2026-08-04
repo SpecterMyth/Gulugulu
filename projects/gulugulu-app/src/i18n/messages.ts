@@ -18,10 +18,11 @@
 // MESSAGES 两语键集必须一致(键漏配会在 en 下回退 zh 模板)。
 // zh 模板与后端原文案逐字节一致(动态处用 {arg} 占位)。
 
-import { fmt, type Language } from "./core";
+import { fmt, isChineseLanguage, migrateLegacyLanguageMap, type Language } from "./core";
+import { generatedDomainLocales } from "./generatedLocales";
 import { recipeLabel, speciesDisplayName, titleCaseCode } from "./species";
 
-export const MESSAGES: Record<Language, Record<string, string>> = {
+export const MESSAGES: Record<Language, Record<string, string>> = migrateLegacyLanguageMap({
   zh: {
     // ---- 通用 ----
     notEnoughCoins: "金币不足",
@@ -81,7 +82,7 @@ export const MESSAGES: Record<Language, Record<string, string>> = {
     missingTier1Mapping: "缺少该属性的一阶 Steam 映射",
     dropWindowCapped: "这窝蛋今天被你薅到见底啦（{cap}/{cap}），咕噜挂出「明日请早」的牌子先睡了 🦆",
     dropCooldown: "Steam 还在确认上一颗蛋，咕噜正抱着号码牌排队——等一分钟再来领吧 🎫",
-    dropPlaytimeShort: "Steam 还没确认这颗蛋的游玩时长，咕噜正在窗口拍翅膀催单——再玩一会儿，确认后就能领 🦆",
+    dropPlaytimeShort: "Steam 暂时没有放行这颗蛋，咕噜正在窗口拍翅膀催单——蛋还在，稍后再点一次领取 🦆",
     steamDropFailed: "Steam 那边闹脾气了：{err}（蛋没丢，喘口气再收）",
     steamDropTimeout: "Steam 打了个盹没回话，蛋先替你留着，等它回魂再点收 😴",
     steamItemIdCorrupt: "Steam 物品 id 损坏，请先同步",
@@ -205,7 +206,7 @@ export const MESSAGES: Record<Language, Record<string, string>> = {
     missingTier1Mapping: "Missing the tier-1 Steam mapping for that element",
     dropWindowCapped: "You've cleaned out today's nest ({cap}/{cap}) — Gulu hung a “come back tomorrow” sign and went to sleep 🦆",
     dropCooldown: "Steam is still confirming your last egg. Gulu grabbed a queue ticket — try again in a minute 🎫",
-    dropPlaytimeShort: "Steam hasn't confirmed this egg's playtime yet. Gulu is flapping at the counter — play a little longer, then collect once it's confirmed 🦆",
+    dropPlaytimeShort: "Steam hasn't released this egg yet. Gulu is flapping at the counter — your egg is safe, so try collecting it again shortly 🦆",
     steamDropFailed: "Steam is throwing a tantrum: {err} (your egg is safe — catch your breath and retry)",
     steamDropTimeout: "Steam dozed off mid-reply — I'll hold your egg; collect again once it wakes up 😴",
     steamItemIdCorrupt: "Steam item id corrupted — run a sync first",
@@ -269,7 +270,8 @@ export const MESSAGES: Record<Language, Record<string, string>> = {
     mockValidateFailed: "Mock generation failed validation: {err}",
     fusionCliMissingPreview: "Claude Code: command not found; Codex: command not found (preview ?nocli=1)",
   },
-};
+  ...generatedDomainLocales("messages"),
+});
 
 function parseArgs(pairs: string[]): Record<string, string> {
   const args: Record<string, string> = {};
@@ -302,13 +304,13 @@ export function localizeGameMessage(raw: string, lang: Language): string {
     args.species =
       args.nameZh !== undefined || args.nameEn !== undefined
         ? speciesDisplayName(args.species, lang, args.nameZh || undefined, args.nameEn || undefined)
-        : lang === "zh"
+        : isChineseLanguage(lang)
           ? args.species
           : titleCaseCode(args.species);
   }
   // 内层错误本身也是协议串(如 "#steamExchangeFailed|err=#steamNotConnected")→ 递归本地化。
   if (args.err && args.err.startsWith("#")) args.err = localizeGameMessage(args.err, lang);
-  const template = MESSAGES[lang]?.[head] ?? MESSAGES.zh[head];
+  const template = MESSAGES[lang]?.[head] ?? MESSAGES["zh-Hans"][head];
   if (!template) return raw.slice(1);
   return fmt(template, args);
 }

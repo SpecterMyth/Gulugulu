@@ -63,12 +63,12 @@ export function BackyardHatcheryPits({
         preset: "unlock",
         intensity: slotCount >= maxSlots ? 3 : 2,
         anchor: pitRefs.current.get(unlockedSlot),
-        label: lang === "zh" ? "孵化坑解锁" : "HATCH PIT UNLOCKED",
+        label: T.sh.misc.hatchPitUnlocked,
         dedupeKey: `hatchery-slot:${slotCount}`,
       });
     }
     prevSlotCountRef.current = slotCount;
-  }, [lang, maxSlots, slotCount]);
+  }, [T.sh.misc.hatchPitUnlocked, maxSlots, slotCount]);
 
   useEffect(() => {
     const previous = prevEggSlotsRef.current;
@@ -97,7 +97,7 @@ export function BackyardHatcheryPits({
   const eggSpeciesName = (code: string): string => {
     const nameZh = config.species[code]?.nameZh;
     const nameEn = config.species[code]?.nameEn;
-    return lang === "zh" ? nameZh ?? "?" : speciesDisplayName(code, lang, nameZh, nameEn);
+    return lang.startsWith("zh") ? nameZh ?? "?" : speciesDisplayName(code, lang, nameZh, nameEn);
   };
   // 教练锚点：后院里教练用 {kind:"egg"} 指向当前流程要求收取的那颗蛋。
   // 优先已可收取的；否则最靠前坑里的一颗。只标这一颗，避免 CoachFx 锚到错误的蛋。
@@ -206,6 +206,20 @@ export function BackyardHatcheryPits({
         const ready = remain <= 0;
         const { progress } = eggHatchInfo(config, egg, now);
         const fusion = egg.pendingFusion ?? null;
+        const waitingForSteam = syncingEggIds.has(egg.id);
+        const providerName =
+          fusion?.provider === "codex" ? "Codex" : fusion?.provider ? "Claude" : null;
+        const designStatus = fusion
+          ? fusion.status === "resolved"
+            ? bk.designDone
+            : fusion.status === "failed"
+              ? bk.genFailed
+              : fusion.status === "generating" && providerName
+                ? fmt(bk.generating, { provider: providerName })
+                : providerName
+                  ? fmt(bk.queuedProvider, { provider: providerName })
+                  : bk.queued
+          : null;
         const eggTitle =
           fusion && fusion.status !== "resolved"
             ? fmt(bk.mysteryEggTitle, {
@@ -247,21 +261,18 @@ export function BackyardHatcheryPits({
             </div>
             {fusion && (
               <span
-                className={`by-pit-fusion ${
+                className={`by-pit-fusion is-ai ${
                   fusion.status === "resolved" ? "is-resolved" : fusion.status === "failed" ? "is-failed" : ""
                 }`}
               >
-                {fusion.status === "resolved"
-                  ? bk.designDone
-                  : fusion.status === "failed"
-                    ? bk.genFailed
-                    : fusion.provider
-                      ? fmt(bk.generating, { provider: fusion.provider === "codex" ? "Codex" : "Claude" })
-                      : bk.queued}
+                {designStatus}
               </span>
             )}
-            {syncingEggIds.has(egg.id) && (
-              <span className={`by-pit-fusion ${fusion ? "is-row2" : ""}`} title={bk.syncingTitle}>
+            {waitingForSteam && (
+              <span
+                className={`by-pit-fusion is-steam ${fusion ? "is-row2" : ""}`}
+                title={bk.syncingTitle}
+              >
                 {bk.syncing}
               </span>
             )}

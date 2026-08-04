@@ -8,7 +8,7 @@ import type { CSSProperties } from "react";
 import type { FactoryLeaderboardStatus, GameConfig } from "../../../types";
 import { formatCount } from "../../format";
 import { FACTORY_ROGUE } from "../../../i18n/factoryRogue";
-import { TOTAL_SHIFTS } from "../rogueConfig";
+import { FACTORY_COIN_REWARD_CAP, TOTAL_SHIFTS } from "../rogueConfig";
 import type { RogueRunApi, RunView } from "../rogueTypes";
 import { emitPaperFx } from "../../../ui/PaperFx";
 
@@ -124,7 +124,7 @@ export function RogueSummary({
       )}
       {madeRevenueRecord && (
         <div className="fr-sum-record-note" role="status">
-          <span>★ NEW RECORD ★</span>
+          <span>{R.sumNewRecordBadge}</span>
           <strong>{R.steamNewRecord}</strong>
           <small>{formatCount(view.revenueTotal)}</small>
         </div>
@@ -149,7 +149,7 @@ export function RogueSummary({
         <section className="fr-sum-rewards" aria-labelledby="fr-sum-rewards-title">
           <header className="fr-sum-rewards-head">
             <div>
-              <span className="fr-sum-rewards-kicker">FACTORY DROP</span>
+              <span className="fr-sum-rewards-kicker">{R.sumFactoryDrop}</span>
               <h3 id="fr-sum-rewards-title">{R.sumRewards}</h3>
               <p>{R.sumUpgradeHint}</p>
             </div>
@@ -160,7 +160,7 @@ export function RogueSummary({
 
           <div className="fr-sum-coin-reward">
             <span>🪙 {R.sumCoinsEarned}</span>
-            <strong>+{formatCount(view.revenueTotal)}</strong>
+            <strong>+{formatCount(Math.min(view.revenueTotal, FACTORY_COIN_REWARD_CAP))}</strong>
           </div>
 
           <h4 className="fr-sum-reward-subtitle">{R.sumThisRunItems}</h4>
@@ -254,19 +254,19 @@ export function RogueSummary({
             <button type="button" className="fr-sum-steam-rank" onClick={onLeaderboard}>
               <span aria-hidden="true">STEAM</span>
               <strong>{fmt(R.steamGlobalRank, { rank: leaderboardStatus.globalRank })}</strong>
-              <small>{lang === "zh" ? "点击查看全球榜" : "View leaderboard"}</small>
+              <small>{R.sumViewLeaderboard}</small>
             </button>
           ) : leaderboardStatus?.pending ? (
             <button type="button" className="fr-sum-steam-rank is-syncing" onClick={onLeaderboard}>
               <span aria-hidden="true">STEAM</span>
               <strong>{R.steamSyncing}</strong>
-              <small>{lang === "zh" ? "点击查看全球榜" : "View leaderboard"}</small>
+              <small>{R.sumViewLeaderboard}</small>
             </button>
           ) : (
             <button type="button" className="fr-sum-steam-rank" onClick={onLeaderboard}>
               <span aria-hidden="true">STEAM</span>
-              <strong>{lang === "zh" ? "Steam 全球第 — 名" : "Steam global rank —"}</strong>
-              <small>{lang === "zh" ? "点击查看全球榜" : "View leaderboard"}</small>
+              <strong>{R.steamGlobalRankEmpty}</strong>
+              <small>{R.sumViewLeaderboard}</small>
             </button>
           )}
         </aside>

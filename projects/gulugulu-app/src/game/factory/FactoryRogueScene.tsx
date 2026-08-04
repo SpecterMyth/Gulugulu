@@ -37,6 +37,7 @@ import { fmt } from "../../i18n";
 import { elementName } from "../../i18n/species";
 import { FACTORY_ROGUE } from "../../i18n/factoryRogue";
 import {
+  FACTORY_COIN_REWARD_CAP,
   PULSE_TIERS,
   factoryValueString,
   hasWindRule,
@@ -93,17 +94,6 @@ const FACTORY_MATERIAL_ICONS: Record<string, string> = {
   ironBadge: "🔩", copperGoggles: "🥽", silverHelmet: "⛑️",
   goldWrench: "🔧", platinumVest: "🦺", goldenBadge: "🎟️",
 };
-const FACTORY_MATERIAL_NAMES: Record<"zh" | "en", Record<string, string>> = {
-  zh: {
-    ironBadge: "铁质工牌", copperGoggles: "铜质护目镜", silverHelmet: "银质安全帽",
-    goldWrench: "鎏金扳手", platinumVest: "铂金工装", goldenBadge: "金牌工牌",
-  },
-  en: {
-    ironBadge: "Iron Badge", copperGoggles: "Copper Goggles", silverHelmet: "Silver Helmet",
-    goldWrench: "Gilded Wrench", platinumVest: "Platinum Vest", goldenBadge: "Gold Badge",
-  },
-};
-
 type FactoryRewardFx = { id: number; material: string; count: number };
 
 function strikeWarningWasAcknowledged(): boolean {
@@ -669,7 +659,7 @@ function RogueRunStage({
       graduatedWithoutLoan: view.graduated && !view.usedLoanEver,
       rewardCoins:
         view.phase === "summary" || view.phase === "bankrupt"
-          ? factoryValueString(view.revenueTotal)
+          ? factoryValueString(Math.min(view.revenueTotal, FACTORY_COIN_REWARD_CAP))
           : undefined,
     };
     const key = JSON.stringify(snapshot);
@@ -743,7 +733,7 @@ function RogueRunStage({
       });
   }, [cleared, gameBridge, view.endless, view.phase, view.revenueTotal]);
 
-  const { lang } = useT();
+  const { lang, T } = useT();
   const R = FACTORY_ROGUE[lang];
   const RRef = useRef(R);
   RRef.current = R;
@@ -1261,7 +1251,31 @@ function RogueRunStage({
     if (new URLSearchParams(window.location.search).get("frdebug") !== "1") return;
     const w = window as unknown as Record<string, unknown>;
     w.__frRun = run;
-    w.__frFx = { activeParticles: () => fxRef.current?.activeParticles() ?? 0 };
+    w.__frFx = {
+      activeParticles: () => fxRef.current?.activeParticles() ?? 0,
+      // 商店录制/性能自检使用：走真实 RoguePulseFx 金币对象池与飞向 HUD 的轨迹。
+      coinWave: () => fxRef.current?.kpiBonus(250_000),
+      confetti: () => fxRef.current?.confetti(),
+      showcaseImpact: (variant = 0) => {
+        const stage = stageRef.current;
+        const width = stage?.clientWidth ?? window.innerWidth;
+        const height = stage?.clientHeight ?? window.innerHeight;
+        const slot = Math.abs(Number(variant) || 0) % 4;
+        const at = {
+          x: width * ([0.32, 0.46, 0.62, 0.74][slot] ?? 0.5),
+          y: height * ([0.58, 0.66, 0.55, 0.63][slot] ?? 0.6),
+        };
+        fxRef.current?.protest({ at, amount: 18_888 + slot * 7_777, tier: 2 + (slot % 2) });
+        fxRef.current?.edgeFlash(1 + (slot % 3));
+        if (slot % 2 === 1) {
+          fxRef.current?.strikeRings([
+            { x: at.x - 84, y: at.y + 34, r: 42 },
+            { x: at.x + 4, y: at.y + 12, r: 48 },
+            { x: at.x + 92, y: at.y + 38, r: 40 },
+          ]);
+        }
+      },
+    };
     return () => {
       delete w.__frRun;
       delete w.__frFx;
@@ -1424,7 +1438,7 @@ function RogueRunStage({
               ? `+$${formatCount(Math.round(e.amount))}${(e.repeatCount ?? 1) > 1 ? ` ×${e.repeatCount}` : ""}`
               : `+${formatCount(Math.round(e.amount))}`,
             label: e.kind === "total"
-              ? (lang === "zh" ? "团队业绩" : "TEAM PERFORMANCE")
+              ? R.runtimeTeamPerformance
               : undefined,
             cls: e.kind === "total" ? "is-total" : tierClsFor(e.amount),
             protest: e.protest,
@@ -1450,7 +1464,7 @@ function RogueRunStage({
               x: b != null ? b.x : null,
               y: b != null ? b.y - Math.round(b.r * 0.3) : null,
               text: `+${formatCount(Math.round(e.amount))}`,
-              label: lang === "zh" ? "压榨业绩" : "EXPLOITATION PERFORMANCE",
+              label: R.runtimeExploitationPerformance,
               cls: "is-part",
               protest: false,
               until: nowT + FLOAT_MS,
@@ -1721,9 +1735,7 @@ function RogueRunStage({
       {resumeNoticeSeconds != null && (
         <div className="fr-resume-notice" role="status" aria-live="polite">
           <span aria-hidden="true">⏸</span>
-          {lang === "zh"
-            ? `后台计时已暂停 ${resumeNoticeSeconds} 秒，继续开工！`
-            : `Paused safely for ${resumeNoticeSeconds}s — back to work!`}
+          {fmt(R.runtimePaused, { seconds: resumeNoticeSeconds })}
         </div>
       )}
       {view.phase === "hiring" && (
@@ -1846,7 +1858,7 @@ function RogueRunStage({
               {FACTORY_MATERIAL_ICONS[effect.material] ?? "🎁"}
             </span>
             <strong>
-              {FACTORY_MATERIAL_NAMES[lang][effect.material] ?? effect.material}{" "}
+              {T.bk.training.materialNames[effect.material] ?? effect.material}{" "}
               <small>×{effect.count}</small>
             </strong>
           </div>

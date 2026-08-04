@@ -31,7 +31,7 @@ import { getSpeciesVisual } from "../sprites/speciesTable";
 import { elementName, fmt } from "../i18n";
 import { useT } from "../useT";
 import { BADGE_PATHS } from "./ElementIcon";
-import { previewFacPile } from "../preview/shotParams";
+import { previewFacPile, previewFacSeed, previewFactoryShowcase } from "../preview/shotParams";
 import { registerHitRegion } from "../app/hooks/useClickThrough";
 import type { BodyLike, RogueSceneBridge } from "./factory/rogueTypes";
 import { buildAdjacency } from "./factory/rogueGraph";
@@ -68,6 +68,10 @@ const PLANE_CROSS_S = 5.2;
 const PLANE_PATROL_MIN = 0.02;
 const PLANE_PATROL_MAX = 0.98;
 const RELOAD_MS = 900; // 空投后机上补货延迟
+/**
+ * Trailer capture can accelerate the interactive carrier/drop loop without
+ * speeding the separately-rendered reward particles or soundtrack.
+ */
 const CAPTURE_MOTION_SCALE = (() => {
   if (typeof window === "undefined") return 1;
   const query = new URLSearchParams(window.location.search);
@@ -718,7 +722,7 @@ const FactoryPetNode = memo(function FactoryPetNode({
       setAfterLand("drop"); // 坍塌重新落体后，下次落地重演 drop
       return;
     }
-    const timer = window.setTimeout(() => setAfterLand("laboring"), 640);
+    const timer = window.setTimeout(() => setAfterLand("laboring"), 640 / CAPTURE_MOTION_SCALE);
     return () => window.clearTimeout(timer);
   }, [landed]);
   const petState: PetState = pathSleeping ? "sleeping" : frozen ? "laboring" : landed ? afterLand : "dragging";
@@ -864,7 +868,20 @@ export function FactoryScene({
   // 并分三波刷打工粒子。
   const spotlightToken = spotlight?.token;
   useEffect(() => {
-    if (rogue == null || spotlight == null) return;
+    // The parent drops the spotlight signal as soon as play is covered by an
+    // overlay (notably the shop where Move Desk is resolved).  The effect
+    // cleanup below cancels the old timers, so also clear every local visual
+    // latch here; otherwise the dimmed scene and pre-swap hero copies survive
+    // indefinitely when the next shift resumes.
+    if (rogue == null || spotlight == null || previewFactoryShowcase()) {
+      spotlightRef.current = null;
+      setDeskSpot(null);
+      setSpotActive(false);
+      setSceneDimActive(false);
+      setSceneDimRestoring(false);
+      setHeroPets([]);
+      return;
+    }
     const duration = spotlight.durationMs ?? SPOTLIGHT_MS;
     spotlightRef.current = {
       uids: new Set(spotlight.uids),
@@ -928,7 +945,14 @@ export function FactoryScene({
   }, [spotlightToken]);
   const connectionFailureToken = connectionFailure?.token;
   useEffect(() => {
-    if (rogue == null || connectionFailure == null) return;
+    // The parent clears the failure signal when play is paused (for example,
+    // when the shop opens).  Keep the locally rendered ghost in sync with that
+    // signal: otherwise the old timeout is cancelled by this effect's cleanup
+    // while `failedPet` remains mounted forever underneath the next overlay.
+    if (rogue == null || connectionFailure == null) {
+      setFailedPet(null);
+      return;
+    }
     const b = bodiesRef.current.get(connectionFailure.uid);
     if (
       b == null
@@ -961,6 +985,8 @@ export function FactoryScene({
   );
   // 桌面几何快照（rogue 桥 registerSnapshots 的 desks 数据源；与 setDesks 同步维护）。
   const desksSnapRef = useRef<Desk[]>(layoutDesks(760, 560, deskOrderRef.current, deskWidenRef.current));
+  // 暂停态不跑物理 rAF，但搬桌仍需要立即重画一帧 Canvas，不能等到下次开工/重进场景。
+  const redrawPileRef = useRef<() => void>(() => {});
   const runnersRef = useRef<Map<number, Runner>>(new Map());
   const runnerElRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   // 尺寸变化重排桌子后要重算支撑（桌挪走了上面的宠得塌下来）；函数在下方定义，
@@ -970,6 +996,7 @@ export function FactoryScene({
   // 在养宠快照（随机抽取用；场景打开期间孵化/放生会实时反映）。
   const ownedRef = useRef(save.pets);
   ownedRef.current = save.pets;
+  const showcaseDropIndexRef = useRef(previewFacSeed());
 
   /** 桌重排管线（尺寸变化 / rogue 搬桌共用）：按当前桌序重排桌子 + 重建碰撞体
    *  + 重算支撑（桌挪位后失去托底的宠塌下来）。 */
@@ -1004,11 +1031,12 @@ export function FactoryScene({
   // 重建 obstacles。跨桌连通结构已经在逻辑层按最近桌根切开，不会整片拖走。
   const deskOrder = rogue?.deskOrder;
   const appliedOrderRef = useRef(deskOrderRef.current.join(","));
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (deskOrder == null) return;
     const key = deskOrder.join(",");
     if (key === appliedOrderRef.current) return;
     const moves = rogueRef.current?.takeDeskMoves?.() ?? [];
+    const moveDxByUid = new Map(moves.map((move) => [move.uid, move.dx]));
     for (const move of moves) {
       const body = bodiesRef.current.get(move.uid);
       if (body == null) continue;
@@ -1017,10 +1045,32 @@ export function FactoryScene({
       body.vy = 0;
       body.settled = true;
       body.stuck = true;
+      // 宽限期内的角色仍是 DOM 精灵，暂停态不会有 rAF 替它刷 transform。
+      const outer = outerRefs.current.get(body.uid);
+      if (outer != null) {
+        outer.style.transform = `translate3d(${body.x - PET_SIZE / 2}px, ${body.y + body.r - PET_SIZE * FEET_RATIO}px, 0)`;
+        outer.style.zIndex = String(1000 + Math.round(body.y));
+      }
+      rogueRef.current?.positionBodyState?.(body.uid, body.x, body.y, 0);
     }
+    // 整座受保护的塔只是平移时，同步它的罢工豁免位置基线；若搬桌真的切断了组件，后续仍会因成员集变化而失效。
+    const seenProtections = new Set<NonNullable<Body["strikeProtection"]>>();
+    for (const body of bodiesRef.current.values()) {
+      const protection = body.strikeProtection;
+      if (protection == null || seenProtections.has(protection)) continue;
+      seenProtections.add(protection);
+      for (const position of protection.positions) {
+        position.x += moveDxByUid.get(position.uid) ?? 0;
+      }
+    }
+    setAssimilationFx((previous) => previous.map((item) => {
+      const dx = moveDxByUid.get(item.uid);
+      return dx == null ? item : { ...item, x: item.x + dx };
+    }));
     appliedOrderRef.current = key;
     deskOrderRef.current = deskOrder;
     applyDeskLayout(sceneRef.current.w, sceneRef.current.h);
+    redrawPileRef.current();
   }, [deskOrder, applyDeskLayout]);
 
   // rogue 桌宽倍率变更（首班教学加宽 → 第 2 班回正）：同一条重排管线。
@@ -1047,6 +1097,11 @@ export function FactoryScene({
             r: b.r,
             settled: b.settled,
             fromCollapse: b.fromCollapse === true,
+            strikeProtection: b.strikeProtection == null ? undefined : {
+              species: b.strikeProtection.species,
+              members: b.strikeProtection.members.slice(),
+              positions: b.strikeProtection.positions.map((position) => ({ ...position })),
+            },
           }),
         ),
       desks: () =>
@@ -1275,10 +1330,15 @@ export function FactoryScene({
   const spawnCarried = useCallback(() => {
     const rg = rogueRef.current;
     let species: string;
-    if (rg != null) {
+    if (rg != null && previewFactoryShowcase()) {
+      const speciesPool = [...new Set(ownedRef.current.map((pet) => pet.species))];
+      if (speciesPool.length === 0) return;
+      species = speciesPool[showcaseDropIndexRef.current % speciesPool.length];
+      showcaseDropIndexRef.current += 1;
+    } else if (rg != null) {
       const head = rg.nextCarried();
       if (head == null) {
-        planeRef.current.reloadAt = performance.now() + RELOAD_MS; // 空钩：稍后再问
+        planeRef.current.reloadAt = performance.now() + RELOAD_MS / CAPTURE_MOTION_SCALE; // 空钩：稍后再问
         return;
       }
       species = head.species;
@@ -1304,7 +1364,7 @@ export function FactoryScene({
       return;
     }
     const rg = rogueRef.current;
-    if (rg != null && !rg.onThrow(current.uid, current.species)) {
+    if (rg != null && !previewFactoryShowcase() && !rg.onThrow(current.uid, current.species)) {
       // 雇不起/没名额/非投掷阶段：载宠原地抖一下（一次性 css 动画）作电报。
       const hang = hangElRef.current;
       if (hang) {
@@ -1348,7 +1408,7 @@ export function FactoryScene({
     setPileCount(bodiesRef.current.size);
     carriedRef.current = null;
     setCarried(null);
-    plane.reloadAt = now + RELOAD_MS;
+    plane.reloadAt = now + RELOAD_MS / CAPTURE_MOTION_SCALE;
     setHintGone(true);
   }, [collisionRadius, speciesElements]);
 
@@ -1835,11 +1895,13 @@ export function FactoryScene({
    *  必须在 detectStrikes **之前**调：第三只粘上先结脉冲再触发罢工。 */
   const reportRogueSettles = useCallback(() => {
     const rg = rogueRef.current;
+    const captureShowcase = previewFactoryShowcase();
     bodiesRef.current.forEach((b) => {
       if (!b.settled) return;
       b.fromCollapse = false; // 再次落定时清（无论是否已报过）
       if (rg == null || b.rogueReported) return;
       b.rogueReported = true;
+      if (captureShowcase) return;
       if (b.stuck) rg.onSettled(b.uid);
       else rg.onBounced(b.uid, b.species);
       if (b.overtimeWorker === true && b.stuck) {
@@ -1899,9 +1961,11 @@ export function FactoryScene({
   // 逐只找「落在已有圆上的静置位」，与真实堆叠同一几何；离地的按 stuck 记账。
   useEffect(() => {
     const n = previewFacPile();
-    if (rogueRef.current != null) return; // 压测播种只属于演示模式（rogue 名单/账务对不上）
+    // 正常 rogue 仍禁止播种；商店录制专用 frshowcase 仅预填视觉打工山，真实
+    // Rogue HUD / 落体 / 金币演出继续运行，且只在 ?shot=1&frdebug=1 下可启用。
+    if (rogueRef.current != null && !previewFactoryShowcase()) return;
     if (n <= 0 || ownedRef.current.length === 0 || bodiesRef.current.size > 0) return;
-    let rngState = 1234567;
+    let rngState = previewFacSeed();
     const rand = () => ((rngState = (rngState * 1664525 + 1013904223) >>> 0) / 4294967296);
     const sc = sceneRef.current;
     const groundY = sc.h - FLOOR_H;
@@ -1967,9 +2031,6 @@ export function FactoryScene({
 
   // ---- 物理 + 巡航 + 打工山画布绘制主循环 ----
   useEffect(() => {
-    // 结算/商店/总结都把场景完全盖住。继续跑 60Hz 会白白重画整座 Canvas，
-    // 透明 WebView 下还会迫使桌面合成器持续重组背后的窗口。
-    if (paused) return;
     let raf = 0;
     let last = performance.now();
     let nextPathSleepAudit = 0;
@@ -2130,11 +2191,20 @@ export function FactoryScene({
       }
     };
 
+    // 结算/商店/总结不跑 60Hz，但保留一个可命令的单帧重画口；
+    // 搬桌在这些阶段发生，桌体 DOM 与角色 Canvas 必须在同一次提交后对齐。
+    redrawPileRef.current = () => drawPile(performance.now(), 0);
+    if (paused) {
+      redrawPileRef.current();
+      return;
+    }
+
     const step = (now: number) => {
       raf = requestAnimationFrame(step);
       // rogue hit-stop:大脉冲瞬间全场慢镜(物理/巡航/跑路者共用同一 dt)。
       const timeScale = rogueRef.current?.timeScale?.() ?? 1;
       const dt = Math.min(0.032, (now - last) / 1000) * timeScale;
+      const dropDt = dt * CAPTURE_MOTION_SCALE;
       last = now;
       const sc = sceneRef.current;
       const groundY = sc.h - FLOOR_H;
@@ -2222,7 +2292,7 @@ export function FactoryScene({
       const minX = Math.max(PLANE_W / 2 + 8, sc.w * PLANE_PATROL_MIN);
       const maxX = Math.min(sc.w - PLANE_W / 2 - 8, sc.w * PLANE_PATROL_MAX);
       plane.speed = Math.max(120, (maxX - minX) / PLANE_CROSS_S);
-      plane.x += plane.dir * plane.speed * dt * CAPTURE_MOTION_SCALE;
+      plane.x += plane.dir * plane.speed * dropDt;
       if (plane.x >= maxX) {
         plane.x = maxX;
         plane.dir = -1;
@@ -2265,7 +2335,7 @@ export function FactoryScene({
           if (head == null || head.species !== carriedRef.current.species) {
             carriedRef.current = null;
             setCarried(null);
-            plane.reloadAt = now + 260; // 短延迟重询，接上新袋头
+            plane.reloadAt = now + 260 / CAPTURE_MOTION_SCALE; // 短延迟重询，接上新袋头
           }
         }
       }
@@ -2325,10 +2395,10 @@ export function FactoryScene({
           }
           return;
         }
-        b.vy += GRAVITY * dt;
-        if (windAx !== 0) b.vx += windAx * dt;
-        b.x += b.vx * dt;
-        b.y += b.vy * dt;
+        b.vy += GRAVITY * dropDt;
+        if (windAx !== 0) b.vx += windAx * dropDt;
+        b.x += b.vx * dropDt;
+        b.y += b.vy * dropDt;
         // 支撑来源：只有地面提供普通落定支撑；桌面是属性工位——属性对上在
         // 碰撞环节即时粘附，不合直接弹飞（桌面不再是通用支撑面）。
         let support: "ground" | null = null;
@@ -2398,7 +2468,7 @@ export function FactoryScene({
               const tx = -ny;
               const ty = nx;
               let vt = b.vx * tx + b.vy * ty;
-              vt *= Math.exp(-2 * dt);
+              vt *= Math.exp(-2 * dropDt);
               const bounced = Math.max(-vn * REST_MISMATCH, MISMATCH_POP);
               b.vx = nx * bounced + tx * vt;
               b.vy = ny * bounced + ty * vt;
@@ -2477,7 +2547,7 @@ export function FactoryScene({
             const tx = -ny;
             const ty = nx;
             let vt = b.vx * tx + b.vy * ty;
-            vt *= Math.exp(-2 * dt);
+            vt *= Math.exp(-2 * dropDt);
             const bounced = Math.max(-vn * REST_MISMATCH, MISMATCH_POP);
             b.vx = nx * bounced + tx * vt;
             b.vy = ny * bounced + ty * vt;
@@ -2511,14 +2581,17 @@ export function FactoryScene({
                 b.vy = 0;
               }
             }
-            b.vx *= Math.exp(-6 * dt); // 地面滚动摩擦
+            b.vx *= Math.exp(-6 * dropDt); // 地面滚动摩擦
           }
 
           // 落定 = 地面托住 + 低速（桌面/同属性宠的粘附都在碰撞环节即时发生）。
           const speed = Math.hypot(b.vx, b.vy);
           const age = now - b.bornAt;
-          const timedOut = age > MAX_AIR_MS;
-          if ((support === "ground" && speed < SETTLE_SPEED && age > MIN_AIR_MS) || timedOut) {
+          const timedOut = age > MAX_AIR_MS / CAPTURE_MOTION_SCALE;
+          if (
+            (support === "ground" && speed < SETTLE_SPEED && age > MIN_AIR_MS / CAPTURE_MOTION_SCALE)
+            || timedOut
+          ) {
             if (timedOut) b.y = groundY - b.r;
             if (rg != null) {
               // rogue 新规则：落到地面(没粘上任何桌/宠)的宠**直接溜走消失**——等同罢工。
@@ -2647,7 +2720,7 @@ export function FactoryScene({
       const toRemove = new Set<number>();
       bodies.forEach((b) => {
         if (!b.settled || !b.inDom) return;
-        if (now - b.settledAt < SWAP_GRACE_MS) return;
+        if (now - b.settledAt < SWAP_GRACE_MS / CAPTURE_MOTION_SCALE) return;
         if (!atlasRef.current.get(b.species)?.ready) return;
         b.inDom = false;
         toRemove.add(b.uid);
@@ -3065,6 +3138,8 @@ export function FactoryScene({
             back: FACTORY_ROGUE[lang].hudBack,
             workPerformance: FACTORY_ROGUE[lang].loBaseValue.replace(" {n}", ""),
             exploitationCount: FACTORY_ROGUE[lang].loReach.replace(" {n}", ""),
+            cardAria: FACTORY_ROGUE[lang].cardAria,
+            levelAria: FACTORY_ROGUE[lang].levelAria,
           }}
           onExit={onBack}
         />

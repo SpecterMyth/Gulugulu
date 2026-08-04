@@ -30,7 +30,7 @@ function overlapArea(
 }
 
 export function CoachFx({ directive }: { directive: CoachDirective | null }) {
-  const { lang } = useT();
+  const { T } = useT();
   const ringRef = useRef<HTMLDivElement>(null);
   const handRef = useRef<HTMLDivElement>(null);
   const handInnerRef = useRef<HTMLDivElement>(null);
@@ -181,9 +181,9 @@ export function CoachFx({ directive }: { directive: CoachDirective | null }) {
             </>
           ) : gesture === "drop" ? (
             <span className="coach-key is-space">
-              <span className="coach-space-label">{lang === "zh" ? "空格键" : "SPACE"}</span>
+              <span className="coach-space-label">{T.sh.misc.coachSpace}</span>
               <span className="coach-space-action">
-                {lang === "zh" ? "按下投放" : "PRESS TO DROP"}
+                {T.sh.misc.coachPressDrop}
               </span>
             </span>
           ) : (

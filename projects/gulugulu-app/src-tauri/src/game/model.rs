@@ -645,7 +645,7 @@ pub struct DailyCounters {
     pub egg_mints: BTreeMap<String, u32>,
     /// 今日各「元素:阶」商店蛋**成功收取**数（键同 egg_mints）。这是收取侧镜像，比
     /// 购买侧 egg_mints 更贴近 Valve 的 24h 窗口实际计数 —— 空发放时据此区分
-    /// 「今日已领满」vs「分钟级限频」两类文案（commands::empty_drop_message）。
+    /// 「今日已领满」vs「Steam 暂未放行」两类文案（commands::empty_drop_message）。
     #[serde(default)]
     pub egg_collects: BTreeMap<String, u32>,
     /// 今日各配方已融合次数（§7.5 每日融合上限；键 = 结果配方集合键，如 `"fire+water"`）。
@@ -932,7 +932,7 @@ pub struct GameSave {
     #[serde(default)]
     pub workshop_preview_done: std::collections::BTreeSet<String>,
     /// 最近一次商店蛋成功 TriggerItemDrop 收取的时刻（秒；未收过 = 0）。空发放时若
-    /// 距此很近，判为 per-def 分钟级限频「冷却中」而非「今日领满」。冷却窗口以分钟计，
+    /// 距此很近，判为 TriggerItemDrop 分钟级节流「冷却中」而非「今日领满」。节流以分钟计，
     /// 故**跨日不清零**（与按天重置的 daily 计数分离，见 commands::empty_drop_message）。
     #[serde(default)]
     pub last_shop_drop_at: i64,

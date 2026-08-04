@@ -533,7 +533,14 @@
 
 .by-board-stat-icon { font-size: 15px; line-height: 1; }
 .by-board-stat-copy { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px; }
-.by-board-stat-label { overflow: hidden; color: #8a7458; font-size: 9px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; }
+.by-board-stat-label {
+  color: #8a7458;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.08;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .by-board-stat strong { color: #4a3313; font-family: var(--font-display); font-size: 13px; font-variant-numeric: tabular-nums; }
 
 .by-board-detail-btn {
@@ -938,8 +945,18 @@
   color: #fff7dc;
   text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.35);
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.3), 0 4px 0 #6b4520, 0 10px 18px rgba(43, 26, 8, 0.28);
-  white-space: nowrap;
+  overflow: hidden;
+  text-align: center;
+  white-space: normal;
   cursor: pointer;
+}
+
+.by-upgrade-btn > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
 }
 
 .by-upgrade-btn:disabled {
@@ -947,7 +964,14 @@
   cursor: not-allowed;
 }
 
-.by-upgrade-btn .by-upgrade-sub { font-size: 11px; font-family: inherit; opacity: 0.92; }
+.by-upgrade-btn .by-upgrade-sub {
+  font-size: 11px;
+  font-family: inherit;
+  line-height: 1.2;
+  opacity: 0.92;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
 
 /* 点击瞬间下压：木牌被摁下的触感（配合升级后的屏幕级光效 .yup-*）。 */
 .by-upgrade-btn:not(:disabled):active {
@@ -1585,9 +1609,9 @@
 .by-market-name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.12;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-size: 11.5px;
   font-weight: 800;
   color: #4a3313;
@@ -1743,11 +1767,11 @@
   font-weight: 800;
   color: #4a3313;
   max-width: 100%;
-  /* 名字可折两行（AI 变种名可长于固定物种的 3~4 字）——超两行才省略，不再一行切字。 */
+  /* 长复合词在窄卡片里可能自然折成三行；完整显示比省略名字更重要。 */
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
   overflow-wrap: anywhere;
   line-height: 1.18;
@@ -1766,6 +1790,42 @@
   border-radius: 9px;
   background: #f5ead2;
   box-shadow: inset 0 2px 6px rgba(59, 43, 29, 0.25);
+}
+
+/* Steam 商店截图：真实图鉴组件的一屏 63 物种视图。仅 ?shot=1&dexFull=1 启用。 */
+body.shot-mode.shot-dex-full .by-dex-panel {
+  width: min(1720px, calc(100% - 120px));
+  height: min(950px, calc(100% - 90px));
+  max-height: none;
+}
+
+.by-dex-full-body {
+  overflow: hidden;
+  padding: 14px 16px 16px;
+}
+
+.by-dex-full-grid {
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.by-dex-full-grid .by-dex-cell {
+  min-height: 0;
+  padding: 3px 4px 5px;
+}
+
+.by-dex-full-grid .by-dex-cell-sprite {
+  width: 60px;
+  height: 60px;
+}
+
+.by-dex-full-grid .by-dex-cell-name {
+  font-size: 10px;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 .by-dex-section-label {

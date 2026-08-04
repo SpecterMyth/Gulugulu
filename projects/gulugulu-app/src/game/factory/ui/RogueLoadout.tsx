@@ -133,7 +133,6 @@ export function RogueLoadout({
   };
 
   const ready = picked.length >= LOADOUT_MIN && picked.length <= LOADOUT_MAX;
-  const isZh = lang === "zh";
 
   // 出战准备是「局前」屏:KPI/现金/名额取第 1 班的权威初值(数值单源 = rogueConfig)。
   const shift1Kpi = kpiForShift(1);
@@ -159,15 +158,15 @@ export function RogueLoadout({
           </button>
           <div className="fr-note fr-note-yellow fr-lo-title">
             <span className="fr-fold" />
-            {isZh ? "出战准备" : "SHIFT PREP"}
+            {R.loTitle}
           </div>
           <span className="fr-note fr-note-mint fr-lo-shiftkpi">
-            {isZh ? "第 1 班" : "Shift 1"} · KPI ${formatCount(shift1Kpi)}
+            {R.loShiftOne} · KPI ${formatCount(shift1Kpi)}
           </span>
           <span className="fr-note fr-note-pink fr-lo-cash">${formatCount(START_CASH)}</span>
           <span className="fr-note fr-note-blue fr-lo-seats">👥 0/{QUOTA_START}</span>
           <button type="button" className="fr-note fr-btn fr-lo-leaderboard" onClick={onLeaderboard}>
-            STEAM · {isZh ? "排行榜" : "LEADERBOARD"}
+            STEAM · {R.loLeaderboard}
           </button>
         </div>
 
@@ -175,7 +174,7 @@ export function RogueLoadout({
 
         <div className="fr-lo-element-odds">
           <span className="fr-lo-element-odds-label">
-            {isZh ? "签袋元素概率" : "DRAW BAG ELEMENT ODDS"}
+            {R.loElementOdds}
           </span>
           <div className="fr-lo-element-odds-bar">
             {bagElementStats.map(({ element, count, percentage }) => {
@@ -225,7 +224,7 @@ export function RogueLoadout({
                   onClick={() => toggle(m.species)}
                 >
                   <span className="fr-lo-card-stripe" aria-hidden="true" />
-                  {isPicked && <span className="fr-lo-in">IN ✓</span>}
+                  {isPicked && <span className="fr-lo-in">{R.loIn}</span>}
                   <div className="fr-lo-sprite">
                     <SvgSprite species={m.species} config={config} petState="idle" />
                   </div>
@@ -264,14 +263,10 @@ export function RogueLoadout({
         <div className="fr-lo-foot">
           <div className="fr-lo-legends">
             <span className="fr-note fr-lo-legend fr-lo-legend-score">
-              {isZh
-                ? "★ 打工业绩 = 咕噜本身产生的业绩"
-                : "★ WORK PERFORMANCE = score produced by the Gulu"}
+              {R.loWorkLegend}
             </span>
             <span className="fr-note fr-lo-legend fr-lo-legend-drain">
-              {isZh
-                ? "⛓ 压榨数 = 可向下压榨的咕噜数量"
-                : "⛓ EXPLOITATION COUNT = Gulus below that can be exploited"}
+              {R.loExploitLegend}
             </span>
           </div>
           <span className="fr-lo-count">
@@ -290,7 +285,7 @@ export function RogueLoadout({
               onStart(picked);
             }}
           >
-            {isZh ? "开工!" : "CLOCK IN!"}
+            {R.loStart}
           </button>
         </div>
       </div>

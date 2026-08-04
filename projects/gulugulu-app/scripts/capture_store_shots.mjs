@@ -10,12 +10,16 @@ import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import puppeteer from "puppeteer-core";
 
 const execFileP = promisify(execFile);
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = join(scriptDir, "..");
 const repoDir = join(appDir, "..", "..");
-const outBase = join(repoDir, "assets", "steam-store", "screenshots");
+const outArg = process.argv.find((a) => a.startsWith("--out="));
+const outBase = outArg
+  ? join(repoDir, ...outArg.slice(6).split(/[\\/]+/).filter(Boolean))
+  : join(repoDir, "assets", "steam-store", "screenshots");
 const profileDir = join(repoDir, ".claude", "scratchpad", "shot-profile");
 
 const PORT = 4189;
@@ -37,19 +41,23 @@ if (!browser) {
 // 间隙空转烧穿预算),20000 冷热皆稳;menu 例外(8s 自动收起,须 <8000)。
 // hero=<species>:各镜头轮换跟随主角(2026-07-17 用户审阅意见,别每张都是晶麒麟)。
 const SHOTS = [
-  { name: "backyard_home", query: "ui=backyard&seed=rich&hero=guluduck", budget: 20000 },
-  { name: "backyard_shop", query: "ui=backyard&seed=rich&panel=shop&hero=bubblefrog", budget: 20000 },
-  { name: "backyard_pits", query: "ui=backyard&seed=rich&panel=pits&hero=voltmouse", budget: 20000 },
-  { name: "backyard_dex", query: "ui=backyard&seed=rich&panel=dex&hero=lanternloong", budget: 20000 },
-  { name: "backyard_notice", query: "ui=backyard&seed=rich&panel=notice&hero=frostpeng", budget: 20000 },
-  { name: "backyard_market", query: "ui=backyard&seed=rich&panel=market&hero=manacorn", budget: 20000 },
+  { name: "backyard_home", query: "ui=backyard&seed=rich&hero=guluduck&bg=twilight", budget: 20000 },
+  { name: "backyard_shop", query: "ui=backyard&seed=rich&panel=shop&hero=bubblefrog&bg=morning", budget: 20000 },
+  { name: "backyard_pits", query: "ui=backyard&seed=rich&panel=pits&hero=voltmouse&bg=rainy_night", budget: 20000 },
+  { name: "backyard_dex", query: "ui=backyard&seed=rich&panel=dex&dexFull=1&hero=lanternloong&bg=daylight", budget: 20000 },
+  { name: "backyard_notice", query: "ui=backyard&seed=rich&panel=notice&hero=frostpeng&bg=twilight", budget: 20000 },
+  { name: "backyard_market", query: "ui=backyard&seed=rich&panel=market&hero=manacorn&bg=morning", budget: 20000 },
+  // 职场叠叠乐：真实 FactoryScene 的行动、高塔与编队 UI，不做重绘。
+  { name: "factory_action", query: "ui=factory&seed=rich&factoryShot=action&steamClean=1&facpile=112&frdebug=1&frcaptureSpeed=3&bg=rainy_night", budget: 20000 },
+  { name: "factory_tall_stack", query: "ui=factory&seed=rich&factoryShot=overflow&steamClean=1&facpile=188&frdebug=1&frcaptureSpeed=3&bg=twilight", budget: 20000 },
+  { name: "factory_loadout", query: "ui=factory&seed=rich&factoryShot=loadout&steamClean=1&facpile=96&frdebug=1&bg=daylight", budget: 20000 },
   // 6500:>启动+入场过渡(4000 会抓在菜单淡入半程),<8000 自动收起。
   // scale:真实窗口 280×320,1.3~1.6 倍≈真机在桌面上的观感(2026-07-17 用户意见调小)。
-  { name: "pet_menu_closeup", query: "ui=menu&seed=rich&scale=1.6&hero=guluduck", budget: 6500 },
+  { name: "pet_menu_closeup", query: "ui=menu&seed=rich&scale=1.6&hero=guluduck&bg=morning", budget: 6500 },
   // 单宠状态镜头(无菜单):打工+金币飘字 / 睡觉 / 思考,多角色轮换。
-  { name: "pet_working", query: "ui=pet&seed=rich&scale=1.3&hero=guluduck&state=working&fx=pops", budget: 20000 },
-  { name: "pet_sleeping", query: "ui=pet&seed=rich&scale=1.3&hero=frostpeng&state=sleeping", budget: 20000 },
-  { name: "pet_thinking", query: "ui=pet&seed=rich&scale=1.3&hero=voltmouse&state=thinking", budget: 20000 },
+  { name: "pet_working", query: "ui=pet&seed=rich&scale=1.3&hero=guluduck&state=working&fx=pops&bg=twilight", budget: 20000 },
+  { name: "pet_sleeping", query: "ui=pet&seed=rich&scale=1.3&hero=frostpeng&state=sleeping&bg=rainy_night", budget: 20000 },
+  { name: "pet_thinking", query: "ui=pet&seed=rich&scale=1.3&hero=voltmouse&state=thinking&bg=daylight", budget: 20000 },
 ];
 
 const langArg = process.argv.find((a) => a.startsWith("--lang="));
@@ -77,27 +85,25 @@ async function waitReady(timeoutMs = 90_000) {
 }
 
 let captureSeq = 0;
+let puppetBrowser;
 // 每次运行独立命名空间:上一轮超时/崩溃遗留的 chrome 可能仍锁着旧 profile 目录。
 const runStamp = process.pid.toString(36) + "-" + String(Date.now() % 1e7);
 async function captureOnce(url, outPath, budget) {
-  // --headless=old:new headless 的 --window-size 含窗框(实测视口只剩 1904x984),
-  // old headless 视口=精确尺寸;Chrome 132 起移除 old,届时改用 new + 补偿尺寸。
-  // profile 每张独立:复用同一 user-data-dir 连续拉起会偶发抢锁失败。
   captureSeq += 1;
-  await execFileP(browser, [
-    "--headless=old",
-    "--disable-gpu",
-    "--hide-scrollbars",
-    "--force-device-scale-factor=1",
-    "--window-size=1920,1080",
-    `--virtual-time-budget=${budget}`,
-    "--no-first-run",
-    "--disable-extensions",
-    `--user-data-dir=${profileDir}-${runStamp}-${captureSeq}`,
-    `--screenshot=${outPath}`,
-    url,
-  ], { timeout: 180_000 }); // 冷 vite 首镜头要现场转换全部模块,60s 不够
-
+  const page = await puppetBrowser.newPage();
+  try {
+    await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+    // Vite HMR / 大型工厂场景会保持若干长连接，不能以 networkidle0 作为完成条件。
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await page.waitForSelector("#root > *", { timeout: 60_000 });
+    await page.evaluate(() => document.fonts.ready).catch(() => {});
+    // 等真实 React/游戏时间线完成入场；menu 在 8 秒自动收起，提前定格。
+    const settle = url.includes("ui=menu") ? 4500 : Math.min(8000, Math.max(5500, budget / 3));
+    await new Promise((resolve) => setTimeout(resolve, settle));
+    await page.screenshot({ path: outPath, type: "png", captureBeyondViewport: false });
+  } finally {
+    await page.close().catch(() => {});
+  }
 }
 
 async function capture(url, outPath, budget) {
@@ -121,6 +127,12 @@ let failures = 0;
 try {
   await waitReady();
   await new Promise((r) => setTimeout(r, 1000));
+  puppetBrowser = await puppeteer.launch({
+    executablePath: browser,
+    headless: true,
+    defaultViewport: { width: 1920, height: 1080, deviceScaleFactor: 1 },
+    args: ["--disable-gpu", "--hide-scrollbars", "--no-first-run", "--disable-extensions"],
+  });
   // 预热空拍:vite dev 首批请求要现场转换全部模块,冷态下首镜头(尤其重视图)
   // 会超时/白屏;热身图必须真的"拍出内容"(>100KB)才算烤热,最多试 3 次。
   const warmup = join(repoDir, ".claude", "scratchpad", `shot-warmup-${runStamp}.png`);
@@ -154,6 +166,14 @@ try {
     }
   }
 } finally {
+  if (puppetBrowser) {
+    const browserPid = puppetBrowser.process()?.pid;
+    await Promise.race([
+      puppetBrowser.close().catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ]);
+    if (browserPid) await execFileP("taskkill", ["/pid", String(browserPid), "/T", "/F"]).catch(() => {});
+  }
   if (vite.pid) {
     await execFileP("taskkill", ["/pid", String(vite.pid), "/T", "/F"]).catch(() => {});
   }

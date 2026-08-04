@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameConfig, GameSave } from "../../../types";
-import { speciesDisplayName } from "../../../i18n";
+import { fmt, speciesDisplayName } from "../../../i18n";
+import { FACTORY_ROGUE } from "../../../i18n/factoryRogue";
 import { useT } from "../../../useT";
 import { SvgSprite } from "../../../sprites/SvgSprite";
 import { formatCount } from "../../format";
@@ -22,6 +23,7 @@ export function RogueSettlement({
   firstRunGuide?: boolean;
 }) {
   const { lang } = useT();
+  const R = FACTORY_ROGUE[lang];
   const data = view.settlement;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const paymentStartedRef = useRef(false);
@@ -75,61 +77,33 @@ export function RogueSettlement({
   };
 
   const cashFlows = settlementIncomeFlows(data.cashFlows);
-  const words = lang === "zh"
-    ? {
-        eyebrow: `第 ${data.shiftIndex} 班 · 下班回执`,
-        title: "本班结算单",
-        spent: "本班花费",
-        received: "本班收入",
-        bill: "待缴账单",
-        required: "本次应付",
-        loanPayment: "贷款还款",
-        details: "逐笔团队业绩明细",
-        team: "团队业绩",
-        base: "打工业绩",
-        absorbed: "压榨业绩",
-        extra: "额外业绩",
-        pools: "元素 · 连携 · 工种 · 连击",
-        empty: "本班没有获得团队业绩",
-        desks: (count: number) => `${count} 张办公桌`,
-        wallet: "我的钱包",
-        after: "全部支付后余额",
-        shortfall: "资金缺口",
-        confirm: loanPayment > 0 ? "确认并支付全部" : "确认并缴账单",
-        confirmBankruptcy: "资金不足 · 确认破产",
-        paying: "正在缴账…",
-        paid: "已缴 ✓",
-        refund: "退款",
-        trickle: "赶工滴入",
-        kpiBonus: "绩效达成奖金",
-      }
-    : {
-        eyebrow: `SHIFT ${data.shiftIndex} · CLOCK-OUT RECEIPT`,
-        title: "Shift Statement",
-        spent: "Spent",
-        received: "Received",
-        bill: "Bill Due",
-        required: "Required today",
-        loanPayment: "Loan repayment",
-        details: "Team Performance breakdown",
-        team: "Team Performance",
-        base: "Work Performance",
-        absorbed: "Exploitation Performance",
-        extra: "Bonus Performance",
-        pools: "Element · Synergy · Job · Rhythm",
-        empty: "No Team Performance earned this shift",
-        desks: (count: number) => `${count} desk${count === 1 ? "" : "s"}`,
-        wallet: "My wallet",
-        after: "After all payments",
-        shortfall: "Shortfall",
-        confirm: loanPayment > 0 ? "Confirm all payments" : "Confirm & pay bill",
-        confirmBankruptcy: "Insufficient — confirm bankruptcy",
-        paying: "Paying…",
-        paid: "PAID ✓",
-        refund: "Refund",
-        trickle: "Rush trickle",
-        kpiBonus: "KPI achievement bonus",
-      };
+  const words = {
+    eyebrow: fmt(R.settlementEyebrow, { shift: data.shiftIndex }),
+    title: R.settlementTitle,
+    spent: R.settlementSpent,
+    received: R.settlementReceived,
+    bill: R.settlementBill,
+    required: R.settlementRequired,
+    loanPayment: R.settlementLoanPayment,
+    details: R.settlementDetails,
+    team: R.settlementTeam,
+    base: R.settlementBase,
+    absorbed: R.settlementAbsorbed,
+    extra: R.settlementExtra,
+    pools: R.settlementPools,
+    empty: R.settlementEmpty,
+    desks: (count: number) => fmt(R.settlementDesks, { count }),
+    wallet: R.settlementWallet,
+    after: R.settlementAfter,
+    shortfall: R.settlementShortfall,
+    confirm: loanPayment > 0 ? R.settlementConfirmAll : R.settlementConfirmBill,
+    confirmBankruptcy: R.settlementConfirmBankruptcy,
+    paying: R.settlementPaying,
+    paid: R.settlementPaid,
+    refund: R.settlementRefund,
+    trickle: R.settlementTrickle,
+    kpiBonus: R.settlementKpiBonus,
+  };
 
   return (
     <div

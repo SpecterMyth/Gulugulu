@@ -42,9 +42,12 @@ const captureShots = process.argv.includes("--shot");
 const probeModifiers = process.argv.includes("--modifiers");
 const quickMode = process.argv.includes("--quick");
 const globalTimeoutMs = quickMode ? 180_000 : 300_000;
-const stageTimeoutMs = quickMode ? 90_000 : 120_000;
+// A cold Vite transform now includes the complete 21-language runtime bundle.
+// Leave enough headroom for slower Windows runners instead of failing just as
+// the fonts/debug hooks become ready.
+const stageTimeoutMs = quickMode ? 120_000 : 150_000;
 const operationTimeoutMs = quickMode ? 20_000 : 30_000;
-const navigationTimeoutMs = 90_000;
+const navigationTimeoutMs = 120_000;
 const cdpTimeoutMs = 90_000;
 const fontTimeoutMs = 15_000;
 
@@ -783,13 +786,18 @@ const runScenario = async () => {
           localStorage.removeItem("gulugulu.factory.strike-warning.v1");
         });
         await nextPage.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+        console.log(`[page-load:${language}] navigate`);
         await nextPage.goto(`${baseUrl}?ui=factory&seed=rich&lang=${language}&frdebug=1&frseed=90210`, {
           waitUntil: "domcontentloaded",
           timeout: navigationTimeoutMs,
         });
+        console.log(`[page-load:${language}] wait loadout`);
         await nextPage.waitForSelector(".fr-lo-wrap", { timeout: 30_000 });
+        console.log(`[page-load:${language}] wait factory debug handle`);
         await nextPage.waitForFunction(() => typeof window.__facBodies === "function", { timeout: 30_000 });
+        console.log(`[page-load:${language}] wait fonts`);
         await waitForFonts(nextPage, fontTimeoutMs, `${language}/fonts`);
+        console.log(`[page-load:${language}] ready`);
         return nextPage;
       });
       await runStage(`${language}/loadout`, () => resizeAndProbe(page, "loadout", language));

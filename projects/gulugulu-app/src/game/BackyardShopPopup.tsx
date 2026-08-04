@@ -60,13 +60,13 @@ export function BackyardShopPopup({
         anchor: rootRef.current,
         label:
           shopLevel >= maxTier
-            ? lang === "zh" ? "商店满级" : "SHOP MAXED"
-            : lang === "zh" ? `商店升级 · ${shopLevel}阶` : `SHOP UPGRADED · T${shopLevel}`,
+            ? T.sh.misc.shopMaxed
+            : fmt(T.sh.misc.shopUpgradedTier, { tier: shopLevel }),
         dedupeKey: `shop-level:${shopLevel}`,
       });
     }
     prevShopLevelRef.current = shopLevel;
-  }, [lang, maxTier, shopLevel]);
+  }, [T.sh.misc.shopMaxed, T.sh.misc.shopUpgradedTier, maxTier, shopLevel]);
 
   useEffect(() => {
     const pending = pendingBuyRef.current;

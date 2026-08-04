@@ -129,7 +129,7 @@ export function useCodexStatus(
   const statusText = useMemo(() => {
     const copy = t(language);
     if (!isTauri()) return copy.previewMode;
-    if (status?.error) return language === "zh" ? copy.statusError : status.error;
+    if (status?.error) return language === "en" ? status.error : copy.statusError;
     if (status?.codexWatching && status.claudeCodeWatching) return copy.codexClaudeOnline;
     if (status?.codexWatching) return copy.codexOnline;
     if (status?.claudeCodeWatching) return copy.claudeCodeOnline;

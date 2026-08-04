@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { PanelShell, SettingSelect, SettingToggle, type UiMode } from "../game/GamePanels";
-import { type Language, LANGUAGES, t } from "../i18n";
+import { type Language, LANGUAGES, normalizeLanguage, t } from "../i18n";
 import type { AgentModels, AppSettings } from "../types";
 
 const AGENT_OPTIONS = [
@@ -101,19 +101,15 @@ export function SettingsPanel({
       onTitleClick={import.meta.env.DEV ? openDebugUnlock : undefined}
     >
       <div className="settings-panel">
-        <span className="settings-label">{copy.language}</span>
-        <div className="settings-options">
-          {LANGUAGES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`settings-btn ${language === item.id ? "is-selected" : ""}`}
-              onClick={() => changeLanguage(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <SettingSelect
+          label={copy.language}
+          value={language}
+          options={LANGUAGES.map(({ id, label }) => ({ id, label }))}
+          onChange={(value) => {
+            const nextLanguage = normalizeLanguage(value);
+            if (nextLanguage) changeLanguage(nextLanguage);
+          }}
+        />
         <SettingToggle
           label={copy.alwaysOnTop}
           enabled={appSettings?.alwaysOnTop ?? true}
@@ -130,7 +126,7 @@ export function SettingsPanel({
         />
         <SettingToggle
           label={copy.dynamicQuoteAi}
-          enabled={appSettings?.dynamicQuoteAi ?? false}
+          enabled={appSettings?.dynamicQuoteAi ?? true}
           onText={copy.on}
           offText={copy.off}
           onToggle={handleDynamicQuoteAi}
@@ -176,16 +172,16 @@ export function SettingsPanel({
             className="debug-unlock-note"
             role="dialog"
             aria-modal="true"
-            aria-label={language === "zh" ? "调试授权" : "Debug authorization"}
+            aria-label={copy.sh.misc.debugAuthAria}
             onSubmit={submitDebugUnlock}
             onMouseDown={(event) => event.stopPropagation()}
           >
             <span className="debug-unlock-tape" aria-hidden="true" />
             <label htmlFor="debug-passphrase">
-              {language === "zh" ? "开发者密码" : "Developer passphrase"}
+              {copy.sh.misc.developerPassphrase}
             </label>
             <span className="debug-unlock-hint">
-              {language === "zh" ? "本次启动有效；重新打开游戏后需要再次输入。" : "Valid for this launch only; required again after restarting."}
+              {copy.sh.misc.developerPassphraseHint}
             </span>
             <input
               ref={passphraseInputRef}
@@ -200,14 +196,14 @@ export function SettingsPanel({
             />
             {unlockError && (
               <span className="debug-unlock-error" role="alert">
-                {language === "zh" ? "密码错误。" : "Incorrect passphrase."}
+                {copy.sh.misc.incorrectPassphrase}
               </span>
             )}
             <div className="debug-unlock-actions">
               <button type="button" onClick={() => setUnlockOpen(false)}>
-                {language === "zh" ? "取消" : "Cancel"}
+                {copy.sh.misc.cancel}
               </button>
-              <button type="submit">{language === "zh" ? "解锁" : "Unlock"}</button>
+              <button type="submit">{copy.sh.misc.unlock}</button>
             </div>
           </form>
         </div>

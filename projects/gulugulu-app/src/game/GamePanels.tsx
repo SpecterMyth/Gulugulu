@@ -1,5 +1,5 @@
 import type { EggInstance, GameConfig, GameSave } from "../types";
-import { fmt, speciesDisplayName, type Language, t } from "../i18n";
+import { fmt, isChineseLanguage, speciesDisplayName, type Language, t } from "../i18n";
 import { useT } from "../useT";
 import { EggSvg, SvgSprite } from "../sprites/SvgSprite";
 import { eggHatchInfo, expToNext, isMaxLevel } from "./config";
@@ -41,7 +41,6 @@ function MenuItemIcon({ mode }: { mode: (typeof MENU_ITEMS)[number]["mode"] }) {
     return (
       <svg className="menu-item-svg" viewBox="0 0 72 48" aria-hidden="true">
         <path className="menu-icon-ground" d="M5 40.5c9-5.4 16.1-1.2 24.1-3.7 9.3-3 19-2.2 37.9 3.7v4.2H5z" />
-        <circle className="menu-icon-sun" cx="57" cy="10" r="5.5" />
         <path className="menu-icon-tree" d="M11.5 29.5V42m-6.1-17c0-4.7 3-8.4 6.6-8.4s6.6 3.7 6.6 8.4c0 4.5-2.9 7.3-6.6 7.3S5.4 29.5 5.4 25Z" />
         <path className="menu-icon-house" d="M22 24.5 37 12l15 12.5V42H22z" />
         <path className="menu-icon-roof" d="m19.5 25.5 17.5-15 17.5 15M42.5 17v-5.5h6v10.2" />
@@ -168,7 +167,7 @@ export function MenuBar({
             activePet
               ? fmt(copy.bk.panels.levelTitle, {
                   name:
-                    language === "zh"
+                    isChineseLanguage(language)
                       ? config.species[activePet.species]?.nameZh ?? ""
                       : speciesDisplayName(activePet.species, language, config.species[activePet.species]?.nameZh, config.species[activePet.species]?.nameEn),
                 })

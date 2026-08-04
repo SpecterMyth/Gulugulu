@@ -5,7 +5,8 @@
 // rogueConfig 的 CARD_PARAMS / LOAN_*(此处只读消费,改数去 rogueConfig)。
 // 本域不并入 i18n.ts 汇总(组件直接 FACTORY_ROGUE[lang] 取用),避免动共享汇总文件。
 
-import type { Language } from "./core";
+import { createLanguageMap, type DeepPartial, type Language } from "./core";
+import { generatedFactoryRogueLocales } from "./generatedLocales";
 import {
   CARD_PARAMS,
   LOAN_GAIN_RATE,
@@ -193,6 +194,111 @@ export interface FactoryRogueStrings {
   tutSame: string;
   tutKpi: string;
 
+  // ---- 组件内通用标签 / 确认与状态提示 ----
+  loShiftOne: string;
+  loLeaderboard: string;
+  loElementOdds: string;
+  loWorkLegend: string;
+  loExploitLegend: string;
+  loIn: string;
+  shopHeader: string;
+  shopTakeFree: string;
+  shopKeywordAria: string;
+  shopKeywordTitle: string;
+  shopKeywordEmpty: string;
+  runtimeTeamPerformance: string;
+  runtimeExploitationPerformance: string;
+  runtimePaused: string;
+  kpiAchieved: string;
+  sumViewLeaderboard: string;
+  steamGlobalRankEmpty: string;
+
+  // ---- 招聘确认 ----
+  hireTitle: string;
+  hireShiftRound: string;
+  hireCash: string;
+  hirePool: string;
+  hireTip: string;
+  hireSelected: string;
+  hirePick: string;
+  hireWorkPerformance: string;
+  hireExploitCount: string;
+  hireVerb: string;
+  hirePoolCurrent: string;
+  hirePoolTotal: string;
+  hirePoolEmpty: string;
+  hirePicked: string;
+  hireCost: string;
+  hireCashAfter: string;
+  hireAfterBill: string;
+  hireReroll: string;
+  hireRerollSpent: string;
+  hireClearAll: string;
+  hireSelectAll: string;
+  hireNoCash: string;
+  hirePoolFull: string;
+  hirePayNext: string;
+  hirePayStart: string;
+  hireConfirmTitle: string;
+  hireConfirmEmpty: string;
+  hireConfirmLowPool: string;
+  hireGoBack: string;
+  hireContinue: string;
+
+  // ---- 工资单 ----
+  settlementEyebrow: string;
+  settlementTitle: string;
+  settlementSpent: string;
+  settlementReceived: string;
+  settlementBill: string;
+  settlementRequired: string;
+  settlementLoanPayment: string;
+  settlementDetails: string;
+  settlementTeam: string;
+  settlementBase: string;
+  settlementAbsorbed: string;
+  settlementExtra: string;
+  settlementPools: string;
+  settlementEmpty: string;
+  settlementDesks: string;
+  settlementWallet: string;
+  settlementAfter: string;
+  settlementShortfall: string;
+  settlementConfirmAll: string;
+  settlementConfirmBill: string;
+  settlementConfirmBankruptcy: string;
+  settlementPaying: string;
+  settlementPaid: string;
+  settlementRefund: string;
+  settlementTrickle: string;
+  settlementKpiBonus: string;
+
+  // ---- Steam 排行榜 ----
+  lbAria: string;
+  lbLegacyLineup: string;
+  lbMe: string;
+  lbBestRevenue: string;
+  lbBestShift: string;
+  lbEndless: string;
+  lbNormal: string;
+  lbBack: string;
+  lbTitle: string;
+  lbTop100: string;
+  lbUpdated: string;
+  lbRefresh: string;
+  lbRankPlayer: string;
+  lbColumns: string;
+  lbConnecting: string;
+  lbUnavailable: string;
+  lbRetry: string;
+  lbEmpty: string;
+  lbMyRank: string;
+  lbNotRanked: string;
+  sumNewRecordBadge: string;
+  sumFactoryDrop: string;
+  cardAria: string;
+  levelAria: string;
+
   // ---- 结算 ----
   sumBankrupt: string;
   sumGraduate: string;
@@ -267,7 +373,7 @@ const zh: FactoryRogueStrings = {
   hudBill: "账单 {v} 待缴",
   hudCash: "现金",
   hudQuota: "名额",
-  hudCombo: "连击 ×{n}",
+  hudCombo: "Combo ×{n}",
   hudBag: "雇佣池",
   hudBagEmpty: "雇佣池已空",
   hudWarnBankrupt: "⚠️ 破产预警:现金撑不住下一步了",
@@ -351,6 +457,107 @@ const zh: FactoryRogueStrings = {
   tutSame: "两只同类粘一起了——再来一只就罢工!",
   tutKpi: "用尽量少的咕噜达成 KPI；剩余咕噜会自动结算团队业绩并返回池中，下一班还能使用",
 
+  loShiftOne: "第 1 班",
+  loLeaderboard: "排行榜",
+  loElementOdds: "签袋元素概率",
+  loWorkLegend: "★ 打工业绩 = 咕噜本身产生的业绩",
+  loExploitLegend: "⛓ 压榨数 = 可向下压榨的咕噜数量",
+  loIn: "已选 ✓",
+  shopHeader: "班末商店",
+  shopTakeFree: "免费拿",
+  shopKeywordAria: "关键词说明",
+  shopKeywordTitle: "关键词说明",
+  shopKeywordEmpty: "当前卡片没有额外关键词",
+  runtimeTeamPerformance: "团队业绩",
+  runtimeExploitationPerformance: "压榨业绩",
+  runtimePaused: "后台计时已暂停 {seconds} 秒，继续开工！",
+  kpiAchieved: "KPI 达成！",
+  sumViewLeaderboard: "点击查看全球榜",
+  steamGlobalRankEmpty: "Steam 全球第 — 名",
+
+  hireTitle: "咕噜招聘",
+  hireShiftRound: "第 {shift} 班 · 招聘 {round}/{max}",
+  hireCash: "现有现金",
+  hirePool: "咕噜池",
+  hireTip: "所有咕噜均已预选；取消不需要的咕噜后一次付款。已选咕噜不会被刷新。",
+  hireSelected: "录用 ✓",
+  hirePick: "待选",
+  hireWorkPerformance: "打工业绩",
+  hireExploitCount: "压榨数",
+  hireVerb: "雇佣",
+  hirePoolCurrent: "当前咕噜池",
+  hirePoolTotal: "共 {count} 只",
+  hirePoolEmpty: "咕噜池为空",
+  hirePicked: "本轮已选",
+  hireCost: "雇佣费用",
+  hireCashAfter: "支付后现金",
+  hireAfterBill: "预留账单后",
+  hireReroll: "刷新未选咕噜",
+  hireRerollSpent: "刷新费用",
+  hireClearAll: "取消全选",
+  hireSelectAll: "选取所有",
+  hireNoCash: "钱不够",
+  hirePoolFull: "咕噜池已满",
+  hirePayNext: "付款并进入下一轮",
+  hirePayStart: "付款并开工！",
+  hireConfirmTitle: "确认继续？",
+  hireConfirmEmpty: "你这一轮没有选择任何咕噜。",
+  hireConfirmLowPool: "开工后咕噜池中只有 {count} 只咕噜，储备已经很少。",
+  hireGoBack: "返回招聘",
+  hireContinue: "确认继续",
+
+  settlementEyebrow: "第 {shift} 班 · 下班回执",
+  settlementTitle: "本班结算单",
+  settlementSpent: "本班花费",
+  settlementReceived: "本班收入",
+  settlementBill: "待缴账单",
+  settlementRequired: "本次应付",
+  settlementLoanPayment: "贷款还款",
+  settlementDetails: "逐笔团队业绩明细",
+  settlementTeam: "团队业绩",
+  settlementBase: "打工业绩",
+  settlementAbsorbed: "压榨业绩",
+  settlementExtra: "额外业绩",
+  settlementPools: "元素 · 连携 · 工种 · 连击",
+  settlementEmpty: "本班没有获得团队业绩",
+  settlementDesks: "{count} 张办公桌",
+  settlementWallet: "我的钱包",
+  settlementAfter: "全部支付后余额",
+  settlementShortfall: "资金缺口",
+  settlementConfirmAll: "确认并支付全部",
+  settlementConfirmBill: "确认并缴账单",
+  settlementConfirmBankruptcy: "资金不足 · 确认破产",
+  settlementPaying: "正在缴账…",
+  settlementPaid: "已缴 ✓",
+  settlementRefund: "退款",
+  settlementTrickle: "赶工滴入",
+  settlementKpiBonus: "绩效达成奖金",
+
+  lbAria: "Steam 全球排行榜",
+  lbLegacyLineup: "历史记录未保存阵容",
+  lbMe: "我",
+  lbBestRevenue: "最高营收",
+  lbBestShift: "最高班次",
+  lbEndless: "无限",
+  lbNormal: "普通",
+  lbBack: "返回",
+  lbTitle: "全球打工排行榜",
+  lbTop100: "全球前 100 名",
+  lbUpdated: "更新于 {time}",
+  lbRefresh: "刷新",
+  lbRankPlayer: "名次 / 玩家",
+  lbColumns: "营收 / 班次 / 模式 / 创纪录阵容",
+  lbConnecting: "正在连接 Steam 排行榜…",
+  lbUnavailable: "排行榜暂时无法读取",
+  lbRetry: "重试",
+  lbEmpty: "榜单还是空的，去创造第一条纪录吧！",
+  lbMyRank: "我的排名",
+  lbNotRanked: "尚未上榜 · 完成一局即可提交成绩",
+  sumNewRecordBadge: "★ 新纪录 ★",
+  sumFactoryDrop: "工厂掉落",
+  cardAria: "{name}，等级 {level}。{description}",
+  levelAria: "等级 {level}",
+
   sumBankrupt: "破产查封",
   sumGraduate: "毕业!20 班通关",
   sumEndlessOver: "无限模式终局",
@@ -400,39 +607,39 @@ const zh: FactoryRogueStrings = {
   cards: {
     "fire.burst": {
       name: "爆燃",
-      desc: (lv) => `【点燃】：打工业绩额外结算 ${V(P["fire.burst"].repeats, lv)} 次`,
+      desc: (lv) => `【点燃】：火系咕噜的打工业绩额外结算 ${V(P["fire.burst"].repeats, lv)} 次`,
     },
     "fire.ember": {
       name: "余烬",
-      desc: (lv) => `火系压榨业绩 ×${mu(V(P["fire.ember"].asAbsorbed, lv))}`,
+      desc: (lv) => `火系咕噜压榨火系咕噜：后者压榨业绩 ×${mu(V(P["fire.ember"].asAbsorbed, lv))}`,
     },
     "fire.wildfire": {
       name: "燎原",
-      desc: (lv) => `首次计分后【传火】至多 ${V(P["fire.wildfire"].spread, lv)} 只`,
+      desc: (lv) => `首次计分后，向至多 ${V(P["fire.wildfire"].spread, lv)} 只相邻火系咕噜【点燃】传火；各追加 1 次打工业绩`,
     },
     "fire.chain": {
       name: "引火链",
-      desc: (lv) => `含火投放：压榨数 +${V(P["fire.chain"].reachBonus, lv)}`,
+      desc: (lv) => `火系咕噜上工：压榨数 +${V(P["fire.chain"].reachBonus, lv)}`,
     },
     "electric.overload": {
       name: "过载",
-      desc: (lv) => `每压榨 1 层：加成 ${add(V(P["electric.overload"].perDepth, lv))}`,
+      desc: (lv) => `电系咕噜每压榨 1 只咕噜：加成 ${add(V(P["electric.overload"].perDepth, lv))}`,
     },
     "electric.wire": {
       name: "导线",
-      desc: (lv) => `含电投放：压榨数 +${V(P["electric.wire"].reachBonus, lv)}`,
+      desc: (lv) => `电系咕噜上工：压榨数 +${V(P["electric.wire"].reachBonus, lv)}`,
     },
     "electric.parallel": {
       name: "并联回路",
-      desc: (lv) => `每多接 1 桌：加成 ${add(V(P["electric.parallel"].perExtraDesk, lv))}`,
+      desc: (lv) => `电系咕噜每多接 1 桌：加成 ${add(V(P["electric.parallel"].perExtraDesk, lv))}`,
     },
     "electric.induction": {
       name: "感应",
-      desc: (lv) => `每条电系接桌通路边：加成 ${add(V(P["electric.induction"].perLink, lv))}`,
+      desc: (lv) => `电系咕噜的【线路】每接通 1 条桌边：加成 ${add(V(P["electric.induction"].perLink, lv))}`,
     },
     "ice.icicle": {
       name: "冰棱",
-      desc: (lv) => `冰系正上方咕噜：团队业绩 ×${mu(V(P["ice.icicle"].above, lv))}`,
+      desc: (lv) => `冰系咕噜正上方的咕噜：团队业绩 ×${mu(V(P["ice.icicle"].above, lv))}`,
     },
     "ice.freezeprice": {
       name: "冻价",
@@ -440,19 +647,19 @@ const zh: FactoryRogueStrings = {
     },
     "ice.prism": {
       name: "棱镜",
-      desc: (lv) => `冰系已接桌：接桌数 +1，桌面加成 ${add(V(P["ice.prism"].extraShare, lv))}`,
+      desc: (lv) => `冰系咕噜已接桌：接桌数 +1，桌面加成 ${add(V(P["ice.prism"].extraShare, lv))}`,
     },
     "ice.chain": {
       name: "冰桥",
-      desc: (lv) => `含冰投放：压榨数 +${V(P["ice.chain"].reachBonus, lv)}`,
+      desc: (lv) => `冰系咕噜上工：压榨数 +${V(P["ice.chain"].reachBonus, lv)}`,
     },
     "ice.freeze": {
       name: "急冻通路",
-      desc: (lv) => `连通后：${odds(V(P["ice.freeze"].chance, lv))}【冻结】下方咕噜`,
+      desc: (lv) => `冰系咕噜结算后：${odds(V(P["ice.freeze"].chance, lv))}【冻结】下方 1 只被压榨咕噜`,
     },
     "ice.overstaff": {
       name: "超额编制奖",
-      desc: (lv) => `每点【超额人口】：加成 ${add(V(P["ice.overstaff"].per, lv))}`,
+      desc: (lv) => `冰系咕噜每有 1 只【超额人口】咕噜：加成 ${add(V(P["ice.overstaff"].per, lv))}`,
     },
     "water.reflow": {
       name: "回流",
@@ -466,47 +673,47 @@ const zh: FactoryRogueStrings = {
     },
     "water.fourday": {
       name: "工休",
-      desc: (lv) => `含水同种 ${V(P["water.fourday"].line, lv)} 只罢工；每只追加 ${ratio(V(P["water.fourday"].strikeBonus, lv))} 完整业绩`,
+      desc: (lv) => `同种水系咕噜达到 ${V(P["water.fourday"].line, lv)} 只即罢工；每只追加打工业绩 ×${mu(V(P["water.fourday"].strikeBonus, lv))}`,
     },
     "water.chain": {
       name: "水道",
-      desc: (lv) => `含水投放：压榨数 +${V(P["water.chain"].reachBonus, lv)}`,
+      desc: (lv) => `水系咕噜上工：压榨数 +${V(P["water.chain"].reachBonus, lv)}`,
     },
     "water.same": {
       name: "同名增压",
-      desc: (lv) => `每只同名队友：本卡 ×${mu(V(P["water.same"].perTeamSame, lv))}（至多 10 只）`,
+      desc: (lv) => `水系咕噜本次计分团队每有 1 只【同种】咕噜：本卡 ×${mu(V(P["water.same"].perTeamSame, lv))}（至多 10 只）`,
     },
     "water.convert": {
       name: "水镜同化",
-      desc: (lv) => `结算后，将本次压榨中业绩最高的 ${V(P["water.convert"].targets, lv)} 个非水目标【同化】`,
+      desc: (lv) => `水系咕噜结算后，将本次压榨中业绩最高的 ${V(P["water.convert"].targets, lv)} 只非水咕噜【同化】`,
     },
     "grass.root": {
       name: "扎根",
-      desc: (lv) => `草系踩桌：该桌团队业绩 ×${mu(V(P["grass.root"].deskMult, lv))}`,
+      desc: (lv) => `草系咕噜踩桌：该桌团队业绩 ×${mu(V(P["grass.root"].deskMult, lv))}`,
     },
     "grass.symbiosis": {
       name: "共生",
-      desc: (lv) => `每只异元素邻居：草系压榨加成 ${add(V(P["grass.symbiosis"].perNeighbor, lv))}`,
+      desc: (lv) => `草系咕噜每有 1 只非草邻居：压榨加成 ${add(V(P["grass.symbiosis"].perNeighbor, lv))}`,
     },
     "grass.growth": {
       name: "生长",
-      desc: (lv) => `草系每跨 1 班：打工加成 ${add(V(P["grass.growth"].perShift, lv))}（上限 ×${V(P["grass.growth"].capX, lv)}）`,
+      desc: (lv) => `草系咕噜每跨 1 班：打工业绩加成 ${add(V(P["grass.growth"].perShift, lv))}（上限 ×${V(P["grass.growth"].capX, lv)}）`,
     },
     "grass.chain": {
       name: "藤链",
-      desc: (lv) => `含草投放：压榨数 +${V(P["grass.chain"].reachBonus, lv)}`,
+      desc: (lv) => `草系咕噜上工：压榨数 +${V(P["grass.chain"].reachBonus, lv)}`,
     },
     "grass.grow": {
       name: "野蛮生长",
-      desc: (lv) => `结算后：${odds(V(P["grass.grow"].chance, lv))}【生长】`,
+      desc: (lv) => `草系咕噜结算后：${odds(V(P["grass.grow"].chance, lv))}【生长】`,
     },
     "grass.crowd": {
       name: "繁茂群落",
-      desc: (lv) => `每点【繁茂】：加成 ${add(V(P["grass.crowd"].perConnected, lv))}`,
+      desc: (lv) => `草系咕噜所在连通片每有 1 只咕噜（【繁茂】）：加成 ${add(V(P["grass.crowd"].perConnected, lv))}`,
     },
     "grass.height": {
       name: "高层冠幅",
-      desc: (lv) => `每层【层高】：加成 ${add(V(P["grass.height"].perLayer, lv))}`,
+      desc: (lv) => `草系咕噜【层高】超过 1 后，每层加成 ${add(V(P["grass.height"].perLayer, lv))}（上限 ${P["grass.height"].cap}）`,
     },
     "normal.crowd": {
       name: "人海",
@@ -527,23 +734,23 @@ const zh: FactoryRogueStrings = {
     },
     "normal.chain": {
       name: "人脉",
-      desc: (lv) => `含一般投放：压榨数 +${V(P["normal.chain"].reachBonus, lv)}`,
+      desc: (lv) => `一般系咕噜上工：压榨数 +${V(P["normal.chain"].reachBonus, lv)}`,
     },
     "normal.absorb": {
       name: "吸收",
       desc: (lv) => {
         const targets = V(P["normal.absorb"].targets, lv);
         const chance = odds(V(P["normal.absorb"].chance, lv));
-        return `投放后：${chance}与最近的咕噜吸收；高等级吞低等级，同级由自己吞${targets > 1 ? `（至多 ${targets} 只）` : ""}`;
+        return `结算后：${chance}${targets > 1 ? `【吸收】最近的至多 ${targets} 只咕噜` : "【吸收】最近的咕噜"}；体型大者吞小者，同体型由结算者吞`;
       },
     },
     "normal.gluttony": {
       name: "暴食",
-      desc: (lv) => `投放者每点额外【体型】：加成 ${add(V(P["normal.gluttony"].perSize, lv))}`,
+      desc: (lv) => `一般系咕噜【体型】超过 1 后，每点加成 ${add(V(P["normal.gluttony"].perSize, lv))}`,
     },
     "normal.emperor": {
       name: "打工皇帝",
-      desc: (lv) => `结算后：最大一般系体型 +${V(P["normal.emperor"].grow, lv)}，吞掉完全遮挡的咕噜`,
+      desc: (lv) => `结算后：本次团队中【体型】最大的一般系咕噜【体型】+${V(P["normal.emperor"].grow, lv)}，再【吸收】被其完全遮挡的咕噜`,
     },
     // 旧存档只读；不会再进入商店。
     "normal.tags": { name: "旧·全能履历", desc: () => "已迁移为【吸收】" },
@@ -567,109 +774,109 @@ const zh: FactoryRogueStrings = {
     },
     "attr.balance": {
       name: "均衡红利",
-      desc: (lv) => `1~6 色工种均在场：加成 ${add(V(P["attr.balance"].mult, lv) - 1)}`,
+      desc: (lv) => `1–6 色工种均在场：加成 ${add(V(P["attr.balance"].mult, lv) - 1)}`,
     },
     "syn.steam": {
       name: "蒸汽机",
       desc: (lv) =>
-        `火冰相邻对产生光环：两只咕噜及其直接邻居的团队业绩 ×${mu(V(P["syn.steam"].aura, lv))}`,
+        `相邻火系咕噜＋冰系咕噜产生光环：两只咕噜及其直接邻居的团队业绩 ×${mu(V(P["syn.steam"].aura, lv))}`,
     },
     "syn.short": {
       name: "短路",
       desc: (lv) =>
-        `【线路】每经过 1 只【同名】水咕噜，追加其打工业绩 ×${mu(V(P["syn.short"].burst, lv))}`,
+        `电系咕噜的【线路】每经过 1 只【同种】水系咕噜，追加该水系咕噜打工业绩 ×${mu(V(P["syn.short"].burst, lv))}`,
     },
     "syn.greenhouse": {
       name: "温室",
-      desc: (lv) => `【点燃】后：${odds(V(P["syn.greenhouse"].chance, lv))}额外【生长】${lv >= 5 ? " 2 只" : ""}`,
+      desc: (lv) => `火系咕噜压榨草系咕噜后：【生长】率 +${pc(V(P["syn.greenhouse"].chance, lv))}%${lv >= 5 ? "；生成 2 只" : ""}`,
     },
     "syn.permafrost": {
       name: "霜根网络",
-      desc: (lv) => `冰草【粘连】；每条边加成 ${add(V(P["syn.permafrost"].perCrossEdge, lv))}（至多 ${V(P["syn.permafrost"].cap, lv)} 条）${lv >= 5 ? "；Lv.5：计算整片粘连" : ""}`,
+      desc: (lv) => `冰系咕噜与草系咕噜【粘连】；每条冰–草边加成 ${add(V(P["syn.permafrost"].perCrossEdge, lv))}（至多 ${V(P["syn.permafrost"].cap, lv)} 条）${lv >= 5 ? "；Lv.5：计算整片粘连" : ""}`,
     },
     "syn.lightningrod": {
       name: "蓄能胃袋",
-      desc: (lv) => `一般系中继电路；线路中每点【体型】加成 ${add(V(P["syn.lightningrod"].perMass, lv))}`,
+      desc: (lv) => `一般系咕噜中继电系咕噜【线路】；线路中每点【体型】加成 ${add(V(P["syn.lightningrod"].perMass, lv))}`,
     },
     "syn.mudslide": {
       name: "泥石流",
-      desc: () => "塌方经过水草相邻对：原地重粘",
+      desc: () => "塌方经过水系咕噜＋草系咕噜相邻对：原地重新【粘连】",
     },
     "syn.arcIgnite": {
       name: "电弧点火",
-      desc: (lv) => `【点燃】每多接 1 桌：加成 ${add(V(P["syn.arcIgnite"].perDesk, lv))}`,
+      desc: (lv) => `火系咕噜连到电系桌后，每多接 1 桌：加成 ${add(V(P["syn.arcIgnite"].perDesk, lv))}`,
     },
     "syn.thermalShock": {
       name: "热震",
-      desc: (lv) => `【点燃】压榨到【冻结】时，每只追加其打工业绩 ×${mu(V(P["syn.thermalShock"].echo, lv))}`,
+      desc: (lv) => `火系咕噜每压榨 1 只【冻结】咕噜：追加该咕噜打工业绩 ×${mu(V(P["syn.thermalShock"].echo, lv))}`,
     },
     "syn.steamBurst": {
       name: "蒸汽爆发",
-      desc: (lv) => `【点燃】每只【同名】水系：加成 ${add(V(P["syn.steamBurst"].perSame, lv))}`,
+      desc: (lv) => `火系咕噜本次计分团队每有 1 只【同种】水系咕噜：加成 ${add(V(P["syn.steamBurst"].perSame, lv))}`,
     },
     "syn.fireDispatch": {
       name: "吞火",
-      desc: (lv) => `火＋一般每点额外【体型】：加成 ${add(V(P["syn.fireDispatch"].perMass, lv))}`,
+      desc: (lv) => `火系咕噜＋一般系咕噜：【体型】超过 1 后，每点加成 ${add(V(P["syn.fireDispatch"].perMass, lv))}`,
     },
     "syn.superconduct": {
       name: "超导",
-      desc: (lv) => `每只【冻结】咕噜：加成 ${add(V(P["syn.superconduct"].perFrozen, lv))}`,
+      desc: (lv) => `电系咕噜每压榨 1 只【冻结】咕噜：加成 ${add(V(P["syn.superconduct"].perFrozen, lv))}`,
     },
     "syn.bionet": {
       name: "生物电网",
-      desc: (lv) => `【生长】咕噜中继电路；每只加成 ${add(V(P["syn.bionet"].perGenerated, lv))}${lv >= 5 ? "；Lv.5：计作 2 只" : ""}`,
+      desc: (lv) => `生成咕噜可中继电系咕噜【线路】；每只相连的生成咕噜加成 ${add(V(P["syn.bionet"].perGenerated, lv))}（最多计 12 只${lv >= 5 ? "；每只 ×2 计" : ""}）`,
     },
     "syn.iceMirror": {
       name: "冰镜同化",
-      desc: (lv) => `每只【冻结】同名水系：加成 ${add(V(P["syn.iceMirror"].perFrozenSame, lv))}`,
+      desc: (lv) => `水系咕噜本次计分团队每有 1 只【冻结】【同种】咕噜：加成 ${add(V(P["syn.iceMirror"].perFrozenSame, lv))}`,
     },
     "syn.coldRotation": {
       name: "冰鲜储备",
-      desc: (lv) => `【冻结】咕噜每点额外【体型】使压榨业绩 ${add(V(P["syn.coldRotation"].perMass, lv))}`,
+      desc: (lv) => `被压榨的【冻结】咕噜【体型】超过 1 后，每点使压榨业绩 ${add(V(P["syn.coldRotation"].perMass, lv))}`,
     },
     "syn.irrigation": {
       name: "灌溉增殖",
-      desc: (lv) => `【生长】优先复制同名水系；成功率 ×${mu(V(P["syn.irrigation"].chanceMult, lv))}${lv >= 5 ? "；Lv.5：3 只" : ""}`,
+      desc: (lv) => `水系咕噜＋草系咕噜【生长】时生成【同种】咕噜；成功率 ×${mu(V(P["syn.irrigation"].chanceMult, lv))}${lv >= 5 ? "；生成 3 只" : ""}`,
     },
     "syn.badge": {
       name: "液态融合",
-      desc: (lv) => `水＋一般【吸收】后：额外结算完整业绩 ×${mu(V(P["syn.badge"].mult, lv) - 1)}`,
+      desc: (lv) => `水系咕噜＋一般系咕噜【吸收】后：追加团队业绩 ×${mu(V(P["syn.badge"].mult, lv) - 1)}`,
     },
     "syn.multiSeed": {
       name: "营养繁殖",
-      desc: (lv) => `【生长】咕噜继承母体 ${ratio(V(P["syn.multiSeed"].inheritMass, lv))}【体型】`,
+      desc: (lv) => `一般系咕噜＋草系咕噜【生长】时：生成咕噜继承母体 ${ratio(V(P["syn.multiSeed"].inheritMass, lv))}【体型】`,
     },
     "base.fire": {
       name: "火系培训",
-      desc: (lv) => `投放含火咕噜时，其打工业绩 +${V(P["base.fire"].bonus, lv)}`,
+      desc: (lv) => `火系咕噜上工：打工业绩 +${V(P["base.fire"].bonus, lv)}`,
     },
     "base.water": {
       name: "水系培训",
-      desc: (lv) => `投放含水咕噜时，其打工业绩 +${V(P["base.water"].bonus, lv)}`,
+      desc: (lv) => `水系咕噜上工：打工业绩 +${V(P["base.water"].bonus, lv)}`,
     },
     "base.grass": {
       name: "草系培训",
-      desc: (lv) => `投放含草咕噜时，其打工业绩 +${V(P["base.grass"].bonus, lv)}`,
+      desc: (lv) => `草系咕噜上工：打工业绩 +${V(P["base.grass"].bonus, lv)}`,
     },
     "base.electric": {
       name: "电系培训",
-      desc: (lv) => `投放含电咕噜时，其打工业绩 +${V(P["base.electric"].bonus, lv)}`,
+      desc: (lv) => `电系咕噜上工：打工业绩 +${V(P["base.electric"].bonus, lv)}`,
     },
     "base.ice": {
       name: "冰系培训",
-      desc: (lv) => `投放含冰咕噜时，其打工业绩 +${V(P["base.ice"].bonus, lv)}`,
+      desc: (lv) => `冰系咕噜上工：打工业绩 +${V(P["base.ice"].bonus, lv)}`,
     },
     "base.normal": {
       name: "一般系培训",
-      desc: (lv) => `投放含一般咕噜时，其打工业绩 +${V(P["base.normal"].bonus, lv)}`,
+      desc: (lv) => `一般系咕噜上工：打工业绩 +${V(P["base.normal"].bonus, lv)}`,
     },
     "staff.fire3": {
       name: "解雇",
-      desc: () => `一次性：解雇至多 ${P["staff.fire3"].picks} 只，返还 1x 雇价并塌方（无罢工/遣散费）`,
+      desc: () => `一次性：解雇至多 ${P["staff.fire3"].picks} 只咕噜，返还 1x 雇价并塌方（无罢工/遣散费）`,
     },
     "staff.severance": {
       name: "遣散费",
-      desc: (lv) => `罢工/解雇离场：返还 ${ratio(V(P["staff.severance"].refund, lv))} 雇价`,
+      desc: (lv) => `咕噜因罢工或解雇离场：返还 ${ratio(V(P["staff.severance"].refund, lv))} 雇价`,
     },
     "staff.movedesk": {
       name: "搬桌",
@@ -693,7 +900,7 @@ const zh: FactoryRogueStrings = {
     },
     "staff.pricecut": {
       name: "压价",
-      desc: (lv) => `指定工种：本局雇价 −${ratio(V(P["staff.pricecut"].cut, lv))}`,
+      desc: (lv) => `指定工种：本局雇价 −${pc(V(P["staff.pricecut"].cut, lv))}%`,
     },
   },
 };
@@ -714,7 +921,7 @@ const en: FactoryRogueStrings = {
   loNeedMore: "Pick at least {min} species",
   loEmpty: "No Gulus yet — hatch one first",
   loBaseValue: "Work Performance {n}",
-  loReach: "Exploitation Count {n}",
+  loReach: "Exploitation Reach {n}",
   loGroupNo: "No.{n}",
   loHireBase: "Hire base {pct}% KPI",
   loTier: "{n}-color job",
@@ -811,6 +1018,107 @@ const en: FactoryRogueStrings = {
   tutSame: "Two of a kind stuck — one more and they unionize!",
   tutKpi: "Hit KPI with fewer Gulus — reserves settle Team Performance automatically, then return for the next shift",
 
+  loShiftOne: "Shift 1",
+  loLeaderboard: "LEADERBOARD",
+  loElementOdds: "DRAW BAG ELEMENT ODDS",
+  loWorkLegend: "★ WORK PERFORMANCE = score this Gulu produces on its own",
+  loExploitLegend: "⛓ EXPLOITATION REACH = number of Gulus below it that can contribute",
+  loIn: "IN ✓",
+  shopHeader: "SHIFT-END SHOP",
+  shopTakeFree: "TAKE IT",
+  shopKeywordAria: "Keyword tips",
+  shopKeywordTitle: "KEYWORD TIPS",
+  shopKeywordEmpty: "No extra keywords on these cards",
+  runtimeTeamPerformance: "TEAM PERFORMANCE",
+  runtimeExploitationPerformance: "EXPLOITATION PERFORMANCE",
+  runtimePaused: "Paused safely for {seconds}s — back to work!",
+  kpiAchieved: "KPI ACHIEVED!",
+  sumViewLeaderboard: "View leaderboard",
+  steamGlobalRankEmpty: "Steam global rank —",
+
+  hireTitle: "GULU HIRING",
+  hireShiftRound: "Shift {shift} · Draft {round}/{max}",
+  hireCash: "CASH",
+  hirePool: "GULU POOL",
+  hireTip: "All Gulus are preselected. Uncheck any you do not want, then pay once. Selected Gulus survive rerolls.",
+  hireSelected: "IN ✓",
+  hirePick: "PICK",
+  hireWorkPerformance: "Work Performance",
+  hireExploitCount: "Exploitation Reach",
+  hireVerb: "HIRE",
+  hirePoolCurrent: "CURRENT GULU POOL",
+  hirePoolTotal: "{count} TOTAL",
+  hirePoolEmpty: "GULU POOL IS EMPTY",
+  hirePicked: "PICKED",
+  hireCost: "HIRE COST",
+  hireCashAfter: "CASH AFTER PAY",
+  hireAfterBill: "AFTER BILL",
+  hireReroll: "REROLL UNSELECTED GULUS",
+  hireRerollSpent: "REROLL",
+  hireClearAll: "CLEAR ALL",
+  hireSelectAll: "SELECT ALL",
+  hireNoCash: "NOT ENOUGH CASH",
+  hirePoolFull: "GULU POOL FULL",
+  hirePayNext: "PAY & NEXT DRAFT",
+  hirePayStart: "PAY & CLOCK IN!",
+  hireConfirmTitle: "CONTINUE?",
+  hireConfirmEmpty: "You have not selected any Gulu this draft.",
+  hireConfirmLowPool: "Only {count} Gulus will remain in your Gulu pool. Your reserve is running low.",
+  hireGoBack: "GO BACK",
+  hireContinue: "CONTINUE",
+
+  settlementEyebrow: "SHIFT {shift} · CLOCK-OUT RECEIPT",
+  settlementTitle: "Shift Statement",
+  settlementSpent: "Spent",
+  settlementReceived: "Received",
+  settlementBill: "Bill Due",
+  settlementRequired: "Required today",
+  settlementLoanPayment: "Loan repayment",
+  settlementDetails: "Team Performance breakdown",
+  settlementTeam: "Team Performance",
+  settlementBase: "Work Performance",
+  settlementAbsorbed: "Exploitation Performance",
+  settlementExtra: "Bonus Performance",
+  settlementPools: "Element · Synergy · Job · Rhythm",
+  settlementEmpty: "No Team Performance earned this shift",
+  settlementDesks: "{count} desk(s)",
+  settlementWallet: "My wallet",
+  settlementAfter: "After all payments",
+  settlementShortfall: "Shortfall",
+  settlementConfirmAll: "Confirm all payments",
+  settlementConfirmBill: "Confirm & pay bill",
+  settlementConfirmBankruptcy: "Insufficient — confirm bankruptcy",
+  settlementPaying: "Paying…",
+  settlementPaid: "PAID ✓",
+  settlementRefund: "Refund",
+  settlementTrickle: "Rush trickle",
+  settlementKpiBonus: "KPI achievement bonus",
+
+  lbAria: "Steam Global Leaderboard",
+  lbLegacyLineup: "Lineup unavailable for legacy record",
+  lbMe: "ME",
+  lbBestRevenue: "BEST REVENUE",
+  lbBestShift: "BEST SHIFT",
+  lbEndless: "ENDLESS",
+  lbNormal: "NORMAL",
+  lbBack: "BACK",
+  lbTitle: "GLOBAL FACTORY LEADERBOARD",
+  lbTop100: "GLOBAL TOP 100",
+  lbUpdated: "Updated {time}",
+  lbRefresh: "REFRESH",
+  lbRankPlayer: "RANK / PLAYER",
+  lbColumns: "REVENUE / SHIFT / MODE / RECORD LINEUP",
+  lbConnecting: "Connecting to Steam leaderboard…",
+  lbUnavailable: "Leaderboard unavailable",
+  lbRetry: "TRY AGAIN",
+  lbEmpty: "No records yet. Be the first!",
+  lbMyRank: "MY RANK",
+  lbNotRanked: "Not ranked · Finish a run to submit a score",
+  sumNewRecordBadge: "★ NEW RECORD ★",
+  sumFactoryDrop: "FACTORY DROP",
+  cardAria: "{name}, level {level}. {description}",
+  levelAria: "Level {level}",
+
   sumBankrupt: "SEIZED — Bankrupt",
   sumGraduate: "Graduated! 20 shifts cleared",
   sumEndlessOver: "Endless run over",
@@ -860,306 +1168,663 @@ const en: FactoryRogueStrings = {
   cards: {
     "fire.burst": {
       name: "Burn Rate",
-      desc: (lv) => `Ignite: score Work Performance ${V(P["fire.burst"].repeats, lv)} extra time(s)`,
+      desc: (lv) => `When Ignite triggers, add the Fire Gulu's Work Performance ${V(P["fire.burst"].repeats, lv)} extra times.`,
     },
     "fire.ember": {
       name: "Warm Handover",
       desc: (lv) =>
-        `Exploitation Performance supplied by Fire Gulus ×${mu(V(P["fire.ember"].asAbsorbed, lv))}`,
+        `When a Fire Gulu exploits another Fire Gulu, the target's Exploitation Performance is ×${mu(V(P["fire.ember"].asAbsorbed, lv))}.`,
     },
     "fire.wildfire": {
       name: "Wildfire",
       desc: (lv) =>
-        `After the first score, Ignite spreads through up to ${V(P["fire.wildfire"].spread, lv)} adjacent Fire Gulus`,
+        `After the first score, Ignite up to ${V(P["fire.wildfire"].spread, lv)} adjacent Fire Gulus. Each scores its Work Performance 1 extra time.`,
     },
     "fire.chain": {
       name: "Fireline",
-      desc: (lv) => `Deploying a Fire Gulu grants +${V(P["fire.chain"].reachBonus, lv)} Exploitation Count`,
+      desc: (lv) => `Deploying a Fire Gulu increases its Exploitation Reach by +${V(P["fire.chain"].reachBonus, lv)}.`,
     },
     "electric.overload": {
       name: "Crunch Mode",
-      desc: (lv) => `Each exploited layer: bonus ${addEn(V(P["electric.overload"].perDepth, lv))}`,
+      desc: (lv) => `For an Electric Gulu, each exploited Gulu grants bonus ${addEn(V(P["electric.overload"].perDepth, lv))}.`,
     },
     "electric.wire": {
       name: "Live Wire",
-      desc: (lv) => `Deploying an Electric Gulu grants +${V(P["electric.wire"].reachBonus, lv)} Exploitation Count`,
+      desc: (lv) => `Deploying an Electric Gulu increases its Exploitation Reach by +${V(P["electric.wire"].reachBonus, lv)}.`,
     },
     "electric.parallel": {
       name: "Parallel Circuit",
-      desc: (lv) => `Each extra linked desk: bonus ${addEn(V(P["electric.parallel"].perExtraDesk, lv))}`,
+      desc: (lv) => `For an Electric Gulu, each linked desk after the first grants bonus ${addEn(V(P["electric.parallel"].perExtraDesk, lv))}.`,
     },
     "electric.induction": {
       name: "Corporate Ladder",
-      desc: (lv) => `Each Electric desk-path edge: bonus ${addEn(V(P["electric.induction"].perLink, lv))}`,
+      desc: (lv) => `Each Circuit edge from an Electric Gulu to a linked desk grants bonus ${addEn(V(P["electric.induction"].perLink, lv))}.`,
     },
     "ice.icicle": {
       name: "Icicle",
       desc: (lv) =>
-        `Gulus stuck directly above an Ice Gulu gain ×${mu(V(P["ice.icicle"].above, lv))} Team Performance`,
+        `Gulus directly above an Ice Gulu multiply their Team Performance by ×${mu(V(P["ice.icicle"].above, lv))}.`,
     },
     "ice.freezeprice": {
       name: "Wage Freeze",
       desc: (lv) =>
-        `Ice Gulus' hiring price ×${mu(V(P["ice.freezeprice"].priceMult, lv))}`,
+        `Multiply the hire price of every Ice Gulu by ×${mu(V(P["ice.freezeprice"].priceMult, lv))}.`,
     },
     "ice.freeze": {
       name: "Flash-Freeze Route",
-      desc: (lv) => `After linking: ${oddsEn(V(P["ice.freeze"].chance, lv))} Freeze below`,
+      desc: (lv) => `After an Ice Gulu scores, it has a ${oddsEn(V(P["ice.freeze"].chance, lv))} chance to Freeze 1 exploited Gulu below it.`,
     },
     "ice.overstaff": {
       name: "Overstaffing Bonus",
-      desc: (lv) => `Each Overstaffing point: bonus ${addEn(V(P["ice.overstaff"].per, lv))}`,
+      desc: (lv) => `For an Ice Gulu, each Overstaff Gulu on the field grants bonus ${addEn(V(P["ice.overstaff"].per, lv))}.`,
     },
     "ice.prism": {
       name: "Prism",
-      desc: (lv) => `Ice linked to ≥1 desk: desk count +1, desk bonus ${addEn(V(P["ice.prism"].extraShare, lv))}`,
+      desc: (lv) => `An Ice Gulu at a desk counts 1 extra linked desk and gains bonus ${addEn(V(P["ice.prism"].extraShare, lv))}.`,
     },
     "ice.chain": {
       name: "Ice Bridge",
-      desc: (lv) => `Deploying an Ice Gulu grants +${V(P["ice.chain"].reachBonus, lv)} Exploitation Count`,
+      desc: (lv) => `Deploying an Ice Gulu increases its Exploitation Reach by +${V(P["ice.chain"].reachBonus, lv)}.`,
     },
     "water.reflow": {
       name: "Backflow",
       desc: (lv) =>
-        `Bounced hires refund ${pc(V(P["water.reflow"].refund, lv))}% of the fee`,
+        `After a failed throw, refund ${pc(V(P["water.reflow"].refund, lv))}% of the hire price.`,
     },
     "water.reservoir": {
       name: "Rainy-Day Fund",
       desc: (lv) =>
-        `+${pc(V(P["water.reservoir"].interest, lv))}% interest on cash at shift end`,
+        `At shift end, add ${pc(V(P["water.reservoir"].interest, lv))}% interest to your cash.`,
     },
     "water.fourday": {
       name: "Four-Day Week",
-      desc: (lv) => `Water groups strike at ${V(P["water.fourday"].line, lv)}; each adds ${ratioEn(V(P["water.fourday"].strikeBonus, lv))} full performance`,
+      desc: (lv) => `A Same-species Water Gulu group strikes at ${V(P["water.fourday"].line, lv)} Gulus. Each one adds its Work Performance ×${mu(V(P["water.fourday"].strikeBonus, lv))}.`,
     },
     "water.same": {
       name: "Same-Name Tide",
-      desc: (lv) => `Each same-name teammate: this card ×${mu(V(P["water.same"].perTeamSame, lv))} (max 10)`,
+      desc: (lv) => `Each Same-name Gulu in a Water Gulu's scoring team multiplies this card by ×${mu(V(P["water.same"].perTeamSame, lv))}, up to 10 Gulus.`,
     },
     "water.convert": {
       name: "Assimilation",
-      desc: (lv) => `Score: Convert top ${V(P["water.convert"].targets, lv)} non-Water targets`,
+      desc: (lv) => `After a Water Gulu scores, Convert the ${V(P["water.convert"].targets, lv)} highest-scoring exploited non-Water Gulus.`,
     },
     "water.chain": {
       name: "Waterway",
-      desc: (lv) => `Deploying a Water Gulu grants +${V(P["water.chain"].reachBonus, lv)} Exploitation Count`,
+      desc: (lv) => `Deploying a Water Gulu increases its Exploitation Reach by +${V(P["water.chain"].reachBonus, lv)}.`,
     },
     "grass.root": {
       name: "Deep Roots",
-      desc: (lv) => `Grass on desk: that desk's Team Performance ×${mu(V(P["grass.root"].deskMult, lv))}`,
+      desc: (lv) => `A Grass Gulu on a desk multiplies that desk's Team Performance by ×${mu(V(P["grass.root"].deskMult, lv))}.`,
     },
     "grass.symbiosis": {
       name: "Team Player",
-      desc: (lv) => `Each off-element neighbor: Grass exploitation bonus ${addEn(V(P["grass.symbiosis"].perNeighbor, lv))}`,
+      desc: (lv) => `For a Grass Gulu, each neighbor without Grass grants exploitation bonus ${addEn(V(P["grass.symbiosis"].perNeighbor, lv))}.`,
     },
     "grass.growth": {
       name: "Compound Growth",
       desc: (lv) =>
-        `Each survived shift adds ${addEn(V(P["grass.growth"].perShift, lv))} to a Grass Gulu's Work Performance (cap ×${V(P["grass.growth"].capX, lv)})`,
+        `Each survived shift adds ${addEn(V(P["grass.growth"].perShift, lv))} Work Performance to a Grass Gulu, capped at ×${V(P["grass.growth"].capX, lv)}.`,
     },
     "grass.chain": {
       name: "Vine Network",
-      desc: (lv) => `Deploying a Grass Gulu grants +${V(P["grass.chain"].reachBonus, lv)} Exploitation Count`,
+      desc: (lv) => `Deploying a Grass Gulu increases its Exploitation Reach by +${V(P["grass.chain"].reachBonus, lv)}.`,
     },
     "grass.grow": {
       name: "Self-Propagation",
-      desc: (lv) => `After scoring: ${oddsEn(V(P["grass.grow"].chance, lv))} Grow`,
+      desc: (lv) => `After a Grass Gulu scores, it has a ${oddsEn(V(P["grass.grow"].chance, lv))} chance to Grow.`,
     },
     "grass.crowd": {
       name: "Lush Workforce",
-      desc: (lv) => `Each Lush point: bonus ${addEn(V(P["grass.crowd"].perConnected, lv))}`,
+      desc: (lv) => `Each Gulu in a Grass Gulu's connected group (Lush) grants bonus ${addEn(V(P["grass.crowd"].perConnected, lv))}.`,
     },
     "grass.height": {
       name: "Canopy",
-      desc: (lv) => `Each linked Height: bonus ${addEn(V(P["grass.height"].perLayer, lv))}`,
+      desc: (lv) => `Each Height above 1 grants a Grass Gulu bonus ${addEn(V(P["grass.height"].perLayer, lv))}, up to Height ${P["grass.height"].cap}.`,
     },
     "normal.crowd": {
       name: "Warm Bodies",
       desc: (lv) =>
-        `Every 5 Normal Gulus on site: all Team Performance +${pc(V(P["normal.crowd"].per5, lv))}%`,
+        `For every 5 Normal Gulus on the field, all Team Performance increases by +${pc(V(P["normal.crowd"].per5, lv))}%.`,
     },
     "normal.temp": {
       name: "Temp Agency",
       desc: (lv) =>
-        `1-color job wage inflation drops to ×${P["normal.temp"].inflation[Math.min(lv, P["normal.temp"].inflation.length) - 1]}`,
+        `Multiply wage growth for 1-color jobs by ×${P["normal.temp"].inflation[Math.min(lv, P["normal.temp"].inflation.length) - 1]}.`,
     },
     "normal.jack": {
       name: "Jack of All Trades",
       desc: (lv) =>
         lv >= 2
-          ? "Normal Gulus stick to any Gulu and can relay any element's desk path"
-          : "Normal Gulus count as sharing an element with every Gulu when sticking",
+          ? "Normal Gulus can Stick to any Gulu and relay the desk path of any element."
+          : "When using Stick, Normal Gulus count as sharing an element with every Gulu.",
     },
     "normal.chain": {
       name: "Office Network",
-      desc: (lv) => `Deploying a Normal Gulu grants +${V(P["normal.chain"].reachBonus, lv)} Exploitation Count`,
+      desc: (lv) => `Deploying a Normal Gulu increases its Exploitation Reach by +${V(P["normal.chain"].reachBonus, lv)}.`,
     },
     "normal.absorb": {
       name: "Absorb",
       desc: (lv) => {
         const targets = V(P["normal.absorb"].targets, lv);
         const chance = oddsEn(V(P["normal.absorb"].chance, lv));
-        return `Deploy: ${chance} absorb with the nearest Gulu; higher Size wins, self wins ties${targets > 1 ? ` (up to ${targets})` : ""}`;
+        return `After scoring, there is a ${chance} chance to Absorb ${targets > 1 ? `up to ${targets} nearest Gulus` : "the nearest Gulu"}. The larger Size wins; if tied, the scoring Gulu wins.`;
       },
     },
     "normal.gluttony": {
       name: "Gluttony",
-      desc: (lv) => `Each extra thrower Size: bonus ${addEn(V(P["normal.gluttony"].perSize, lv))}`,
+      desc: (lv) => `Each Size above 1 grants a Normal Gulu bonus ${addEn(V(P["normal.gluttony"].perSize, lv))}.`,
     },
     "normal.emperor": {
       name: "Employee of the Universe",
-      desc: (lv) => `Score: largest Normal +${V(P["normal.emperor"].grow, lv)} Size; swallow fully covered Gulus`,
+      desc: (lv) => `After the team scores, the Normal Gulu with the largest Size gains +${V(P["normal.emperor"].grow, lv)} Size. It then uses Absorb on every Gulu completely below it.`,
     },
     "normal.tags": { name: "Legacy Résumé", desc: () => "Migrated to Absorb" },
     "normal.overlap": { name: "Legacy Resonance", desc: () => "Migrated to Gluttony" },
     "normal.dispatch": { name: "Legacy Dispatch", desc: () => "Migrated to Employee of the Universe" },
     "syn.arcIgnite": {
       name: "Arc Ignition",
-      desc: (lv) => `Ignite, each extra desk: bonus ${addEn(V(P["syn.arcIgnite"].perDesk, lv))}`,
+      desc: (lv) => `For a Fire Gulu linked to an Electric desk, each extra linked desk grants bonus ${addEn(V(P["syn.arcIgnite"].perDesk, lv))}.`,
     },
     "syn.thermalShock": {
       name: "Thermal Shock",
       desc: (lv) =>
-        `When an Ignited Gulu exploits a Frozen Gulu, add its Work Performance ×${mu(V(P["syn.thermalShock"].echo, lv))}`,
+        `For a Fire Gulu, each exploited Frozen Gulu adds that target's Work Performance ×${mu(V(P["syn.thermalShock"].echo, lv))}.`,
     },
     "syn.steamBurst": {
       name: "Steam Burst",
-      desc: (lv) => `Ignite, each same-name Water: bonus ${addEn(V(P["syn.steamBurst"].perSame, lv))}`,
+      desc: (lv) => `Each Same-name Water Gulu in a Fire Gulu's scoring team grants bonus ${addEn(V(P["syn.steamBurst"].perSame, lv))}.`,
     },
     "syn.fireDispatch": {
       name: "Fire-Eater",
-      desc: (lv) => `Each extra Fire+Normal Size: bonus ${addEn(V(P["syn.fireDispatch"].perMass, lv))}`,
+      desc: (lv) => `For a Fire Gulu with a Normal Gulu, each Size above 1 grants bonus ${addEn(V(P["syn.fireDispatch"].perMass, lv))}.`,
     },
     "syn.superconduct": {
       name: "Superconductor",
-      desc: (lv) => `Each Frozen Gulu: bonus ${addEn(V(P["syn.superconduct"].perFrozen, lv))}`,
+      desc: (lv) => `For an Electric Gulu, each exploited Frozen Gulu grants bonus ${addEn(V(P["syn.superconduct"].perFrozen, lv))}.`,
     },
     "syn.bionet": {
       name: "Bio-Network",
-      desc: (lv) => `Generated Gulus relay circuits; each: bonus ${addEn(V(P["syn.bionet"].perGenerated, lv))}${lv >= 5 ? "; Lv.5: count twice" : ""}`,
+      desc: (lv) => `Generated Gulus relay an Electric Gulu's Circuit. Each connected Generated Gulu grants bonus ${addEn(V(P["syn.bionet"].perGenerated, lv))}, up to 12${lv >= 5 ? "; at level 5, each counts 2×" : ""}.`,
     },
     "syn.iceMirror": {
       name: "Ice Mirror",
-      desc: (lv) => `Each Frozen same-name Water: bonus ${addEn(V(P["syn.iceMirror"].perFrozenSame, lv))}`,
+      desc: (lv) => `Each Frozen Same-name Gulu in a Water Gulu's scoring team grants bonus ${addEn(V(P["syn.iceMirror"].perFrozenSame, lv))}.`,
     },
     "syn.coldRotation": {
       name: "Cold Storage",
-      desc: (lv) => `Each extra Frozen Size: exploitation bonus ${addEn(V(P["syn.coldRotation"].perMass, lv))}`,
+      desc: (lv) => `For each exploited Frozen Gulu, every Size above 1 raises its Exploitation Performance by ${addEn(V(P["syn.coldRotation"].perMass, lv))}.`,
     },
     "syn.irrigation": {
       name: "Irrigation",
       desc: (lv) =>
-        `Grow prioritizes a same-name Water Gulu; chance ×${mu(V(P["syn.irrigation"].chanceMult, lv))}${lv >= 5 ? "; Apex: Grow 3 copies" : ""}`,
+        `When a Water Gulu helps a Grass Gulu Grow, it creates a Same-name Gulu with chance ×${mu(V(P["syn.irrigation"].chanceMult, lv))}${lv >= 5 ? "; at level 5, create 3 copies" : ""}.`,
     },
     "syn.badge": {
       name: "Liquid Fusion",
-      desc: (lv) => `Water+Normal Absorb: score full performance ×${mu(V(P["syn.badge"].mult, lv) - 1)} extra`,
+      desc: (lv) => `When a Water Gulu and Normal Gulu trigger Absorb together, add Team Performance ×${mu(V(P["syn.badge"].mult, lv) - 1)}.`,
     },
     "syn.multiSeed": {
       name: "Nutrient Seed",
-      desc: (lv) => `Generated Gulu Size: ${ratioEn(V(P["syn.multiSeed"].inheritMass, lv))} of parent`,
+      desc: (lv) => `A Generated Gulu from a Normal Gulu and Grass Gulu inherits ${ratioEn(V(P["syn.multiSeed"].inheritMass, lv))} of its parent's Size.`,
     },
     "attr.pure": {
       name: "Specialist",
-      desc: (lv) => `1-color Gulus: bonus ${addEn(V(P["attr.pure"].mult, lv) - 1)}`,
+      desc: (lv) => `All 1-color Gulus gain bonus ${addEn(V(P["attr.pure"].mult, lv) - 1)}.`,
     },
     "attr.dual": {
       name: "Dual Income",
-      desc: (lv) => `2-color Gulus: bonus ${addEn(V(P["attr.dual"].mult, lv) - 1)}`,
+      desc: (lv) => `All 2-color Gulus gain bonus ${addEn(V(P["attr.dual"].mult, lv) - 1)}.`,
     },
     "attr.slash": {
       name: "Side Hustler",
-      desc: (lv) => `3-color Gulus: bonus ${addEn(V(P["attr.slash"].mult, lv) - 1)}`,
+      desc: (lv) => `All 3-color Gulus gain bonus ${addEn(V(P["attr.slash"].mult, lv) - 1)}.`,
     },
     "attr.hex": {
       name: "Hexagon Allowance",
-      desc: (lv) => `≥4-color Gulus, each element: bonus ${addEn(V(P["attr.hex"].perElement, lv))}`,
+      desc: (lv) => `For Gulus with ≥4 colors, each element grants bonus ${addEn(V(P["attr.hex"].perElement, lv))}.`,
     },
     "attr.balance": {
       name: "Full-Roster Bonus",
-      desc: (lv) => `All 1–6-color jobs on site: bonus ${addEn(V(P["attr.balance"].mult, lv) - 1)}`,
+      desc: (lv) => `If all 1–6-color jobs are on site, everyone gains bonus ${addEn(V(P["attr.balance"].mult, lv) - 1)}.`,
     },
     "syn.steam": {
       name: "Steam Engine",
-      desc: (lv) => `Adjacent Fire+Ice: pair and neighbors' Team Performance ×${mu(V(P["syn.steam"].aura, lv))}`,
+      desc: (lv) => `When a Fire Gulu is next to an Ice Gulu, multiply the pair and their neighbors' Team Performance by ×${mu(V(P["syn.steam"].aura, lv))}.`,
     },
     "syn.short": {
       name: "Short Circuit",
-      desc: (lv) => `Each same-name Water in Circuit: add Work Performance ×${mu(V(P["syn.short"].burst, lv))}`,
+      desc: (lv) => `In an Electric Gulu's Circuit, multiply Work Performance from each Same-name Water Gulu by ×${mu(V(P["syn.short"].burst, lv))}.`,
     },
     "syn.greenhouse": {
       name: "Greenhouse",
-      desc: (lv) => `Ignite: ${oddsEn(V(P["syn.greenhouse"].chance, lv))} extra Grow${lv >= 5 ? " ×2" : ""}`,
+      desc: (lv) => `When a Fire Gulu exploits a Grass Gulu, Grow chance increases by +${pc(V(P["syn.greenhouse"].chance, lv))}%${lv >= 5 ? "; at level 5, create 2 copies" : ""}.`,
     },
     "syn.permafrost": {
       name: "Frostroot Network",
-      desc: (lv) => `Ice–Grass Stick; each edge: bonus ${addEn(V(P["syn.permafrost"].perCrossEdge, lv))} (max ${V(P["syn.permafrost"].cap, lv)})${lv >= 5 ? "; Lv.5: whole cluster" : ""}`,
+      desc: (lv) => `When an Ice Gulu and Grass Gulu use Stick, each link between them grants bonus ${addEn(V(P["syn.permafrost"].perCrossEdge, lv))}, up to ${V(P["syn.permafrost"].cap, lv)} links${lv >= 5 ? "; at level 5, count their whole connected group" : ""}.`,
     },
     "syn.lightningrod": {
       name: "Battery Belly",
-      desc: (lv) => `Normal relays circuits; each route Size: bonus ${addEn(V(P["syn.lightningrod"].perMass, lv))}`,
+      desc: (lv) => `Normal Gulus relay Electric Circuit. Each Size point along its routes grants bonus ${addEn(V(P["syn.lightningrod"].perMass, lv))}.`,
     },
     "syn.mudslide": {
       name: "Mudslide",
-      desc: () => "Collapse through Water+Grass: re-stick in place",
+      desc: () => "When a tower collapses through a Water Gulu and Grass Gulu, they Stick again in place.",
     },
     "base.fire": {
       name: "Fire Training",
-      desc: (lv) => `A deployed Fire Gulu gains +${V(P["base.fire"].bonus, lv)} Work Performance`,
+      desc: (lv) => `Each deployed Fire Gulu gains +${V(P["base.fire"].bonus, lv)} Work Performance.`,
     },
     "base.water": {
       name: "Water Training",
-      desc: (lv) => `A deployed Water Gulu gains +${V(P["base.water"].bonus, lv)} Work Performance`,
+      desc: (lv) => `Each deployed Water Gulu gains +${V(P["base.water"].bonus, lv)} Work Performance.`,
     },
     "base.grass": {
       name: "Grass Training",
-      desc: (lv) => `A deployed Grass Gulu gains +${V(P["base.grass"].bonus, lv)} Work Performance`,
+      desc: (lv) => `Each deployed Grass Gulu gains +${V(P["base.grass"].bonus, lv)} Work Performance.`,
     },
     "base.electric": {
       name: "Electric Training",
-      desc: (lv) => `A deployed Electric Gulu gains +${V(P["base.electric"].bonus, lv)} Work Performance`,
+      desc: (lv) => `Each deployed Electric Gulu gains +${V(P["base.electric"].bonus, lv)} Work Performance.`,
     },
     "base.ice": {
       name: "Ice Training",
-      desc: (lv) => `A deployed Ice Gulu gains +${V(P["base.ice"].bonus, lv)} Work Performance`,
+      desc: (lv) => `Each deployed Ice Gulu gains +${V(P["base.ice"].bonus, lv)} Work Performance.`,
     },
     "base.normal": {
       name: "Normal Training",
-      desc: (lv) => `A deployed Normal Gulu gains +${V(P["base.normal"].bonus, lv)} Work Performance`,
+      desc: (lv) => `Each deployed Normal Gulu gains +${V(P["base.normal"].bonus, lv)} Work Performance.`,
     },
     "staff.fire3": {
       name: "Pink Slips",
-      desc: () => `One-shot: dismiss ${P["staff.fire3"].picks}; refund 1x, collapse (no strike/severance)`,
+      desc: () => `Use this card once to dismiss ${P["staff.fire3"].picks} Gulus and refund all their hiring costs. The tower collapses safely, with no strike or exit fee.`,
     },
     "staff.severance": {
       name: "Severance Package",
-      desc: (lv) => `Strike/layoff exit: refund ${ratioEn(V(P["staff.severance"].refund, lv))} hire price`,
+      desc: (lv) => `When a Gulu leaves by strike or dismissal, refund ${ratioEn(V(P["staff.severance"].refund, lv))} of its hire price.`,
     },
     "staff.movedesk": {
       name: "Desk Shuffle",
-      desc: () => "One-shot: swap two desks and towers; cut cross-desk links midway",
+      desc: () => "Use once to exchange 2 desks with their towers. All links between those desks are cut.",
     },
     "staff.expand": {
       name: "Extra Seats",
-      desc: () => `Headcount cap +${P["staff.expand"].quota}`,
+      desc: () => `Increase the maximum staff count by +${P["staff.expand"].quota}.`,
     },
     "staff.talentmarket": {
       name: "Talent Market",
-      desc: (lv) => `Each draft: +${P["staff.talentmarket"].rerollsPerLevel * lv} rerolls, +${P["staff.talentmarket"].candidatesPerLevel * lv} candidates (hire max 10)`,
+      desc: (lv) => `Each draft gains +${P["staff.talentmarket"].rerollsPerLevel * lv} rerolls and +${P["staff.talentmarket"].candidatesPerLevel * lv} candidates. You may choose up to 10.`,
     },
     "staff.backfill": {
       name: "Backfill",
-      desc: (lv) => `After regular draft: extra draft for ${V(P["staff.backfill"].extraCandidates, lv)} Gulus`,
+      desc: (lv) => `After the regular draft, run an extra draft with ${V(P["staff.backfill"].extraCandidates, lv)} Gulus.`,
     },
     "staff.loan": {
       name: "Payday Loan",
-      desc: () => `Get ${ratioEn(LOAN_GAIN_RATE)} KPI; repay ${ratioEn(LOAN_REPAY_RATE)} principal for ${LOAN_SHIFTS} shifts (${ratioEn(LOAN_TOTAL_REPAY_RATE)} total)`,
+      desc: () => `Receive ${ratioEn(LOAN_GAIN_RATE)} KPI immediately. Repay ${ratioEn(LOAN_REPAY_RATE)} of the borrowed amount for ${LOAN_SHIFTS} shifts (${ratioEn(LOAN_TOTAL_REPAY_RATE)} total).`,
     },
     "staff.pricecut": {
       name: "Lowball Offer",
-      desc: (lv) => `Pick a job: hire price −${ratioEn(V(P["staff.pricecut"].cut, lv))} this run`,
+      desc: (lv) => `Pick 1 job type. Its hire price drops by −${pc(V(P["staff.pricecut"].cut, lv))}% for this game.`,
     },
   },
 };
 
-export const FACTORY_ROGUE: Record<Language, FactoryRogueStrings> = { zh, en };
+/**
+ * Japanese factory UI. Card names/descriptions still use the English fallback,
+ * but every navigation label, warning, tutorial hint, confirmation dialog and
+ * run-summary message is native Japanese.
+ */
+const ja = {
+  hubTitle: "おしごと工場",
+  hubDemoTitle: "クラシック・サンドボックス",
+  hubDemoDesc: "自由に投下、山積み、ストライキ。ルールなしで遊べます",
+  hubRogueTitle: "職場つみつみ",
+  hubRogueDesc: "全20シフトのKPIサバイバル。グルを雇って積み上げ、チーム実績を稼ぎ、破産を避けよう",
+  hubBack: "← 戻る",
+
+  loTitle: "出勤準備",
+  loDeskMap: "今回のデスク配置（ランダム。「デスク交換」カードで変更可能）",
+  loPick: "コレクションから {min}～{max} 種のグルを選択。少数精鋭は高実績を狙いやすく、多種編成は安定する代わりに構成が薄まります",
+  loPicked: "選択済み {n}/{max}",
+  loStart: "シフト開始！",
+  loNeedMore: "最低 {min} 種を選んでください",
+  loEmpty: "グルがいません。まずは1匹ふ化させましょう",
+  loBaseValue: "基本実績 {n}",
+  loReach: "吸い上げ数 {n}",
+  loGroupNo: "番号 {n}",
+  loHireBase: "雇用基準 {pct}% KPI",
+  loTier: "{n}色職種",
+  loLeaderboard: "リーダーボード",
+  loElementOdds: "採用プールの属性確率",
+  loWorkLegend: "★ 作業実績 = グル自身が生み出すスコア",
+  loExploitLegend: "⛓ 搾取回数 = 下にいる搾取可能なグル",
+  loIn: "選択済み ✓",
+
+  hudBack: "← 終了",
+  hudRevenue: "総売上",
+  hudShift: "シフト {n}/{total}",
+  hudShiftEndless: "シフト ∞+{m}",
+  hudKpi: "KPI",
+  hudBill: "請求額 {v}",
+  hudCash: "所持金",
+  hudQuota: "定員",
+  hudCombo: "Combo ×{n}",
+  hudBag: "採用プール",
+  hudBagEmpty: "採用プールは空です",
+  hudWarnBankrupt: "⚠️ 破産警告：次の行動に必要な資金がありません",
+  hudDismiss: "解雇モード：現場のグルを選択（残り {n} 匹）",
+  hudSwapDesk: "デスク交換：入れ替えるデスクを2台選択",
+  hudPricecut: "賃下げ：今回の雇用基準額を下げる職種を選択",
+  hudTierBtn: "{n}色",
+
+  modRush: "締切デー",
+  modRushRule: "{s}秒以内に手動投下でKPIを達成。メモが燃え尽きるまでに届かなければ破産です",
+  modRushLeft: "⏱ 残り{s}秒",
+  modPower: "節電デー",
+  modPowerRule: "このシフトの手動投下は{n}回まで。回数が尽きる前にKPIを達成してください（残業投下は無料）",
+  modPowerLeft: "投下 残り{n}回",
+  modWind: "強風デー",
+  modWindRule: "横風で軌道が曲がり、20秒ごとに風向きが反転します。旗を確認！",
+  modAudit: "最終総合検査",
+  modAuditRule: "全デスク開放。5分・手動投下20回以内に5000万KPIを達成。強風は20秒ごとに反転します",
+
+  shopTitle: "シフト後ショップ（第{n}シフト）",
+  dim1: "属性シリーズ",
+  dim2: "特性・運営",
+  dim3: "シナジー",
+  dim4: "特性・運営",
+  dim5: "総合セレクション",
+  shopBuy: "購入",
+  shopSkip: "スキップ +{v}",
+  shopReroll: "更新 −{v}",
+  shopResolved: "決定済み",
+  shopNext: "次のシフトへ →",
+  shopOwnedLv: "所持 Lv.{lv}",
+  shopFree: "無料",
+  shopMaxLv: "最大レベル",
+  shopLoanActive: "返済中",
+  shopStep: "選択 {n}/{total}",
+  shopAllDone: "強化完了。採用を始められます",
+  shopOpPaused: "この操作を終えるとショップを再開します · 残り{n}回",
+  operationKicker: "操作が必要です",
+  operationDismissTitle: "解雇するグルを選択",
+  operationDismissSceneHint: "工場内のグルを直接クリック。直近の雇用額を100%返金します",
+  operationSwapTitle: "交換するデスクを選択",
+  operationSwapHint: "デスクを2台選択。上のグルごと入れ替わり、デスク間の接続は切れます",
+  operationPricecutTitle: "賃下げする職種を選択",
+  operationPricecutHint: "今回のプレイ中、その職種の基本雇用額が下がります",
+  rarityCommon: "コモン",
+  rarityRare: "レア",
+  rarityEpic: "エピック",
+
+  swapPicked: "選択済み",
+  quitTitle: "工場を退出しますか？",
+  quitBody: "進行状況とデスク上のグルは保存されます。次回は「続きから」を選べます",
+  quitYes: "保存して退出",
+  quitNo: "仕事に戻る",
+  resumeTitle: "未完了のシフトがあります",
+  resumeBody: "続きから再開すると、所持金、カード、進行状況、グル、デスク上の配置がすべて復元されます",
+  resumeShiftInfo: "前回：第{n}シフト",
+  resumeContinue: "続きから",
+  resumeNew: "最初からやり直す",
+  bellDone: "KPI達成、退勤！",
+  overtimeTitle: "残業タイム",
+  overtimeStart: "残業開始！ 控えのグルが出勤し、チーム実績を稼ぎます",
+  kpiBonus: "KPI達成ボーナス",
+  overtimeRemaining: "チーム実績を精算してプールへ戻しています · 残り{n}匹",
+  shopBillPaid: "今回の請求額 {v}",
+  paidStamp: "支払済 ✓",
+  hintNoShare: "✗ 相性ゼロ。はじかれた！",
+  landingFailed: "着地失敗。もう一度！",
+  hintNoDesk: "✗ 接続できるデスクがありません",
+  connectionFailed: "デスク接続失敗！",
+  disabledDeskHint: "このシフトでは{element}属性は得点になりません",
+  disabledDeskStamp: "このシフトは得点なし",
+  mile10k: "1万突破！",
+  mile100k: "10万突破！",
+  mile1m: "100万突破！",
+  mile100m: "1億突破！",
+  dismissStampText: "解雇",
+  sealText: "差押え",
+  sumEndlessBadge: "∞ エンドレスモード解放",
+  tutThrow: "光っている同じ属性のデスクへグルを投下しよう！",
+  tutStack: "積み上げよう！ 上のグルは下のグルから実績を吸い上げます",
+  tutSame: "同種が2匹つながりました。もう1匹つながるとストライキ！",
+  tutKpi: "少ないグルでKPIを達成しよう。控えは自動でチーム実績を精算し、次のシフト用にプールへ戻ります",
+
+  sumBankrupt: "破産・差押え",
+  sumGraduate: "クリア！ 20シフト達成",
+  sumEndlessOver: "エンドレス終了",
+  sumRevenue: "総売上",
+  sumShifts: "到達シフト",
+  sumMaxPulse: "最高チーム実績",
+  sumMaxCombo: "最大コンボ",
+  sumMaxDesks: "最大接続デスク数",
+  sumStrikes: "ストライキ回数",
+  sumThrows: "採用回数",
+  sumBounces: "投下失敗数",
+  sumBestRevenue: "自己ベスト売上",
+  sumBestShift: "自己ベストシフト",
+  sumRuns: "プレイ回数",
+  sumRewards: "今回の報酬",
+  sumRewardsHint: "ランクアップ素材 · トレーニングホールへ送付済み",
+  sumRewardsTotal: "合計 {count} 個",
+  sumRewardsEmpty: "今回は新しいランクアップ素材がありません",
+  sumRewardsEmptyHint: "本日は同じ進行度の報酬を受取済みです。さらに先のシフトへ進むと追加報酬を獲得できます",
+  sumCoinsEarned: "今回獲得したコイン",
+  sumThisRunItems: "今回獲得したアイテム",
+  sumTodayItems: "本日獲得したアイテム",
+  sumTodayEmpty: "本日はまだ工場アイテムを獲得していません",
+  sumUpgradeHint: "獲得した素材はトレーニングホールでグルのランクアップに使えます",
+  sumTapForTip: "クリックして確認",
+  sumItemTipAria: "{name} ×{count}。クリックして説明を表示",
+  sumItemUpgradeTip: "グルのランクアップ素材です。トレーニングホールで対応する素材を使うとランクを上げられます。",
+  sumPerformance: "今回の成績",
+  steamNewRecord: "自己ベストを更新しました",
+  steamSyncing: "Steamランキングに同期中",
+  steamGlobalRank: "Steam世界ランキング {rank}位",
+  sumRetry: "もう一度プレイ",
+  sumBack: "戻る",
+  sumContinueEndless: "エンドレスを続ける →",
+
+  strikeSigns: [
+    "残業代を払え",
+    "やりがい搾取反対",
+    "日光を浴びたい",
+    "休日をください",
+    "今すぐ昇給！",
+    "席が狭すぎる",
+    "空約束はもう嫌だ",
+    "有給ぼんやり権",
+  ],
+} satisfies DeepPartial<FactoryRogueStrings>;
+
+/**
+ * Short action labels are especially prone to collapsing into punctuation in
+ * offline machine translation. Keep the navigation/start actions reviewed and
+ * deterministic for every generated locale.
+ */
+export const FACTORY_ACTION_LABEL_LOCALES = {
+  "zh-Hant": { hubBack: "← 返回", loStart: "開工！", hudBack: "← 離開", hirePayStart: "付款並開工！", hireGoBack: "返回", lbBack: "返回", sumBack: "返回" },
+  ja: { hubBack: "← 戻る", loStart: "業務開始！", hudBack: "← 終了", hirePayStart: "支払って業務開始！", hireGoBack: "戻る", lbBack: "戻る", sumBack: "戻る" },
+  ko: { hubBack: "← 뒤로", loStart: "업무 시작!", hudBack: "← 나가기", hirePayStart: "결제하고 업무 시작!", hireGoBack: "뒤로", lbBack: "뒤로", sumBack: "뒤로" },
+  fr: { hubBack: "← Retour", loStart: "Commencer le service !", hudBack: "← Quitter", hirePayStart: "Payer et commencer !", hireGoBack: "Retour", lbBack: "Retour", sumBack: "Retour" },
+  de: { hubBack: "← Zurück", loStart: "Schicht starten!", hudBack: "← Verlassen", hirePayStart: "Bezahlen und Schicht starten!", hireGoBack: "Zurück", lbBack: "Zurück", sumBack: "Zurück" },
+  "es-ES": { hubBack: "← Volver", loStart: "¡Empezar turno!", hudBack: "← Salir", hirePayStart: "¡Pagar y empezar!", hireGoBack: "Volver", lbBack: "Volver", sumBack: "Volver" },
+  "es-419": { hubBack: "← Volver", loStart: "¡Empezar turno!", hudBack: "← Salir", hirePayStart: "¡Pagar y empezar!", hireGoBack: "Volver", lbBack: "Volver", sumBack: "Volver" },
+  "pt-BR": { hubBack: "← Voltar", loStart: "Começar turno!", hudBack: "← Sair", hirePayStart: "Pagar e começar!", hireGoBack: "Voltar", lbBack: "Voltar", sumBack: "Voltar" },
+  "pt-PT": { hubBack: "← Voltar", loStart: "Começar turno!", hudBack: "← Sair", hirePayStart: "Pagar e começar!", hireGoBack: "Voltar", lbBack: "Voltar", sumBack: "Voltar" },
+  ru: { hubBack: "← Назад", loStart: "Начать смену!", hudBack: "← Выйти", hirePayStart: "Заплатить и начать смену!", hireGoBack: "Назад", lbBack: "Назад", sumBack: "Назад" },
+  it: { hubBack: "← Indietro", loStart: "Inizia il turno!", hudBack: "← Esci", hirePayStart: "Paga e inizia!", hireGoBack: "Indietro", lbBack: "Indietro", sumBack: "Indietro" },
+  pl: { hubBack: "← Wstecz", loStart: "Rozpocznij zmianę!", hudBack: "← Wyjdź", hirePayStart: "Zapłać i rozpocznij!", hireGoBack: "Wstecz", lbBack: "Wstecz", sumBack: "Wstecz" },
+  tr: { hubBack: "← Geri", loStart: "Vardiyayı başlat!", hudBack: "← Çık", hirePayStart: "Öde ve başlat!", hireGoBack: "Geri", lbBack: "Geri", sumBack: "Geri" },
+  uk: { hubBack: "← Назад", loStart: "Почати зміну!", hudBack: "← Вийти", hirePayStart: "Сплатити й почати зміну!", hireGoBack: "Назад", lbBack: "Назад", sumBack: "Назад" },
+  ar: { hubBack: "رجوع", loStart: "ابدأ العمل!", hudBack: "مغادرة", hirePayStart: "ادفع وابدأ العمل!", hireGoBack: "رجوع", lbBack: "رجوع", sumBack: "رجوع" },
+  th: { hubBack: "← กลับ", loStart: "เริ่มงาน!", hudBack: "← ออก", hirePayStart: "จ่ายและเริ่มงาน!", hireGoBack: "กลับ", lbBack: "กลับ", sumBack: "กลับ" },
+  vi: { hubBack: "← Quay lại", loStart: "Bắt đầu ca!", hudBack: "← Thoát", hirePayStart: "Thanh toán và bắt đầu!", hireGoBack: "Quay lại", lbBack: "Quay lại", sumBack: "Quay lại" },
+  id: { hubBack: "← Kembali", loStart: "Mulai sif!", hudBack: "← Keluar", hirePayStart: "Bayar dan mulai!", hireGoBack: "Kembali", lbBack: "Kembali", sumBack: "Kembali" },
+  nl: { hubBack: "← Terug", loStart: "Dienst starten!", hudBack: "← Verlaten", hirePayStart: "Betalen en starten!", hireGoBack: "Terug", lbBack: "Terug", sumBack: "Terug" },
+} satisfies Partial<Record<Language, DeepPartial<FactoryRogueStrings>>>;
+
+/** Payment buttons are reviewed separately so shortcut mnemonics such as `(P)` never leak into UI copy. */
+export const FACTORY_PAYMENT_BUTTON_LOCALES = {
+  en: { settlementConfirmAll: "Pay everything", settlementConfirmBill: "Pay bill", settlementConfirmBankruptcy: "Insufficient funds · Confirm bankruptcy" },
+  "zh-Hans": { settlementConfirmAll: "支付全部款项", settlementConfirmBill: "支付账单", settlementConfirmBankruptcy: "余额不足 · 确认破产" },
+  "zh-Hant": { settlementConfirmAll: "支付全部款項", settlementConfirmBill: "支付帳單", settlementConfirmBankruptcy: "餘額不足 · 確認破產" },
+  ja: { settlementConfirmAll: "まとめて支払う", settlementConfirmBill: "請求を支払う", settlementConfirmBankruptcy: "残高不足・破産を確定" },
+  ko: { settlementConfirmAll: "모두 결제", settlementConfirmBill: "청구서 결제", settlementConfirmBankruptcy: "잔액 부족 · 파산 확정" },
+  fr: { settlementConfirmAll: "Tout payer", settlementConfirmBill: "Payer la facture", settlementConfirmBankruptcy: "Fonds insuffisants · Confirmer la faillite" },
+  de: { settlementConfirmAll: "Alles bezahlen", settlementConfirmBill: "Rechnung bezahlen", settlementConfirmBankruptcy: "Guthaben reicht nicht · Bankrott bestätigen" },
+  "es-ES": { settlementConfirmAll: "Pagar todo", settlementConfirmBill: "Pagar la factura", settlementConfirmBankruptcy: "Saldo insuficiente · Confirmar quiebra" },
+  "es-419": { settlementConfirmAll: "Pagar todo", settlementConfirmBill: "Pagar la cuenta", settlementConfirmBankruptcy: "Saldo insuficiente · Confirmar quiebra" },
+  "pt-BR": { settlementConfirmAll: "Pagar tudo", settlementConfirmBill: "Pagar a conta", settlementConfirmBankruptcy: "Saldo insuficiente · Confirmar falência" },
+  "pt-PT": { settlementConfirmAll: "Pagar tudo", settlementConfirmBill: "Pagar a fatura", settlementConfirmBankruptcy: "Saldo insuficiente · Confirmar falência" },
+  ru: { settlementConfirmAll: "Оплатить всё", settlementConfirmBill: "Оплатить счёт", settlementConfirmBankruptcy: "Недостаточно средств · Подтвердить банкротство" },
+  it: { settlementConfirmAll: "Paga tutto", settlementConfirmBill: "Paga il conto", settlementConfirmBankruptcy: "Fondi insufficienti · Conferma bancarotta" },
+  pl: { settlementConfirmAll: "Zapłać wszystko", settlementConfirmBill: "Zapłać rachunek", settlementConfirmBankruptcy: "Brak środków · Potwierdź bankructwo" },
+  tr: { settlementConfirmAll: "Hepsini öde", settlementConfirmBill: "Faturayı öde", settlementConfirmBankruptcy: "Bakiye yetersiz · İflası onayla" },
+  uk: { settlementConfirmAll: "Сплатити все", settlementConfirmBill: "Сплатити рахунок", settlementConfirmBankruptcy: "Недостатньо коштів · Підтвердити банкрутство" },
+  ar: { settlementConfirmAll: "ادفع الكل", settlementConfirmBill: "ادفع الفاتورة", settlementConfirmBankruptcy: "الرصيد غير كافٍ · أكّد الإفلاس" },
+  th: { settlementConfirmAll: "จ่ายทั้งหมด", settlementConfirmBill: "จ่ายบิล", settlementConfirmBankruptcy: "เงินไม่พอ · ยืนยันล้มละลาย" },
+  vi: { settlementConfirmAll: "Thanh toán tất cả", settlementConfirmBill: "Thanh toán hóa đơn", settlementConfirmBankruptcy: "Không đủ tiền · Xác nhận phá sản" },
+  id: { settlementConfirmAll: "Bayar semua", settlementConfirmBill: "Bayar tagihan", settlementConfirmBankruptcy: "Saldo kurang · Konfirmasi bangkrut" },
+  nl: { settlementConfirmAll: "Alles betalen", settlementConfirmBill: "Rekening betalen", settlementConfirmBankruptcy: "Onvoldoende saldo · Faillissement bevestigen" },
+} satisfies Partial<Record<Language, DeepPartial<FactoryRogueStrings>>>;
+
+/**
+ * `Shift` always means a factory work shift / run round. Short labels gave the
+ * offline translator too little context and were repeatedly rendered as
+ * movement, switching, or bit shifting, so these high-visibility surfaces are
+ * reviewed as one terminology set for every supported language.
+ */
+export const FACTORY_SHIFT_LABEL_LOCALES = {
+  en: { hudShift: "Shift {n}/{total}", hudShiftEndless: "Shift ∞+{m}", shopTitle: "After-shift Shop (Shift {n})", shopNext: "Next shift →", resumeShiftInfo: "Last run: Shift {n}", shopBillPaid: "Shift bill {v}", loShiftOne: "Shift 1", shopHeader: "SHIFT-END SHOP", hireShiftRound: "Shift {shift} · Draft {round}/{max}", settlementEyebrow: "SHIFT {shift} · CLOCK-OUT RECEIPT", settlementTitle: "Shift Statement", lbBestShift: "BEST SHIFT", lbColumns: "REVENUE / SHIFT / MODE / RECORD LINEUP", sumShifts: "Shifts survived", sumBestShift: "Deepest shift" },
+  "zh-Hans": { hudShift: "班次 {n}/{total}", hudShiftEndless: "班次 ∞+{m}", shopTitle: "班末商店（第 {n} 班）", shopNext: "下一班 →", resumeShiftInfo: "上次打到：第 {n} 班", shopBillPaid: "本班账单 {v}", loShiftOne: "第 1 班", shopHeader: "班末商店", hireShiftRound: "第 {shift} 班 · 招聘 {round}/{max}", settlementEyebrow: "第 {shift} 班 · 下班回执", settlementTitle: "本班结算单", lbBestShift: "最高班次", lbColumns: "营收 / 班次 / 模式 / 创纪录阵容", sumShifts: "坚持班数", sumBestShift: "历史最深班次" },
+  "zh-Hant": { hudShift: "班次 {n}/{total}", hudShiftEndless: "班次 ∞+{m}", shopTitle: "班末商店（第 {n} 班）", shopNext: "下一班 →", resumeShiftInfo: "上次打到：第 {n} 班", shopBillPaid: "本班帳單 {v}", loShiftOne: "第 1 班", shopHeader: "班末商店", hireShiftRound: "第 {shift} 班 · 招聘 {round}/{max}", settlementEyebrow: "第 {shift} 班 · 下班收據", settlementTitle: "本班結算單", lbBestShift: "最高班次", lbColumns: "營收 / 班次 / 模式 / 紀錄陣容", sumShifts: "撐過班數", sumBestShift: "歷史最深班次" },
+  ja: { hudShift: "シフト {n}/{total}", hudShiftEndless: "シフト ∞+{m}", shopTitle: "シフト後ショップ（第{n}シフト）", shopNext: "次のシフトへ →", resumeShiftInfo: "前回：第{n}シフト", shopBillPaid: "今回の請求額 {v}", loShiftOne: "第1シフト", shopHeader: "シフト後ショップ", hireShiftRound: "第{shift}シフト · 採用 {round}/{max}", settlementEyebrow: "第{shift}シフト · 退勤明細", settlementTitle: "シフト明細", lbBestShift: "最高シフト", lbColumns: "売上 / シフト / モード / 記録編成", sumShifts: "到達シフト数", sumBestShift: "最高到達シフト" },
+  ko: { hudShift: "근무 {n}/{total}", hudShiftEndless: "근무 ∞+{m}", shopTitle: "근무 후 상점 ({n}번째 근무)", shopNext: "다음 근무 →", resumeShiftInfo: "지난 플레이: {n}번째 근무", shopBillPaid: "이번 근무 청구서 {v}", loShiftOne: "첫 근무", shopHeader: "근무 후 상점", hireShiftRound: "{shift}번째 근무 · 채용 {round}/{max}", settlementEyebrow: "{shift}번째 근무 · 퇴근 정산서", settlementTitle: "근무 정산서", lbBestShift: "최고 근무 기록", lbColumns: "매출 / 근무 / 모드 / 기록 편성", sumShifts: "버틴 근무 횟수", sumBestShift: "최고 도달 근무" },
+  fr: { hudShift: "Service {n}/{total}", hudShiftEndless: "Service ∞+{m}", shopTitle: "Boutique de fin de service (service {n})", shopNext: "Service suivant →", resumeShiftInfo: "Dernière partie : service {n}", shopBillPaid: "Facture du service {v}", loShiftOne: "Service 1", shopHeader: "BOUTIQUE DE FIN DE SERVICE", hireShiftRound: "Service {shift} · Recrutement {round}/{max}", settlementEyebrow: "SERVICE {shift} · REÇU DE FIN DE SERVICE", settlementTitle: "Bilan du service", lbBestShift: "MEILLEUR SERVICE", lbColumns: "RECETTES / SERVICE / MODE / ÉQUIPE RECORD", sumShifts: "Services terminés", sumBestShift: "Service le plus avancé" },
+  de: { hudShift: "Schicht {n}/{total}", hudShiftEndless: "Schicht ∞+{m}", shopTitle: "Feierabend-Shop (Schicht {n})", shopNext: "Nächste Schicht →", resumeShiftInfo: "Letzte Runde: Schicht {n}", shopBillPaid: "Schichtrechnung {v}", loShiftOne: "Schicht 1", shopHeader: "FEIERABEND-SHOP", hireShiftRound: "Schicht {shift} · Auswahl {round}/{max}", settlementEyebrow: "SCHICHT {shift} · FEIERABEND-ABRECHNUNG", settlementTitle: "Schichtabrechnung", lbBestShift: "BESTE SCHICHT", lbColumns: "UMSATZ / SCHICHT / MODUS / REKORD-TEAM", sumShifts: "Überstandene Schichten", sumBestShift: "Höchste erreichte Schicht" },
+  "es-ES": { hudShift: "Turno {n}/{total}", hudShiftEndless: "Turno ∞+{m}", shopTitle: "Tienda de fin de turno (turno {n})", shopNext: "Siguiente turno →", resumeShiftInfo: "Última partida: turno {n}", shopBillPaid: "Factura del turno {v}", loShiftOne: "Turno 1", shopHeader: "TIENDA DE FIN DE TURNO", hireShiftRound: "Turno {shift} · Selección {round}/{max}", settlementEyebrow: "TURNO {shift} · RECIBO DE SALIDA", settlementTitle: "Resumen del turno", lbBestShift: "MEJOR TURNO", lbColumns: "INGRESOS / TURNO / MODO / ALINEACIÓN RÉCORD", sumShifts: "Turnos superados", sumBestShift: "Turno más avanzado" },
+  "es-419": { hudShift: "Turno {n}/{total}", hudShiftEndless: "Turno ∞+{m}", shopTitle: "Tienda de fin de turno (turno {n})", shopNext: "Siguiente turno →", resumeShiftInfo: "Última partida: turno {n}", shopBillPaid: "Cuenta del turno {v}", loShiftOne: "Turno 1", shopHeader: "TIENDA DE FIN DE TURNO", hireShiftRound: "Turno {shift} · Selección {round}/{max}", settlementEyebrow: "TURNO {shift} · RECIBO DE SALIDA", settlementTitle: "Resumen del turno", lbBestShift: "MEJOR TURNO", lbColumns: "INGRESOS / TURNO / MODO / ALINEACIÓN RÉCORD", sumShifts: "Turnos superados", sumBestShift: "Turno más avanzado" },
+  "pt-BR": { hudShift: "Turno {n}/{total}", hudShiftEndless: "Turno ∞+{m}", shopTitle: "Loja pós-turno (turno {n})", shopNext: "Próximo turno →", resumeShiftInfo: "Última partida: turno {n}", shopBillPaid: "Conta do turno {v}", loShiftOne: "Turno 1", shopHeader: "LOJA PÓS-TURNO", hireShiftRound: "Turno {shift} · Seleção {round}/{max}", settlementEyebrow: "TURNO {shift} · RECIBO DE FIM DE TURNO", settlementTitle: "Resumo do turno", lbBestShift: "MELHOR TURNO", lbColumns: "RECEITA / TURNO / MODO / EQUIPE RECORDE", sumShifts: "Turnos concluídos", sumBestShift: "Turno mais avançado" },
+  "pt-PT": { hudShift: "Turno {n}/{total}", hudShiftEndless: "Turno ∞+{m}", shopTitle: "Loja de fim de turno (turno {n})", shopNext: "Próximo turno →", resumeShiftInfo: "Última partida: turno {n}", shopBillPaid: "Fatura do turno {v}", loShiftOne: "Turno 1", shopHeader: "LOJA DE FIM DE TURNO", hireShiftRound: "Turno {shift} · Seleção {round}/{max}", settlementEyebrow: "TURNO {shift} · RECIBO DE FIM DE TURNO", settlementTitle: "Resumo do turno", lbBestShift: "MELHOR TURNO", lbColumns: "RECEITA / TURNO / MODO / FORMAÇÃO RECORDE", sumShifts: "Turnos superados", sumBestShift: "Turno mais avançado" },
+  ru: { hudShift: "Смена {n}/{total}", hudShiftEndless: "Смена ∞+{m}", shopTitle: "Магазин после смены (смена {n})", shopNext: "Следующая смена →", resumeShiftInfo: "Прошлая игра: смена {n}", shopBillPaid: "Счёт за смену {v}", loShiftOne: "Смена 1", shopHeader: "МАГАЗИН ПОСЛЕ СМЕНЫ", hireShiftRound: "Смена {shift} · Найм {round}/{max}", settlementEyebrow: "СМЕНА {shift} · ИТОГОВЫЙ ЛИСТ", settlementTitle: "Итоги смены", lbBestShift: "ЛУЧШАЯ СМЕНА", lbColumns: "ВЫРУЧКА / СМЕНА / РЕЖИМ / РЕКОРДНЫЙ СОСТАВ", sumShifts: "Пройдено смен", sumBestShift: "Самая дальняя смена" },
+  it: { hudShift: "Turno {n}/{total}", hudShiftEndless: "Turno ∞+{m}", shopTitle: "Negozio di fine turno (turno {n})", shopNext: "Turno successivo →", resumeShiftInfo: "Ultima partita: turno {n}", shopBillPaid: "Conto del turno {v}", loShiftOne: "Turno 1", shopHeader: "NEGOZIO DI FINE TURNO", hireShiftRound: "Turno {shift} · Selezione {round}/{max}", settlementEyebrow: "TURNO {shift} · RICEVUTA DI FINE TURNO", settlementTitle: "Riepilogo del turno", lbBestShift: "MIGLIOR TURNO", lbColumns: "RICAVI / TURNO / MODALITÀ / FORMAZIONE RECORD", sumShifts: "Turni superati", sumBestShift: "Turno più avanzato" },
+  pl: { hudShift: "Zmiana {n}/{total}", hudShiftEndless: "Zmiana ∞+{m}", shopTitle: "Sklep po zmianie (zmiana {n})", shopNext: "Następna zmiana →", resumeShiftInfo: "Ostatnia gra: zmiana {n}", shopBillPaid: "Rachunek za zmianę {v}", loShiftOne: "Zmiana 1", shopHeader: "SKLEP PO ZMIANIE", hireShiftRound: "Zmiana {shift} · Rekrutacja {round}/{max}", settlementEyebrow: "ZMIANA {shift} · RAPORT PO ZMIANIE", settlementTitle: "Podsumowanie zmiany", lbBestShift: "NAJLEPSZA ZMIANA", lbColumns: "PRZYCHÓD / ZMIANA / TRYB / REKORDOWY SKŁAD", sumShifts: "Przetrwane zmiany", sumBestShift: "Najwyższa osiągnięta zmiana" },
+  tr: { hudShift: "Vardiya {n}/{total}", hudShiftEndless: "Vardiya ∞+{m}", shopTitle: "Vardiya sonrası mağaza (vardiya {n})", shopNext: "Sonraki vardiya →", resumeShiftInfo: "Son oyun: {n}. vardiya", shopBillPaid: "Vardiya faturası {v}", loShiftOne: "1. vardiya", shopHeader: "VARDİYA SONU MAĞAZASI", hireShiftRound: "{shift}. vardiya · İşe alım {round}/{max}", settlementEyebrow: "{shift}. VARDİYA · ÇIKIŞ FİŞİ", settlementTitle: "Vardiya özeti", lbBestShift: "EN İYİ VARDİYA", lbColumns: "GELİR / VARDİYA / MOD / REKOR KADRO", sumShifts: "Tamamlanan vardiyalar", sumBestShift: "Ulaşılan en ileri vardiya" },
+  uk: { hudShift: "Зміна {n}/{total}", hudShiftEndless: "Зміна ∞+{m}", shopTitle: "Магазин після зміни (зміна {n})", shopNext: "Наступна зміна →", resumeShiftInfo: "Попередня гра: зміна {n}", shopBillPaid: "Рахунок за зміну {v}", loShiftOne: "Зміна 1", shopHeader: "МАГАЗИН ПІСЛЯ ЗМІНИ", hireShiftRound: "Зміна {shift} · Найм {round}/{max}", settlementEyebrow: "ЗМІНА {shift} · ПІДСУМКОВИЙ ЧЕК", settlementTitle: "Підсумки зміни", lbBestShift: "НАЙКРАЩА ЗМІНА", lbColumns: "ДОХІД / ЗМІНА / РЕЖИМ / РЕКОРДНИЙ СКЛАД", sumShifts: "Пройдено змін", sumBestShift: "Найвища досягнута зміна" },
+  ar: { hudShift: "الوردية {n}/{total}", hudShiftEndless: "الوردية ∞+{m}", shopTitle: "متجر نهاية الوردية (الوردية {n})", shopNext: "الوردية التالية →", resumeShiftInfo: "آخر جولة: الوردية {n}", shopBillPaid: "فاتورة الوردية {v}", loShiftOne: "الوردية 1", shopHeader: "متجر نهاية الوردية", hireShiftRound: "الوردية {shift} · التوظيف {round}/{max}", settlementEyebrow: "الوردية {shift} · إيصال نهاية الدوام", settlementTitle: "ملخص الوردية", lbBestShift: "أفضل وردية", lbColumns: "الإيرادات / الوردية / النمط / التشكيلة القياسية", sumShifts: "الورديات المكتملة", sumBestShift: "أبعد وردية وصلت إليها" },
+  th: { hudShift: "กะ {n}/{total}", hudShiftEndless: "กะ ∞+{m}", shopTitle: "ร้านค้าหลังเลิกกะ (กะ {n})", shopNext: "กะถัดไป →", resumeShiftInfo: "เกมล่าสุด: กะ {n}", shopBillPaid: "บิลกะ {v}", loShiftOne: "กะ 1", shopHeader: "ร้านค้าหลังเลิกกะ", hireShiftRound: "กะ {shift} · รับสมัคร {round}/{max}", settlementEyebrow: "กะ {shift} · ใบสรุปหลังเลิกงาน", settlementTitle: "สรุปกะ", lbBestShift: "กะที่ดีที่สุด", lbColumns: "รายได้ / กะ / โหมด / ทีมสถิติ", sumShifts: "จำนวนกะที่ผ่าน", sumBestShift: "กะที่ไปได้ไกลที่สุด" },
+  vi: { hudShift: "Ca {n}/{total}", hudShiftEndless: "Ca ∞+{m}", shopTitle: "Cửa hàng cuối ca (ca {n})", shopNext: "Ca tiếp theo →", resumeShiftInfo: "Lần chơi trước: ca {n}", shopBillPaid: "Hóa đơn ca {v}", loShiftOne: "Ca 1", shopHeader: "CỬA HÀNG CUỐI CA", hireShiftRound: "Ca {shift} · Tuyển dụng {round}/{max}", settlementEyebrow: "CA {shift} · PHIẾU TAN CA", settlementTitle: "Tổng kết ca", lbBestShift: "CA TỐT NHẤT", lbColumns: "DOANH THU / CA / CHẾ ĐỘ / ĐỘI HÌNH KỶ LỤC", sumShifts: "Số ca đã vượt qua", sumBestShift: "Ca xa nhất" },
+  id: { hudShift: "Sif {n}/{total}", hudShiftEndless: "Sif ∞+{m}", shopTitle: "Toko akhir sif (sif {n})", shopNext: "Sif berikutnya →", resumeShiftInfo: "Permainan terakhir: sif {n}", shopBillPaid: "Tagihan sif {v}", loShiftOne: "Sif 1", shopHeader: "TOKO AKHIR SIF", hireShiftRound: "Sif {shift} · Rekrutmen {round}/{max}", settlementEyebrow: "SIF {shift} · STRUK SELESAI KERJA", settlementTitle: "Ringkasan sif", lbBestShift: "SIF TERBAIK", lbColumns: "PENDAPATAN / SIF / MODE / FORMASI REKOR", sumShifts: "Sif yang diselesaikan", sumBestShift: "Sif terjauh" },
+  nl: { hudShift: "Dienst {n}/{total}", hudShiftEndless: "Dienst ∞+{m}", shopTitle: "Winkel na dienst (dienst {n})", shopNext: "Volgende dienst →", resumeShiftInfo: "Vorige ronde: dienst {n}", shopBillPaid: "Dienstrekening {v}", loShiftOne: "Dienst 1", shopHeader: "WINKEL NA DIENST", hireShiftRound: "Dienst {shift} · Werving {round}/{max}", settlementEyebrow: "DIENST {shift} · UITKLOKBEWIJS", settlementTitle: "Dienstoverzicht", lbBestShift: "BESTE DIENST", lbColumns: "OMZET / DIENST / MODUS / RECORDTEAM", sumShifts: "Voltooide diensten", sumBestShift: "Hoogst bereikte dienst" },
+} satisfies Partial<Record<Language, DeepPartial<FactoryRogueStrings>>>;
+
+/** Reviewed meanings for terse factory terms that are highly polysemous. */
+export const FACTORY_TERM_LABEL_LOCALES = {
+  en: { loTitle: "Gulu Draft", hudBag: "Hiring Pool", hudBagEmpty: "Hiring pool empty", hirePool: "GULU POOL", hirePayNext: "PAY & NEXT DRAFT", resumeContinue: "Resume run", sumRuns: "Runs", sumPerformance: "Run performance", sumRetry: "Run it back", loWorkLegend: "★ WORK PERFORMANCE = score this Gulu produces on its own", loExploitLegend: "⛓ EXPLOITATION REACH = number of Gulus below it that can contribute" },
+  "zh-Hans": { loTitle: "出战准备", hudBag: "雇佣池", hudBagEmpty: "雇佣池已空", hirePool: "咕噜池", hirePayNext: "付款并进入下一轮", resumeContinue: "继续这局", sumRuns: "开局次数", sumPerformance: "本局战绩", sumRetry: "再开一局", loWorkLegend: "★ 打工业绩 = 咕噜本身产生的业绩", loExploitLegend: "⛓ 压榨数 = 可向下压榨的咕噜数量" },
+  "zh-Hant": { loTitle: "出戰準備", hudBag: "招聘池", hudBagEmpty: "招聘池已空", hirePool: "咕嚕招聘池", hirePayNext: "付款並進入下一輪招聘", resumeContinue: "繼續這局", sumRuns: "開局次數", sumPerformance: "本局戰績", sumRetry: "再開一局", loWorkLegend: "★ 打工業績 = 咕嚕本身產生的業績", loExploitLegend: "⛓ 壓榨數 = 可向下壓榨的咕嚕數量" },
+  ja: { loTitle: "出勤準備", hudBag: "採用候補", hudBagEmpty: "採用候補なし", hirePool: "グル採用候補", hirePayNext: "支払って次の採用へ", resumeContinue: "続きから", sumRuns: "プレイ回数", sumPerformance: "今回の成績", sumRetry: "もう一度プレイ", loWorkLegend: "★ 作業実績 = このグル自身が出す実績", loExploitLegend: "⛓ 搾取範囲 = 下方向から参加できるグルの数" },
+  ko: { loTitle: "근무 준비", hudBag: "채용 후보", hudBagEmpty: "채용 후보 없음", hirePool: "GULU 채용 후보", hirePayNext: "결제하고 다음 채용으로", resumeContinue: "이어서 하기", sumRuns: "플레이 횟수", sumPerformance: "이번 게임 성적", sumRetry: "한 판 더", loWorkLegend: "★ 작업 실적 = 이 Gulu가 직접 만든 실적", loExploitLegend: "⛓ 착취 범위 = 아래에서 참여할 수 있는 Gulu 수" },
+  fr: { loTitle: "Sélection des Gulus", hudBag: "Réserve de recrutement", hudBagEmpty: "Aucun candidat", hirePool: "CANDIDATS GULU", hirePayNext: "PAYER & RECRUTER LA SUITE", resumeContinue: "Reprendre la partie", sumRuns: "Parties jouées", sumPerformance: "Résultat de la partie", sumRetry: "Rejouer", loWorkLegend: "★ Rendement individuel = score produit par ce Gulu seul", loExploitLegend: "⛓ Portée d’exploitation = Gulus du dessous pouvant contribuer" },
+  de: { loTitle: "Gulu-Auswahl", hudBag: "Bewerberpool", hudBagEmpty: "Keine Bewerber", hirePool: "GULU-BEWERBER", hirePayNext: "ZAHLEN & WEITER AUSWÄHLEN", resumeContinue: "Spiel fortsetzen", sumRuns: "Gespielte Runden", sumPerformance: "Ergebnis dieser Runde", sumRetry: "Noch eine Runde", loWorkLegend: "★ Arbeitsleistung = Punkte dieses Gulus allein", loExploitLegend: "⛓ Ausbeutungsreichweite = beitragende Gulus darunter" },
+  "es-ES": { loTitle: "Selección de Gulus", hudBag: "Reserva de contratación", hudBagEmpty: "No quedan candidatos", hirePool: "CANDIDATOS GULU", hirePayNext: "PAGAR Y SEGUIR CONTRATANDO", resumeContinue: "Continuar partida", sumRuns: "Partidas jugadas", sumPerformance: "Resultado de la partida", sumRetry: "Jugar otra", loWorkLegend: "★ Rendimiento laboral = puntos propios de este Gulu", loExploitLegend: "⛓ Alcance de explotación = Gulus inferiores que pueden aportar" },
+  "es-419": { loTitle: "Selección de Gulus", hudBag: "Reserva de contratación", hudBagEmpty: "No quedan candidatos", hirePool: "CANDIDATOS GULU", hirePayNext: "PAGAR Y SEGUIR CONTRATANDO", resumeContinue: "Continuar partida", sumRuns: "Partidas jugadas", sumPerformance: "Resultado de la partida", sumRetry: "Jugar otra", loWorkLegend: "★ Rendimiento laboral = puntos propios de este Gulu", loExploitLegend: "⛓ Alcance de explotación = Gulus inferiores que pueden aportar" },
+  "pt-BR": { loTitle: "Seleção de Gulus", hudBag: "Reserva de contratação", hudBagEmpty: "Sem candidatos", hirePool: "CANDIDATOS GULU", hirePayNext: "PAGAR E CONTINUAR CONTRATANDO", resumeContinue: "Continuar partida", sumRuns: "Partidas jogadas", sumPerformance: "Resultado da partida", sumRetry: "Jogar de novo", loWorkLegend: "★ Desempenho individual = pontos deste Gulu sozinho", loExploitLegend: "⛓ Alcance de exploração = Gulus abaixo que podem contribuir" },
+  "pt-PT": { loTitle: "Seleção de Gulus", hudBag: "Reserva de recrutamento", hudBagEmpty: "Sem candidatos", hirePool: "CANDIDATOS GULU", hirePayNext: "PAGAR E CONTINUAR A RECRUTAR", resumeContinue: "Continuar partida", sumRuns: "Partidas jogadas", sumPerformance: "Resultado da partida", sumRetry: "Jogar de novo", loWorkLegend: "★ Desempenho individual = pontos deste Gulu sozinho", loExploitLegend: "⛓ Alcance de exploração = Gulus abaixo que podem contribuir" },
+  ru: { loTitle: "Выбор Gulu", hudBag: "Кандидаты", hudBagEmpty: "Кандидатов нет", hirePool: "КАНДИДАТЫ GULU", hirePayNext: "ЗАПЛАТИТЬ И ПРОДОЛЖИТЬ НАЙМ", resumeContinue: "Продолжить игру", sumRuns: "Сыграно игр", sumPerformance: "Результат игры", sumRetry: "Сыграть ещё", loWorkLegend: "★ Личная эффективность = очки самого Gulu", loExploitLegend: "⛓ Радиус эксплуатации = число участвующих Gulu ниже" },
+  it: { loTitle: "Selezione Gulu", hudBag: "Riserva assunzioni", hudBagEmpty: "Nessun candidato", hirePool: "CANDIDATI GULU", hirePayNext: "PAGA E CONTINUA LE ASSUNZIONI", resumeContinue: "Continua partita", sumRuns: "Partite giocate", sumPerformance: "Risultato della partita", sumRetry: "Gioca ancora", loWorkLegend: "★ Rendimento individuale = punti prodotti da questo Gulu", loExploitLegend: "⛓ Portata di sfruttamento = Gulu sottostanti che contribuiscono" },
+  pl: { loTitle: "Wybór Gulu", hudBag: "Pula rekrutacji", hudBagEmpty: "Brak kandydatów", hirePool: "KANDYDACI GULU", hirePayNext: "ZAPŁAĆ I KONTYNUUJ REKRUTACJĘ", resumeContinue: "Kontynuuj grę", sumRuns: "Rozegrane gry", sumPerformance: "Wynik tej gry", sumRetry: "Zagraj ponownie", loWorkLegend: "★ Wydajność pracy = punkty tego Gulu", loExploitLegend: "⛓ Zasięg eksploatacji = Gulu poniżej, które mogą dołączyć" },
+  tr: { loTitle: "Gulu Seçimi", hudBag: "Aday havuzu", hudBagEmpty: "Aday kalmadı", hirePool: "GULU ADAYLARI", hirePayNext: "ÖDE VE İŞE ALIMA DEVAM ET", resumeContinue: "Oyuna devam et", sumRuns: "Oynanan oyunlar", sumPerformance: "Bu oyunun sonucu", sumRetry: "Bir daha oyna", loWorkLegend: "★ İş performansı = bu Gulu'nun kendi puanı", loExploitLegend: "⛓ Sömürü menzili = aşağıdan katkı veren Gulu sayısı" },
+  uk: { loTitle: "Вибір Gulu", hudBag: "Кандидати", hudBagEmpty: "Кандидатів немає", hirePool: "КАНДИДАТИ GULU", hirePayNext: "СПЛАТИТИ Й ПРОДОВЖИТИ НАЙМ", resumeContinue: "Продовжити гру", sumRuns: "Зіграно ігор", sumPerformance: "Результат гри", sumRetry: "Зіграти ще", loWorkLegend: "★ Особиста ефективність = очки самого Gulu", loExploitLegend: "⛓ Радіус експлуатації = кількість Gulu нижче, що долучаються" },
+  ar: { loTitle: "اختيار Gulu", hudBag: "قائمة المرشحين", hudBagEmpty: "لا يوجد مرشحون", hirePool: "مرشحو GULU", hirePayNext: "ادفع وتابع التوظيف", resumeContinue: "متابعة الجولة", sumRuns: "الجولات الملعوبة", sumPerformance: "نتيجة الجولة", sumRetry: "العب جولة أخرى", loWorkLegend: "★ أداء العمل = نقاط ينتجها هذا الـGulu وحده", loExploitLegend: "⛓ مدى الاستغلال = عدد وحدات Gulu المساهمة تحته" },
+  th: { loTitle: "เลือก Gulu", hudBag: "รายชื่อผู้สมัคร", hudBagEmpty: "ไม่มีผู้สมัคร", hirePool: "ผู้สมัคร GULU", hirePayNext: "จ่ายแล้วรับสมัครต่อ", resumeContinue: "เล่นต่อ", sumRuns: "จำนวนเกมที่เล่น", sumPerformance: "ผลงานเกมนี้", sumRetry: "เล่นอีกเกม", loWorkLegend: "★ ผลงานส่วนตัว = แต้มที่ Gulu ตัวนี้ทำเอง", loExploitLegend: "⛓ ระยะรีดเค้น = จำนวน Gulu ด้านล่างที่ร่วมทำแต้ม" },
+  vi: { loTitle: "Chọn Gulu", hudBag: "Nhóm tuyển dụng", hudBagEmpty: "Hết ứng viên", hirePool: "ỨNG VIÊN GULU", hirePayNext: "TRẢ TIỀN VÀ TUYỂN TIẾP", resumeContinue: "Chơi tiếp", sumRuns: "Số ván đã chơi", sumPerformance: "Thành tích ván này", sumRetry: "Chơi ván nữa", loWorkLegend: "★ Hiệu suất làm việc = điểm riêng của Gulu này", loExploitLegend: "⛓ Tầm khai thác = số Gulu bên dưới có thể góp điểm" },
+  id: { loTitle: "Seleksi Gulu", hudBag: "Kandidat rekrutmen", hudBagEmpty: "Kandidat habis", hirePool: "KANDIDAT GULU", hirePayNext: "BAYAR DAN LANJUT REKRUTMEN", resumeContinue: "Lanjutkan permainan", sumRuns: "Permainan dimainkan", sumPerformance: "Hasil permainan ini", sumRetry: "Main lagi", loWorkLegend: "★ Kinerja kerja = poin milik Gulu ini sendiri", loExploitLegend: "⛓ Jangkauan eksploitasi = jumlah Gulu bawah yang ikut menyumbang" },
+  nl: { loTitle: "Gulu-selectie", hudBag: "Kandidatenpool", hudBagEmpty: "Geen kandidaten", hirePool: "GULU-KANDIDATEN", hirePayNext: "BETALEN & VERDER WERVEN", resumeContinue: "Spel hervatten", sumRuns: "Gespeelde rondes", sumPerformance: "Resultaat van deze ronde", sumRetry: "Nog een ronde", loWorkLegend: "★ Werkprestatie = punten van deze Gulu zelf", loExploitLegend: "⛓ Exploitatiebereik = aantal meewerkende Gulus eronder" },
+} satisfies Partial<Record<Language, DeepPartial<FactoryRogueStrings>>>;
+
+/** Reviewed resume copy: "shift" is a work shift and "start fresh" means a new game. */
+export const FACTORY_RESUME_LOCALES = {
+  en: { resumeTitle: "You left a shift unfinished", resumeBody: "Resume that shift with your cash, cards, progress, Gulus, and desk stacks intact.", resumeNew: "New game" },
+  "zh-Hans": { resumeTitle: "上一局还没下班", resumeBody: "继续后会回到原班次；现金、卡牌、进度、咕噜和工位上的堆叠都会保留。", resumeNew: "重开一局" },
+  "zh-Hant": { resumeTitle: "上一局還沒下班", resumeBody: "繼續後會回到原班次；現金、卡牌、進度、咕嚕和工位上的堆疊都會保留。", resumeNew: "重開一局" },
+  ja: { resumeTitle: "未完了のシフトがあります", resumeBody: "続きから再開すると、所持金、カード、進行状況、グル、デスク上の配置がすべて復元されます。", resumeNew: "最初からやり直す" },
+  ko: { resumeTitle: "끝내지 못한 근무가 있어요", resumeBody: "이어서 하면 현금, 카드, 진행도, Gulus와 작업대 더미가 그대로 복원됩니다.", resumeNew: "새로 시작" },
+  fr: { resumeTitle: "Un service est resté en plan", resumeBody: "Reprendre restaure ce service avec l’argent, les cartes, la progression, les Gulus et les piles sur les postes.", resumeNew: "Nouvelle partie" },
+  de: { resumeTitle: "Eine Schicht ist noch offen", resumeBody: "Beim Fortsetzen kehrst du mit Geld, Karten, Fortschritt, Gulus und allen Stapeln an den Arbeitsplätzen in diese Schicht zurück.", resumeNew: "Neu starten" },
+  "es-ES": { resumeTitle: "Dejaste un turno a medias", resumeBody: "Al continuar volverás a ese turno con el dinero, las cartas, el progreso, los Gulus y las pilas de los puestos intactos.", resumeNew: "Nueva partida" },
+  "es-419": { resumeTitle: "Dejaste un turno a medias", resumeBody: "Al continuar volverás a ese turno con el dinero, las cartas, el progreso, los Gulus y las pilas de los puestos intactos.", resumeNew: "Nueva partida" },
+  "pt-BR": { resumeTitle: "Você deixou um turno pela metade", resumeBody: "Ao continuar, você volta ao turno com dinheiro, cartas, progresso, Gulus e pilhas das mesas intactos.", resumeNew: "Nova partida" },
+  "pt-PT": { resumeTitle: "Deixaste um turno a meio", resumeBody: "Ao continuar, voltas ao turno com dinheiro, cartas, progresso, Gulus e pilhas das mesas intactos.", resumeNew: "Nova partida" },
+  ru: { resumeTitle: "Смена осталась незавершённой", resumeBody: "Продолжение вернёт вас в эту смену: деньги, карты, прогресс, Gulus и стопки на рабочих местах сохранятся.", resumeNew: "Новая игра" },
+  it: { resumeTitle: "Hai lasciato un turno a metà", resumeBody: "Continuando tornerai a quel turno con denaro, carte, progressi, Gulus e pile sulle postazioni intatti.", resumeNew: "Nuova partita" },
+  pl: { resumeTitle: "Zmiana została niedokończona", resumeBody: "Kontynuacja przywróci tę zmianę wraz z gotówką, kartami, postępem, Gulus i stosami na stanowiskach.", resumeNew: "Nowa gra" },
+  tr: { resumeTitle: "Yarım kalan bir vardiyan var", resumeBody: "Devam edersen para, kartlar, ilerleme, Gulus ve masalardaki yığınlarla o vardiyaya dönersin.", resumeNew: "Yeni oyun" },
+  uk: { resumeTitle: "Зміна залишилася незавершеною", resumeBody: "Продовження поверне вас до цієї зміни: гроші, карти, прогрес, Gulus і стоси на робочих місцях збережуться.", resumeNew: "Нова гра" },
+  ar: { resumeTitle: "لديك وردية غير مكتملة", resumeBody: "عند المتابعة ستعود إلى تلك الوردية مع بقاء المال والبطاقات والتقدم وGulus والأكوام على محطات العمل كما هي.", resumeNew: "جولة جديدة" },
+  th: { resumeTitle: "มีกะที่ยังไม่จบ", resumeBody: "เล่นต่อเพื่อกลับเข้ากะเดิม โดยเงิน การ์ด ความคืบหน้า Gulus และกองบนโต๊ะยังอยู่ครบ", resumeNew: "เริ่มเกมใหม่" },
+  vi: { resumeTitle: "Bạn còn một ca chưa xong", resumeBody: "Chơi tiếp sẽ đưa bạn về ca đó với tiền, thẻ, tiến độ, Gulus và các chồng trên bàn được giữ nguyên.", resumeNew: "Ván mới" },
+  id: { resumeTitle: "Ada sif yang belum selesai", resumeBody: "Lanjutkan untuk kembali ke sif itu dengan uang, kartu, progres, Gulus, dan tumpukan meja tetap utuh.", resumeNew: "Permainan baru" },
+  nl: { resumeTitle: "Er staat nog een dienst open", resumeBody: "Bij hervatten keer je terug naar die dienst met geld, kaarten, voortgang, Gulus en stapels op de werkplekken intact.", resumeNew: "Nieuw spel" },
+} satisfies Partial<Record<Language, DeepPartial<FactoryRogueStrings>>>;
+
+export const FACTORY_SETTLEMENT_SCORE_LOCALES = {
+  "zh-Hant": { settlementDetails: "團隊績效明細", settlementTeam: "團隊績效", settlementBase: "工作績效", settlementAbsorbed: "壓榨績效", settlementExtra: "額外績效", settlementPools: "元素 · 協同 · 工種 · 節奏" },
+  ja: { settlementDetails: "チーム実績の内訳", settlementTeam: "チーム実績", settlementBase: "作業実績", settlementAbsorbed: "搾取実績", settlementExtra: "ボーナス実績", settlementPools: "属性 · シナジー · 職種 · リズム" },
+  ko: { settlementDetails: "팀 성과 내역", settlementTeam: "팀 성과", settlementBase: "작업 성과", settlementAbsorbed: "착취 성과", settlementExtra: "보너스 성과", settlementPools: "속성 · 시너지 · 직무 · 리듬" },
+  fr: { settlementDetails: "Détail de la performance d’équipe", settlementTeam: "Performance d’équipe", settlementBase: "Performance de travail", settlementAbsorbed: "Performance d’exploitation", settlementExtra: "Performance bonus", settlementPools: "Élément · Synergie · Métier · Rythme" },
+  de: { settlementDetails: "Aufschlüsselung der Teamleistung", settlementTeam: "Teamleistung", settlementBase: "Arbeitsleistung", settlementAbsorbed: "Ausbeutungsleistung", settlementExtra: "Bonusleistung", settlementPools: "Element · Synergie · Beruf · Rhythmus" },
+  "es-ES": { settlementDetails: "Desglose del rendimiento del equipo", settlementTeam: "Rendimiento del equipo", settlementBase: "Rendimiento laboral", settlementAbsorbed: "Rendimiento de explotación", settlementExtra: "Rendimiento adicional", settlementPools: "Elemento · Sinergia · Profesión · Ritmo" },
+  "es-419": { settlementDetails: "Desglose del rendimiento del equipo", settlementTeam: "Rendimiento del equipo", settlementBase: "Rendimiento laboral", settlementAbsorbed: "Rendimiento de explotación", settlementExtra: "Rendimiento adicional", settlementPools: "Elemento · Sinergia · Profesión · Ritmo" },
+  "pt-BR": { settlementDetails: "Detalhes do desempenho da equipe", settlementTeam: "Desempenho da equipe", settlementBase: "Desempenho de trabalho", settlementAbsorbed: "Desempenho de exploração", settlementExtra: "Desempenho bônus", settlementPools: "Elemento · Sinergia · Função · Ritmo" },
+  "pt-PT": { settlementDetails: "Detalhes do desempenho da equipa", settlementTeam: "Desempenho da equipa", settlementBase: "Desempenho de trabalho", settlementAbsorbed: "Desempenho de exploração", settlementExtra: "Desempenho bónus", settlementPools: "Elemento · Sinergia · Função · Ritmo" },
+  ru: { settlementDetails: "Разбивка эффективности команды", settlementTeam: "Эффективность команды", settlementBase: "Эффективность работы", settlementAbsorbed: "Эффективность эксплуатации", settlementExtra: "Бонусная эффективность", settlementPools: "Стихия · Синергия · Профессия · Ритм" },
+  it: { settlementDetails: "Dettaglio rendimento squadra", settlementTeam: "Rendimento squadra", settlementBase: "Rendimento lavorativo", settlementAbsorbed: "Rendimento da sfruttamento", settlementExtra: "Rendimento bonus", settlementPools: "Elemento · Sinergia · Ruolo · Ritmo" },
+  pl: { settlementDetails: "Podział wydajności zespołu", settlementTeam: "Wydajność zespołu", settlementBase: "Wydajność pracy", settlementAbsorbed: "Wydajność eksploatacji", settlementExtra: "Wydajność premiowa", settlementPools: "Żywioł · Synergia · Rola · Rytm" },
+  tr: { settlementDetails: "Takım performansı dökümü", settlementTeam: "Takım performansı", settlementBase: "İş performansı", settlementAbsorbed: "Sömürü performansı", settlementExtra: "Bonus performansı", settlementPools: "Element · Sinerji · Meslek · Ritim" },
+  uk: { settlementDetails: "Розподіл ефективності команди", settlementTeam: "Ефективність команди", settlementBase: "Ефективність роботи", settlementAbsorbed: "Ефективність експлуатації", settlementExtra: "Бонусна ефективність", settlementPools: "Стихія · Синергія · Професія · Ритм" },
+  ar: { settlementDetails: "تفصيل أداء الفريق", settlementTeam: "أداء الفريق", settlementBase: "أداء العمل", settlementAbsorbed: "أداء الاستغلال", settlementExtra: "الأداء الإضافي", settlementPools: "العنصر · التآزر · الوظيفة · الإيقاع" },
+  th: { settlementDetails: "รายละเอียดผลงานทีม", settlementTeam: "ผลงานทีม", settlementBase: "ผลงานการทำงาน", settlementAbsorbed: "ผลงานการใช้ประโยชน์", settlementExtra: "ผลงานโบนัส", settlementPools: "ธาตุ · การเสริมพลัง · อาชีพ · จังหวะ" },
+  vi: { settlementDetails: "Chi tiết hiệu suất đội", settlementTeam: "Hiệu suất đội", settlementBase: "Hiệu suất công việc", settlementAbsorbed: "Hiệu suất khai thác", settlementExtra: "Hiệu suất thưởng", settlementPools: "Nguyên tố · Hiệp lực · Nghề nghiệp · Nhịp độ" },
+  id: { settlementDetails: "Rincian kinerja tim", settlementTeam: "Kinerja tim", settlementBase: "Kinerja kerja", settlementAbsorbed: "Kinerja eksploitasi", settlementExtra: "Kinerja bonus", settlementPools: "Elemen · Sinergi · Pekerjaan · Ritme" },
+  nl: { settlementDetails: "Uitsplitsing teamprestatie", settlementTeam: "Teamprestatie", settlementBase: "Werkprestatie", settlementAbsorbed: "Exploitatieprestatie", settlementExtra: "Bonusprestatie", settlementPools: "Element · Synergie · Functie · Ritme" },
+} satisfies Partial<Record<Language, DeepPartial<FactoryRogueStrings>>>;
+
+const generatedLocales = Object.fromEntries(
+  Object.entries(generatedFactoryRogueLocales()).map(([language, locale]) => [
+    language,
+    {
+      ...locale,
+      ...(FACTORY_SETTLEMENT_SCORE_LOCALES as Partial<
+        Record<Language, DeepPartial<FactoryRogueStrings>>
+      >)[language as Language],
+      ...(FACTORY_ACTION_LABEL_LOCALES as Partial<
+        Record<Language, DeepPartial<FactoryRogueStrings>>
+      >)[language as Language],
+      ...(FACTORY_PAYMENT_BUTTON_LOCALES as Partial<
+        Record<Language, DeepPartial<FactoryRogueStrings>>
+      >)[language as Language],
+      ...(FACTORY_SHIFT_LABEL_LOCALES as Partial<
+        Record<Language, DeepPartial<FactoryRogueStrings>>
+      >)[language as Language],
+      ...(FACTORY_TERM_LABEL_LOCALES as Partial<
+        Record<Language, DeepPartial<FactoryRogueStrings>>
+      >)[language as Language],
+      ...(FACTORY_RESUME_LOCALES as Partial<
+        Record<Language, DeepPartial<FactoryRogueStrings>>
+      >)[language as Language],
+    },
+  ]),
+) as Partial<Record<Language, DeepPartial<FactoryRogueStrings>>>;
+export const FACTORY_ROGUE: Record<Language, FactoryRogueStrings> = createLanguageMap<FactoryRogueStrings>(en, zh, {
+  en: { ...FACTORY_SHIFT_LABEL_LOCALES.en, ...FACTORY_TERM_LABEL_LOCALES.en, ...FACTORY_RESUME_LOCALES.en, ...FACTORY_PAYMENT_BUTTON_LOCALES.en },
+  "zh-Hans": { ...FACTORY_SHIFT_LABEL_LOCALES["zh-Hans"], ...FACTORY_TERM_LABEL_LOCALES["zh-Hans"], ...FACTORY_RESUME_LOCALES["zh-Hans"], ...FACTORY_PAYMENT_BUTTON_LOCALES["zh-Hans"] },
+  ...generatedLocales,
+  // Keep the hand-tuned Japanese interface copy while using generated Japanese
+  // card names/descriptions for the full shop catalogue.
+  ja: { ...generatedLocales.ja, ...ja, ...FACTORY_ACTION_LABEL_LOCALES.ja, ...FACTORY_PAYMENT_BUTTON_LOCALES.ja, ...FACTORY_SHIFT_LABEL_LOCALES.ja, ...FACTORY_TERM_LABEL_LOCALES.ja, ...FACTORY_RESUME_LOCALES.ja },
+});

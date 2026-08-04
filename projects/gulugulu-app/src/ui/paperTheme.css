@@ -791,6 +791,16 @@
   box-shadow: var(--paper-shadow);
 }
 
+.paper-app .by-pit-fusion.is-ai {
+  background-color: var(--paper-pink);
+  color: var(--paper-pink-ink);
+}
+
+.paper-app .by-pit-fusion.is-steam {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
 .paper-app .by-pit-fusion.is-resolved {
   background-color: var(--paper-mint);
   color: var(--paper-mint-ink);

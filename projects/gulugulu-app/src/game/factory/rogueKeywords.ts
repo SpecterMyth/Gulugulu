@@ -1,4 +1,5 @@
 import type { Language } from "../../i18n/core";
+import { GENERATED_RUNTIME_LOCALES } from "../../i18n/generatedLocales";
 import type { CardId } from "./rogueConfig";
 
 export type RogueKeywordId =
@@ -48,7 +49,7 @@ const ZH: Record<RogueKeywordId, { name: string; tip: string }> = {
   branch: { name: "分流", tip: "本次一共连通到几张桌面。连通 3 张桌，就是 3 点分流。" },
   frozen: { name: "冻结", tip: "咕噜不再占用人口，但仍能支撑、连通、计分和参加罢工；同一只不能重复冻结。" },
   overstaff: { name: "超额人口", tip: "场上不占人口的咕噜数量，也就是被冻结或由生长生成的咕噜数量。" },
-  sameName: { name: "同名", tip: "与本次计分咕噜属于同一物种、名称完全相同的咕噜。" },
+  sameName: { name: "同种", tip: "与本次计分咕噜属于同一物种、名称完全相同的咕噜。" },
   convert: { name: "同化", tip: "目标变得与压榨者同名并拥有相同固有元素；保留位置、基础业绩和状态，且不会触发罢工。" },
   grow: { name: "生长", tip: "在触发者左上或右上免费生成一只本局出现过的草系咕噜；不占人口，生成当次不计分。" },
   lush: { name: "繁茂", tip: "与本次计分咕噜连成一片的咕噜数量，包括它自己。连通 8 只，就是 8 点繁茂。" },
@@ -67,7 +68,7 @@ const EN: Record<RogueKeywordId, { name: string; tip: string }> = {
   branch: { name: "Branch", tip: "The number of desks linked by this score. Linking 3 desks means 3 Branch." },
   frozen: { name: "Frozen", tip: "Does not use headcount, but still supports, links and scores." },
   overstaff: { name: "Overstaff", tip: "Frozen or Generated Gulus that remain on the field without using headcount." },
-  sameName: { name: "Same Name", tip: "A Gulu with exactly the same species as the scorer." },
+  sameName: { name: "Same Species", tip: "A Gulu with exactly the same species as the scorer." },
   convert: { name: "Convert", tip: "Copies the scorer's species and innate elements while keeping position and state; it never triggers a strike." },
   grow: { name: "Grow", tip: "Spawns an existing Grass Gulu upper-left or upper-right; no headcount, no immediate score." },
   lush: { name: "Lush", tip: "The number of Gulus in the scorer's connected group, including the scorer." },
@@ -79,5 +80,7 @@ const EN: Record<RogueKeywordId, { name: string; tip: string }> = {
 };
 
 export function rogueKeywordText(id: RogueKeywordId, lang: Language) {
-  return (lang === "zh" ? ZH : EN)[id];
+  if (lang === "zh-Hans") return ZH[id];
+  if (lang === "en") return EN[id];
+  return GENERATED_RUNTIME_LOCALES[lang]?.rogueKeywords[id] ?? EN[id];
 }

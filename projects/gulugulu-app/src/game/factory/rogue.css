@@ -2247,6 +2247,8 @@
   font-weight: 800;
   color: var(--nt-ink, #3a3430);
   line-height: 1.1;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .fr-card-lv {
@@ -2717,18 +2719,18 @@
   .fr-shop-layout { grid-template-columns: minmax(0, 1fr) 40px; }
   .fr-shop-cards {
     width: 100%;
-    height: 320px;
+    height: 340px;
     padding-top: 0;
     transform: none;
   }
   .fr-card-wrap {
     width: calc((100% - 28px) / 3);
-    height: 320px;
+    height: 340px;
   }
-  .fr-card { gap: 4px; padding: 9px; }
-  .fr-card-art { width: 70px; height: 70px; }
-  .fr-card-name { font-size: 20px; }
-  .fr-card-desc { font-size: 11.5px; line-height: 1.35; }
+  .fr-card { gap: 3px; padding: 8px; }
+  .fr-card-art { width: 58px; height: 58px; }
+  .fr-card-name { font-size: 18px; line-height: 1.05; }
+  .fr-card-desc { padding-inline: 3px; font-size: 10.5px; line-height: 1.28; }
   .fr-card-buybar { margin-inline: 4px; padding-block: 7px; font-size: 15px; translate: 0 5px; }
   /* The dedicated side panel remains reachable; hidden 190px hover bubbles on
      edge cards otherwise widen the scroll container even before they appear. */

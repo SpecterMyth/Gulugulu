@@ -406,9 +406,15 @@ pub fn run() {
             // 托盘菜单（双语 + 与设置面板同步的开关）。见 tray.rs。
             tray::build(app.handle())?;
 
-            // 默认启动位置：屏幕右下角（贴任务栏工作区右下角，留 12px 边距）。
+            // 不依赖窗口配置里的默认 visible 状态：Windows 从 HKCU Run 启动时，
+            // shell 可能把顶层窗口创建为隐藏/最小化。托盘会正常出现，但桌宠不会。
+            // 先恢复、定位，再显式显示；不 set_focus，避免登录后抢用户焦点。
             if let Some(window) = app.get_webview_window("main") {
+                if window.is_minimized().unwrap_or(false) {
+                    let _ = window.unminimize();
+                }
                 position_bottom_right(&window);
+                window.show()?;
             }
 
             let app_handle = app.handle().clone();
@@ -431,8 +437,8 @@ pub fn run() {
             let fusion_state = app.state::<fusion_gen::FusionGenState>().inner().clone();
             fusion_gen::spawn_fusion_worker(app_handle.clone(), game_state.clone(), fusion_state);
 
-            // 动态台词会调用玩家自己的 Claude/Codex CLI，只有明确同意后才创建
-            // provider worker。新安装以及旧版缺字段的设置都默认关闭。
+            // 动态台词会调用玩家自己的 Claude/Codex CLI；默认开启，用户关闭后
+            // 不创建 provider worker，并回退到内置静态台词。
             if settings::load(app.handle()).dynamic_quote_ai {
                 let quote_state = app.state::<quote_gen::QuoteGenState>().inner().clone();
                 quote_gen::spawn_quote_worker(app_handle.clone(), quote_state);
