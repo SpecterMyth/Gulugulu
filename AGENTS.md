@@ -22,6 +22,8 @@ When a conversation changes repository files:
 2. Stage only files changed for the current conversation. Never use an unscoped `git add -A` in a dirty worktree.
 3. Create one concise commit for the conversation. If the same conversation changes files again before merge, amend that commit.
 4. Update a published amended branch only with `git push --force-with-lease`.
-5. Do not edit the `Release` or `SteamOnline` worktrees manually. They are maintained by the promotion scripts in `scripts/project-management/`.
+5. After pushing, the agent creates or updates a draft pull request targeting `main` and reports its URL. Use the GitHub connector first and an authenticated browser fallback when connector permissions do not allow PR creation.
+6. The user is responsible only for the final review and merge confirmation. Agents must not merge the PR unless the user explicitly asks.
+7. Do not edit the `Release` or `SteamOnline` worktrees manually. They are maintained by the promotion scripts in `scripts/project-management/`.
 
 Pure planning, explanation, and read-only diagnosis do not create empty commits.
