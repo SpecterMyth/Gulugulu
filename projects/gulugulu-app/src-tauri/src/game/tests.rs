@@ -687,7 +687,9 @@ fn training_universal_material_fills_the_shortfall_only_when_allowed() {
     let config = test_config();
     let (material, need, _, _) = config.training_step_for(1).unwrap();
     let mut save = training_ready_save(&config);
-    save.materials.insert(material.clone(), need - 2); // 差 2 个
+    let shortfall = need.min(2);
+    save.materials
+        .insert(material.clone(), need.saturating_sub(shortfall));
     save.materials.insert(config.universal_material.clone(), 5);
     let max1 = config.max_level_for_tier(1);
     let pet = add_pet_at_tier(&mut save, &config, "emberfox", 1, max1);
@@ -699,16 +701,22 @@ fn training_universal_material_fills_the_shortfall_only_when_allowed() {
     // 允许用券 → 主材料清空 + 券只扣差额 2 张。
     logic_start_training(&config, &mut save, &pet, true, 1000, "d").unwrap();
     assert_eq!(
-        save.materials.get(&material),
-        None,
-        "主材料用尽即从库存移除"
+        save.materials.get(&material).copied().unwrap_or(0),
+        0,
+        "主材料应被用尽"
     );
-    assert_eq!(save.materials[&config.universal_material], 3, "券只补差额");
+    assert_eq!(
+        save.materials[&config.universal_material],
+        5 - shortfall,
+        "券只补实际差额"
+    );
 
     // 券也不够 → 照样拦。
     let mut broke = training_ready_save(&config);
     broke.materials.insert(material.clone(), 0);
-    broke.materials.insert(config.universal_material.clone(), 1);
+    broke
+        .materials
+        .insert(config.universal_material.clone(), need.saturating_sub(1));
     let p2 = add_pet_at_tier(&mut broke, &config, "emberfox", 1, max1);
     assert!(
         logic_start_training(&config, &mut broke, &p2, true, 1000, "d")

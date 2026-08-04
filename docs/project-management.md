@@ -4,11 +4,11 @@
 
 ## 日常开发
 
-实际修改使用 `codex/*` 分支。每次对话只保留一个提交；续改使用 `scripts/project-management/Commit-Conversation.ps1 -Amend`。最终通过 GitHub PR squash 合并到 `main`。
+实际修改使用 `codex/*` 分支。每次对话只保留一个提交；续改使用 `scripts/project-management/Commit-Conversation.ps1 -Amend`。分支推送后由代理创建或更新目标为 `main` 的草稿 PR，并把链接交给用户；用户只负责最终审核和合并。代理不得在没有明确指令时自行合并。
 
 ## 创建 Release
 
-先把候选改动合入 `main`，确保 main 工作区提交已存在。运行 `New-ReleaseSnapshot.ps1 -SourceRevision <sha>`。脚本从 Git 对象读取白名单，不会纳入未提交文件；只有 npm、Cargo、LFS 和敏感文件检查全部通过才提交 Release 快照并生成 `.release-metadata.json`。`-SkipTests` 只预览候选树，绝不会提交。
+先把候选改动合入 `main`，确保候选 SHA 等于 main 工作区的 `HEAD`。运行 `New-ReleaseSnapshot.ps1 -SourceRevision <sha>`。脚本先在完整 main 候选上运行 Cargo 测试（这里保留测试素材），再从 Git 对象读取白名单，并在精简 Release 中执行 npm 构建和 Cargo 构建。所有门禁通过后才提交 Release 快照并生成 `.release-metadata.json`。`-SkipTests` 只预览候选树，绝不会提交。
 
 ## 发布 Steam
 

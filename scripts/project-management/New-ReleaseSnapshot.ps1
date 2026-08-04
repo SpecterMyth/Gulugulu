@@ -8,9 +8,27 @@ $layout = Get-Layout $MainRoot
 $manifest = Get-Content -LiteralPath $layout.Manifest -Raw | ConvertFrom-Json
 $sourceSha = (& git -C $layout.Main rev-parse "$SourceRevision^{commit}").Trim()
 if ($LASTEXITCODE -ne 0) { throw "Invalid source revision: $SourceRevision" }
+$mainHead = (& git -C $layout.Main rev-parse HEAD).Trim()
+if ($sourceSha -ne $mainHead) {
+    throw "Release tests require SourceRevision to equal the checked-out main workspace HEAD."
+}
 
 Assert-Branch $layout.Release "Release"
 Assert-CleanWorktree $layout.Release
+
+if (-not $SkipTests) {
+    $mainApp = Join-Path $layout.Main "projects\gulugulu-app"
+    $gateTarget = Join-Path $mainApp "src-tauri\target-codex-release-gate"
+    $previousTarget = $env:CARGO_TARGET_DIR
+    try {
+        $env:CARGO_TARGET_DIR = $gateTarget
+        & cargo test --locked --manifest-path (Join-Path $mainApp "src-tauri\Cargo.toml")
+        if ($LASTEXITCODE -ne 0) { throw "Main candidate Cargo tests failed." }
+    }
+    finally {
+        $env:CARGO_TARGET_DIR = $previousTarget
+    }
+}
 
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("gulugulu-release-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
@@ -53,8 +71,6 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Frontend build failed." }
         & cargo build --locked --manifest-path (Join-Path $app "src-tauri\Cargo.toml")
         if ($LASTEXITCODE -ne 0) { throw "Cargo build failed." }
-        & cargo test --locked --manifest-path (Join-Path $app "src-tauri\Cargo.toml")
-        if ($LASTEXITCODE -ne 0) { throw "Cargo tests failed." }
     }
 
     $tree = (& git -C $layout.Release write-tree).Trim()
@@ -66,7 +82,7 @@ try {
         version = $version
         treeBeforeMetadata = $tree
         verifiedAt = $stamp
-        tests = @("npm ci", "npm run build", "cargo build --locked", "cargo test --locked")
+        tests = @("main: cargo test --locked", "release: npm ci", "release: npm run build", "release: cargo build --locked")
     } | ConvertTo-Json -Depth 3
     Set-Content -LiteralPath (Join-Path $layout.Release ".release-metadata.json") -Value $metadata -Encoding UTF8
     Invoke-Git $layout.Release @("add", ".release-metadata.json")
