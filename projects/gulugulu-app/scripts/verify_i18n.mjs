@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildSync } from "esbuild";
+import {
+  FACTORY_CORE_FLOW_SOURCES,
+  LLM_REVIEWED_OVERRIDES,
+} from "./localization_llm_reviewed_overrides.mjs";
 
 const APP_ROOT = join(import.meta.dirname, "..");
 const REPO_ROOT = join(APP_ROOT, "..", "..");
@@ -332,6 +336,12 @@ const reviewedFactoryShiftKeys = new Set(reviewedShiftKeys);
 const reviewedFactoryTermKeySet = new Set(reviewedFactoryTermKeys);
 const reviewedResumeKeySet = new Set(reviewedResumeKeys);
 const reviewedPaymentButtonKeySet = new Set(reviewedPaymentButtonKeys);
+const reviewedFactoryCoreSourceSet = new Set(FACTORY_CORE_FLOW_SOURCES);
+const reviewedFactoryCoreKeySet = new Set(
+  Object.entries(M.FACTORY_ROGUE.en)
+    .filter(([, text]) => typeof text === "string" && reviewedFactoryCoreSourceSet.has(text))
+    .map(([key]) => key),
+);
 const isReviewedOverridePath = (language, key) => (
   key.startsWith("ui.")
     && getPath(M.UI_LOCALES[language], key.slice("ui.".length)) != null
@@ -352,6 +362,7 @@ const isReviewedOverridePath = (language, key) => (
       || reviewedFactoryTermKeySet.has(key.slice("factoryRogue.".length))
       || reviewedResumeKeySet.has(key.slice("factoryRogue.".length))
       || reviewedPaymentButtonKeySet.has(key.slice("factoryRogue.".length))
+      || reviewedFactoryCoreKeySet.has(key.slice("factoryRogue.".length))
     )
 );
 
@@ -543,6 +554,13 @@ for (const id of generatedIds) {
   if (strict) ok(untranslated.length === 0, `${id}: 无未声明的英文同文（剩余 ${untranslated.length}${untranslated.length ? `：${untranslated.slice(0, 30).map(([key, text]) => `${key}=${text}`).join(" | ")}` : ""}）`);
 }
 
+ok(
+  generatedIds.every((id) => FACTORY_CORE_FLOW_SOURCES.every((englishText) => {
+    const key = Object.entries(M.FACTORY_ROGUE.en).find(([, text]) => text === englishText)?.[0];
+    return key && generated[id].factoryRogue?.[key] === LLM_REVIEWED_OVERRIDES[id]?.[englishText];
+  })),
+  `19 个追加语言的 ${FACTORY_CORE_FLOW_SOURCES.length} 个工厂主循环高风险文本均使用模型校对译文`,
+);
 const settlementScoreKeys = ["settlementDetails", "settlementTeam", "settlementBase", "settlementAbsorbed", "settlementExtra", "settlementPools"];
 ok(
   generatedIds.every((id) => settlementScoreKeys.every((key) =>
