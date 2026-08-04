@@ -1,0 +1,367 @@
+.onboarding-goal {
+  position: fixed;
+  z-index: 10060;
+  left: 10px;
+  top: 10px;
+  width: min(520px, calc(100vw - 28px));
+  box-sizing: border-box;
+  color: #3b291f;
+  font-weight: 700;
+}
+
+/* The factory drop target moves continuously, so its guide uses the stable
+   lower lane between Quit and the right HUD post. Keeping the card compact
+   leaves both desk levels and the projected landing ring unobstructed. */
+.onboarding-goal.is-drop {
+  width: min(520px, calc(100vw - 440px));
+  font-size: 13px;
+}
+
+.onboarding-goal.is-drop .onboarding-sticker {
+  padding: 9px 12px 10px;
+}
+
+.onboarding-goal.is-drop p {
+  margin: 6px 2px 7px;
+  line-height: 1.3;
+}
+
+.onboarding-goal.is-drop .onboarding-target-note {
+  padding-block: 3px;
+}
+
+.onboarding-sticker {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px 16px 15px;
+  background: #f1f0eb;
+  color: #3a3430;
+  box-shadow: 5px 6px 0 #c9c6bd;
+  transform: rotate(-0.7deg);
+  transform-origin: 50% 12%;
+}
+
+.onboarding-sticker::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: -8px;
+  width: 76px;
+  height: 16px;
+  background: rgba(255, 253, 244, 0.72);
+  box-shadow: none;
+  transform: translateX(-50%) rotate(1.8deg);
+  pointer-events: none;
+}
+
+.onboarding-goal[data-placement*="right"] .onboarding-sticker {
+  transform: rotate(0.9deg);
+}
+
+.onboarding-goal[data-placement*="left"] .onboarding-sticker {
+  transform: rotate(-1deg);
+}
+
+.onboarding-goal[data-placement^="top"] .onboarding-sticker {
+  transform: rotate(-0.55deg);
+}
+
+.onboarding-goal[data-placement$="top"] .onboarding-sticker {
+  transform: rotate(-0.55deg);
+}
+
+.onboarding-goal:not([data-placement-ready="true"]) {
+  visibility: hidden;
+}
+
+/* Backyard guide cards share one compact, high viewport slot. The wider paper
+   keeps long English copy shallow so it does not cover the fusion controls or
+   the character's lower action prompts. */
+.onboarding-goal[data-placement="backyard-screen-top"] {
+  width: min(680px, calc(100vw - 24px));
+}
+
+.onboarding-goal[data-placement="backyard-screen-top"] .onboarding-sticker {
+  padding: 9px 14px 8px;
+}
+
+.onboarding-goal[data-placement="backyard-screen-top"] p {
+  margin: 7px 2px 7px;
+  line-height: 1.32;
+}
+
+.onboarding-goal[data-placement="backyard-screen-top"] .onboarding-target-note {
+  padding-block: 3px;
+}
+
+.onboarding-goal[data-placement="backyard-screen-top"] .onboarding-skip {
+  min-height: 22px;
+  margin-top: 4px;
+}
+
+.onboarding-goal header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #9a4d24;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+/* Keep the chapter tab above the centered tape on narrow cards. The shared
+   paper-theme child rule otherwise puts the header at z=1 below the tape's z=2. */
+.paper-app .onboarding-goal .onboarding-sticker > header.onboarding-goal-header {
+  z-index: 3;
+}
+
+.onboarding-goal header > span,
+.onboarding-goal header > small {
+  display: inline-flex;
+  padding: 3px 8px;
+  background: #ffb0c8;
+  box-shadow: 2px 3px 0 rgba(138, 40, 72, 0.14);
+  transform: rotate(-1.5deg);
+}
+
+.onboarding-goal header > small {
+  background: #b8d8fa;
+  color: #1e4a88;
+  transform: rotate(1.4deg);
+}
+
+.onboarding-goal p {
+  margin: 10px 3px 12px;
+  line-height: 1.45;
+}
+
+.onboarding-goal button {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 0;
+  background: #ff5a78;
+  color: #fffdf4;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b93654;
+  transform: rotate(0.3deg);
+}
+
+.onboarding-goal button:active {
+  transform: rotate(0.3deg) translateY(2px);
+  box-shadow: 0 2px 0 #b93654;
+}
+
+.onboarding-goal button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: rotate(0.3deg) translateY(1px);
+  box-shadow: 0 3px 0 #a96b77;
+}
+
+.onboarding-goal .onboarding-skip {
+  display: block;
+  width: auto;
+  min-height: 28px;
+  margin: 9px 0 -5px auto;
+  padding: 2px 1px;
+  background: transparent;
+  color: #876e5e;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transform: none;
+}
+
+.paper-app .onboarding-goal .onboarding-skip {
+  background-color: transparent;
+  background-image: none;
+}
+
+.onboarding-goal .onboarding-skip:active {
+  box-shadow: none;
+  transform: translateY(1px);
+}
+
+.onboarding-goal .onboarding-skip:disabled {
+  box-shadow: none;
+  transform: none;
+}
+
+.onboarding-confirm-backdrop {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(50, 39, 31, 0.28);
+}
+
+.onboarding-confirm-note {
+  position: relative;
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 36px));
+  padding: 28px 24px 20px;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 23px,
+      rgba(106, 137, 153, 0.11) 24px
+    ),
+    #fff4a8;
+  color: #4b392c;
+  box-shadow: 7px 9px 0 rgba(58, 43, 32, 0.28);
+  transform: rotate(-0.8deg);
+}
+
+.onboarding-confirm-tape {
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 82px;
+  height: 19px;
+  background: rgba(255, 251, 230, 0.72);
+  transform: translateX(-50%) rotate(1.5deg);
+}
+
+.onboarding-confirm-note > strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.onboarding-confirm-note > p {
+  margin: 10px 0 18px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.onboarding-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.onboarding-goal .onboarding-confirm-actions button {
+  width: auto;
+  min-height: 34px;
+  padding: 6px 13px;
+  font-size: 12px;
+  box-shadow: 0 3px 0 #b93654;
+}
+
+.onboarding-goal .onboarding-confirm-actions .onboarding-confirm-cancel {
+  background: #f2ead0;
+  color: #665143;
+  box-shadow: 0 3px 0 #b9aa88;
+}
+
+.onboarding-target-note {
+  margin: 0 12px;
+  padding: 5px 8px;
+  background: #e5e3dc;
+  text-align: center;
+  color: #76523d;
+  font-size: 12px;
+  transform: rotate(-0.35deg);
+}
+
+@media (max-width: 900px) {
+  .onboarding-goal.is-drop {
+    width: min(490px, calc(100vw - 260px));
+    font-size: 12.5px;
+  }
+}
+
+@media (max-width: 680px) {
+  .onboarding-goal.is-drop {
+    width: min(340px, calc(100vw - 220px));
+  }
+}
+
+@media (max-width: 360px) {
+  /* Every main-window step shares a narrow stage with the egg or companion.
+     English routinely wraps to twice as many lines as Chinese, so compact the
+     complete small-window route instead of special-casing only its first card. */
+  .onboarding-goal:not(.is-drop) {
+    width: calc(100vw - 20px);
+    font-size: 12px;
+  }
+
+  .onboarding-goal:not(.is-drop) .onboarding-sticker {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 7px;
+    padding: 5px 10px 3px;
+  }
+
+  .onboarding-goal:not(.is-drop) .onboarding-sticker > header,
+  .onboarding-goal:not(.is-drop) .onboarding-sticker > p,
+  .onboarding-goal:not(.is-drop) .onboarding-sticker > button:not(.onboarding-skip) {
+    grid-column: 1 / -1;
+  }
+
+  .onboarding-goal:not(.is-drop) header {
+    font-size: 10px;
+  }
+
+  .onboarding-goal:not(.is-drop) header > span,
+  .onboarding-goal:not(.is-drop) header > small {
+    padding: 2px 6px;
+  }
+
+  .onboarding-goal:not(.is-drop) .onboarding-sticker > p {
+    margin: 4px 2px 5px;
+    line-height: 1.22;
+  }
+
+  .onboarding-goal:not(.is-drop) .onboarding-sticker > button:not(.onboarding-skip) {
+    min-height: 28px;
+    font-size: 11.5px;
+  }
+
+  .onboarding-goal:not(.is-drop) .onboarding-target-note {
+    grid-column: 1;
+    align-self: center;
+    margin-inline: 4px 0;
+    padding: 3px 5px;
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+
+  .onboarding-goal:not(.is-drop) .onboarding-skip {
+    grid-column: 2;
+    align-self: center;
+    min-height: 16px;
+    margin: 1px 0 0 auto;
+    padding: 1px;
+    font-size: 9.5px;
+    line-height: 1.2;
+  }
+
+  .onboarding-sticker {
+    padding: 11px 13px 12px;
+  }
+
+  .onboarding-goal p {
+    margin-block: 8px 9px;
+    margin-inline: 1px;
+  }
+
+  .onboarding-goal header > span,
+  .onboarding-goal header > small {
+    padding: 2px 7px;
+  }
+
+  .onboarding-target-note {
+    padding-block: 4px;
+  }
+}

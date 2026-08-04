@@ -1,0 +1,76 @@
+# OS/editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local runtime state
+.gulugulu*.pid
+*.log
+*.tmp
+*.temp
+
+# Local Claude/Codex machine config and scratch output
+claude/settings.json
+**/.claude/
+
+# Node/Vite
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.vite/
+projects/services/avatar-gen/dist/
+projects/services/avatar-gen/dist-web/
+projects/services/avatar-gen/.data/
+
+# Tauri/Rust build output
+target/
+projects/gulugulu-app/src-tauri/target/
+projects/gulugulu-app/src-tauri/target-codex-*/
+projects/gulugulu-app/src-tauri/gen/
+
+# Tauri generated installers/bundles
+projects/gulugulu-app/src-tauri/target/release/bundle/
+
+# Python cache from asset scripts
+__pycache__/
+*.py[cod]
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local provider config with API keys (keep the .example template tracked)
+projects/config/avatar-providers.json
+
+# Ops account secrets (Discord bot token, etc.) — never commit
+config/ops/ops_info.json
+
+# Local scratch / working artifacts (not for git)
+.claude/scratchpad/
+.claude/fusion_showcase/
+*.stackdump
+
+# Large trailer media & SteamPipe depot build artifacts (kept local / on Steam)
+assets/steam-pv/
+scripts/steam/pipe/
+
+# Steam beta keys are access credentials; keep downloaded key batches local
+ops/steam/beta_test_keys/
+
+# Local release bundles, generated reports, and visual test captures
+build/
+outputs/
+test/auto_test/
+
+# Local machine-translation cache / progress logs (generated locale payload is tracked)
+projects/gulugulu-app/.localization-translation-cache.json
+projects/gulugulu-app/.localization-generation.*.log
+
+# Public repository: keep private operations and outreach data local
+ops/

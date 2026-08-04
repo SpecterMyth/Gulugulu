@@ -1,0 +1,283 @@
+import type { GameConfig, GameSave } from "../types";
+import normalConfig from "./config.json";
+import testConfig from "./config.test.json";
+import { elementSetKey, aiTotalChancePercent } from "./fusionSlots";
+
+export { elementSetKey } from "./fusionSlots";
+
+/** `?test=1` switches the browser preview to the small-value test config
+ *  (the Tauri backend uses GULUGULU_TEST_CONFIG=1 for the same purpose). */
+export const isTestConfigRequested: boolean =
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).has("test");
+
+export const localGameConfig: GameConfig = (isTestConfigRequested
+  ? testConfig
+  : normalConfig) as unknown as GameConfig;
+
+export function speciesInfo(config: GameConfig, species: string) {
+  return config.species[species];
+}
+
+/** Backyard occupancy excludes the six post-first-shift onboarding reward pets. */
+export function yardOccupiedCount(save: GameSave): number {
+  const exempt = new Set(save.capacityExemptPetIds ?? []);
+  return save.pets.filter((pet) => !exempt.has(pet.id)).length;
+}
+
+export function expToNext(config: GameConfig, tier: number, level: number): number {
+  const factor = config.levelExpFactor[tier - 1] ?? 10;
+  return factor * level;
+}
+
+export function maxLevelForTier(config: GameConfig, tier: number): number {
+  return config.maxLevel[tier - 1] ?? 10;
+}
+
+export function isMaxLevel(config: GameConfig, pet: { tier: number; level: number }): boolean {
+  return pet.level >= maxLevelForTier(config, pet.tier);
+}
+
+/** 阶系数：tierGrowthFactor^(tier−1)（镜像 game_config.rs::tier_factor）。 */
+export function tierFactor(config: GameConfig, tier: number): number {
+  return Math.pow(Math.max(1, config.tierGrowthFactor), Math.max(0, tier - 1));
+}
+
+/** 每回复 1 点精力所需秒数（按阶放大；镜像 stamina_regen_seconds_for）。 */
+export function staminaRegenSecondsFor(config: GameConfig, tier: number): number {
+  return Math.max(1, config.staminaRegenSecondsBase) * tierFactor(config, tier);
+}
+
+/** 每 1 点精力需要的按键数（镜像 keys_per_stamina_for）。 */
+export function keysPerStaminaFor(config: GameConfig, tier: number): number {
+  return Math.max(1, config.keysPerStaminaBase) * tierFactor(config, tier);
+}
+
+/** 该阶每 1 点经验所需加权 Token 单位（镜像 tokens_per_exp_for）：`tokensPerExp`
+ *  按阶取值（索引=阶−1），越界回退末项、空数组回退 40，下限钳 1。按阶递减，
+ *  抵消 levelExpFactor 的 ×10/阶暴涨（详见 types.ts 字段文档）。 */
+export function tokensPerExp(config: GameConfig, tier: number): number {
+  const arr = config.tokensPerExp;
+  const rate = arr[Math.max(0, tier - 1)] ?? arr[arr.length - 1] ?? 40;
+  return Math.max(1, rate);
+}
+
+/** 点击经验：clickExpBase × 阶系数（镜像 click_exp_for）。 */
+export function clickExpFor(config: GameConfig, tier: number): number {
+  return config.clickExpBase * tierFactor(config, tier);
+}
+
+/** 点击金币：(base + perLevel×level) × 阶系数（镜像 click_coins_for）。 */
+export function clickCoinsFor(config: GameConfig, tier: number, level: number): number {
+  return (config.clickCoinsBase + config.clickCoinsPerLevel * level) * tierFactor(config, tier);
+}
+
+export function baseSpeciesForElement(config: GameConfig, element: string): string | undefined {
+  return Object.entries(config.species).find(
+    ([, info]) => info.tier === 1 && info.elements[0] === element,
+  )?.[0];
+}
+
+/** 旧模型：双亲首元素配对 → fusionTable。融合 2.0 已由 speciesForSet 取代，保留兼容。 */
+export function fusionResult(config: GameConfig, elementA: string, elementB: string): string | undefined {
+  const key = [elementA, elementB].sort().join("+");
+  return config.fusionTable[key];
+}
+
+/** 融合 2.0：配方（元素集合并集）→ 0 号固定物种 codename（镜像 Rust species_codename_for_set）。 */
+export function speciesForSet(config: GameConfig, elements: string[]): string | undefined {
+  return config.speciesByRecipe?.[elementSetKey(elements)];
+}
+
+/** 按亲代阶数的融合费（镜像 fusion_fee_for；越界钳末项，再回退旧 fusionFee）。 */
+export function fusionFeeFor(config: GameConfig, parentTier: number): number {
+  const fees = config.fusionFees;
+  if (fees && fees.length > 0) return fees[Math.min(parentTier - 1, fees.length - 1)] ?? fees[fees.length - 1];
+  return config.fusionFee;
+}
+
+/** 融合能达到的最高结果阶（默认 3；镜像 fusion_max_result_tier）。 */
+export function fusionMaxResultTier(config: GameConfig): number {
+  const cap = config.fusionMaxResultTier ?? 3;
+  return cap < 2 ? 3 : cap;
+}
+
+/** 融合结果阶 = min(亲代阶+1, 封顶)（镜像 fusion_result_tier）。亲代阶已达上限时
+ *  结果**保持原阶**——同阶物种合成，只换物种不换段位。 */
+export function fusionResultTier(config: GameConfig, parentTier: number): number {
+  return Math.min(parentTier + 1, Math.max(fusionMaxResultTier(config), parentTier));
+}
+
+/** 触发 AI 变种的总概率（百分数整数），按元素数查表（config 权威，缺项回退硬编码表）。 */
+export function aiTotalChancePercentFor(config: GameConfig, elementCount: number): number {
+  const p = config.aiTotalChanceByElementCount?.[String(elementCount)];
+  if (p != null) return Math.round(Math.min(1, Math.max(0, p)) * 100);
+  return aiTotalChancePercent(elementCount);
+}
+
+/** 分阶蛋价乘数（默认 15；镜像 egg_tier_price_multiplier）。 */
+function eggTierMult(config: GameConfig): number {
+  return Math.max(1, config.eggTierPriceMultiplier ?? 15);
+}
+
+/** 单颗「T 阶 · E 属性」蛋价 = 该属性 1 阶基价 × mult^(阶−1)（镜像 egg_price_for）。 */
+export function eggPriceFor(config: GameConfig, element: string, tier: number): number {
+  const base = config.eggPrices[element] ?? 0;
+  return base * Math.pow(eggTierMult(config), Math.max(0, tier - 1));
+}
+
+/** 放生返还等效蛋价（乘法口径、按**实例阶**；镜像 equivalent_egg_price）。 */
+export function equivalentEggPrice(config: GameConfig, species: string, tier: number): number {
+  return equivalentEggPriceForInfo(config, config.species[species], tier);
+}
+
+/** 同 equivalentEggPrice，但直接给 info——AI 自定义物种不在 config.species 里。
+ *  = (Σ 各元素 1 阶基价) × mult^(实例阶−1)（EconomyScaling.md §8）。 */
+export function equivalentEggPriceForInfo(
+  config: GameConfig,
+  info: { elements: string[] } | undefined,
+  tier: number,
+): number {
+  if (!info) return 0;
+  const baseSum = info.elements.reduce((s, e) => s + (config.eggPrices[e] ?? 0), 0);
+  return baseSum * Math.pow(eggTierMult(config), Math.max(0, tier - 1));
+}
+
+/** 商店最高等级 = 可售最高蛋阶（默认 3；镜像 shop_max_level）。 */
+export function shopMaxLevel(config: GameConfig): number {
+  return Math.max(1, config.shopMaxLevel ?? 3);
+}
+
+/** 从 shopLevel 升到 +1 的费用（索引 = shopLevel−1；已满级返回 null；镜像 shop_upgrade_cost）。 */
+export function shopUpgradeCost(config: GameConfig, shopLevel: number): number | null {
+  if (shopLevel >= shopMaxLevel(config)) return null;
+  return config.shopUpgradeCosts?.[shopLevel - 1] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// 训练馆（EconomyRework-TrainingHall.md §3）——全部镜像 Rust GameConfig 的同名方法。
+// ---------------------------------------------------------------------------
+
+/** 「起始阶 T → T+1」这一级升阶的完整代价；T 已达最高阶 → null。 */
+export type TrainingStep = { material: string; count: number; coins: number; seconds: number };
+
+export function trainingStepFor(config: GameConfig, fromTier: number): TrainingStep | null {
+  const idx = fromTier - 1;
+  const material = config.trainingMaterials?.[idx];
+  const count = config.trainingMaterialCounts?.[idx];
+  if (material == null || count == null) return null;
+  const costs = config.trainingCosts ?? [];
+  const secs = config.trainingSeconds ?? [];
+  return {
+    material,
+    count,
+    coins: costs[idx] ?? costs[costs.length - 1] ?? 0,
+    seconds: secs[idx] ?? secs[secs.length - 1] ?? 1800,
+  };
+}
+
+/** 训练馆最高等级 = 升阶阶梯项数（默认 5 → 封顶 5→6 阶）。 */
+export function trainingHallMaxLevel(config: GameConfig): number {
+  return config.trainingMaterialCounts?.length ?? 5;
+}
+
+/** 从 hallLevel 升到 +1 的费用（索引 = hallLevel，0 = 建造费）；已满级 → null。 */
+export function trainingHallUpgradeCost(config: GameConfig, hallLevel: number): number | null {
+  if (hallLevel >= trainingHallMaxLevel(config)) return null;
+  return config.trainingHallUpgradeCosts?.[hallLevel] ?? null;
+}
+
+/** 当前训练槽数（索引 = slotLevel − 1；越界回退末项，再回退 1）。 */
+export function trainingSlotCount(config: GameConfig, slotLevel: number): number {
+  const slots = config.trainingSlots ?? [1];
+  return slots[Math.max(1, slotLevel) - 1] ?? slots[slots.length - 1] ?? 1;
+}
+
+/** 从 slotLevel 扩到 +1 的费用；已满 → null。 */
+export function trainingSlotUpgradeCost(config: GameConfig, slotLevel: number): number | null {
+  const slots = config.trainingSlots ?? [1];
+  if (Math.max(1, slotLevel) >= slots.length) return null;
+  return config.trainingSlotUpgradeCosts?.[Math.max(1, slotLevel) - 1] ?? null;
+}
+
+/** 万能券材料 id（可 1:1 替代任意升阶材料）。 */
+export function universalMaterial(config: GameConfig): string {
+  return config.universalMaterial ?? "goldenBadge";
+}
+
+/** 蛋池按元素数的整数权重 w(c)=denom^(6−c)（镜像 egg_rarity_weight）。 */
+export function eggRarityWeight(config: GameConfig, elementCount: number): number {
+  const denom = Math.max(1, config.eggRarityFalloffDenom ?? 3);
+  return Math.pow(denom, 6 - Math.min(6, Math.max(0, elementCount)));
+}
+
+/** 该阶蛋的每日产出上限（镜像 egg_daily_mint_cap）；超出配置数组的阶 = 无上限。 */
+export function eggDailyMintCap(config: GameConfig, tier: number): number {
+  const caps = config.eggDailyMintCaps ?? [10, 8, 6, 3];
+  return caps[tier - 1] ?? Number.MAX_SAFE_INTEGER;
+}
+
+/** 该配方（按结果元素数）的每日融合上限（镜像 fusion_daily_mint_cap）；越界 = 无上限。 */
+export function fusionDailyMintCap(config: GameConfig, elementCount: number): number {
+  const caps = config.fusionDailyMintCaps ?? [5, 5, 2, 2, 1, 1];
+  return caps[elementCount - 1] ?? Number.MAX_SAFE_INTEGER;
+}
+
+/** 「T 阶 · E 属性」蛋候选**固定配方物种**及整数权重（镜像 egg_pool_candidates）：含该属性、
+ *  元素数 ≤ 蛋阶。**商店蛋 = 全局池（2026-07-15）**：不按 dexObtained 解锁门筛（可产未解锁
+ *  固定种）、不含 AI 自定义变种（AI 只经融合获得）。跳过 21 只 legacy 二阶物种。按键排序 →
+ *  与 Rust BTreeMap 顺序一致（掷点可复现）。 */
+export function eggPoolCandidates(
+  config: GameConfig,
+  element: string,
+  tier: number,
+): Array<[string, number]> {
+  const out: Array<[string, number]> = [];
+  for (const codename of Object.keys(config.species).sort()) {
+    const info = config.species[codename];
+    if ((info.tier ?? 0) === 2) continue; // legacy 二阶副本不进配方蛋池
+    const count = info.elements.length;
+    if (count < 1 || count > tier) continue;
+    if (!info.elements.includes(element)) continue;
+    out.push([codename, eggRarityWeight(config, count)]);
+  }
+  return out;
+}
+
+/** 按整数权重从蛋池掷定物种（镜像 roll_egg_species）。空池 → undefined。 */
+export function rollEggSpecies(
+  config: GameConfig,
+  element: string,
+  tier: number,
+  roll: number,
+): string | undefined {
+  const pool = eggPoolCandidates(config, element, tier);
+  if (pool.length === 0) return undefined;
+  const total = Math.max(1, pool.reduce((s, [, w]) => s + w, 0));
+  let pick = ((roll % total) + total) % total;
+  for (const [codename, weight] of pool) {
+    if (pick < weight) return codename;
+    pick -= weight;
+  }
+  return pool[pool.length - 1][0];
+}
+
+export function hatcherySlotCount(config: GameConfig, hatcheryLevel: number): number {
+  return config.hatcherySlots[hatcheryLevel - 1] ?? 1;
+}
+
+/** 孵化进度（0..1）+ 剩余秒数，供蛋语的裂纹递进与临门抖动使用。 */
+export function eggHatchInfo(
+  config: GameConfig,
+  egg: { hatchKind: string; hatchAt?: number | null },
+  now: number,
+): { total: number; remaining: number; progress: number } {
+  const total = config.hatchSeconds[egg.hatchKind] ?? 180;
+  if (egg.hatchAt == null) return { total, remaining: total, progress: 0 };
+  const remaining = Math.max(0, egg.hatchAt - now);
+  const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 1;
+  return { total, remaining, progress };
+}
+
+export function yardCapacityFor(config: GameConfig, yardLevel: number): number {
+  return config.yardCapacity[yardLevel - 1] ?? 3;
+}

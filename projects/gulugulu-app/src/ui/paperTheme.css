@@ -1,0 +1,2896 @@
+/*
+ * Gulugulu Paper UI
+ * -----------------
+ * Shared "Sticky Note Pop" material for every player-facing surface.
+ * This file is imported after the legacy scene styles. Existing class names
+ * remain intact because game effects and preview tooling use them as contracts.
+ */
+
+:root {
+  --paper-white: #fffdf4;
+  --paper-guide: #f1f0eb;
+  --paper-guide-deep: #dedbd2;
+  --paper-guide-shadow: #c9c6bd;
+  --paper-cream: #fff4cc;
+  --paper-yellow: #ffe45c;
+  --paper-yellow-ink: #4a3a08;
+  --paper-mint: #8fe0d0;
+  --paper-mint-ink: #1e5a48;
+  --paper-blue: #b8d8fa;
+  --paper-blue-ink: #1e4a88;
+  --paper-pink: #ffb0c8;
+  --paper-pink-ink: #8a2848;
+  --paper-ink: #3a3430;
+  --paper-ink-deep: #22283a;
+  --paper-secondary: #7a7060;
+  --paper-muted: #a89a80;
+  --paper-cta: #ff5a78;
+  --paper-danger: #d64a22;
+  --paper-success: #57b96b;
+  --paper-shadow: 0 4px 10px rgba(90, 80, 60, 0.18);
+  --paper-shadow-mid: 0 7px 16px rgba(90, 80, 60, 0.23);
+  --paper-shadow-lg: 0 14px 32px rgba(70, 61, 50, 0.29);
+  --paper-shadow-cta: 0 8px 18px rgba(255, 90, 120, 0.38);
+  --paper-focus: 0 0 0 3px rgba(34, 40, 58, 0.28), 0 0 0 5px rgba(255, 228, 92, 0.82);
+  --paper-fibers:
+    radial-gradient(circle at 12% 18%, rgba(89, 70, 42, 0.045) 0 0.7px, transparent 0.9px),
+    radial-gradient(circle at 78% 64%, rgba(89, 70, 42, 0.035) 0 0.8px, transparent 1px),
+    repeating-linear-gradient(1deg, rgba(112, 87, 50, 0.025) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.11) 0 1px, transparent 1px 13px);
+  --paper-fibers-soft:
+    radial-gradient(circle at 22% 30%, rgba(89, 70, 42, 0.03) 0 0.65px, transparent 0.85px),
+    repeating-linear-gradient(0deg, rgba(112, 87, 50, 0.018) 0 1px, transparent 1px 6px);
+
+  --font-display: "ZCOOL KuaiLe", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.paper-app {
+  /* Backward-compatible aliases stay scoped to player-facing screens. */
+  --wood-border: transparent;
+  --wood-ink: var(--paper-ink);
+  --wood-board: var(--paper-fibers), var(--paper-white);
+  --wood-btn: var(--paper-fibers-soft), var(--paper-blue);
+  --wood-gold: var(--paper-fibers-soft), var(--paper-yellow);
+  --wood-upgrade: var(--paper-fibers-soft), var(--paper-cta);
+  --wood-grain: var(--paper-fibers);
+  --cream: var(--paper-white);
+  --cream-title: var(--paper-yellow-ink);
+  --cream-sub: var(--paper-secondary);
+  --ink: var(--paper-ink);
+  --gold-ink: var(--paper-yellow-ink);
+  --parchment: var(--paper-white);
+  --parchment-card: var(--paper-white);
+  --tag-dark: var(--paper-ink-deep);
+  color: var(--paper-ink);
+}
+
+/* 全局便签纸滚动条：覆盖面板、列表、弹窗与工厂玩法中的所有滚动容器。 */
+.paper-app,
+.paper-app * {
+  scrollbar-width: thin;
+  scrollbar-color: #d2a63d #fff4cc;
+}
+
+.paper-app::-webkit-scrollbar,
+.paper-app *::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.paper-app::-webkit-scrollbar-track,
+.paper-app *::-webkit-scrollbar-track {
+  background-color: #fff4cc;
+  background-image: var(--paper-fibers-soft);
+  box-shadow: inset 1px 0 rgba(122, 112, 96, 0.12), inset -1px 0 rgba(122, 112, 96, 0.08);
+}
+
+.paper-app::-webkit-scrollbar-thumb,
+.paper-app *::-webkit-scrollbar-thumb {
+  min-height: 30px;
+  border: 3px solid #fff4cc;
+  border-radius: 2px;
+  background-color: #d2a63d;
+  background-image: var(--paper-fibers-soft);
+  box-shadow: inset 0 -3px rgba(74, 58, 8, 0.14);
+}
+
+.paper-app::-webkit-scrollbar-thumb:hover,
+.paper-app *::-webkit-scrollbar-thumb:hover {
+  background-color: #e2b943;
+}
+
+.paper-app::-webkit-scrollbar-corner,
+.paper-app *::-webkit-scrollbar-corner {
+  background: #fff4cc;
+}
+
+.paper-app::-webkit-scrollbar-button,
+.paper-app *::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* Reusable primitives for new markup and legacy remapping. */
+.paper-surface,
+.paper-note,
+.paper-card,
+.paper-button {
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-note.is-yellow { background-color: var(--paper-yellow); color: var(--paper-yellow-ink); }
+.paper-note.is-mint { background-color: var(--paper-mint); color: var(--paper-mint-ink); }
+.paper-note.is-blue { background-color: var(--paper-blue); color: var(--paper-blue-ink); }
+.paper-note.is-pink { background-color: var(--paper-pink); color: var(--paper-pink-ink); }
+.paper-note.is-ink { background-color: var(--paper-ink-deep); color: var(--paper-mint); }
+
+.paper-button,
+.paper-app button,
+.paper-app select {
+  font-family: inherit;
+}
+
+.paper-button,
+.paper-app button {
+  transition: transform 120ms ease, scale 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.paper-button:not(:disabled):hover,
+.paper-app button:not(:disabled):hover {
+  filter: brightness(1.025) saturate(1.02);
+}
+
+.paper-button:not(:disabled):active,
+.paper-app button:not(:disabled):active {
+  scale: 0.97;
+}
+
+.paper-app :is(button, select, input, textarea):focus-visible {
+  outline: none;
+  box-shadow: var(--paper-focus) !important;
+}
+
+.paper-app :is(button, select, input, textarea):disabled {
+  cursor: default;
+  filter: saturate(0.42);
+  opacity: 0.52;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Main pet window: dialogue, navigation, compact stats                        */
+/* -------------------------------------------------------------------------- */
+
+.paper-app .speech {
+  padding: 16px 14px 17px;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow-mid);
+  text-shadow: none;
+  transform:
+    translateY(calc(var(--speech-drop, 0px) + var(--onboarding-speech-push, 0px)))
+    rotate(-0.45deg);
+}
+
+.paper-app .speech::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 17px solid transparent;
+  border-bottom: 17px solid #8a7458;
+  pointer-events: none;
+}
+
+.paper-app .speech::before {
+  left: calc(var(--speech-tail-x, 50%) - 8px);
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(135deg, transparent 0 49%, var(--paper-white) 50%);
+  box-shadow: 4px 5px 8px rgba(90, 80, 60, 0.11);
+}
+
+.paper-app .speech.is-hint {
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+}
+
+.paper-app .speech.is-hint::before {
+  background: linear-gradient(135deg, transparent 0 49%, var(--paper-yellow) 50%);
+}
+
+.paper-app .speech-elements {
+  left: 10px;
+  top: -11px;
+  gap: 2px;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-blue);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow);
+  transform: rotate(-2deg);
+}
+
+.paper-app .game-menubar {
+  height: 124px;
+  gap: 7px;
+  padding: 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.paper-app .game-menu-items {
+  gap: 6px;
+}
+
+.paper-app .menu-item {
+  position: relative;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+  text-shadow: none;
+}
+
+.paper-app .menu-item.menu-backyard { background-color: var(--paper-mint); color: var(--paper-mint-ink); }
+.paper-app .menu-item.menu-factory { background-color: var(--paper-yellow); color: var(--paper-yellow-ink); }
+.paper-app .menu-item.menu-settings { background-color: var(--paper-blue); color: var(--paper-blue-ink); }
+
+.paper-app .menu-item::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-bottom: 10px solid #6b5a49;
+  opacity: 1;
+}
+
+.paper-app .menu-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--paper-shadow-mid);
+}
+
+.paper-app .menu-item.is-active {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 0 var(--paper-ink-deep), var(--paper-shadow-mid);
+}
+
+.paper-app .menu-item-icon,
+.paper-app .menu-item-label {
+  color: inherit;
+  text-shadow: none;
+}
+
+.paper-app .menu-badge {
+  border: 2px solid var(--paper-white);
+  background: var(--paper-cta);
+  box-shadow: 0 2px 5px rgba(255, 90, 120, 0.42);
+}
+
+.paper-app .game-hud {
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  gap: 4px 6px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app :is(.hud-stamina-value, .hud-level, .hud-coins) {
+  color: var(--paper-ink);
+  text-shadow: none;
+}
+
+.paper-app .hud-level {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app .hud-coins {
+  padding: 2px 6px;
+  background: var(--paper-pink);
+  color: var(--paper-pink-ink);
+}
+
+.paper-app .game-hud .love-meter-count {
+  color: var(--paper-pink-ink);
+  text-shadow: none;
+}
+
+.paper-app :is(.energy-bar, .exp-bar) {
+  border: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--paper-ink-deep) 18%, var(--paper-white));
+  box-shadow: inset 0 1px 2px rgba(34, 40, 58, 0.2);
+}
+
+.paper-app :is(.energy-bar-fill, .exp-bar-fill) {
+  border-radius: 1px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Settings and shared overlays                                                */
+/* -------------------------------------------------------------------------- */
+
+.paper-app .game-panel {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app .panel-header {
+  min-height: 42px;
+  padding: 8px 10px 7px;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers-soft);
+}
+
+.paper-app .panel-header::after {
+  content: "";
+  width: 0;
+  height: 0;
+  margin: auto -10px -7px auto;
+  align-self: flex-end;
+  border-left: 16px solid transparent;
+  border-bottom: 16px solid #8a7458;
+}
+
+.paper-app .panel-back,
+.paper-app .settings-btn,
+.paper-app .settings-select {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+  text-shadow: none;
+}
+
+.paper-app .panel-title {
+  color: var(--paper-yellow-ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  text-shadow: none;
+}
+
+.paper-app .panel-subtitle,
+.paper-app .settings-label {
+  color: var(--paper-secondary);
+  text-shadow: none;
+}
+
+.paper-app .panel-body {
+  margin: 0;
+  padding: 10px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .settings-panel {
+  gap: 9px;
+}
+
+.paper-app .settings-row {
+  gap: 5px;
+  padding: 7px;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: 0 2px 7px rgba(90, 80, 60, 0.11);
+}
+
+.paper-app .settings-btn.is-selected {
+  border: 0;
+  background-color: var(--paper-mint);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-mint-ink);
+  box-shadow: inset 0 -4px 0 rgba(30, 90, 72, 0.16), var(--paper-shadow);
+}
+
+.paper-app .settings-btn.settings-action {
+  min-height: 34px;
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .settings-btn.is-danger {
+  background-color: #fff0ec;
+  color: var(--paper-danger);
+  box-shadow: inset 5px 0 0 var(--paper-danger), var(--paper-shadow);
+}
+
+.paper-app .panel-title-button {
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .debug-unlock-note {
+  border: 0;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+  color: var(--paper-yellow-ink);
+  box-shadow: var(--paper-shadow-lg);
+  transform: rotate(-0.7deg);
+}
+
+.paper-app .debug-unlock-tape {
+  background: rgba(236, 216, 165, 0.92);
+  box-shadow: 0 2px 4px rgba(90, 80, 60, 0.16);
+}
+
+.paper-app .debug-unlock-hint {
+  color: var(--paper-secondary);
+}
+
+.paper-app .debug-unlock-error {
+  color: var(--paper-danger);
+  font-weight: 800;
+}
+
+.paper-app .debug-unlock-note input {
+  border: 0;
+  border-bottom: 2px solid rgba(74, 58, 8, 0.34);
+  border-radius: 0;
+  background: rgba(255, 253, 244, 0.74);
+  color: var(--paper-ink);
+  box-shadow: inset 0 -1px rgba(255, 255, 255, 0.7);
+}
+
+.paper-app .debug-unlock-actions button:first-child {
+  background-color: var(--paper-white);
+  color: var(--paper-secondary);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .debug-unlock-actions button:last-child {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+/* 调试页沿用纸张信息层级，不再露出旧木板/羊皮纸控件。 */
+.paper-app .debug-panel {
+  gap: 12px;
+}
+
+.paper-app .debug-game,
+.paper-app .debug-stage,
+.paper-app .debug-info,
+.paper-app .debug-species {
+  border: 0;
+  border-radius: 0;
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .debug-game {
+  padding: 10px;
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .debug-game:nth-of-type(2) {
+  background-color: var(--paper-pink);
+  color: var(--paper-pink-ink);
+  transform: rotate(0.35deg);
+}
+
+.paper-app .debug-game:nth-of-type(3) {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  transform: rotate(-0.3deg);
+}
+
+.paper-app :is(.debug-game-row, .debug-controls, .debug-states) button,
+.paper-app .debug-species-card {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app :is(.debug-game-row, .debug-controls, .debug-states) button.is-active,
+.paper-app .debug-species-card.is-active {
+  border: 0;
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+  box-shadow: inset 0 -4px rgba(74, 58, 8, 0.13), var(--paper-shadow);
+}
+
+.paper-app :is(.debug-game-row, .debug-controls, .debug-states) button.is-danger {
+  background-color: #fff0ec;
+  color: var(--paper-danger);
+  box-shadow: inset 4px 0 var(--paper-danger), var(--paper-shadow);
+}
+
+.paper-app .debug-game-readout,
+.paper-app .debug-group-label,
+.paper-app .debug-info-dim {
+  color: currentColor;
+  opacity: 0.78;
+}
+
+.paper-app .debug-stage {
+  background-color: var(--paper-yellow);
+}
+
+.paper-app .debug-info {
+  padding: 7px 9px;
+  background-color: var(--paper-white);
+}
+
+.paper-app .debug-species {
+  padding: 9px;
+  background-color: var(--paper-guide);
+}
+
+.paper-app .welcome-overlay {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.paper-app .welcome-card {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app .welcome-card::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 24px solid transparent;
+  border-bottom: 24px solid #8a7458;
+  pointer-events: none;
+}
+
+.paper-app :is(.welcome-title, .welcome-kicker) {
+  color: var(--paper-yellow-ink);
+  font-family: var(--font-display);
+  text-shadow: none;
+}
+
+.paper-app .welcome-kicker {
+  display: inline-flex;
+  width: max-content;
+  padding: 4px 9px;
+  background: var(--paper-yellow);
+  box-shadow: var(--paper-shadow);
+  transform: rotate(-1deg);
+}
+
+.paper-app :is(.welcome-sub, .welcome-row-label, .fusion-modal-note, .train-modal-pet-meta) {
+  color: var(--paper-secondary);
+}
+
+.paper-app :is(.welcome-hero, .welcome-ledger, .welcome-roast, .fusion-modal-note, .fusion-modal-detail, .train-modal-cost, .train-modal-universal) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .welcome-hero { background-color: var(--paper-yellow); color: var(--paper-yellow-ink); }
+.paper-app .welcome-roast { background-color: var(--paper-blue); color: var(--paper-blue-ink); }
+
+.paper-app .welcome-cta {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-cta);
+  background-image: var(--paper-fibers-soft);
+  color: #fff;
+  box-shadow: var(--paper-shadow-cta);
+  text-shadow: none;
+}
+
+.paper-app .welcome-cta::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-bottom: 14px solid #8a7458;
+}
+
+.paper-app .welcome-cta.is-secondary {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app :is(.fusion-modal-parent, .train-modal-pet) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .train-modal-pet.is-selected {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  box-shadow: inset 0 7px 0 var(--paper-success), var(--paper-shadow-mid);
+}
+
+.paper-app .train-modal-pet.is-blocked {
+  background-color: #f0ede5;
+  color: var(--paper-muted);
+}
+
+.paper-app .game-toast,
+.paper-app .tutorial-bubble,
+.paper-app .coach-skip {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-yellow-ink);
+  box-shadow: var(--paper-shadow-mid);
+  text-shadow: none;
+  backdrop-filter: none;
+}
+
+.paper-app .game-toast { background-color: var(--paper-ink-deep); color: var(--paper-white); }
+.paper-app .coach-skip { background-color: var(--paper-blue); color: var(--paper-blue-ink); }
+
+.paper-app .coach-key {
+  border: 0;
+  border-radius: 2px;
+  background: var(--paper-white);
+  color: var(--paper-ink);
+  box-shadow: 0 3px 0 var(--paper-blue-ink), var(--paper-shadow);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Backyard: floating labels, facilities and HUD                               */
+/* -------------------------------------------------------------------------- */
+
+.paper-app .backyard {
+  --by-paper-title: var(--paper-yellow);
+  --by-paper-status: var(--paper-mint);
+  color: var(--paper-ink);
+}
+
+/* Paper UI keeps its semantic color at night; only the illustrated scenery is graded. */
+.paper-app :is(.by-grade-ui, .by-soil-ui) {
+  filter: none;
+}
+
+.paper-app :is(
+  .by-pet-tag,
+  .by-pill,
+  .by-shop-pop,
+  .by-board-inner,
+  .by-bubble,
+  .by-soil-chip,
+  .by-guide,
+  .by-char-say,
+  .by-poi-pop,
+  .by-train-note,
+  .by-market-row,
+  .by-dex-panel,
+  .by-dex-cell,
+  .by-dex-body,
+  .by-dex-detail,
+  .by-dex-detail-stage,
+  .by-dex-detail-pill,
+  .by-skin-card,
+  .by-dex-uploaders-note,
+  .by-uploader-row,
+  .by-skin-dialog
+) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+  text-shadow: none;
+}
+
+.paper-app .by-pet-tag {
+  padding: 4px 7px 5px;
+  transform: translateX(-50%) rotate(-0.35deg);
+}
+
+.paper-app :is(.by-pet-tag-line, .by-pet-tag-name) {
+  color: var(--paper-ink);
+  text-shadow: none;
+}
+
+.paper-app .by-pet-tag-stars {
+  color: #d49b08;
+  text-shadow: none;
+}
+
+.paper-app .by-pet-tag.is-max .by-pet-tag-name {
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app .by-char-tag {
+  transform: translateX(-50%) rotate(0.35deg);
+}
+
+.paper-app .by-pet-tag.is-max {
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app .by-pill.is-dark {
+  background-color: var(--paper-ink-deep);
+  color: var(--paper-mint);
+}
+
+.paper-app .by-pill.is-light {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .by-pill.is-gold {
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app .by-pill.is-dim {
+  background-color: #eae6dc;
+  color: var(--paper-muted);
+}
+
+.paper-app .by-pit-fusion {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-blue);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-blue-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .by-pit-fusion.is-ai {
+  background-color: var(--paper-pink);
+  color: var(--paper-pink-ink);
+}
+
+.paper-app .by-pit-fusion.is-steam {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .by-pit-fusion.is-resolved {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+}
+
+.paper-app :is(.by-shop-card, .by-egg-inv) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: inset 0 5px 0 var(--paper-blue), var(--paper-shadow);
+}
+
+.paper-app .by-shop-card:hover:not(:disabled),
+.paper-app .by-egg-inv:hover:not(:disabled) {
+  background-color: var(--paper-cream);
+  transform: translateY(-2px);
+  box-shadow: inset 0 5px 0 var(--paper-yellow), var(--paper-shadow-mid);
+}
+
+.paper-app .by-shop-card.is-unaffordable {
+  background-color: var(--paper-guide-deep);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: inset 0 5px 0 var(--paper-guide-shadow), var(--paper-shadow);
+  filter: none;
+  opacity: 1;
+}
+
+.paper-app .by-shop-price .is-short {
+  color: var(--paper-danger);
+}
+
+.paper-app .by-shop-note,
+.paper-app .by-poi-note {
+  color: var(--paper-secondary);
+}
+
+.paper-app :is(
+  .by-shop-arrow,
+  .by-shop-upgrade,
+  .by-range-btn,
+  .by-board-detail-btn,
+  .by-detail-back,
+  .by-agent-btn,
+  .by-bubble-fuse,
+  .by-bubble-mini,
+  .by-upgrade-btn,
+  .by-soil-back,
+  .by-poi-cta,
+  .by-dex-close,
+  .by-dex-import-btn,
+  .by-skin-use,
+  .by-dex-uploaders-refresh
+) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+  text-shadow: none;
+}
+
+.paper-app :is(.by-shop-upgrade, .by-bubble-fuse, .by-upgrade-btn, .by-poi-cta, .by-skin-use) {
+  position: relative;
+  background-color: var(--paper-cta);
+  color: #fff;
+  box-shadow: var(--paper-shadow-cta);
+}
+
+.paper-app :is(.by-shop-upgrade, .by-bubble-fuse, .by-upgrade-btn, .by-poi-cta, .by-skin-use)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 13px solid transparent;
+  border-bottom: 13px solid #8a7458;
+  pointer-events: none;
+}
+
+.paper-app .by-market-side .by-poi-cta--import {
+  background-color: #4f86d9;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(79, 134, 217, 0.34);
+}
+
+.paper-app .by-market-side .by-poi-cta--import::after {
+  border-bottom-color: #2f568f;
+}
+
+.paper-app .by-market-side .by-poi-cta--sync {
+  background-color: #35a783;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(53, 167, 131, 0.32);
+}
+
+.paper-app .by-market-side .by-poi-cta--sync::after {
+  border-bottom-color: #22735a;
+}
+
+.paper-app .by-market-side .by-poi-cta--market {
+  background-color: var(--paper-cta);
+  color: #fff;
+  box-shadow: var(--paper-shadow-cta);
+}
+
+.paper-app .by-market-side .by-poi-cta--market::after {
+  border-bottom-color: #a12f4d;
+}
+
+.paper-app .by-range-btn.is-active,
+.paper-app .by-agent-btn.is-connected {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  box-shadow: inset 0 -4px 0 rgba(30, 90, 72, 0.16), var(--paper-shadow);
+}
+
+.paper-app .by-agent-btn.is-confirm {
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app .by-agent-btn.is-missing {
+  background-color: #ece8de;
+  color: var(--paper-muted);
+}
+
+.paper-app .by-board-inner {
+  inset: 0;
+  padding: 15px 16px;
+  background-color: var(--paper-white);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app .by-board-shell {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app :is(.by-board-token, .by-board-love, .by-detail-row) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: none;
+}
+
+.paper-app .by-board-foot {
+  border-color: #7a7060;
+}
+
+.paper-app .by-bubble {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Keep the nearby-pet actions floating directly over the scene. */
+.paper-app .by-bubble-fuse {
+  background-color: #ef5f78;
+  color: #fffaf7;
+  box-shadow: 0 4px 0 #b93e58, 0 7px 14px rgba(116, 43, 61, 0.22);
+}
+
+.paper-app .by-bubble-fuse small {
+  color: #fff1e8;
+}
+
+.paper-app .by-bubble-fuse.is-disabled {
+  background-color: #b9aeb2;
+  color: #fffaf7;
+  box-shadow: 0 4px 0 #82777b, 0 7px 14px rgba(63, 54, 58, 0.16);
+}
+
+.paper-app .by-bubble-col .by-bubble-mini {
+  background-color: #65bca9;
+  color: #173f39;
+  box-shadow: 0 4px 0 #388d7b, 0 7px 14px rgba(37, 101, 88, 0.2);
+}
+
+.paper-app .by-bubble-col .by-bubble-mini.is-danger {
+  background-color: #f0a265;
+  color: #542817;
+  box-shadow: 0 4px 0 #bd6939, 0 7px 14px rgba(126, 67, 34, 0.2);
+}
+
+.paper-app .by-char-say::after {
+  border: 0;
+  background: linear-gradient(135deg, transparent 0 49%, var(--paper-white) 50%);
+}
+
+.paper-app .by-soil-ui {
+  gap: 7px;
+}
+
+.paper-app .by-soil-title {
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+  transform: rotate(-0.5deg);
+}
+
+.paper-app .by-soil-back {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+}
+
+.paper-app .by-soil-coins {
+  background-color: var(--paper-pink);
+  color: var(--paper-pink-ink);
+}
+
+.paper-app .by-guide {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .by-scene-note {
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+  color: var(--paper-yellow-ink);
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-shadow: none;
+  box-shadow: var(--paper-shadow-mid);
+}
+
+.paper-app .by-grade-scene .by-scene-note {
+  visibility: hidden;
+}
+
+.paper-app .by-scene-notes {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.paper-app .by-scene-note::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 11px solid transparent;
+  border-bottom: 11px solid #8a7458;
+}
+
+.paper-app :is(.by-bar-name, .by-guide-title) {
+  color: inherit;
+  font-family: var(--font-display);
+  text-shadow: none;
+}
+
+.paper-app :is(.by-bar-sub, .by-guide-sub) {
+  color: inherit;
+  opacity: 0.78;
+  text-shadow: none;
+}
+
+.paper-app .by-poi-pop {
+  background-color: var(--paper-white);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app .by-poi-title,
+.paper-app .by-shop-title {
+  display: inline-flex;
+  width: max-content;
+  padding: 5px 11px;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-yellow-ink);
+  font-family: var(--font-display);
+  box-shadow: var(--paper-shadow);
+  transform: rotate(-0.65deg);
+}
+
+.paper-app .by-poi-pop--training .by-poi-title { background-color: var(--paper-mint); color: var(--paper-mint-ink); }
+.paper-app .by-poi-pop--market .by-poi-title { background-color: var(--paper-blue); color: var(--paper-blue-ink); }
+
+.paper-app .by-train-sub {
+  color: var(--paper-secondary);
+  opacity: 1;
+}
+
+.paper-app :is(.by-train-mat, .by-train-slot, .by-train-pet-tag, .by-train-pet-pill) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .by-train-slot.is-idle,
+.paper-app .by-train-mat.is-empty {
+  background-color: #ece8de;
+  color: var(--paper-muted);
+}
+
+.paper-app .by-market-row {
+  box-shadow: inset 5px 0 0 var(--paper-blue), var(--paper-shadow);
+}
+
+.paper-app .by-market-price {
+  padding: 3px 7px;
+  background: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app .by-market-price.is-estimate,
+.paper-app .by-market-price.is-unknown {
+  background: #ece8de;
+  color: var(--paper-muted);
+}
+
+/* Pokedex: one clean paper sheet, colored section tabs, flat note cards. */
+.paper-app .by-dex-overlay,
+.paper-app .by-dex-detail-overlay {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.paper-app .by-dex-panel,
+.paper-app .by-dex-detail {
+  background-color: var(--paper-white);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app .by-dex-head,
+.paper-app .by-dex-detail-head {
+  padding: 9px 12px;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app :is(.by-dex-title, .by-dex-detail-title) {
+  color: inherit;
+  font-family: var(--font-display);
+  text-shadow: none;
+}
+
+.paper-app .by-dex-progress {
+  padding: 4px 9px;
+  background: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .by-dex-grid,
+.paper-app .by-dex-body,
+.paper-app .by-dex-detail-body {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .by-dex-section-label,
+.paper-app :is(.by-dex-skins-label, .by-dex-uploaders-label) {
+  width: max-content;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper-blue);
+  color: var(--paper-blue-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .by-dex-cell {
+  background-color: #efebe2;
+  color: var(--paper-muted);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .by-dex-cell.is-collected {
+  background-color: var(--paper-white);
+  color: var(--paper-ink);
+  box-shadow: inset 0 5px 0 var(--paper-blue), var(--paper-shadow);
+}
+
+.paper-app .by-dex-cell.is-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 5px 0 var(--paper-yellow), var(--paper-shadow-mid);
+}
+
+.paper-app .by-dex-detail-stage {
+  background-color: var(--paper-cream);
+  box-shadow: inset 0 6px 0 var(--paper-yellow), var(--paper-shadow);
+}
+
+.paper-app .by-dex-detail-pill.is-note {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .by-skin-card.is-selected {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+  box-shadow: inset 0 6px 0 var(--paper-success), var(--paper-shadow-mid);
+}
+
+.paper-app :is(.by-skin-badge, .by-uploader-first, .by-uploader-me) {
+  border: 0;
+  border-radius: 0;
+  background: var(--paper-blue);
+  color: var(--paper-blue-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .by-skin-badge.is-first,
+.paper-app .by-uploader-first {
+  background: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app .by-skin-dialog-text {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: inset 0 0 0 2px rgba(122, 112, 96, 0.18);
+}
+
+.paper-app .by-dex-toast {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-ink-deep);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-white);
+  box-shadow: var(--paper-shadow-mid);
+}
+
+/* Celebration and upgrade labels remain bright, but become paper banners. */
+.paper-app :is(.cine-banner, .yup-badge) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+  color: var(--paper-yellow-ink);
+  box-shadow: var(--paper-shadow-lg);
+  text-shadow: none;
+}
+
+.paper-app :is(.cine-banner-hero, .cine-banner-name, .yup-badge-title, .yup-badge-sub) {
+  color: inherit;
+  text-shadow: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Factory: reuse the global paper material without changing behavior          */
+/* -------------------------------------------------------------------------- */
+
+.paper-app .fr-stage {
+  --nt-yellow: var(--paper-yellow);
+  --nt-yellow-ink: var(--paper-yellow-ink);
+  --nt-mint: var(--paper-mint);
+  --nt-mint-ink: var(--paper-mint-ink);
+  --nt-pink: var(--paper-pink);
+  --nt-pink-ink: var(--paper-pink-ink);
+  --nt-blue: var(--paper-blue);
+  --nt-blue-ink: var(--paper-blue-ink);
+  --nt-white: var(--paper-white);
+  --nt-cream: var(--paper-cream);
+  --nt-ink: var(--paper-ink);
+  --nt-ink2: var(--paper-ink-deep);
+  --nt-secondary: var(--paper-secondary);
+  --nt-muted: var(--paper-muted);
+  --nt-cta: var(--paper-cta);
+  --nt-alert: var(--paper-danger);
+  --nt-sh: var(--paper-shadow);
+  --nt-sh-mid: var(--paper-shadow-mid);
+  --nt-sh-lg: var(--paper-shadow-lg);
+  --nt-sh-cta: var(--paper-shadow-cta);
+}
+
+.paper-app :is(
+  .fr-note,
+  .fr-chip,
+  .fr-panel,
+  .fr-card,
+  .fr-lo-card,
+  .fr-hiring-panel,
+  .fr-hiring-card,
+  .fr-settlement-panel,
+  .fr-sum-panel,
+  .fhp-plaque,
+  .fhp-kpi-note,
+  .fhp-active-card,
+  .fhp-receipt,
+  .fhp-bag-card
+) {
+  background-image: var(--paper-fibers);
+}
+
+.paper-app :is(.fr-note-yellow, .fr-lo-title, .fr-shop-title, .fr-announce-card) {
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app :is(.fr-note-mint, .fr-hiring-shift-note) {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+}
+
+.paper-app :is(.fr-note-blue, .fr-hiring-quota-note) {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app :is(.fr-note-pink, .fr-hiring-cash-note) {
+  background-color: var(--paper-pink);
+  color: var(--paper-pink-ink);
+}
+
+.paper-app :is(.fr-note-cta, .fr-btn-primary, .fr-hiring-clock, .fr-card-buybar.is-cta) {
+  background-color: var(--paper-cta);
+  color: #fff;
+  box-shadow: var(--paper-shadow-cta);
+}
+
+.paper-app .fr-card-buybar.is-unaffordable {
+  background-color: var(--paper-guide-deep);
+  color: var(--paper-secondary);
+  box-shadow: var(--paper-shadow);
+  filter: none;
+  opacity: 1;
+}
+
+.paper-app .fr-shop-price-short {
+  color: var(--paper-danger);
+}
+
+.paper-app .fr-hub-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .fr-hub-title {
+  width: max-content;
+  padding: 8px 18px;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+  color: var(--paper-yellow-ink);
+  font-family: var(--font-display);
+  box-shadow: var(--paper-shadow-mid);
+  transform: rotate(-1deg);
+}
+
+.paper-app .fr-hub-card {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: inset 0 8px 0 var(--paper-blue), var(--paper-shadow-mid);
+  text-shadow: none;
+}
+
+.paper-app .fr-hub-card.is-rogue {
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+  box-shadow: inset 0 8px 0 var(--paper-cta), var(--paper-shadow-lg);
+}
+
+.paper-app .fac-chip,
+.paper-app .fac-toast,
+.paper-app .fac-failure-text,
+.paper-app .fac-strike-sign {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+  text-shadow: none;
+}
+
+.paper-app .fac-title {
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+}
+
+.paper-app .fac-back {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+}
+
+.paper-app .fac-count {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .fac-toast {
+  background-color: var(--paper-ink-deep);
+  color: var(--paper-white);
+}
+
+/* Dense paper stacks stay rectangular. Wallet/progress bars keep their form. */
+.paper-app :is(
+  .fr-settlement-panel,
+  .fr-hiring-panel,
+  .fr-card,
+  .fr-lo-card,
+  .fr-hub-card,
+  .fhp-plaque,
+  .fhp-kpi-note,
+  .fhp-active-card,
+  .fhp-receipt,
+  .fhp-bag-card
+) {
+  border-radius: 0;
+}
+
+/* Opaque paper contract: every player-facing note keeps a fully opaque sheet,
+   but has no drawn outline. Paper color and shadow provide the separation. */
+.paper-app :is(
+  .paper-surface,
+  .paper-note,
+  .paper-card,
+  .paper-button,
+  .speech,
+  .speech-elements,
+  .menu-item,
+  .game-hud,
+  .game-panel,
+  .panel-header,
+  .panel-back,
+  .settings-row,
+  .settings-btn,
+  .settings-select,
+  .welcome-card,
+  .welcome-hero,
+  .welcome-ledger,
+  .welcome-roast,
+  .welcome-cta,
+  .fusion-modal-note,
+  .fusion-modal-detail,
+  .fusion-modal-parent,
+  .train-modal-pet,
+  .game-toast,
+  .tutorial-bubble,
+  .coach-skip,
+  .by-pet-tag,
+  .by-pill,
+  .by-shop-pop,
+  .by-shop-card,
+  .by-egg-inv,
+  .by-board-inner,
+  .by-bubble,
+  .by-soil-chip,
+  .by-guide,
+  .by-char-say,
+  .by-poi-pop,
+  .by-train-note,
+  .by-train-mat,
+  .by-train-slot,
+  .by-train-pet-tag,
+  .by-train-pet-pill,
+  .by-market-row,
+  .by-dex-panel,
+  .by-dex-cell,
+  .by-dex-body,
+  .by-dex-detail,
+  .by-dex-detail-stage,
+  .by-dex-detail-pill,
+  .by-skin-card,
+  .by-dex-uploaders-note,
+  .by-uploader-row,
+  .by-skin-dialog,
+  .fr-note,
+  .fr-chip,
+  .fr-panel,
+  .fr-card,
+  .fr-lo-card,
+  .fr-hiring-panel,
+  .fr-hiring-card,
+  .fr-settlement-panel,
+  .fr-sum-panel,
+  .fr-hub-title,
+  .fr-hub-card,
+  .fhp-plaque,
+  .fhp-kpi-note,
+  .fhp-active-card,
+  .fhp-receipt,
+  .fhp-bag-card,
+  .fac-chip,
+  .fac-toast,
+  .fac-failure-text,
+  .fac-strike-sign
+) {
+  border: 0;
+  border-radius: 0;
+}
+
+.paper-app :is(button, select, input, textarea):disabled {
+  opacity: 1;
+}
+
+/* Animated cards leave only a transparent dashed placement guide behind.
+   These are empty slots, not paper surfaces, so the global paper fill must not
+   paint them white again. The tape pseudo-elements intentionally remain. */
+.paper-app .fr-card-residue,
+.paper-app .fr-hiring-card.is-flight-source {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pinned-note composition: the desk should feel arranged by hand              */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Each paper keeps its assigned angle while it lifts on hover.  Keeping the
+ * angle in a custom property also prevents interactive notes from snapping
+ * square when the legacy hover rules apply a translate.
+ */
+.paper-app :is(
+  .menu-item,
+  .panel-back,
+  .settings-btn,
+  .settings-select,
+  .welcome-cta,
+  .by-shop-card,
+  .by-egg-inv,
+  .by-range-btn,
+  .by-board-detail-btn,
+  .by-detail-back,
+  .by-agent-btn,
+  .by-bubble-fuse,
+  .by-bubble-mini,
+  .by-upgrade-btn,
+  .by-soil-back,
+  .by-poi-cta,
+  .by-dex-close,
+  .by-dex-import-btn,
+  .by-skin-use,
+  .by-dex-uploaders-refresh,
+  .by-dex-cell
+) {
+  --paper-note-tilt: 0deg;
+  --paper-note-y: 0px;
+  transform: translateY(var(--paper-note-y)) rotate(var(--paper-note-tilt));
+  transform-origin: 50% 46%;
+}
+
+.paper-app :is(
+  .menu-item,
+  .panel-back,
+  .settings-btn,
+  .welcome-cta,
+  .by-shop-card,
+  .by-egg-inv,
+  .by-range-btn,
+  .by-board-detail-btn,
+  .by-detail-back,
+  .by-agent-btn,
+  .by-bubble-fuse,
+  .by-bubble-mini,
+  .by-upgrade-btn,
+  .by-soil-back,
+  .by-poi-cta,
+  .by-dex-close,
+  .by-dex-import-btn,
+  .by-skin-use,
+  .by-dex-uploaders-refresh,
+  .by-dex-cell
+):not(:disabled):hover {
+  transform: translateY(calc(var(--paper-note-y) - 2px)) rotate(var(--paper-note-tilt));
+}
+
+.paper-app :is(
+  .panel-back,
+  .settings-btn,
+  .welcome-cta,
+  .by-range-btn,
+  .by-board-detail-btn,
+  .by-detail-back,
+  .by-agent-btn,
+  .by-bubble-fuse,
+  .by-bubble-mini,
+  .by-upgrade-btn,
+  .by-soil-back,
+  .by-poi-cta,
+  .by-dex-close,
+  .by-dex-import-btn,
+  .by-skin-use,
+  .by-dex-uploaders-refresh
+):not(:disabled):active {
+  transform: translateY(calc(var(--paper-note-y) + 1px)) rotate(var(--paper-note-tilt));
+}
+
+/* Main window: four independently pinned notes over one slightly crooked HUD. */
+.paper-app .menu-avatar {
+  --paper-note-tilt: -1.6deg;
+  --paper-note-y: 3px;
+}
+
+.paper-app .menu-backyard {
+  --paper-note-tilt: 1.25deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .menu-factory {
+  --paper-note-tilt: -0.85deg;
+  --paper-note-y: 4px;
+}
+
+.paper-app .menu-settings {
+  --paper-note-tilt: 1.45deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .menu-item.is-active {
+  transform: translateY(calc(var(--paper-note-y) - 3px)) rotate(var(--paper-note-tilt));
+}
+
+.paper-app .game-hud {
+  transform: rotate(-0.42deg);
+  transform-origin: 48% 50%;
+}
+
+.paper-app .hud-level {
+  transform: rotate(-1.35deg) translateY(1px);
+}
+
+.paper-app .hud-coins {
+  transform: rotate(1.15deg) translateY(-1px);
+}
+
+.paper-app .game-panel {
+  transform: rotate(0.28deg);
+  transform-origin: 50% 12%;
+}
+
+.paper-app .panel-header {
+  transform: rotate(-0.62deg) translate(-1px, -1px);
+  transform-origin: 12% 50%;
+}
+
+.paper-app .panel-back {
+  --paper-note-tilt: -2deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .settings-panel > .settings-row:nth-of-type(odd) {
+  transform: rotate(-0.55deg) translateX(-1px);
+}
+
+.paper-app .settings-panel > .settings-row:nth-of-type(even) {
+  transform: rotate(0.62deg) translateX(1px);
+}
+
+.paper-app .settings-options > .settings-btn:nth-child(odd) {
+  --paper-note-tilt: -1.15deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .settings-options > .settings-btn:nth-child(even) {
+  --paper-note-tilt: 1.05deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .settings-panel > .settings-action:nth-last-child(2) {
+  --paper-note-tilt: -0.8deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .settings-panel > .settings-action:last-child {
+  --paper-note-tilt: 0.9deg;
+  --paper-note-y: -1px;
+}
+
+/* Welcome, fusion and training sheets use the same layered desk language. */
+.paper-app .welcome-card {
+  transform: rotate(0.32deg);
+  transform-origin: 50% 9%;
+}
+
+.paper-app .welcome-hero {
+  transform: rotate(-0.72deg) translateX(-1px);
+}
+
+.paper-app .welcome-ledger {
+  transform: rotate(0.38deg) translateX(1px);
+}
+
+.paper-app .welcome-roast {
+  transform: rotate(-0.52deg) translateY(1px);
+}
+
+.paper-app .welcome-actions > .welcome-cta:nth-child(odd),
+.paper-app .fusion-modal-actions > .welcome-cta:nth-child(odd) {
+  --paper-note-tilt: -1.2deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .welcome-actions > .welcome-cta:nth-child(even),
+.paper-app .fusion-modal-actions > .welcome-cta:nth-child(even) {
+  --paper-note-tilt: 1.1deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .train-modal-list > .train-modal-pet:nth-child(4n + 1),
+.paper-app .fusion-modal-parents > .fusion-modal-parent:nth-child(4n + 1) {
+  transform: rotate(-0.85deg) translateY(2px);
+}
+
+.paper-app .train-modal-list > .train-modal-pet:nth-child(4n + 2),
+.paper-app .fusion-modal-parents > .fusion-modal-parent:nth-child(4n + 2) {
+  transform: rotate(0.7deg) translateY(-1px);
+}
+
+.paper-app .train-modal-list > .train-modal-pet:nth-child(4n + 3),
+.paper-app .fusion-modal-parents > .fusion-modal-parent:nth-child(4n + 3) {
+  transform: rotate(-0.35deg) translateY(1px);
+}
+
+.paper-app .train-modal-list > .train-modal-pet:nth-child(4n),
+.paper-app .fusion-modal-parents > .fusion-modal-parent:nth-child(4n) {
+  transform: rotate(0.95deg) translateY(3px);
+}
+
+/* Backyard HUD: a small pile of notes rather than one aligned toolbar. */
+.paper-app .by-soil-title {
+  transform: rotate(-1.05deg) translate(-1px, 1px);
+}
+
+.paper-app .by-soil-row > .by-soil-back {
+  --paper-note-tilt: 1.35deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-soil-coins {
+  transform: rotate(-0.85deg) translateY(-1px);
+}
+
+.paper-app .by-guide {
+  transform: translateX(-50%) rotate(0.82deg) translateY(1px);
+  transform-origin: 50% 50%;
+}
+
+.paper-app .by-upgrade-btn {
+  --paper-note-tilt: -1.15deg;
+  --paper-note-y: 1px;
+}
+
+/* Shop and hatchery cards follow a repeating, deliberate high-low rhythm. */
+.paper-app .by-shop-pop {
+  --paper-shell-tilt: -0.34deg;
+  transform: translateY(14px) rotate(var(--paper-shell-tilt)) scale(0.92);
+  transform-origin: 50% 10%;
+}
+
+.paper-app .by-shop-pop.is-open {
+  transform: translateY(0) rotate(var(--paper-shell-tilt)) scale(1);
+}
+
+.paper-app :is(.by-shop-grid, .by-egg-strip) > :is(.by-shop-card, .by-egg-inv):nth-child(4n + 1) {
+  --paper-note-tilt: -1.35deg;
+  --paper-note-y: 3px;
+}
+
+.paper-app :is(.by-shop-grid, .by-egg-strip) > :is(.by-shop-card, .by-egg-inv):nth-child(4n + 2) {
+  --paper-note-tilt: 0.9deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app :is(.by-shop-grid, .by-egg-strip) > :is(.by-shop-card, .by-egg-inv):nth-child(4n + 3) {
+  --paper-note-tilt: -0.55deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app :is(.by-shop-grid, .by-egg-strip) > :is(.by-shop-card, .by-egg-inv):nth-child(4n) {
+  --paper-note-tilt: 1.25deg;
+  --paper-note-y: 4px;
+}
+
+.paper-app .by-egg-inv:nth-of-type(3n + 1) {
+  --paper-note-tilt: -1.25deg;
+  --paper-note-y: 2px;
+}
+
+.paper-app .by-egg-inv:nth-of-type(3n + 2) {
+  --paper-note-tilt: 0.9deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .by-egg-inv:nth-of-type(3n) {
+  --paper-note-tilt: -0.55deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-shop-head > .by-shop-arrow:first-child {
+  --paper-note-tilt: -1.8deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-shop-head > .by-shop-arrow:last-child {
+  --paper-note-tilt: 1.65deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .by-shop-upgrade {
+  --paper-note-tilt: -0.9deg;
+  --paper-note-y: 1px;
+  transform: translateY(var(--paper-note-y)) rotate(var(--paper-note-tilt));
+}
+
+.paper-app .by-pit:nth-child(4n + 1) > :is(.by-pill, .by-pit-fusion) {
+  transform: rotate(-1.5deg) translateY(1px);
+}
+
+.paper-app .by-pit:nth-child(4n + 2) > :is(.by-pill, .by-pit-fusion) {
+  transform: rotate(1.1deg) translateY(-1px);
+}
+
+.paper-app .by-pit:nth-child(4n + 3) > :is(.by-pill, .by-pit-fusion) {
+  transform: rotate(-0.65deg) translateY(2px);
+}
+
+.paper-app .by-pit:nth-child(4n) > :is(.by-pill, .by-pit-fusion) {
+  transform: rotate(1.4deg) translateY(1px);
+}
+
+/* Notice board: paper rows and connection buttons are pinned independently. */
+.paper-app .by-board-inner {
+  transform: rotate(0.38deg);
+  transform-origin: 50% 8%;
+}
+
+.paper-app .by-board-range > .by-range-btn:nth-child(odd) {
+  --paper-note-tilt: -1.25deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-board-range > .by-range-btn:nth-child(even) {
+  --paper-note-tilt: 1.05deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .by-board-agents .by-agent-btn:nth-child(odd) {
+  --paper-note-tilt: -0.75deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-board-agents .by-agent-btn:nth-child(even) {
+  --paper-note-tilt: 0.85deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .by-detail-rows > .by-detail-row:nth-child(odd) {
+  transform: rotate(-0.38deg) translateX(-1px);
+}
+
+.paper-app .by-detail-rows > .by-detail-row:nth-child(even) {
+  transform: rotate(0.42deg) translateX(1px);
+}
+
+/* Pet action bubble and facility popups get offset inner notes, not a rigid form. */
+.paper-app .by-bubble {
+  transform: rotate(-0.42deg);
+  transform-origin: 50% 12%;
+}
+
+.paper-app .by-char-say {
+  /* Preserve the base centering transform. Otherwise the pop animation ends
+     centered, then this theme override snaps the bubble's left edge onto the
+     character and leaves the tail detached from their head. */
+  transform: translateX(-50%) rotate(-0.85deg) translateY(1px);
+  transform-origin: 50% 85%;
+}
+
+.paper-app .by-bubble-actions > .by-bubble-fuse {
+  --paper-note-tilt: -0.85deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-bubble-col > .by-bubble-mini:nth-child(odd) {
+  --paper-note-tilt: 1.15deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .by-bubble-col > .by-bubble-mini:nth-child(even) {
+  --paper-note-tilt: -0.75deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-poi-pop {
+  --paper-shell-tilt: -0.28deg;
+  transform: translateY(14px) rotate(var(--paper-shell-tilt)) scale(0.92);
+  transform-origin: 50% 10%;
+}
+
+.paper-app .by-poi-pop--training {
+  --paper-shell-tilt: -0.42deg;
+}
+
+.paper-app .by-poi-pop--market {
+  --paper-shell-tilt: 0.38deg;
+}
+
+.paper-app .by-poi-pop.is-open {
+  transform: translateY(0) rotate(var(--paper-shell-tilt)) scale(1);
+}
+
+.paper-app .by-poi-pop--training .by-poi-title {
+  transform: rotate(-1.15deg) translate(-1px, 1px);
+}
+
+.paper-app .by-poi-pop--market .by-poi-title {
+  transform: rotate(1deg) translate(1px, -1px);
+}
+
+.paper-app .by-poi-pop:not(.by-poi-pop--training):not(.by-poi-pop--market) .by-poi-title {
+  transform: rotate(-0.8deg) translateY(1px);
+}
+
+.paper-app .by-poi-pop .by-poi-cta:nth-of-type(odd) {
+  --paper-note-tilt: -1deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-poi-pop .by-poi-cta:nth-of-type(even) {
+  --paper-note-tilt: 1.1deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .by-train-materials > .by-train-mat:nth-child(odd) {
+  transform: rotate(-0.75deg) translateY(1px);
+}
+
+.paper-app .by-train-materials > .by-train-mat:nth-child(even) {
+  transform: rotate(0.8deg) translateY(-1px);
+}
+
+.paper-app .by-train-slots > .by-train-slot:nth-child(3n + 1) {
+  transform: rotate(-0.72deg) translateY(2px);
+}
+
+.paper-app .by-train-slots > .by-train-slot:nth-child(3n + 2) {
+  transform: rotate(0.68deg) translateY(-1px);
+}
+
+.paper-app .by-train-slots > .by-train-slot:nth-child(3n) {
+  transform: rotate(-0.32deg) translateY(1px);
+}
+
+.paper-app .by-train-row > .by-train-note {
+  transform: rotate(0.68deg) translateY(-1px);
+}
+
+.paper-app .by-market-list > .by-market-row:nth-child(odd) {
+  transform: rotate(-0.48deg) translateX(-1px);
+}
+
+.paper-app .by-market-list > .by-market-row:nth-child(even) {
+  transform: rotate(0.52deg) translateX(1px);
+}
+
+.paper-app .by-market-side > .by-poi-note {
+  transform: rotate(-0.68deg) translateY(1px);
+}
+
+.paper-app .by-dex-thumbs > .by-dex-thumb:nth-child(3n + 1) {
+  transform: rotate(-1deg) translateY(2px);
+}
+
+.paper-app .by-dex-thumbs > .by-dex-thumb:nth-child(3n + 2) {
+  transform: rotate(0.85deg) translateY(-1px);
+}
+
+.paper-app .by-dex-thumbs > .by-dex-thumb:nth-child(3n) {
+  transform: rotate(-0.42deg) translateY(1px);
+}
+
+/* Pokedex: the large sheet stays calm; cards and tabs make the collage. */
+.paper-app .by-dex-panel {
+  transform: rotate(-0.18deg);
+  transform-origin: 50% 8%;
+}
+
+.paper-app .by-dex-detail {
+  transform: rotate(0.2deg);
+  transform-origin: 50% 8%;
+}
+
+.paper-app .by-dex-section-label:nth-of-type(odd),
+.paper-app .by-dex-skins-label {
+  transform: rotate(-0.9deg) translateX(-1px);
+}
+
+.paper-app .by-dex-section-label:nth-of-type(even),
+.paper-app .by-dex-uploaders-label {
+  transform: rotate(0.78deg) translateX(1px);
+}
+
+.paper-app .by-dex-baserow > .by-dex-cell:nth-child(4n + 1),
+.paper-app .by-dex-grid > .by-dex-cell:nth-child(4n + 1),
+.paper-app .by-dex-recipe-slots > .by-dex-cell:nth-child(4n + 1) {
+  --paper-note-tilt: -1.1deg;
+  --paper-note-y: 2px;
+}
+
+.paper-app .by-dex-baserow > .by-dex-cell:nth-child(4n + 2),
+.paper-app .by-dex-grid > .by-dex-cell:nth-child(4n + 2),
+.paper-app .by-dex-recipe-slots > .by-dex-cell:nth-child(4n + 2) {
+  --paper-note-tilt: 0.75deg;
+  --paper-note-y: -1px;
+}
+
+.paper-app .by-dex-baserow > .by-dex-cell:nth-child(4n + 3),
+.paper-app .by-dex-grid > .by-dex-cell:nth-child(4n + 3),
+.paper-app .by-dex-recipe-slots > .by-dex-cell:nth-child(4n + 3) {
+  --paper-note-tilt: -0.48deg;
+  --paper-note-y: 1px;
+}
+
+.paper-app .by-dex-baserow > .by-dex-cell:nth-child(4n),
+.paper-app .by-dex-grid > .by-dex-cell:nth-child(4n),
+.paper-app .by-dex-recipe-slots > .by-dex-cell:nth-child(4n) {
+  --paper-note-tilt: 1deg;
+  --paper-note-y: 3px;
+}
+
+.paper-app .by-dex-detail-stage {
+  transform: rotate(-0.72deg) translate(-1px, 1px);
+}
+
+.paper-app .by-dex-detail-stats > .by-dex-detail-pill:nth-child(odd) {
+  transform: rotate(-0.8deg) translateY(1px);
+}
+
+.paper-app .by-dex-detail-stats > .by-dex-detail-pill:nth-child(even) {
+  transform: rotate(0.65deg) translateY(-1px);
+}
+
+.paper-app .by-dex-skins-grid > .by-skin-card:nth-child(3n + 1) {
+  transform: rotate(-0.85deg) translateY(2px);
+}
+
+.paper-app .by-dex-skins-grid > .by-skin-card:nth-child(3n + 2) {
+  transform: rotate(0.7deg) translateY(-1px);
+}
+
+.paper-app .by-dex-skins-grid > .by-skin-card:nth-child(3n) {
+  transform: rotate(-0.35deg) translateY(1px);
+}
+
+.paper-app .by-uploader-list > .by-uploader-row:nth-child(odd) {
+  transform: rotate(-0.35deg) translateX(-1px);
+}
+
+.paper-app .by-uploader-list > .by-uploader-row:nth-child(even) {
+  transform: rotate(0.38deg) translateX(1px);
+}
+
+.paper-app .by-skin-dialog {
+  transform: rotate(-0.38deg);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Paper contract completion: late-added game UI                              */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The factory run grew several new HUDs and ceremonies after the first paper
+ * pass. Keep those surfaces borderless too: separation comes from paper colour,
+ * fibre, overlap and a soft cast shadow, never a drawn frame.
+ */
+.paper-app :is(
+  .stage-egg-label,
+  .welcome-list li,
+  .fac-hint,
+  .fr-kpi,
+  .fr-bag,
+  .fr-bag-slot,
+  .fr-card-keyword-tip,
+  .fr-operation-card,
+  .fr-operation-choice,
+  .fr-sum-record-note,
+  .fr-steam-record-note,
+  .fr-sum-coin-reward,
+  .fr-sum-item-tip,
+  .fr-kpi-note,
+  .fr-kpi-bonus,
+  .fr-overtime-intro,
+  .fr-overtime-banner,
+  .fr-hiring-money,
+  .fr-hiring-pool,
+  .fr-hiring-confirm-note
+) {
+  border: 0;
+  border-radius: 0;
+}
+
+.paper-app :is(.stage-egg-label, .welcome-list li, .fac-hint) {
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: var(--paper-shadow);
+  text-shadow: none;
+}
+
+.paper-app .stage-egg-label {
+  background-color: var(--paper-yellow);
+  color: var(--paper-yellow-ink);
+  transform: rotate(-0.7deg);
+}
+
+.paper-app .welcome-list li:nth-child(4n + 1) { background-color: var(--paper-yellow); }
+.paper-app .welcome-list li:nth-child(4n + 2) { background-color: var(--paper-mint); }
+.paper-app .welcome-list li:nth-child(4n + 3) { background-color: var(--paper-blue); }
+.paper-app .welcome-list li:nth-child(4n) { background-color: var(--paper-pink); }
+
+.paper-app .fac-hint {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+  transform: translateX(-50%) rotate(-0.45deg);
+}
+
+/* Compact factory meters remain meters, but lose their heavy outer frames. */
+.paper-app .fr-kpi {
+  background: color-mix(in srgb, var(--paper-ink-deep) 82%, var(--paper-white));
+  box-shadow: inset 0 1px 3px rgba(34, 40, 58, 0.32), var(--paper-shadow);
+}
+
+.paper-app .fr-bag {
+  padding: 3px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .fr-bag-slot {
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .fr-bag-slot.is-head {
+  background-color: var(--paper-yellow);
+  box-shadow: var(--paper-shadow-mid);
+}
+
+.paper-app .fr-card-keyword-tip {
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  box-shadow: var(--paper-shadow-mid);
+}
+
+/* Action sheets: the existing tape is the accent; no ruled top frame. */
+.paper-app .fr-operation-card {
+  border-top: 0;
+  background-color: var(--paper-white);
+  background-image:
+    linear-gradient(90deg, transparent 0 42px, rgba(236, 116, 103, 0.14) 42px 44px, transparent 44px),
+    repeating-linear-gradient(180deg, transparent 0 42px, rgba(91, 143, 173, 0.09) 42px 43px),
+    var(--paper-fibers);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app .fr-operation-choice {
+  border-top: 0;
+  background-color: color-mix(in srgb, var(--fr-choice, var(--fr-operation-accent)) 17%, var(--paper-white));
+  background-image: var(--paper-fibers-soft);
+  box-shadow:
+    inset 0 5px 0 color-mix(in srgb, var(--fr-choice, var(--fr-operation-accent)) 72%, transparent),
+    var(--paper-shadow);
+}
+
+.paper-app .fr-operation-choice:hover {
+  box-shadow:
+    inset 0 5px 0 color-mix(in srgb, var(--fr-choice, var(--fr-operation-accent)) 82%, transparent),
+    var(--paper-shadow-mid);
+}
+
+.paper-app .fr-operation-choice:active {
+  box-shadow:
+    inset 0 5px 0 color-mix(in srgb, var(--fr-choice, var(--fr-operation-accent)) 82%, transparent),
+    0 2px 5px rgba(90, 80, 60, 0.2);
+}
+
+.paper-app .fr-operation-choice.is-picked {
+  outline: 0;
+  background-color: color-mix(in srgb, var(--fr-choice) 27%, var(--paper-white));
+  box-shadow:
+    inset 0 7px 0 var(--fr-choice),
+    0 9px 20px color-mix(in srgb, var(--fr-choice) 28%, transparent);
+}
+
+/* End-of-run sheets and reward notes. Ink-stamp outlines intentionally stay. */
+.paper-app :is(.fr-sum-record-note, .fr-steam-record-note) {
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink-deep);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app :is(.fr-sum-record-note, .fr-steam-record-note)::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 76px;
+  height: 18px;
+  background: rgba(236, 216, 165, 0.88);
+  box-shadow: 0 2px 4px rgba(90, 80, 60, 0.14);
+  transform: translateX(-50%) rotate(-2deg);
+}
+
+.paper-app .fr-sum-coin-reward {
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-yellow-ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .fr-sum-item-tip {
+  background-color: var(--reward-paper, var(--paper-white));
+  background-image: var(--paper-fibers);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+/* KPI celebration notes and the overtime notice use the same loose paper pile. */
+.paper-app .fr-kpi-note {
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow-mid);
+}
+
+.paper-app .fr-kpi-bonus {
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app .fr-overtime-intro,
+.paper-app .fr-overtime-banner {
+  overflow: visible;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers);
+  color: var(--paper-yellow-ink);
+  box-shadow: var(--paper-shadow-lg);
+  text-shadow: none;
+}
+
+.paper-app .fr-overtime-intro::before,
+.paper-app .fr-overtime-banner::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: -9px;
+  left: 50%;
+  width: 86px;
+  height: 18px;
+  background:
+    repeating-linear-gradient(96deg, rgba(255, 255, 255, 0.18) 0 2px, transparent 2px 8px),
+    rgba(232, 211, 157, 0.9);
+  box-shadow: 0 2px 4px rgba(90, 80, 60, 0.14);
+  transform: translateX(-50%) rotate(-1.8deg);
+  pointer-events: none;
+}
+
+.paper-app .fr-overtime-banner::after {
+  content: "";
+  position: absolute;
+  right: -13px;
+  top: 9px;
+  width: 22px;
+  height: 15px;
+  background-color: var(--paper-pink);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow);
+  clip-path: polygon(3% 18%, 93% 0, 100% 78%, 18% 100%);
+  transform: rotate(13deg);
+  pointer-events: none;
+}
+
+/* Hiring reads as a tray of separate notes instead of a bordered form. */
+.paper-app .fr-hiring-money,
+.paper-app .fr-hiring-pool {
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .fr-hiring-money > div {
+  border: 0;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .fr-hiring-money > div:nth-child(3n + 1) { background-color: var(--paper-mint); }
+.paper-app .fr-hiring-money > div:nth-child(3n + 2) { background-color: var(--paper-yellow); }
+.paper-app .fr-hiring-money > div:nth-child(3n) { background-color: var(--paper-pink); }
+
+.paper-app .fr-hiring-pool > :is(strong, b, .fr-hiring-pool-list span) {
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .fr-hiring-confirm-note {
+  position: relative;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers);
+  box-shadow: var(--paper-shadow-lg);
+}
+
+.paper-app .fr-hiring-confirm-note::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 92px;
+  height: 20px;
+  background: rgba(236, 216, 165, 0.9);
+  box-shadow: 0 2px 4px rgba(90, 80, 60, 0.13);
+  transform: translateX(-50%) rotate(1.4deg);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Interior information hierarchy: quiet ledger rows, not more sticky notes   */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Large surfaces and primary actions carry the paper personality. Repeated
+ * facts inside those surfaces are deliberately flatter so the eye can scan
+ * them as one ledger instead of reading every value as a separate card.
+ */
+.paper-app .fr-hiring-money {
+  gap: 0;
+  padding: 5px 8px;
+  background: rgba(255, 253, 244, 0.48);
+  box-shadow: inset 0 1px 0 rgba(90, 80, 60, 0.08);
+}
+
+.paper-app .fr-hiring-money > div,
+.paper-app .fr-hiring-money > div:nth-child(n) {
+  padding: 5px 18px;
+  border-right: 1px dashed rgba(90, 80, 60, 0.18);
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .fr-hiring-money > div:last-child {
+  border-right: 0;
+}
+
+.paper-app .fr-hiring-money small {
+  color: var(--paper-secondary);
+  letter-spacing: 0.035em;
+  opacity: 0.78;
+}
+
+.paper-app .fr-hiring-money b {
+  color: var(--paper-ink);
+}
+
+.paper-app .fr-hiring-money .is-primary b {
+  color: #237966;
+}
+
+.paper-app .fr-hiring-money .is-danger b {
+  color: #b94457;
+}
+
+.paper-app .fr-hiring-pool > :is(strong, b, .fr-hiring-pool-list span) {
+  box-shadow: none;
+}
+
+/* Settings groups are form rows on one sheet, not a stack of mini sheets. */
+.paper-app .settings-row {
+  padding: 6px 2px 10px;
+  border-bottom: 1px dashed rgba(90, 80, 60, 0.16);
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.paper-app .settings-panel > .settings-row:nth-of-type(n) {
+  transform: none;
+}
+
+.paper-app .settings-panel > .settings-row:last-of-type {
+  border-bottom: 0;
+}
+
+/* Notice-board breakdowns and market quotes stay visually subordinate. */
+.paper-app .by-detail-row {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.paper-app .by-detail-rows > .by-detail-row:nth-child(n) {
+  transform: none;
+}
+
+.paper-app .by-market-row {
+  background-color: rgba(255, 253, 244, 0.52);
+  background-image: none;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--paper-blue) 68%, transparent);
+  transform: none;
+}
+
+.paper-app .by-market-list > .by-market-row:nth-child(n) {
+  transform: none;
+}
+
+.paper-app .by-market-price,
+.paper-app .by-market-price.is-estimate,
+.paper-app .by-market-price.is-unknown {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Shift settlement is one receipt. Totals use separators and type colour only. */
+.paper-app .fr-settlement-totals,
+.paper-app .fr-settlement-payment {
+  gap: 0;
+  padding: 4px 8px;
+  background: rgba(255, 253, 244, 0.5);
+}
+
+.paper-app .fr-settlement-total,
+.paper-app :is(.fr-settlement-wallet, .fr-settlement-bill, .fr-settlement-after) {
+  border: 0;
+  border-right: 1px dashed rgba(90, 80, 60, 0.18);
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .fr-settlement-total:last-child,
+.paper-app .fr-settlement-after {
+  border-right: 0;
+}
+
+.paper-app .fr-settlement-pulse {
+  background: rgba(255, 253, 244, 0.42);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-app *,
+  .paper-app *::before,
+  .paper-app *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .paper-app :is(.paper-button, button, .speech, .menu-item, .by-dex-cell, .fr-note, .fr-card) {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Onboarding: one family of crooked sticky-note stickers                      */
+/* -------------------------------------------------------------------------- */
+
+.paper-app .guide-sticker-sprinkles {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 7% 72%, rgba(154, 77, 36, 0.56) 0 1.8px, transparent 2.3px),
+    radial-gradient(circle at 93% 25%, rgba(30, 74, 136, 0.48) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 87% 80%, rgba(138, 40, 72, 0.44) 0 1.2px, transparent 1.8px),
+    linear-gradient(32deg, transparent 39%, rgba(154, 77, 36, 0.48) 41% 58%, transparent 60%) 12% 19% / 9px 8px no-repeat,
+    linear-gradient(-28deg, transparent 39%, rgba(30, 90, 72, 0.42) 41% 58%, transparent 60%) 82% 61% / 8px 7px no-repeat,
+    linear-gradient(70deg, transparent 42%, rgba(138, 40, 72, 0.4) 44% 57%, transparent 59%) 96% 66% / 7px 10px no-repeat;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.paper-app :is(
+  .onboarding-sticker,
+  .tutorial-bubble,
+  .speech.is-hint,
+  .by-guide,
+  .autostart-prompt-card
+) > :not(.guide-sticker-sprinkles, .speech-elements) {
+  position: relative;
+  z-index: 1;
+}
+
+.paper-app .onboarding-sticker {
+  background-color: var(--paper-guide);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: 5px 6px 0 var(--paper-guide-shadow);
+}
+
+.paper-app .onboarding-sticker::before {
+  background-color: rgba(255, 253, 244, 0.72);
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 7px, rgba(90, 80, 60, 0.045) 7px 8px);
+}
+
+.paper-app .onboarding-goal header > span {
+  color: var(--paper-pink-ink);
+  background-color: var(--paper-pink);
+  background-image: var(--paper-fibers-soft);
+}
+
+.paper-app .onboarding-goal header > small {
+  color: var(--paper-blue-ink);
+  background-color: var(--paper-blue);
+  background-image: var(--paper-fibers-soft);
+}
+
+.paper-app .onboarding-goal button {
+  background-color: var(--paper-cta);
+  background-image: var(--paper-fibers-soft);
+}
+
+.paper-app .onboarding-target-note {
+  color: var(--paper-secondary);
+  background-color: var(--paper-guide-deep);
+  background-image: var(--paper-fibers-soft);
+}
+
+/* Discovery hints outside the pet stage: compact grey-white guide paper. */
+.paper-app .tutorial-bubble {
+  top: 14px;
+  overflow: visible;
+  padding: 9px 16px 10px;
+  background-color: var(--paper-guide);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: 4px 5px 0 var(--paper-guide-shadow);
+  transform: translateX(-50%) rotate(1.05deg);
+  transform-origin: 50% 18%;
+  animation-name: guide-sticker-pop-right;
+}
+
+.paper-app .tutorial-bubble::before,
+.paper-app .by-guide::before,
+.paper-app .autostart-prompt-card::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: -7px;
+  width: 58px;
+  height: 14px;
+  background: rgba(255, 253, 244, 0.7);
+  box-shadow: none;
+  transform: translateX(-50%) rotate(-2.1deg);
+  pointer-events: none;
+}
+
+.paper-app .tutorial-bubble::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  border-left: 11px solid transparent;
+  border-bottom: 11px solid rgba(122, 112, 96, 0.44);
+}
+
+@keyframes guide-sticker-pop-right {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) rotate(-1.4deg) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) rotate(1.05deg) scale(1);
+  }
+}
+
+/* Stage hints already use the shared speech note; crumbs make their tutorial role explicit. */
+.paper-app .speech.is-hint {
+  background-color: var(--paper-guide);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: 4px 5px 0 var(--paper-guide-shadow);
+  transform:
+    translateY(calc(var(--speech-drop, 0px) + var(--onboarding-speech-push, 0px)))
+    rotate(-1.05deg);
+}
+
+.paper-app .speech.is-hint::before {
+  background: linear-gradient(135deg, transparent 0 49%, var(--paper-guide) 50%);
+  box-shadow: none;
+}
+
+/* The backyard movement lesson leans the other way to avoid a row of straight labels. */
+.paper-app .by-guide {
+  overflow: visible;
+  padding: 9px 20px 10px;
+  background-color: var(--paper-guide);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: 4px 5px 0 var(--paper-guide-shadow);
+  transform: translateX(-50%) rotate(-1.15deg) translateY(1px);
+}
+
+.paper-app .by-guide::before {
+  left: 32%;
+  transform: translateX(-50%) rotate(2.8deg);
+}
+
+/* The post-fusion autostart nudge uses the same grey-white guide paper. */
+.paper-app .welcome-card.autostart-prompt-card {
+  overflow: visible;
+  background-color: var(--paper-guide);
+  background-image: var(--paper-fibers);
+  color: var(--paper-ink);
+  box-shadow: 5px 6px 0 var(--paper-guide-shadow);
+  transform: rotate(-0.85deg);
+}
+
+.paper-app .autostart-prompt-card::before {
+  left: 66%;
+  width: 72px;
+  transform: translateX(-50%) rotate(2.4deg);
+}
+
+.paper-app .autostart-prompt-card::after {
+  border-left-width: 20px;
+  border-bottom-width: 20px;
+  border-bottom-color: var(--paper-guide-shadow);
+}
+
+.paper-app .autostart-prompt-card .welcome-title {
+  color: var(--paper-ink);
+}
+
+/* Gesture keys become three small, deliberately mismatched note tabs. */
+.paper-app .coach-key {
+  --coach-key-paper: var(--paper-guide);
+  background-color: var(--coach-key-paper);
+  background-image: var(--paper-fibers-soft);
+}
+
+.paper-app .coach-skip {
+  padding: 4px 11px;
+  background-color: var(--paper-guide);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  box-shadow: 3px 4px 0 var(--paper-guide-shadow);
+  transform: rotate(1.25deg);
+}
+
+@media (max-width: 360px) {
+  .paper-app .tutorial-bubble {
+    max-width: calc(100% - 34px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-app .tutorial-bubble {
+    animation: none;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Backyard notice board: physical frame, arranged paper interior              */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Only the timber frame is part of the lit scenery. The inner sheet and title
+ * stay in the paper UI layer so their semantic colors remain readable at night.
+ */
+.paper-app .by-board-shell {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .by-board-frame {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 4px solid #6b4520;
+  border-radius: 14px;
+  background:
+    repeating-linear-gradient(92deg, rgba(59, 32, 10, 0.12) 0 2px, transparent 2px 30px),
+    linear-gradient(180deg, #b07b44, #96622f);
+  box-shadow: 0 12px 22px rgba(43, 26, 8, 0.35);
+  filter: var(--by-scene-grade-ui, none);
+  pointer-events: none;
+}
+
+.paper-app .by-board-inner {
+  inset: 9px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 2px;
+  background-color: var(--paper-white);
+  background-image: var(--paper-fibers-soft);
+  box-shadow: var(--paper-shadow-lg);
+  transform: none;
+}
+
+.paper-app .by-board-detail {
+  padding: 7px 12px;
+}
+
+.paper-app .by-board-main,
+.paper-app .by-board-agents,
+.paper-app .by-board-love-row {
+  border-bottom: 0;
+}
+
+.paper-app .by-board-token {
+  justify-self: start;
+  padding: 0;
+  background: transparent;
+  color: var(--paper-ink-deep);
+  box-shadow: none;
+  transform: none;
+}
+
+.paper-app .by-board-detail-btn {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .by-board-range > .by-range-btn {
+  background-color: var(--paper-white);
+  color: var(--paper-secondary);
+}
+
+.paper-app .by-board-range > .by-range-btn.is-active {
+  background-color: var(--paper-mint);
+  color: var(--paper-mint-ink);
+}
+
+.paper-app .by-board-agents {
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.paper-app .by-board-agents .by-agent-btn:first-child:not(.is-connected, .is-confirm, .is-busy, .is-missing) {
+  background-color: var(--paper-blue);
+  color: var(--paper-blue-ink);
+}
+
+.paper-app .by-board-status-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.paper-app .by-board-love-row,
+.paper-app .by-board-dex {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 3px 7px 4px;
+  background-image: var(--paper-fibers-soft);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.paper-app .by-board-love-row {
+  background-color: var(--paper-pink);
+  color: var(--paper-pink-ink);
+  box-shadow: none;
+  transform: none;
+}
+
+.paper-app .by-board-dex {
+  background-color: transparent;
+  background-image: none;
+  color: var(--paper-ink, #4a3313);
+  text-align: center;
+  box-shadow: none;
+  transform: none;
+}
+
+.paper-app .by-board-love {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.paper-app .by-board-love,
+.paper-app .by-board-love .love-meter-count {
+  color: inherit;
+}
+
+.paper-app .by-detail-rows > .by-detail-row {
+  transform: none;
+}
+
+.paper-app .by-upgrade-shell {
+  transform: rotate(-1deg);
+}
+
+.paper-app .by-upgrade-frame {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 4px solid #6b4520;
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(92deg, rgba(59, 32, 10, 0.14) 0 2px, transparent 2px 24px),
+    linear-gradient(180deg, #b07b44, #96622f);
+  box-shadow: 0 8px 14px rgba(43, 26, 8, 0.34);
+  filter: var(--by-scene-grade-ui, none);
+  pointer-events: none;
+}
+
+.paper-app .by-upgrade-shell .by-upgrade-btn {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 2px;
+  background-color: var(--paper-yellow);
+  background-image: var(--paper-fibers-soft);
+  color: var(--paper-ink);
+  text-shadow: none;
+  box-shadow: var(--paper-shadow);
+  filter: none;
+  transform: none;
+}
+
+.paper-app .by-upgrade-post {
+  display: block;
+  border: 2px solid #6b4520;
+  background-color: #96622f !important;
+  background-image:
+    repeating-linear-gradient(92deg, rgba(59, 32, 10, 0.16) 0 2px, transparent 2px 18px),
+    linear-gradient(90deg, #855329, #b07b44 48%, #855329) !important;
+  box-shadow: 3px 5px 0 rgba(43, 26, 8, 0.24);
+  filter: var(--by-scene-grade-ui, none);
+}
+
+.paper-app .by-upgrade-btn::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 42px;
+  height: 14px;
+  background: var(--paper-blue);
+  box-shadow: 0 1px 2px rgba(74, 52, 24, 0.18);
+  opacity: 1;
+  transform: translateX(-50%) rotate(1.5deg);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.paper-app .by-upgrade-btn::after {
+  content: none;
+}
+
+.paper-app .by-upgrade-btn:not(:disabled):hover {
+  filter: brightness(1.035);
+  transform: translateY(-1px);
+}
+
+.paper-app .by-upgrade-btn:not(:disabled):active {
+  filter: none;
+  transform: translateY(2px) rotate(0deg) scale(0.98);
+  box-shadow: var(--paper-shadow);
+}
+
+.paper-app .by-upgrade-btn:disabled {
+  color: var(--paper-muted-ink);
+  filter: none;
+  opacity: 1;
+}
+
+.paper-app .by-upgrade-btn .by-upgrade-sub .is-short {
+  color: var(--paper-danger);
+  font-weight: 800;
+}

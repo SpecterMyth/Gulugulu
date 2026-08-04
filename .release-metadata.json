@@ -1,0 +1,13 @@
+﻿{
+    "schemaVersion":  1,
+    "sourceMain":  "146983123b50bb704d80bf6a18d8b5ae67f2856c",
+    "version":  "0.1.0",
+    "treeBeforeMetadata":  "431207e1d586998b9bd00c96617d0dcfe4e81ad0",
+    "verifiedAt":  "2026-08-04T18:03:34Z",
+    "tests":  [
+                  "main: cargo test --locked",
+                  "release: npm ci",
+                  "release: npm run build",
+                  "release: cargo build --locked"
+              ]
+}

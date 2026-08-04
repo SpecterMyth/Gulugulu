@@ -1,0 +1,20 @@
+.factory-fps {
+  position: fixed;
+  right: max(8px, env(safe-area-inset-right, 0px));
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  z-index: 2147483646;
+  min-width: 38px;
+  padding: 3px 5px;
+  border-radius: 3px;
+  background: rgba(24, 22, 20, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+  text-align: right;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  user-select: none;
+}
