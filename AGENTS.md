@@ -13,3 +13,15 @@ When a user asks to install Gulugulu from this repository:
 Do not default to source compilation for ordinary users. Source builds require Node.js, Rust, and Tauri system dependencies.
 
 Release builds are created by GitHub Actions from `v*` tags and uploaded as draft GitHub Releases.
+
+## Conversation Git workflow
+
+When a conversation changes repository files:
+
+1. Work only in the `main` worktree on a `codex/*` branch.
+2. Stage only files changed for the current conversation. Never use an unscoped `git add -A` in a dirty worktree.
+3. Create one concise commit for the conversation. If the same conversation changes files again before merge, amend that commit.
+4. Update a published amended branch only with `git push --force-with-lease`.
+5. Do not edit the `Release` or `SteamOnline` worktrees manually. They are maintained by the promotion scripts in `scripts/project-management/`.
+
+Pure planning, explanation, and read-only diagnosis do not create empty commits.
