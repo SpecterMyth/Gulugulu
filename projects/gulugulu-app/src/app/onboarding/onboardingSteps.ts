@@ -3,6 +3,7 @@ import { hatcherySlotCount, maxLevelForTier } from "../../game/config";
 import type { Language } from "../../i18n/core";
 import { GENERATED_RUNTIME_LOCALES } from "../../i18n/generatedLocales";
 import type { GameConfig, GameSave } from "../../types";
+import { REVIEWED_ONBOARDING_LOCALES } from "./reviewedOnboardingLocales";
 import {
   ONBOARDING_EN_COPY,
   ONBOARDING_STEP_IDS,
@@ -152,11 +153,12 @@ export function onboardingDirective(
   }
 
   const index = Math.max(0, ONBOARDING_STEP_IDS.indexOf(state.step as OnboardingStepId));
-  const localized = language === "en"
+  const localized = REVIEWED_ONBOARDING_LOCALES[language as Exclude<Language, "en" | "zh-Hans">]
+    ?.onboarding[state.step as OnboardingStepId] ?? (language === "en"
     ? ONBOARDING_EN_COPY[state.step as OnboardingStepId]
-    : language.startsWith("zh")
+    : language === "zh-Hans"
       ? null
-      : GENERATED_RUNTIME_LOCALES[language]?.onboarding[state.step];
+      : GENERATED_RUNTIME_LOCALES[language]?.onboarding[state.step]);
   const recoveryLabel = a13NeedsPitRecovery
     ? language === "zh-Hans"
       ? ONBOARDING_UI_ZH.occupiedPit
