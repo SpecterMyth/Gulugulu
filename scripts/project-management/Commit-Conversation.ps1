@@ -4,11 +4,18 @@ param(
     [switch]$Amend,
     [switch]$Push
 )
-$mainRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$branch = (& git -C $mainRoot branch --show-current).Trim()
+$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "ConversationPr.Common.ps1")
+$mainRoot = Get-MainRoot
+$branch = Invoke-GitText $mainRoot branch --show-current
 if ($branch -notlike "codex/*") { throw "Conversation commits require a codex/* branch; current branch is '$branch'." }
-foreach ($path in $Paths) { & git -C $mainRoot add -- $path; if ($LASTEXITCODE -ne 0) { throw "Unable to stage $path" } }
-$staged = & git -C $mainRoot diff --cached --name-only
+if (-not $Message.Trim()) { throw "Commit message must not be empty." }
+foreach ($path in $Paths) {
+    if ([IO.Path]::IsPathRooted($path)) { throw "Paths must be repository-relative: $path" }
+    & git -C $mainRoot add -- $path
+    if ($LASTEXITCODE -ne 0) { throw "Unable to stage $path" }
+}
+$staged = @(& git -C $mainRoot diff --cached --name-only)
 if (-not $staged) { throw "No staged conversation changes." }
 if ($Amend) { & git -C $mainRoot commit --amend -m $Message } else { & git -C $mainRoot commit -m $Message }
 if ($LASTEXITCODE -ne 0) { throw "Commit failed." }

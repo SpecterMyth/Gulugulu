@@ -1,0 +1,4 @@
+interface:
+  display_name: "完成对话 PR"
+  short_description: "强制完成会话提交、分支推送并创建格式合规的草稿 PR"
+  default_prompt: "Use $complete-conversation-pr to finish this repository-changing task with a compliant draft PR."
