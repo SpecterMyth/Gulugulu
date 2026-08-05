@@ -606,6 +606,17 @@ ok(
   })),
   "19 个追加语言的收藏、后院导航、常驻动作与升阶术语均使用人工校对译文",
 );
+const hatcheryUnlockPaths = [
+  "hatchery.unlockThisTitle", "hatchery.unlockPrevTitle", "hatchery.unlockPill",
+  "hatchery.lockedPill", "hatchery.needCoinsUnlock",
+];
+ok(
+  generatedIds.every((id) => hatcheryUnlockPaths.every((path) => {
+    const reviewed = getPath(M.BACKYARD_LABEL_LOCALES[id], path)?.trim();
+    return reviewed && getPath(M.BACKYARD[id], path) === reviewed;
+  })),
+  "19 个追加语言的蛋坑解锁文案均使用人工校对译文",
+);
 const backyardSemanticPaths = [
   "training.lockedHint", "training.slots", "training.remaining", "training.openBtn",
   "training.costTime", "training.universalShort", "scene.backTitle",
