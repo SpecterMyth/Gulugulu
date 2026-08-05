@@ -1,0 +1,41 @@
+{
+  "description": "Enforce Gulugulu's one-conversation-one-draft-PR workflow for Codex.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& (Join-Path (& git rev-parse --show-toplevel) '.codex/hooks/SessionStart.ps1')\"",
+            "timeout": 10,
+            "statusMessage": "Initializing mandatory PR workflow"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& (Join-Path (& git rev-parse --show-toplevel) '.codex/hooks/Stop.ps1')\"",
+            "timeout": 30,
+            "statusMessage": "Verifying mandatory draft PR"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& (Join-Path (& git rev-parse --show-toplevel) '.codex/hooks/SessionEnd.ps1')\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -18,12 +18,15 @@ Release builds are created by GitHub Actions from `v*` tags and uploaded as draf
 
 When a conversation changes repository files:
 
-1. Work only in the `main` worktree on a `codex/*` branch.
-2. Stage only files changed for the current conversation. Never use an unscoped `git add -A` in a dirty worktree.
-3. Create one concise commit for the conversation. If the same conversation changes files again before merge, amend that commit.
-4. Update a published amended branch only with `git push --force-with-lease`.
-5. After pushing, the agent creates or updates a draft pull request targeting `main` and reports its URL. Use the GitHub connector first and an authenticated browser fallback when connector permissions do not allow PR creation.
-6. The user is responsible only for the final review and merge confirmation. Agents must not merge the PR unless the user explicitly asks.
-7. Do not edit the `Release` or `SteamOnline` worktrees manually. They are maintained by the promotion scripts in `scripts/project-management/`.
+1. Read and use the `complete-conversation-pr` skill.
+2. Work only in the `main` worktree on a `codex/*` branch.
+3. Stage only files changed for the current conversation. Never use an unscoped `git add -A` in a dirty worktree.
+4. Run `scripts/project-management/Complete-Conversation.ps1` to create one concise commit, push the branch, and create or update its draft PR. If the same conversation changes files again before merge, pass `-Amend`; published amendments use `git push --force-with-lease`.
+5. Target `main`. The PR title must be `[MODEL]一句话中文描述`; its body must contain detailed description, verification results, and risks or notes.
+6. Report the verified PR URL in the final response. Codex `Stop` hooks reject completion while repository changes lack a compliant draft PR.
+7. The user is responsible only for the final review and merge confirmation. Agents must not merge the PR unless the user explicitly asks.
+8. Do not edit the `Release` or `SteamOnline` worktrees manually. They are maintained by the promotion scripts in `scripts/project-management/`.
 
 Pure planning, explanation, and read-only diagnosis do not create empty commits.
+
+Project hooks are stored in `.codex/hooks.json`. Review and trust them with `/hooks` when Codex first discovers them or after their definitions change.
