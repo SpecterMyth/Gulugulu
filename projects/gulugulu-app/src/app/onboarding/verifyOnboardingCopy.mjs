@@ -226,6 +226,16 @@ const [directorSource, factorySource, stepsSource] = await Promise.all([
   readFile(join(appDir, "src", "game", "factory", "FactoryFirstRunGuide.tsx"), "utf8"),
   readFile(join(onboardingDir, "onboardingSteps.ts"), "utf8"),
 ]);
+assert.match(
+  stepsSource,
+  /language === ["']zh-Hans["']/,
+  "the onboarding route must limit authored Simplified Chinese fallback to zh-Hans",
+);
+assert.doesNotMatch(
+  stepsSource,
+  /language\.startsWith\(["']zh["']\)/,
+  "zh-Hant must use its generated Traditional Chinese onboarding copy",
+);
 for (const [name, source] of [
   ["main route", directorSource],
   ["factory route", factorySource],

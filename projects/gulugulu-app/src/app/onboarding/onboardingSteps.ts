@@ -154,7 +154,7 @@ export function onboardingDirective(
   const index = Math.max(0, ONBOARDING_STEP_IDS.indexOf(state.step as OnboardingStepId));
   const localized = language === "en"
     ? ONBOARDING_EN_COPY[state.step as OnboardingStepId]
-    : language.startsWith("zh")
+    : language === "zh-Hans"
       ? null
       : GENERATED_RUNTIME_LOCALES[language]?.onboarding[state.step];
   const recoveryLabel = a13NeedsPitRecovery
