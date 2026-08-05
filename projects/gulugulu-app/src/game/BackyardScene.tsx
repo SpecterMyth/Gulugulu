@@ -1390,8 +1390,8 @@ export function BackyardScene({
           />
 
           {/* 升级后院入口；纸张主题使用木框便签牌面和单根立柱。 */}
-          <div className="by-upgrade-post" style={abs({ left: 2680, bottom: 150, width: 8, height: 104, borderRadius: 4, background: "#8A6437" })} />
-          <div className="by-upgrade-shell" style={abs({ left: 2610, bottom: 240, width: 150, height: 78 })}>
+          <div className="by-upgrade-post" style={abs({ left: 2710, bottom: 150, width: 8, height: 104, borderRadius: 4, background: "#8A6437" })} />
+          <div className="by-upgrade-shell" style={abs({ left: 2605, bottom: 240, width: 220, height: 78 })}>
             <div className="by-upgrade-frame" aria-hidden="true" />
             <button
               type="button"
