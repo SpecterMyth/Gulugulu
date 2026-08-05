@@ -1,8 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { spawn } from "node:child_process";
 import { buildSync } from "esbuild";
 import { applyReviewedFactoryCardDescriptions } from "./factory_card_reviewed_descriptions.mjs";
+import {
+  FACTORY_CORE_FLOW_SOURCES,
+  LLM_REVIEWED_OVERRIDES,
+} from "./localization_llm_reviewed_overrides.mjs";
 
 const APP_ROOT = join(import.meta.dirname, "..");
 const OUTPUT = join(APP_ROOT, "src", "i18n", "generated", "runtimeLocales.json");
@@ -61,6 +64,8 @@ const normalizeShiftSemantics = (sourceText, localizedText, locale) => {
   return localizedText;
 };
 const removeSpuriousMnemonics = (sourceText, localizedText) => {
+  const leadingWhitespace = sourceText.match(/^\s*/u)?.[0] ?? "";
+  const trailingWhitespace = sourceText.match(/\s*$/u)?.[0] ?? "";
   localizedText = localizedText
     .replace(/\(([A-Z])\)(?=\{\w+\})/gu, "(")
     .replace(/（([A-Z])）(?=\{\w+\})/gu, "（");
@@ -69,7 +74,7 @@ const removeSpuriousMnemonics = (sourceText, localizedText) => {
   if (!/[（(][A-Z][）)]/u.test(sourceText)) {
     localizedText = localizedText.replace(/\s*[（(][A-Z][）)]\s*/gu, " ").trim();
   }
-  return localizedText;
+  return `${leadingWhitespace}${localizedText.trim()}${trailingWhitespace}`;
 };
 const normalizeNumericAffixes = (sourceText, localizedText) => {
   // A sign is part of the numeric value. Repair MT output such as
@@ -136,11 +141,25 @@ const selected = targetArg
 for (const id of selected) {
   if (!(id in TARGETS)) throw new Error(`Unknown target language: ${id}`);
 }
+for (const id of Object.keys(TARGETS)) {
+  const missingCoreCopy = FACTORY_CORE_FLOW_SOURCES.filter(
+    (englishText) => typeof LLM_REVIEWED_OVERRIDES[id]?.[englishText] !== "string",
+  );
+  if (missingCoreCopy.length > 0) {
+    throw new Error(
+      `${id}: missing ${missingCoreCopy.length} model-reviewed factory core-flow translation(s):\n`
+      + missingCoreCopy.map((text) => JSON.stringify(text)).join("\n"),
+    );
+  }
+}
 
 // "Combo" is a universal game term in Gulugulu. Keep the compact HUD/pop
 // label byte-identical in every locale instead of translating it.
 const UNIVERSAL_REVIEWED_OVERRIDES = {
   "Combo ×{n}": "Combo ×{n}",
+  " · T{tier}": " · T{tier}",
+  ", ": ", ",
+  " · AI ×{count}": " · AI ×{count}",
 };
 
 // EXP gain is a compact game notification, not an instruction involving the
@@ -896,50 +915,7 @@ const existing = (() => {
   catch { return {}; }
 })();
 
-async function translateOffline(strings, locale, target) {
-  if (strings.length === 0) return [];
-  return new Promise((resolve, reject) => {
-    const worker = join(import.meta.dirname, "argos_translate_worker.py");
-    const child = spawn("python", [worker], {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-      env: { ...process.env, PYTHONUTF8: "1" },
-    });
-    const stdout = [];
-    const stderr = [];
-    child.stdout.on("data", (chunk) => stdout.push(chunk));
-    child.stderr.on("data", (chunk) => {
-      stderr.push(chunk);
-      process.stderr.write(chunk);
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(Buffer.concat(stderr).toString("utf8") || `Argos worker exited ${code}`));
-        return;
-      }
-      try {
-        const translated = JSON.parse(Buffer.concat(stdout).toString("utf8"));
-        if (!Array.isArray(translated) || translated.length !== strings.length) {
-          throw new Error(`Argos result mismatch ${translated?.length}/${strings.length}`);
-        }
-        resolve(translated);
-      } catch (error) {
-        reject(error);
-      }
-    });
-    child.stdin.end(JSON.stringify({
-      locale,
-      target,
-      strings,
-      improveUntranslated,
-      zhHansFactoryCardStrings: strings.map((text) => zhHansFactoryCardTranslations.get(text) ?? null),
-    }), "utf8");
-  });
-}
-
 async function translateLanguage(id) {
-  const target = TARGETS[id];
   cache[id] ??= {};
   cache.__meta ??= {};
   cache.__meta.contextRevisionByLanguage ??= {};
@@ -953,6 +929,7 @@ async function translateLanguage(id) {
     "1m": "1m",
     ...(REVIEWED_OVERRIDES[id] ?? {}),
     ...(REVIEWED_SHARED_UI[id] ?? {}),
+    ...(LLM_REVIEWED_OVERRIDES[id] ?? {}),
     ...UNIVERSAL_REVIEWED_OVERRIDES,
   };
   const reviewedExpGain = REVIEWED_EXP_GAIN[id];
@@ -1021,24 +998,13 @@ async function translateLanguage(id) {
   console.log(`${id}: ${all.length} unique strings, ${pending.length} pending (${invalidated} invalid cache entries removed)`);
   if (invalidExamples.length) console.log(`${id}: invalid examples: ${invalidExamples.map((text) => JSON.stringify(text)).join(", ")}`);
 
-  const translated = await translateOffline(pending, id, target);
-  for (let i = 0; i < pending.length; i += 1) {
-    const original = pending[i];
-    const result = normalizePlaceholderLinks(original, normalizeNumericAffixes(
-      original,
-      removeSpuriousMnemonics(original, translated[i]),
-    ));
-    const isReviewedTraditionalCard = id === "zh-Hant" && zhHansFactoryCardTranslations.has(original);
-    if (!isReviewedTraditionalCard && !translationContractHolds(original, result)) {
-      throw new Error(
-        `${id}: protected-token/whitespace contract mismatch\n${original}\n${result}`
-        + `\nsource tokens=${JSON.stringify(protectedTokens(original))}`
-        + `\ntarget tokens=${JSON.stringify(protectedTokens(result))}`
-        + `\nsource whitespace=${JSON.stringify(outerWhitespace(original))}`
-        + `\ntarget whitespace=${JSON.stringify(outerWhitespace(result))}`,
-      );
-    }
-    cache[id][original] = result;
+  if (pending.length > 0) {
+    throw new Error(
+      `${id}: ${pending.length} translations require review. `
+      + "Add model-reviewed entries to localization_llm_reviewed_overrides.mjs; "
+      + "automated translation is disabled.\n"
+      + pending.map((text) => JSON.stringify(text)).join("\n"),
+    );
   }
   const map = new Map(Object.entries(cache[id]));
   existing[id] = replaceStrings(sourceTree, map);
