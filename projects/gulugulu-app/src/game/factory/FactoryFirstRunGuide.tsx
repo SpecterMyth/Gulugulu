@@ -2,6 +2,7 @@ import { CoachFx } from "../../app/coach/CoachFx";
 import type { CoachDirective } from "../../app/coach/coachTypes";
 import { OnboardingGoal } from "../../app/onboarding/OnboardingGoal";
 import { onboardingLanguageFromStorage } from "../../app/onboarding/onboardingCopy";
+import { REVIEWED_ONBOARDING_LOCALES } from "../../app/onboarding/reviewedOnboardingLocales";
 import type { OnboardingDirective } from "../../app/onboarding/onboardingSteps";
 import { migrateLegacyLanguageMap, type DeepPartial, type Language } from "../../i18n/core";
 import { generatedDomainLocales } from "../../i18n/generatedLocales";
@@ -33,6 +34,10 @@ type FactoryGuideCopy = {
 const generatedGuideLocales = generatedDomainLocales("factoryFirstRun") as Partial<
   Record<Exclude<Language, "en" | "zh-Hans">, DeepPartial<FactoryGuideCopy>>
 >;
+
+const reviewedGuideLocales = Object.fromEntries(
+  Object.entries(REVIEWED_ONBOARDING_LOCALES).map(([language, locale]) => [language, locale.factoryFirstRun]),
+) as Partial<Record<Exclude<Language, "en" | "zh-Hans">, FactoryGuideCopy>>;
 
 export const FACTORY_FIRST_RUN_COPY: Record<Language, FactoryGuideCopy> = migrateLegacyLanguageMap<FactoryGuideCopy>({
   zh: {
@@ -100,6 +105,7 @@ export const FACTORY_FIRST_RUN_COPY: Record<Language, FactoryGuideCopy> = migrat
     dropKey: "SPACE · DROP",
   },
   ...generatedGuideLocales,
+  ...reviewedGuideLocales,
 });
 
 function guideCopy(language: Language = onboardingLanguageFromStorage()): FactoryGuideCopy {

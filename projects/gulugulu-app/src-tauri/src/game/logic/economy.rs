@@ -273,13 +273,14 @@ pub(crate) fn apply_collect(
         Some((species, item_id, def)) => (species, Some(item_id), Some(def)),
         None => (egg.species, None, None),
     };
-    // A claimed design-in-progress pet is fully playable immediately. Keep the
-    // recipe's canonical species (correct elements/stats/default rig) until the
-    // AI design atomically replaces it.
+    // Steam 已定槽时，物种身份必须立即使用权威 AI codename；形象尚未落地只在
+    // 渲染层回退到配方经典形象。尚未定槽的本地任务才暂用经典物种。
     if let Some(pending) = pending_fusion.as_ref() {
-        if let Some(fallback) = config.species_by_recipe.get(&pending.recipe_key) {
-            species = fallback.clone();
-        }
+        species = pending
+            .forced_codename
+            .clone()
+            .or_else(|| config.species_by_recipe.get(&pending.recipe_key).cloned())
+            .unwrap_or(species);
     }
     // 融合 2.0：阶数在实例上，**蛋阶 = 宠阶**（EconomyScaling §7）——一律取 egg.tier。
     // 旧口径"物种自带 tier>0 沿用"是 bug：2 阶商店蛋掷中目录一阶物种（如 emberfox）

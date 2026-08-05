@@ -80,6 +80,8 @@ struct QuoteStore {
     generated_at: i64,
     #[serde(default)]
     provider: Option<String>,
+    #[serde(default)]
+    language: Option<String>,
 }
 
 pub struct QuoteGenStateInner {
@@ -110,7 +112,7 @@ fn quotes_path(app: &AppHandle) -> Option<PathBuf> {
         .map(|dir| dir.join(QUOTES_FILE))
 }
 
-fn load_cached(app: &AppHandle) -> Vec<DynamicQuote> {
+fn load_cached(app: &AppHandle, language: &str) -> Vec<DynamicQuote> {
     let Some(path) = quotes_path(app) else {
         return Vec::new();
     };
@@ -118,7 +120,13 @@ fn load_cached(app: &AppHandle) -> Vec<DynamicQuote> {
         return Vec::new();
     };
     serde_json::from_str::<QuoteStore>(&text)
-        .map(|store| store.quotes)
+        .map(|store| {
+            store
+                .quotes
+                .into_iter()
+                .filter(|quote| quote.lang == language)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -220,26 +228,29 @@ fn wait_for_signal(state: &QuoteGenState, timeout: Option<Duration>) {
     *pending = false;
 }
 
-fn build_prompt() -> String {
+fn build_native_prompt(language: &str) -> String {
     let tags = FILTER_TAGS.join(", ");
     format!(
-        r#"你在为桌面宠物「咕噜鸭」创作随机吐槽台词。它会在角色头顶的对话气泡里冒出这些短句。
+        r#"Create short speech-bubble lines for the desktop pet Gulugulu.
 
-要求：
-- 风格：幽默、带 AI 圈的实时梗，调侃各家 AI（ChatGPT / Claude / Gemini / DeepSeek / Bing 等）、Agent 写代码、模型幻觉、疯狂道歉、彩虹屁、免责声明；也可以是程序员日常吐槽或卖萌安慰。
-- 语言：中英各占一半。中文每条不超过 20 字，英文每条不超过 12 个词。要口语、俏皮，别写正经解释。
-- 每条打 1~3 个 tag，只能从这个集合里取：{tags}。
-- 数量：大约 30 条（中文约 15 条，英文约 15 条）。
-- 不要露骨、政治敏感或人身攻击的内容，玩梗即可。
+Write every line directly in the locale {language}. Do not translate or adapt existing Chinese or English quotes. Think in that language and use its natural slang, comedic rhythm, internet culture, and locally recognizable meme conventions.
 
-只输出一个 JSON 对象，不要任何解释文字，也不要代码围栏：
-{{"quotes":[{{"lang":"zh","text":"你说得对，我马上重构。","tags":["claude","sycophancy","coding"]}},{{"lang":"en","text":"It compiles, therefore it ships.","tags":["coding","overconfident","meme"]}}]}}"#,
-        tags = tags
+The lines should be witty, playful memes that roast AI assistants and AI culture: ChatGPT, Claude, Gemini, DeepSeek, coding agents, hallucinations, excessive apologies, sycophancy, disclaimers, context windows, tokens, and confidently broken code. They may also joke about programmers or act cutely comforting. Keep the humor harmless: no explicit, politically sensitive, hateful, or personally abusive content.
+
+Requirements:
+- Produce about 30 original lines, all with `lang` exactly `{language}`.
+- Each line must be conversational, punchy, and at most 64 characters.
+- Do not write sober explanations or reuse stock catchphrases from another language.
+- Give each line 1-3 tags chosen only from: {tags}.
+- Return only one JSON object with no Markdown fence or explanation:
+{{"quotes":[{{"lang":"{language}","text":"...","tags":["meme","assistant"]}}]}}"#,
+        language = language,
+        tags = tags,
     )
 }
 
 /// 解析 run_provider 返回的 JSON 对象串（{{"quotes":[...]}}）为校验过的台词列表。
-fn parse_quotes(raw: &str) -> Vec<DynamicQuote> {
+fn parse_quotes(raw: &str, language: &str) -> Vec<DynamicQuote> {
     let Ok(value) = serde_json::from_str::<Value>(raw) else {
         return Vec::new();
     };
@@ -255,7 +266,7 @@ fn parse_quotes(raw: &str) -> Vec<DynamicQuote> {
             .and_then(Value::as_str)
             .unwrap_or("")
             .trim();
-        if lang != "zh" && lang != "en" {
+        if lang != language {
             continue;
         }
         let text = item
@@ -301,7 +312,7 @@ enum GenOutcome {
     Failed,
 }
 
-fn attempt(prompt: &str) -> GenOutcome {
+fn attempt(prompt: &str, language: &str) -> GenOutcome {
     let providers = available_providers();
     if providers.is_empty() {
         return GenOutcome::NoProvider;
@@ -309,7 +320,7 @@ fn attempt(prompt: &str) -> GenOutcome {
     let timeout = Duration::from_secs(GEN_TIMEOUT_SECS);
     for (provider, path) in providers {
         if let Ok(raw) = run_provider(provider, &path, prompt, timeout, None) {
-            let quotes = parse_quotes(&raw);
+            let quotes = parse_quotes(&raw, language);
             if quotes.len() >= MIN_QUOTES {
                 return GenOutcome::Generated(quotes, provider.name().to_string());
             }
@@ -326,7 +337,8 @@ pub fn spawn_quote_worker(app: AppHandle, state: QuoteGenState) {
     }
 
     // 先把上次缓存灌进内存并推给前端（秒开时用旧梗兜底，新批到达后替换）。
-    let cached = load_cached(&app);
+    let startup_language = crate::settings::load(&app).language;
+    let cached = load_cached(&app, &startup_language);
     if !cached.is_empty() {
         if let Ok(mut cache) = state.cache.lock() {
             *cache = cached.clone();
@@ -335,14 +347,15 @@ pub fn spawn_quote_worker(app: AppHandle, state: QuoteGenState) {
     }
 
     thread::spawn(move || {
-        let prompt = build_prompt();
         loop {
             if !state.enabled.load(Ordering::SeqCst) {
                 wait_for_signal(&state, None);
                 continue;
             }
 
-            match attempt(&prompt) {
+            let language = crate::settings::load(&app).language;
+            let prompt = build_native_prompt(&language);
+            match attempt(&prompt, &language) {
                 GenOutcome::Generated(quotes, provider) => {
                     // provider 运行期间也可能撤回同意。结果必须丢弃，且不得落盘/推送。
                     if !state.enabled.load(Ordering::SeqCst) {
@@ -357,6 +370,7 @@ pub fn spawn_quote_worker(app: AppHandle, state: QuoteGenState) {
                             quotes: quotes.clone(),
                             generated_at: crate::game::now_secs(),
                             provider: Some(provider),
+                            language: Some(language),
                         },
                     );
                     let _ = app.emit(QUOTES_EVENT, quotes);

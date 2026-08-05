@@ -39,7 +39,7 @@ const quotesByLanguage = Object.fromEntries(
 ) as Record<Language, QuoteEntry[]>;
 
 // —— 动态台词池（连接 Claude/Codex 后由后台预生成，App 挂载时灌入；见 setDynamicQuotes）——
-// 结构与静态池一致；非空时 chooseQuote 有 50% 概率改抽动态句（§随机台词生成规则）。
+// 结构与静态池一致；当前语种非空时 chooseQuote 始终优先抽 AI 原创句。
 const dynamicByLanguage = Object.fromEntries(
   LANGUAGES.map(({ id }) => [id, [] as QuoteEntry[]]),
 ) as unknown as Record<Language, QuoteEntry[]>;
@@ -158,12 +158,12 @@ function pickFromPool(
   return selected.text.replace("XXX", t(language).sh.speech.statePlaceholder);
 }
 
-/** 选一条随机台词：连接 Claude/Codex 后动态池非空时，一半概率走动态句、一半走
- *  固定句（§随机台词生成规则）；动态池为空（未连接 / 未生成完）时全走静态。
+/** 选一条随机台词：连接 Claude/Codex 后，当前语种的动态池非空时使用 AI 原创句；
+ *  动态池为空（未连接 / 未生成完）时才走静态翻译兜底。
  *  `decks` 是静态池的无重复袋（组件持有）；动态池的袋在模块内维护。 */
 export function chooseQuote(language: Language, state: PetState, decks: Record<Language, Set<string>>): string {
   const tags = speechContextTags[state];
-  if (dynamicByLanguage[language].length > 0 && Math.random() < 0.5) {
+  if (dynamicByLanguage[language].length > 0) {
     const dynamic = pickFromPool(dynamicByLanguage, dynamicDecks, language, tags);
     if (dynamic != null) return dynamic;
   }

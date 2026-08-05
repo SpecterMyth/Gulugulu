@@ -1,9 +1,9 @@
 ﻿{
     "schemaVersion":  1,
-    "sourceMain":  "146983123b50bb704d80bf6a18d8b5ae67f2856c",
+    "sourceMain":  "952b44bb0856a55de1566576a462ed4b1c80c1b2",
     "version":  "0.1.0",
-    "treeBeforeMetadata":  "431207e1d586998b9bd00c96617d0dcfe4e81ad0",
-    "verifiedAt":  "2026-08-04T18:03:34Z",
+    "treeBeforeMetadata":  "622bee3ad13a2fab3a7b1f5c9f970656be6dac03",
+    "verifiedAt":  "2026-08-05T16:01:24Z",
     "tests":  [
                   "main: cargo test --locked",
                   "release: npm ci",

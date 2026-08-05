@@ -17,7 +17,6 @@ import { formatCount } from "./format";
 
 type Stage =
   | { kind: "checking" }
-  | { kind: "unavailable"; error?: string | null }
   | { kind: "confirm"; provider: string }
   | { kind: "starting"; provider: string }
   | { kind: "error"; message: string };
@@ -69,11 +68,12 @@ export function FusionModal({
           setStage(
             status.available
               ? { kind: "confirm", provider: status.provider ?? "claude" }
-              : { kind: "unavailable", error: status.error },
+              : { kind: "confirm", provider: "classic" },
           );
         })
-        .catch((error) => {
-          if (!disposedRef.current) setStage({ kind: "unavailable", error: errorText(error) });
+        .catch(() => {
+          // Agent 探测只是增强能力检查。探测失败时仍允许玩家走经典融合流程。
+          if (!disposedRef.current) setStage({ kind: "confirm", provider: "classic" });
         });
     },
     [bridge],
@@ -133,29 +133,10 @@ export function FusionModal({
           </>
         )}
 
-        {stage.kind === "unavailable" && (
-          <>
-            <div className="welcome-title">{bk.unavailableTitle}</div>
-            <div className="welcome-sub">{bk.unavailableSub}</div>
-            <p className="fusion-modal-note">{bk.unavailableNote}</p>
-            {stage.error && (
-              <div className="fusion-modal-detail">{localizeGameMessage(stage.error, lang)}</div>
-            )}
-            <div className="fusion-modal-actions">
-              <button type="button" className="welcome-cta is-secondary" onClick={onClose}>
-                {bk.close}
-              </button>
-              <button type="button" className="welcome-cta" onClick={() => runCheck(true)}>
-                {bk.recheck}
-              </button>
-            </div>
-          </>
-        )}
-
         {(stage.kind === "confirm" || stage.kind === "starting") && (
           <>
             <div className="welcome-title">🔮 {bk.ritual}</div>
-            {!tutorialMode && (
+            {!tutorialMode && stage.provider !== "classic" && (
               <div className="welcome-sub">
                 {fmt(bk.bySub, { provider: providerLabel(stage.provider) })}
               </div>

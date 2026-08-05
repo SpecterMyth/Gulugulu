@@ -4,7 +4,9 @@ import type { OnboardingDirective } from "./onboardingSteps";
 import { placeOnboardingCard } from "./onboardingPlacement";
 import "./onboarding.css";
 import { GENERATED_RUNTIME_LOCALES } from "../../i18n/generatedLocales";
+import type { Language } from "../../i18n/core";
 import { ONBOARDING_UI_EN, ONBOARDING_UI_ZH } from "./onboardingCopy";
+import { REVIEWED_ONBOARDING_LOCALES } from "./reviewedOnboardingLocales";
 
 export function OnboardingGoal({
   directive,
@@ -234,11 +236,11 @@ export function OnboardingGoal({
 
   if (!directive) return null;
   const showAction = directive.action !== "target";
-  const ui = lang === "zh-Hans"
+  const ui = REVIEWED_ONBOARDING_LOCALES[lang as Exclude<Language, "en" | "zh-Hans">]?.onboardingUi ?? (lang === "zh-Hans"
     ? ONBOARDING_UI_ZH
     : lang === "en"
       ? ONBOARDING_UI_EN
-      : GENERATED_RUNTIME_LOCALES[lang]?.onboardingUi ?? ONBOARDING_UI_EN;
+      : GENERATED_RUNTIME_LOCALES[lang]?.onboardingUi ?? ONBOARDING_UI_EN);
   const busyLabel = ui.busy;
   return (
     <section

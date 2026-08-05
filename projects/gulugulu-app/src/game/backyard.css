@@ -954,9 +954,10 @@
 .by-upgrade-btn > span {
   min-width: 0;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
   word-break: normal;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .by-upgrade-btn:disabled {
@@ -969,8 +970,9 @@
   font-family: inherit;
   line-height: 1.2;
   opacity: 0.92;
-  overflow-wrap: anywhere;
-  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 点击瞬间下压：木牌被摁下的触感（配合升级后的屏幕级光效 .yup-*）。 */

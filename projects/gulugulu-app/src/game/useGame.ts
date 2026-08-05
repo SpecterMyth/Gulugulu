@@ -85,13 +85,23 @@ export function useGame() {
   const effectiveConfig = useMemo(() => {
     if (!config) return null;
     const customs = save?.customSpecies;
-    if (!customs || Object.keys(customs).length === 0) return config;
     const species = { ...config.species };
-    for (const [codename, entry] of Object.entries(customs)) {
+    for (const [codename, entry] of Object.entries(customs ?? {})) {
       species[codename] = entry.info;
     }
+    // Steam 已实发但形象尚未生成的 AI 槽仍保留 AI codename；临时复制同配方经典
+    // 物种的资料供名称、元素和玩法 UI 使用。SvgSprite 会按 codename 自动取经典形象。
+    const pendingTargets = [...(save?.eggs ?? []), ...(save?.pets ?? [])];
+    for (const target of pendingTargets) {
+      const pending = target.pendingFusion;
+      const codename = pending?.forcedCodename;
+      const fallback = pending && config.speciesByRecipe?.[pending.recipeKey];
+      if (codename && fallback && !species[codename] && species[fallback]) {
+        species[codename] = { ...species[fallback] };
+      }
+    }
     return { ...config, species };
-  }, [config, save?.customSpecies]);
+  }, [config, save?.customSpecies, save?.eggs, save?.pets]);
 
   return { bridge, config: effectiveConfig, testMode, save, setSave };
 }

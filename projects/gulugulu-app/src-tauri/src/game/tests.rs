@@ -2035,6 +2035,39 @@ fn ai_fusion_start_consumes_and_creates_pending_egg() {
 }
 
 #[test]
+fn unresolved_steam_ai_slot_hatches_with_ai_identity_and_classic_stats() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.eggs.clear();
+    save.coins = 10_000;
+    let max1 = config.max_level_for_tier(1);
+    let a = add_pet(&mut save, &config, "emberfox", max1);
+    let b = add_pet(&mut save, &config, "frostpeng", max1);
+    let egg_id = logic_start_ai_fusion(&config, &mut save, &a, &b, 1000, "2026-07-07").unwrap();
+    let recipe_key = "fire+ice";
+    let keys: Vec<String> = config.species_by_recipe.keys().cloned().collect();
+    let ordered = crate::fusion_slots::multi_element_recipes_ordered(&keys);
+    let ordinal = crate::fusion_slots::recipe_ordinal(&ordered, recipe_key).unwrap();
+    let codename = crate::fusion_slots::slot_codename(ordinal, 1);
+    let egg = save.eggs.iter_mut().find(|egg| egg.id == egg_id).unwrap();
+    let pending = egg.pending_fusion.as_mut().unwrap();
+    pending.forced_codename = Some(codename.clone());
+    pending.status = "failed".into(); // 无 Agent：设计未生成，但 Steam 身份已经确定。
+    logic_hatch_now(&mut save, 1000);
+
+    let pet_id = logic_collect_hatched(&config, &mut save, &egg_id, 2000, "2026-07-07").unwrap();
+    let pet = save.pets.iter().find(|pet| pet.id == pet_id).unwrap();
+    assert_eq!(pet.species, codename, "Steam AI codename 必须跨孵化保留");
+    let fallback = config.species_by_recipe.get(recipe_key).unwrap();
+    let unresolved_info = species_info(&config, &save, &pet.species).unwrap();
+    let fallback_info = config.species.get(fallback).unwrap();
+    assert_eq!(
+        unresolved_info.elements, fallback_info.elements,
+        "形象未生成时，玩法属性应沿用配方经典物种"
+    );
+}
+
+#[test]
 fn ai_fusion_resolve_registers_species_and_rewrites_egg() {
     let config = test_config();
     let mut save = fresh_save(&config);
@@ -2638,11 +2671,15 @@ fn claimed_pending_design_keeps_recipe_identity_and_can_fuse() {
     let mut save = fresh_save(&config);
     let recipe_key = "fire+water".to_string();
     let fallback = config.species_by_recipe[&recipe_key].clone();
+    let keys: Vec<String> = config.species_by_recipe.keys().cloned().collect();
+    let ordered = crate::fusion_slots::multi_element_recipes_ordered(&keys);
+    let ordinal = crate::fusion_slots::recipe_ordinal(&ordered, &recipe_key).unwrap();
+    let ai_codename = crate::fusion_slots::slot_codename(ordinal, 1);
     let egg_id = "egg_pending_design".to_string();
     let egg_index = save.eggs.len();
     save.eggs.push(EggInstance {
         id: egg_id.clone(),
-        species: "aif0701".to_string(),
+        species: ai_codename.clone(),
         tier: 2,
         hatch_kind: "tier2".to_string(),
         slot: Some(0),
@@ -2654,7 +2691,7 @@ fn claimed_pending_design_keeps_recipe_identity_and_can_fuse() {
             attempts: 2,
             status: "failed".to_string(),
             last_error: Some("offline".to_string()),
-            forced_codename: Some("aif0701".to_string()),
+            forced_codename: Some(ai_codename.clone()),
             provider: None,
         }),
         steam_item_id: None,
@@ -2669,8 +2706,15 @@ fn claimed_pending_design_keeps_recipe_identity_and_can_fuse() {
     );
     let claimed = save.pets.iter().find(|pet| pet.id == claimed_id).unwrap();
     assert_eq!(
-        claimed.species, fallback,
-        "pending pet uses the fixed recipe form"
+        claimed.species, ai_codename,
+        "Steam AI identity must survive claiming"
+    );
+    assert_eq!(
+        species_info(&config, &save, &claimed.species)
+            .unwrap()
+            .elements,
+        config.species[&fallback].elements,
+        "unresolved AI identity uses the fixed recipe stats"
     );
     assert!(
         claimed.pending_fusion.is_some(),
