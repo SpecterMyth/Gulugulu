@@ -37,6 +37,9 @@ const mainCopy = await importBundled(`
     onboardingLanguageFromStorage,
   } from "./src/app/onboarding/onboardingCopy";
 `);
+const reviewedCopy = await importBundled(`
+  export { REVIEWED_ONBOARDING_LOCALES } from "./src/app/onboarding/reviewedOnboardingLocales";
+`);
 const factoryCopy = await importBundled(`
   export {
     FACTORY_FIRST_RUN_COPY,
@@ -210,7 +213,35 @@ for (const [step, copy] of Object.entries(mainCopy.ONBOARDING_EN_COPY)) {
   if (copy.cta != null) assert.doesNotMatch(copy.cta, han, `${step}: English CTA contains Chinese text`);
 }
 
-for (const language of ["en", "zh"]) {
+const reviewedLanguages = [
+  "zh-Hant", "ja", "ko", "fr", "de", "es-ES", "es-419", "pt-BR", "pt-PT", "ru",
+  "it", "pl", "tr", "uk", "ar", "th", "vi", "id", "nl",
+];
+assert.deepEqual(
+  Object.keys(reviewedCopy.REVIEWED_ONBOARDING_LOCALES).sort(),
+  [...reviewedLanguages].sort(),
+  "reviewed onboarding copy must cover every non-English, non-Simplified-Chinese language",
+);
+for (const language of reviewedLanguages) {
+  const locale = reviewedCopy.REVIEWED_ONBOARDING_LOCALES[language];
+  assert.deepEqual(
+    Object.keys(locale.onboarding).sort(),
+    [...mainCopy.ONBOARDING_STEP_IDS].sort(),
+    `${language}: reviewed copy must cover every onboarding cursor`,
+  );
+  for (const [step, copy] of Object.entries(locale.onboarding)) {
+    assert.ok(copy.chapter.trim(), `${language}.${step}: chapter is empty`);
+    assert.ok(copy.label.trim(), `${language}.${step}: label is empty`);
+  }
+  for (const [key, value] of Object.entries(locale.onboardingUi)) {
+    assert.ok(value.trim(), `${language}.onboardingUi.${key} is empty`);
+  }
+  for (const [key, value] of Object.entries(locale.factoryFirstRun)) {
+    assert.ok(value.trim(), `${language}.factoryFirstRun.${key} is empty`);
+  }
+}
+
+for (const language of ["en", "zh-Hans"]) {
   const copy = factoryCopy.FACTORY_FIRST_RUN_COPY[language];
   assert.ok(copy, `factory guide is missing ${language} copy`);
   for (const [key, value] of Object.entries(copy)) {
