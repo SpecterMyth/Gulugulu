@@ -259,7 +259,7 @@ export const CARD_PARAMS = {
   "electric.parallel": { perExtraDesk: [0.5, 1.2, 3, 8, 16] },
   "electric.induction": { perLink: [0.1, 0.25, 0.6, 1.5, 3.2] },
   // 冰
-  "ice.freezeprice": { priceMult: [0.9, 0.75, 0.6, 0.4, 0.2] },
+  "ice.freezeprice": { priceMult: [0.6, 0.3, 0.1, 0.05, 0.02] },
   "ice.freeze": { chance: CORE_TRIGGER_CHANCE },
   "ice.overstaff": { per: [0.2, 0.5, 1.2, 3, 8] },
   "ice.chain": { reachBonus: [1, 3, 6, 12, 20] }, // 冰桥:冰宠连通链
