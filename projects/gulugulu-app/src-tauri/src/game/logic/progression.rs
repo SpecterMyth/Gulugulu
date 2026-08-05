@@ -162,6 +162,11 @@ pub fn species_info<'a>(
         .species
         .get(species)
         .or_else(|| save.custom_species.get(species).map(|entry| &entry.info))
+        .or_else(|| {
+            super::fusion::recipe_key_for_ai_codename(config, species)
+                .and_then(|key| config.species_by_recipe.get(&key))
+                .and_then(|fallback| config.species.get(fallback))
+        })
 }
 
 /// 纳秒 xorshift 的 [0,1) 伪随机（融合掷骰用，避免引入 rand 依赖）。

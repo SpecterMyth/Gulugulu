@@ -3699,15 +3699,9 @@ pub async fn fuse_pets_ai(
             }
         }
 
-        // 融合必须连接 CLI —— 即使骰子会掷到配方路径，不可用也直接拒绝。
-        let status = check_cli_cached(&app, &gen_state, false);
-        if !status.available {
-            // 探测详情（probe_all 组装的动态文本）→ err= 原样透传。
-            return Err(format!(
-                "#fusionNeedsCli|err={}",
-                status.error.unwrap_or_default()
-            ));
-        }
+        // CLI 只负责可选的 AI 物种设计，不能成为核心融合玩法的前置条件。
+        // 没有可用 Agent 时仍正常提交融合；若结果命中尚未生成的 AI 槽，既有孵化
+        // 兜底会在截止时产出该配方的经典物种。
 
         // 兼容旧存档：若不在 v6 强制引导内，仍保留一次首融的本地经典配方兜底。
         {

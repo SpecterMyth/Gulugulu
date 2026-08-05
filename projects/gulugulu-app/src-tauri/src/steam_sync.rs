@@ -723,9 +723,24 @@ pub fn apply_fused_result(
         }
     } else if let Some(pet_id) = pet_id {
         if let Some(pet) = save.pets.iter_mut().find(|p| p.id == pet_id) {
-            // 宠物不挂 pending（不能生成）；已知 def 时落定物种，未知则保留原物种只补绑物品。
-            if pending.is_none() {
+            // 蛋可能先孵化、Steam 结果后回绑。实发 AI 槽时同步权威 codename 和槽位；
+            // 形象缺失由前端按配方经典物种渲染，身份不能继续冒充经典宠。
+            if let Some(mut authoritative) = pending {
+                if let Some(existing) = pet.pending_fusion.as_ref() {
+                    authoritative.requested_at = existing.requested_at;
+                    authoritative.attempts = existing.attempts;
+                    authoritative.status = existing.status.clone();
+                    authoritative.last_error = existing.last_error.clone();
+                    authoritative.provider = existing.provider.clone();
+                }
+                pet.species = authoritative
+                    .forced_codename
+                    .clone()
+                    .unwrap_or(species);
+                pet.pending_fusion = Some(authoritative);
+            } else {
                 pet.species = species;
+                pet.pending_fusion = None;
             }
             pet.steam_item_id = Some(granted_item_id);
             pet.steam_item_def = Some(granted_def);
@@ -2753,6 +2768,46 @@ mod tests {
         save.eggs[0].species = "aif1403".into();
         save.eggs[0].pending_fusion.as_mut().unwrap().status = "resolved".into();
         assert_eq!(collect_species_for(&config, &save, 0, 11_403), "aif1403");
+    }
+
+    #[test]
+    fn late_steam_ai_binding_retargets_already_hatched_pet_identity() {
+        let config = config();
+        let mut save = fresh(&config);
+        let pet_id = add_pet(&mut save, "sudsotter", 2, 1);
+        let pet = save.pets.iter_mut().find(|pet| pet.id == pet_id).unwrap();
+        pet.pending_fusion = Some(PendingFusionInfo {
+            parents: ["guluduck".into(), "bubblefrog".into()],
+            recipe_key: "normal+water".into(),
+            requested_at: 1_000,
+            attempts: 0,
+            status: "failed".into(),
+            last_error: Some("no agent".into()),
+            forced_codename: None,
+            provider: None,
+        });
+
+        assert!(apply_fused_result(
+            &config,
+            &mut save,
+            "item-ai".into(),
+            11_403,
+            "normal+water",
+            &["guluduck".into(), "bubblefrog".into()],
+            None,
+            Some(&pet_id),
+            7_000,
+        ));
+
+        let pet = save.pets.iter().find(|pet| pet.id == pet_id).unwrap();
+        assert_eq!(pet.species, "aif1403");
+        assert_eq!(pet.steam_item_def, Some(11_403));
+        assert_eq!(
+            pet.pending_fusion
+                .as_ref()
+                .and_then(|pending| pending.forced_codename.as_deref()),
+            Some("aif1403")
+        );
     }
 
     #[test]
