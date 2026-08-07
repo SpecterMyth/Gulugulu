@@ -198,13 +198,19 @@ pub(crate) fn collect_hatched_blocking(
             if let Some(op_idx) = save.steam_outbox.iter().position(|op| {
             matches!(op, SteamOp::Fuse { applied: true, egg_id: Some(e), .. } if e == &egg_id)
         }) {
-            let known = save
+            let locally_collectible = save
                 .eggs
                 .iter()
                 .find(|e| e.id == egg_id)
-                .map(|e| e.pending_fusion.is_none())
+                // Once incubation has ended, use the recipe's canonical fallback
+                // immediately and move the durable Steam receipt to the pet.  The
+                // eventual server result can still rebind/refine that same target.
+                .map(|e| {
+                    e.pending_fusion.is_none()
+                        || e.hatch_at.map(|deadline| now >= deadline).unwrap_or(false)
+                })
                 .unwrap_or(false);
-            if known {
+            if locally_collectible {
                 let egg_index = validate_collect(config, save, &egg_id, now)?;
                 let pet_id = apply_collect(config, save, egg_index, now, None);
                 if let SteamOp::Fuse { egg_id: e, pet_id: p, .. } = &mut save.steam_outbox[op_idx] {

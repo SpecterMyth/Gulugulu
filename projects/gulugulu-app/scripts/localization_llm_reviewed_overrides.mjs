@@ -653,6 +653,35 @@ export const LLM_REVIEWED_OVERRIDES = {
   },
 };
 
+// In this HUD counter, "left" means "remaining", never the left-hand
+// direction. Keep every generated locale explicit so regeneration cannot
+// reintroduce the short-string machine-translation ambiguity.
+const REVIEWED_MANUAL_DROPS_LEFT = {
+  "zh-Hant": "剩餘 {n} 次手動投放",
+  ja: "手動投下 残り{n}回",
+  ko: "수동 투입 {n}회 남음",
+  fr: "{n} largages manuels restants",
+  de: "Noch {n} manuelle Abwürfe",
+  "es-ES": "Quedan {n} lanzamientos manuales",
+  "es-419": "Quedan {n} lanzamientos manuales",
+  "pt-BR": "Restam {n} lançamentos manuais",
+  "pt-PT": "Restam {n} lançamentos manuais",
+  ru: "Осталось ручных сбросов: {n}",
+  it: "Lanci manuali rimasti: {n}",
+  pl: "Pozostałe ręczne zrzuty: {n}",
+  tr: "Kalan manuel bırakış: {n}",
+  uk: "Залишилося ручних скидань: {n}",
+  ar: "متبقي {n} من الإسقاطات اليدوية",
+  th: "เหลือสิทธิ์ปล่อยเอง {n} ครั้ง",
+  vi: "Còn {n} lượt thả thủ công",
+  id: "Sisa {n} jatuhan manual",
+  nl: "Nog {n} handmatige drops",
+};
+
+for (const [locale, translation] of Object.entries(REVIEWED_MANUAL_DROPS_LEFT)) {
+  LLM_REVIEWED_OVERRIDES[locale]["{n} drops left"] = translation;
+}
+
 const FACTORY_FIRST_RUN_SOURCES = [
   "Workplace Stack Orientation",
   "Resume tutorial",
