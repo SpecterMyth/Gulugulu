@@ -19,6 +19,7 @@
     "preview": "vite preview",
     "verify:onboarding-layout": "node scripts/verify_onboarding_layout.mjs",
     "test:onboarding-interrupt": "node scripts/onboarding_interrupt_check.mjs",
+    "test:onboarding-expansion": "node scripts/onboarding_expansion_click_check.mjs",
     "verify:pet-gen-v2": "node scripts/audit_pet_gen_v2.mjs",
     "verify:i18n": "node scripts/verify_i18n.mjs",
     "verify:i18n:strict": "node scripts/verify_i18n.mjs --strict",

@@ -25,9 +25,11 @@ const PET_NEAR_RANGE = 150;
 /** 图鉴馆 / 交易市场建筑中心与感应半径（紧贴公告板右侧的功能区簇） */
 const MUSEUM_X = 3310;
 const MARKET_X = 4030;
+const NOTICE_BOARD_X = 2414;
 /** 训练馆建筑中心（世界左端装饰带，孵化区左侧；与 NearDecor 立面 -580..-260 对齐）。 */
 const TRAINING_X = -420;
 const POI_RANGE = 200;
+const NOTICE_BOARD_RANGE = 230;
 /** 三个视差层整体下沉量：把土层剖面压缩到只露 76px（正好两行按钮），
  *  角色/布景/面板全部随之贴近窗口底边。 */
 const GROUND_SHIFT = 56;
@@ -80,6 +82,7 @@ export function useBackyardMotion({
   const [shopOpen, setShopOpen] = useState(false);
   const [museumOpen, setMuseumOpen] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
+  const [nearNoticeBoard, setNearNoticeBoard] = useState(false);
   const [trainingOpen, setTrainingOpen] = useState(false);
   // 面板开在建筑相对主角的另一侧（靠近瞬间按主角方位定侧，贴地展开不再被窗顶裁切）
   const [poiSides, setPoiSides] = useState<PoiSides>(
@@ -95,6 +98,7 @@ export function useBackyardMotion({
   const shopOpenRef = useRef(false);
   const museumOpenRef = useRef(false);
   const marketOpenRef = useRef(false);
+  const nearNoticeBoardRef = useRef(false);
   const trainingOpenRef = useRef(false);
   const nearPetRef = useRef<string | null>(null);
   const onWalkingChangeRef = useRef(onWalkingChange);
@@ -228,6 +232,12 @@ export function useBackyardMotion({
         }
       }
 
+      const besideNoticeBoard = Math.abs(motion.charX - NOTICE_BOARD_X) < NOTICE_BOARD_RANGE;
+      if (besideNoticeBoard !== nearNoticeBoardRef.current) {
+        nearNoticeBoardRef.current = besideNoticeBoard;
+        setNearNoticeBoard(besideNoticeBoard);
+      }
+
       const nearTraining = Math.abs(motion.charX - TRAINING_X) < POI_RANGE;
       if (nearTraining !== trainingOpenRef.current) {
         trainingOpenRef.current = nearTraining;
@@ -319,6 +329,7 @@ export function useBackyardMotion({
     shopOpen,
     museumOpen,
     marketOpen,
+    nearNoticeBoard,
     trainingOpen,
     poiSides,
     nearPetId,

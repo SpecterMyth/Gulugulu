@@ -385,6 +385,10 @@ export type OnboardingState = {
   tutorialFusions: number;
   starterTrioClaimed: boolean;
   postPracticeRosterClaimed: boolean;
+  /** Second six-pet max-level tier-1 grant, committed by the D09 yard upgrade. */
+  postYardRosterClaimed: boolean;
+  /** Third/fourth guided fusion eggs still awaiting an explicit backyard collect. */
+  guidedFusionEggIds: string[];
   factoryFormalEntered: boolean;
   agentPromptSkipped: boolean;
   steamMarketOpenAttempted: boolean;

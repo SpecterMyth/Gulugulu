@@ -40,7 +40,9 @@ if (!browserPath) {
 }
 
 mkdirSync(scratchDir, { recursive: true });
-const port = 4700 + (process.pid % 200);
+// Avoid Windows Hyper-V/WSL dynamic exclusions, which commonly reserve much
+// of 4414-5002 and otherwise make this deterministic browser probe flaky.
+const port = 4100 + (process.pid % 80);
 const baseUrl = `http://127.0.0.1:${port}/?test=1`;
 const vite = spawn(
   process.execPath,
@@ -152,6 +154,58 @@ try {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 90_000 });
   await page.waitForSelector(".onboarding-goal", { timeout: 30_000 });
 
+  // A Steam AI-slot result may be bound before optional local species metadata exists.
+  // Its owned T2 pet instance must still close B05 and grant the first six-pet roster.
+  await page.evaluate((key) => {
+    const save = JSON.parse(localStorage.getItem(key));
+    const aiPetId = "steam-ai-tier2-result";
+    save.eggs = [];
+    save.pets = [{
+      id: aiPetId,
+      species: "aif0701",
+      tier: 2,
+      level: 1,
+      exp: 0,
+      stamina: 200,
+      staminaUpdatedAt: 1_000,
+      exhausted: false,
+      pendingFusion: null,
+      keyBuffer: 0,
+      tokenBuffer: 0,
+      steamItemId: "steam-ai-result",
+      steamItemDef: 10_701,
+    }];
+    save.activePetId = aiPetId;
+    save.customSpecies = {};
+    save.capacityExemptPetIds = [];
+    save.onboarding = {
+      ...save.onboarding,
+      status: "active",
+      step: "B05",
+      tutorialFusions: 1,
+      starterTrioClaimed: false,
+    };
+    localStorage.setItem(key, JSON.stringify(save));
+  }, saveKey);
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
+  await page.waitForFunction(
+    (key) => JSON.parse(localStorage.getItem(key)).onboarding.step === "B06",
+    { timeout: 15_000 },
+    saveKey,
+  );
+  const aiFusionRecovery = await readPersisted(page);
+  assert.equal(aiFusionRecovery.pets.length, 7, "AI result plus six roster pets expected");
+  assert.equal(aiFusionRecovery.pets.filter((pet) => pet.tier === 1).length, 6);
+  assert.equal(aiFusionRecovery.capacityExemptPetIds.length, 6);
+  assert.equal(aiFusionRecovery.onboarding.starterTrioClaimed, true);
+  assert.equal(aiFusionRecovery.customSpecies.aif0701, undefined);
+  checkpoints.push({
+    name: "B05 Steam AI result without local metadata",
+    step: aiFusionRecovery.onboarding.step,
+    pets: aiFusionRecovery.pets.length,
+    passed: true,
+  });
+
   // Recovery from the wrong main-screen mode must lead to a real target, not a dead CTA.
   await seedStep(page, "G01");
   const recoveryButton = await page.waitForSelector(".onboarding-goal button:not(.onboarding-skip)", { timeout: 10_000 });
@@ -198,7 +252,9 @@ try {
   assert.equal((await readPersisted(page)).onboarding.step, "G06");
   checkpoints.push({ name: "post-CTA reload", step: "G06", passed: true });
 
-  // Full-route skip from G05 has three legitimate receipt writes: G05, G06, G07/DONE.
+  // Full-route skip from G05 has four legitimate writes: G05, G06, G07/DONE,
+  // plus the idempotent tutorial-fusion reward/outbox catch-up introduced by
+  // the expanded four-recipe route.
   await seedStep(page, "G05");
   await page.evaluate(() => { window.__onboardingSaveWrites = 0; });
   await page.click(".onboarding-skip");
@@ -216,7 +272,7 @@ try {
     writes: window.__onboardingSaveWrites,
     onboarding: JSON.parse(localStorage.getItem(key)).onboarding,
   }), saveKey);
-  assert.equal(repeatedSkip.writes, 3, "25 repeated skip clicks must persist only G05, G06, and G07");
+  assert.equal(repeatedSkip.writes, 4, "25 repeated skip clicks must persist one bounded route/reward sequence");
   assert.equal(repeatedSkip.onboarding.step, "DONE");
   checkpoints.push({ name: "25x full skip single-flight", ...repeatedSkip, passed: true });
 
@@ -240,7 +296,7 @@ const output = {
   checkpoints,
   screenshots,
   runtimeErrors,
-  passed: runtimeErrors.length === 0 && checkpoints.length === 5 && checkpoints.every((item) => item.passed),
+  passed: runtimeErrors.length === 0 && checkpoints.length === 6 && checkpoints.every((item) => item.passed),
 };
 if (outPath != null) {
   mkdirSync(dirname(outPath), { recursive: true });

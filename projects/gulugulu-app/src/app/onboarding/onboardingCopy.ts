@@ -4,7 +4,7 @@ export const ONBOARDING_STEP_IDS = [
   "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11",
   "A12", "A13", "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06",
   "B07", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
-  "C11", "C12", "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "E01",
+  "C11", "C12", "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10", "D11", "E01",
   "E02", "E03", "F01", "F02", "F03a", "F04", "G01", "G02", "G03", "G04", "G05",
   "G06", "G07",
 ] as const;
@@ -48,7 +48,7 @@ export const ONBOARDING_UI_ZH: Record<keyof typeof ONBOARDING_UI_EN, string> = {
  *
  * The factory owns the live, context-sensitive wording for C02-C10, but those
  * cursors stay here too so copy coverage can be verified against the complete
- * 60-step save protocol.
+ * 63-step save protocol.
  */
 export const ONBOARDING_EN_COPY: Record<OnboardingStepId, OnboardingLocalizedCopy> = {
   A01: { chapter: "Hatched and Hired", label: "Click the glowing egg and approve your first coworker's escape from the shell." },
@@ -75,7 +75,7 @@ export const ONBOARDING_EN_COPY: Record<OnboardingStepId, OnboardingLocalizedCop
   B02: { chapter: "First Cross-Species Fusion", label: "Choose Fusion. This combines different species; nobody is copy-pasting themselves." },
   B03: { chapter: "First Cross-Species Fusion", label: "This consumes both coworkers and creates one egg of a new species. Check the result, then confirm the fusion." },
   B04: { chapter: "First Cross-Species Fusion", label: "The fusion egg is headed to the hatchery. When it is ready, collect the result yourself.", cta: "Go collect the fusion egg" },
-  B05: { chapter: "First Cross-Species Fusion", label: "After 8 seconds, follow the arrow back and choose Collect. The new hire arrives at max level; AI attendance is suspended." },
+  B05: { chapter: "First Cross-Species Fusion", label: "After 8 seconds, follow the arrow back and choose Collect. The new tier-2 pet starts at level 1." },
   B06: { chapter: "Three-Pet Support", label: "First fusion cleared. Max-level Water, Electric, and Ice coworkers just landed in the yard. HR calls it organic growth.", cta: "Welcome the three volunteers" },
   B07: { chapter: "Back to the Main Screen", label: "Choose Back in the lower-left. The factory deserves a proper entrance." },
 
@@ -100,6 +100,9 @@ export const ONBOARDING_EN_COPY: Record<OnboardingStepId, OnboardingLocalizedCop
   D06: { chapter: "Recipe Radar", label: "Water and Electric will be consumed to make a new-species egg. Confirm the fusion." },
   D07: { chapter: "Recipe Radar", label: "After 8 seconds, follow the arrow back and collect it. The catalogue reaches 8/8, so the AI can stop discussing species KPIs." },
   D08: { chapter: "Species KPI Complete", label: "All eight are here. Next stop: a formal run, where the score, materials, and accidents are all yours.", cta: "Enter the formal run" },
+  D09: { chapter: "Species KPI Complete", label: "All eight are here. Next stop: a formal run, where the score, materials, and accidents are all yours." },
+  D10: { chapter: "Recipe Radar", label: "Water and Electric will be consumed to make a new-species egg. Confirm the fusion." },
+  D11: { chapter: "Recipe Radar", label: "After 8 seconds, follow the arrow back and collect it. The catalogue reaches 8/8, so the AI can stop discussing species KPIs." },
 
   E01: { chapter: "Back on the Clock", label: "Choose Workplace Stack. The first run taught the rules; this one is entirely yours." },
   E02: { chapter: "Officially on Shift", label: "Choose Start Formal Run. From here on, nobody picks cards, hires, or placements for you." },

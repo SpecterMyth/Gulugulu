@@ -72,7 +72,9 @@ if (!browserPath) {
 }
 
 mkdirSync(scratchDir, { recursive: true });
-const port = 4750 + (process.pid % 180);
+// Avoid Windows Hyper-V/WSL dynamic exclusions, which commonly reserve much
+// of 4414-5002 and otherwise make this deterministic browser probe flaky.
+const port = 4000 + (process.pid % 80);
 const baseUrl = `http://127.0.0.1:${port}/`;
 const vite = spawn(
   process.execPath,
