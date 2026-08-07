@@ -215,6 +215,17 @@ pub struct SteamStatus {
     pub last_cloud_sync_at: Option<i64>,
     /// 云端存档三件套总字节（诊断展示）。
     pub cloud_bytes: Option<u64>,
+    /// 最近一次融合兑换失败的诊断；仅用于 UI，不参与资产判定。
+    pub fuse_retry_op_id: Option<String>,
+    pub fuse_retry_error: Option<String>,
+    pub fuse_retry_attempts: u32,
+    pub fuse_retry_at: Option<i64>,
+}
+
+const FUSE_AUTO_RETRY_LIMIT: u32 = 6;
+
+fn fuse_retry_is_due(awaiting_result: bool, attempts: u32, next_retry_at: i64, now: i64) -> bool {
+    !awaiting_result && attempts < FUSE_AUTO_RETRY_LIMIT && next_retry_at <= now
 }
 
 pub struct SteamStateInner {
@@ -1004,6 +1015,12 @@ fn pump_loop(
             continue; // 跨账号存档未确认前，不做任何自动同步。
         }
 
+        // 同轮需要巡检时先读库存对账，再推进 outbox。这样手动恢复或上次结果未知时，
+        // 必定先确认材料仍存在，绝不会在未判明旧结果前重复 ExchangeItems。
+        if last_reconcile.elapsed() >= RECONCILE_INTERVAL {
+            last_reconcile = Instant::now();
+            reconcile_pass(&app, &game_state, &steam_state, client, &mut grace);
+        }
         if last_outbox.elapsed() >= OUTBOX_INTERVAL {
             last_outbox = Instant::now();
             outbox_pass(&app, &game_state, &steam_state, client, &mut grace);
@@ -1012,10 +1029,6 @@ fn pump_loop(
             last_leaderboard = Instant::now();
             let owner = client.user().steam_id().raw().to_string();
             leaderboard.pump_pass(&app, client, &owner);
-        }
-        if last_reconcile.elapsed() >= RECONCILE_INTERVAL {
-            last_reconcile = Instant::now();
-            reconcile_pass(&app, &game_state, &steam_state, client, &mut grace);
         }
         if last_cloud_push.elapsed() >= CLOUD_PUSH_INTERVAL {
             last_cloud_push = Instant::now();
@@ -1366,9 +1379,10 @@ fn outbox_pass(
                 egg_id,
                 pet_id,
                 parents,
+                attempts,
                 next_retry_at,
                 ..
-            } if !*awaiting_result && *next_retry_at <= now => Some(DueOutboxOp::FuseExchange {
+            } if fuse_retry_is_due(*awaiting_result, *attempts, *next_retry_at, now) => Some(DueOutboxOp::FuseExchange {
                 op_id: op_id.clone(),
                 generate_def: *egg_def,
                 item_a: item_a.clone(),
@@ -1722,8 +1736,19 @@ fn outbox_pass(
                                 ..
                             } = &mut save.steam_outbox[index]
                             {
-                                *next_retry_at = now + steam_sync::mint_backoff_secs(*attempts);
+                                let retry_at = now + steam_sync::mint_backoff_secs(*attempts);
+                                *next_retry_at = retry_at;
                                 *attempts += 1;
+                                steam_state.update_status(app, |status| {
+                                    status.fuse_retry_op_id = Some(op_id.clone());
+                                    status.fuse_retry_error = match &outcome {
+                                        OpOutcome::Failed(error) => Some(error.clone()),
+                                        OpOutcome::Granted(_) => Some("#steamExchangeNoResult".to_string()),
+                                        OpOutcome::Uncertain => None,
+                                    };
+                                    status.fuse_retry_attempts = *attempts;
+                                    status.fuse_retry_at = Some(retry_at);
+                                });
                             }
                             Ok(true)
                         }
@@ -1829,13 +1854,57 @@ pub fn get_steam_status(state: tauri::State<'_, SharedSteamState>) -> SteamStatu
     state.snapshot()
 }
 
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    #[test]
+    fn fuse_retry_is_bounded_and_never_resends_while_awaiting_result() {
+        assert!(fuse_retry_is_due(false, 0, 100, 100));
+        assert!(!fuse_retry_is_due(false, 0, 101, 100));
+        assert!(!fuse_retry_is_due(true, 0, 0, 100));
+        assert!(fuse_retry_is_due(false, FUSE_AUTO_RETRY_LIMIT - 1, 0, 100));
+        assert!(!fuse_retry_is_due(false, FUSE_AUTO_RETRY_LIMIT, 0, 100));
+    }
+}
+
 /// 手动触发一轮同步（前端"立即同步"按钮 / 调试用）。
 #[tauri::command]
-pub async fn steam_sync_now(state: tauri::State<'_, SharedSteamState>) -> Result<(), String> {
+pub async fn steam_sync_now(
+    app: AppHandle,
+    game: tauri::State<'_, SharedGameState>,
+    state: tauri::State<'_, SharedSteamState>,
+) -> Result<(), String> {
     if !integration_enabled() {
         return Err("#steamIntegrationOff".to_string());
     }
     let steam = state.inner().clone();
+    let game_state = game.inner().clone();
+    // 手动同步同时恢复已达到自动重试上限的融合单。泵收到 SyncNow 后会先对账、
+    // 再执行 outbox，因此旧结果未知时不会直接重复烧材料。
+    let (_, save) = game::with_save(&app, &game_state, |_config, save| {
+        for op in &mut save.steam_outbox {
+            if let SteamOp::Fuse {
+                attempts,
+                next_retry_at,
+                ..
+            } = op
+            {
+                if *attempts >= FUSE_AUTO_RETRY_LIMIT {
+                    *attempts = 0;
+                    *next_retry_at = 0;
+                }
+            }
+        }
+        Ok(())
+    })?;
+    let _ = app.emit("game://state", save);
+    steam.update_status(&app, |status| {
+        status.fuse_retry_op_id = None;
+        status.fuse_retry_error = None;
+        status.fuse_retry_attempts = 0;
+        status.fuse_retry_at = None;
+    });
     tauri::async_runtime::spawn_blocking(move || match steam.call_blocking(SteamCall::SyncNow) {
         OpOutcome::Failed(error) => Err(error),
         _ => Ok(()),

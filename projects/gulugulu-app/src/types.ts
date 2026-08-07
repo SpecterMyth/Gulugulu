@@ -557,6 +557,11 @@ export type SteamStatus = {
   lastCloudSyncAt?: number | null;
   /** 云端存档三件套总字节(诊断展示)。 */
   cloudBytes?: number | null;
+  /** 最近一次融合兑换失败的运行时诊断。 */
+  fuseRetryOpId?: string | null;
+  fuseRetryError?: string | null;
+  fuseRetryAttempts?: number;
+  fuseRetryAt?: number | null;
 };
 
 /** debug_steam_delete_all_workshop 结果(mirrors steam.rs WorkshopClearReport)。 */

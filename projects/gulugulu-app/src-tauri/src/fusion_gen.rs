@@ -2139,11 +2139,6 @@ fn pick_fusion_job(
     let mut pending_job: Option<FusionJob> = None;
     let mut retry_job: Option<FusionJob> = None;
     for egg in eggs.iter_mut() {
-        // 二阶本地先行融合必须等 Steam 实发 def 定槽后再调用 CLI。否则本地设计可能
-        // 抢先落到前沿槽，随后又被 Steam 的固定/其它 AI 槽覆盖，造成无效生成或重复生成。
-        if awaiting_steam.contains(&egg.id) {
-            continue;
-        }
         let Some(pending) = egg.pending_fusion.as_mut() else {
             continue;
         };
@@ -2151,13 +2146,21 @@ fn pick_fusion_job(
             .hatch_at
             .map(|hatch_at| now >= hatch_at)
             .unwrap_or(false);
+        // The Steam receipt can outlive the incubation deadline (for example when
+        // ExchangeItems is being rate-limited).  Expiry still has to advance the
+        // local egg to its canonical fallback; otherwise the Steam guard below
+        // skips it forever and the hatchery shows a permanently queued AI job.
+        if expired && pending.status == "pending" {
+            pending.status = "failed".to_string();
+            pending.last_error = Some("#fusionEggExpiredFallback".to_string());
+        }
+        // 二阶本地先行融合必须等 Steam 实发 def 定槽后再调用 CLI。否则本地设计可能
+        // 抢先落到前沿槽，随后又被 Steam 的固定/其它 AI 槽覆盖，造成无效生成或重复生成。
+        if awaiting_steam.contains(&egg.id) {
+            continue;
+        }
         match pending.status.as_str() {
             "pending" => {
-                if expired {
-                    pending.status = "failed".to_string();
-                    pending.last_error = Some("#fusionEggExpiredFallback".to_string());
-                    continue;
-                }
                 if pending_job.is_none() {
                     pending_job = Some(FusionJob {
                         egg_id: egg.id.clone(),
@@ -5044,6 +5047,17 @@ mod tests {
         // 过期的 failed 蛋也不再重试（即使尝试次数没到上限）。
         let mut eggs = vec![fusion_egg("late-failed", "failed", 0, past)];
         assert!(pick_fusion_job(&mut eggs, now, &unblocked).is_none());
+
+        // Steam 同步中的蛋也必须在截止时进入兜底状态，不能被同步守卫永久跳过。
+        let mut eggs = vec![fusion_egg("late-steam", "pending", 0, past)];
+        let blocked = BTreeSet::from(["late-steam".to_string()]);
+        assert!(pick_fusion_job(&mut eggs, now, &blocked).is_none());
+        let pending = eggs[0].pending_fusion.as_ref().unwrap();
+        assert_eq!(pending.status, "failed");
+        assert_eq!(
+            pending.last_error.as_deref(),
+            Some("#fusionEggExpiredFallback")
+        );
     }
 
     #[test]
