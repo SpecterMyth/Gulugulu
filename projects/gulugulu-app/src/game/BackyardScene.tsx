@@ -1299,6 +1299,8 @@ export function BackyardScene({
           onUpgradeHatchery={onUpgradeHatchery}
           onPlaceEgg={onPlaceEgg}
           onCollectEgg={onCollectEgg}
+          steamStatus={steamStatus}
+          onSteamSync={onSteamSync}
           onPokeEgg={onPokeEgg}
           onToast={onToast}
         />

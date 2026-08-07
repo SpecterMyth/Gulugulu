@@ -142,6 +142,9 @@ export interface BackyardStrings {
     queuedProvider: string;
     syncing: string;
     syncingTitle: string;
+    syncRetry: string;
+    syncRepair: string;
+    syncErrorTitle: string;
     collectTitle: string;
     collectPill: string;
     noFreePitTitle: string;
@@ -655,6 +658,9 @@ const zh: BackyardStrings = {
     queuedProvider: "🤖 等待 {provider} 设计",
     syncing: "🎮 等待 Steam",
     syncingTitle: "正在等待 Steam 销毁融合材料并发放结果；完成后才会进入 AI 设计阶段",
+    syncRetry: "🎮 第 {attempt} 次重试 · {countdown}",
+    syncRepair: "⚠ Steam 同步需修复 · 点击重试",
+    syncErrorTitle: "Steam 兑换持续失败：{error}。点击后将先对账，再重新尝试。",
     collectTitle: "点击收取",
     collectPill: "✨ 点击收取",
     noFreePitTitle: "没有空蛋坑",
@@ -977,6 +983,9 @@ const en: BackyardStrings = {
     queuedProvider: "🤖 Waiting for {provider}",
     syncing: "🎮 Waiting for Steam",
     syncingTitle: "Waiting for Steam to burn the fusion materials and grant the result; AI design starts afterward",
+    syncRetry: "🎮 Retry {attempt} · {countdown}",
+    syncRepair: "⚠ Steam sync needs repair · retry",
+    syncErrorTitle: "Steam exchange keeps failing: {error}. Click to reconcile first, then retry.",
     collectTitle: "Click to collect",
     collectPill: "✨ Collect!",
     noFreePitTitle: "No free pits",

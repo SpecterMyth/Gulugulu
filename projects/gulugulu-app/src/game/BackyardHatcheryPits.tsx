@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { GameConfig, GameSave, EggInstance } from "../types";
-import { fmt, speciesDisplayName } from "../i18n";
+import type { GameConfig, GameSave, EggInstance, SteamStatus } from "../types";
+import { fmt, localizeGameMessage, speciesDisplayName } from "../i18n";
 import { useT } from "../useT";
 import { EggSvg } from "../sprites/SvgSprite";
 import { abs } from "./backyardShared";
@@ -29,6 +29,8 @@ export type BackyardHatcheryPitsProps = {
   onUpgradeHatchery: () => void;
   onPlaceEgg: (eggId: string, slot: number) => void;
   onCollectEgg: (eggId: string) => void;
+  steamStatus: SteamStatus | null;
+  onSteamSync: () => void;
   /** #2 点孵化中的蛋 → 孵化时间 −1s（催蛋）。 */
   onPokeEgg: (eggId: string) => void;
   onToast: (message: string) => void;
@@ -46,6 +48,8 @@ export function BackyardHatcheryPits({
   onUpgradeHatchery,
   onPlaceEgg,
   onCollectEgg,
+  steamStatus,
+  onSteamSync,
   onPokeEgg,
   onToast,
 }: BackyardHatcheryPitsProps) {
@@ -87,10 +91,10 @@ export function BackyardHatcheryPits({
     prevEggSlotsRef.current = new Map(save.eggs.map((egg) => [egg.id, egg.slot]));
   }, [save.eggs]);
   // 本地先行融合的二阶蛋：未绑定 Steam 物品 + 有 applied Fuse op（后台正在烧材料 + 铸造结果并同步 Steam）。
-  const syncingEggIds = new Set<string>();
+  const syncingEggOps = new Map<string, Extract<NonNullable<GameSave["steamOutbox"]>[number], { kind: "fuse" }>>();
   for (const op of save.steamOutbox ?? []) {
     if (op.kind === "fuse" && op.applied === true && op.eggId) {
-      syncingEggIds.add(op.eggId);
+      syncingEggOps.set(op.eggId, op);
     }
   }
   /** 物种显示名（zh 缺项兜底 "?"，与原文案一致）。 */
@@ -206,7 +210,20 @@ export function BackyardHatcheryPits({
         const ready = remain <= 0;
         const { progress } = eggHatchInfo(config, egg, now);
         const fusion = egg.pendingFusion ?? null;
-        const waitingForSteam = syncingEggIds.has(egg.id);
+        const syncingOp = syncingEggOps.get(egg.id);
+        const waitingForSteam = syncingOp != null;
+        const syncAttempts = syncingOp?.attempts ?? 0;
+        const syncPaused = syncAttempts >= 6;
+        const syncRetryIn = Math.max(0, (syncingOp?.nextRetryAt ?? now) - now);
+        const syncLabel = syncPaused
+          ? bk.syncRepair
+          : syncAttempts > 0
+            ? fmt(bk.syncRetry, { attempt: syncAttempts, countdown: formatCountdown(syncRetryIn) })
+            : bk.syncing;
+        const syncError =
+          syncingOp && steamStatus?.fuseRetryOpId === syncingOp.opId
+            ? steamStatus.fuseRetryError
+            : null;
         const providerName =
           fusion?.provider === "codex" ? "Codex" : fusion?.provider ? "Claude" : null;
         const designStatus = fusion
@@ -271,9 +288,22 @@ export function BackyardHatcheryPits({
             {waitingForSteam && (
               <span
                 className={`by-pit-fusion is-steam ${fusion ? "is-row2" : ""}`}
-                title={bk.syncingTitle}
+                title={syncError ? fmt(bk.syncErrorTitle, { error: localizeGameMessage(syncError, lang) }) : bk.syncingTitle}
+                role={syncPaused ? "button" : undefined}
+                tabIndex={syncPaused ? 0 : undefined}
+                onClick={syncPaused ? (event) => {
+                  event.stopPropagation();
+                  onSteamSync();
+                } : undefined}
+                onKeyDown={syncPaused ? (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSteamSync();
+                  }
+                } : undefined}
               >
-                {bk.syncing}
+                {syncLabel}
               </span>
             )}
             {ready ? (
