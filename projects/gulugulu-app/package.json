@@ -10,6 +10,7 @@
     "benchmark:factory-ui": "node scripts/factory_ui_perf_check.mjs",
     "test:factory-layout": "node scripts/factory_ui_layout_check.mjs",
     "test:factory-localization": "node scripts/factory_localization_ui_check.mjs",
+    "test:shell-localization": "node scripts/shell_localization_ui_check.mjs",
     "test:factory-modifiers": "node scripts/factory_ui_layout_check.mjs --modifiers",
     "test:factory-first-run": "node scripts/factory_first_run_recovery_check.mjs",
     "test:factory-races": "node scripts/factory_interaction_race_check.mjs",

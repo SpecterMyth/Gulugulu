@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
+import { findAvailablePort } from "./browser_e2e_harness.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = join(scriptDir, "..");
@@ -34,7 +35,7 @@ if (!browserPath) {
 }
 
 mkdirSync(scratchDir, { recursive: true });
-const port = 4700 + (process.pid % 200);
+const port = await findAvailablePort();
 const baseUrl = `http://127.0.0.1:${port}/`;
 const vite = spawn(
   process.execPath,
@@ -685,7 +686,7 @@ try {
         && exactUi.loanText.includes(`¥${exactPlan.loanPayment}`)
         && exactUi.afterText.includes("After all payments")
         && exactUi.afterText.includes("¥0")
-        && exactUi.confirmText === "Confirm all payments",
+        && exactUi.confirmText === "Pay everything",
       exactUi,
     );
     record(
@@ -744,7 +745,7 @@ try {
         && shortUi.afterClass.includes("is-shortfall")
         && shortUi.afterText.includes("Shortfall")
         && shortUi.afterText.includes("¥1")
-        && shortUi.confirmText === "Insufficient — confirm bankruptcy",
+        && shortUi.confirmText === "Insufficient funds · Confirm bankruptcy",
       { shortPlan, shortUi },
     );
     await page.evaluate(() => {

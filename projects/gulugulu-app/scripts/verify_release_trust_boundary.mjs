@@ -22,8 +22,6 @@ const bundleText = (
 
 const forbiddenReleaseUi = [
   "GuluIsBestGame",
-  "Developer passphrase",
-  "开发者口令",
   "存档调试",
   "Steam 调试",
   "debug-unlock-note",

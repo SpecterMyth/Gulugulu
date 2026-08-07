@@ -1520,7 +1520,7 @@ eq(
   { accepted: true, refund: dismissalWorker.price },
   "解雇反馈在入账前给出该角色的精确退款金额",
 );
-ok(M.FACTORY_ROGUE.zh.operationDismissSceneHint.includes("100% 最近雇价"), "中文解雇提示在点击前说明退款口径");
+ok(M.FACTORY_ROGUE["zh-Hans"].operationDismissSceneHint.includes("100% 最近雇价"), "中文解雇提示在点击前说明退款口径");
 ok(M.FACTORY_ROGUE.en.operationDismissSceneHint.includes("100% of its latest hire price"), "英文解雇提示在点击前说明退款口径");
 const cashBeforeDismissal = dismissalRun.view().cash;
 dismissalRun.onDismissPick(8182);
@@ -1884,7 +1884,7 @@ const cashBeforeLoan = factRun.view().cash;
 factRun.debugGrantCard("staff.loan");
 eq(factRun.view().cash - cashBeforeLoan, factRun.view().kpi * 3, "贷款立即获得 300% KPI 现金");
 eq(
-  M.FACTORY_ROGUE.zh.cards["staff.loan"].desc(1),
+  M.FACTORY_ROGUE["zh-Hans"].cards["staff.loan"].desc(1),
   "立得 3x KPI；后 3 班各还 35% 本金（共 1.05x）",
   "贷款商店卡牌用短倍率显示",
 );

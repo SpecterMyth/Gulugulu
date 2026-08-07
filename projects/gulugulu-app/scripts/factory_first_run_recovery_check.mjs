@@ -50,14 +50,14 @@ const expectedCopy = language === "zh"
       notice: "后台计时已暂停",
       success: "让第二只叠到第一只上",
       key: "空格键",
-      failure: "落点没接稳，再试一次！",
+      failure: "✗ 气场不合，啪叽弹开！",
     }
   : {
       retry: "That one missed",
       notice: "Paused safely",
       success: "Stack the second coworker on the first",
       key: "SPACE",
-      failure: "MISSED THE LANDING — TRY AGAIN!",
+      failure: "✗ Zero chemistry. Boing!",
     };
 
 const browserPath = [
@@ -303,10 +303,12 @@ const runFailureRecovery = async (page) => {
     });
   }, { timeout: 15_000, polling: 40 });
   const before = await page.evaluate(() => window.__frRun.view().stats);
+  // Subscribe before the drop: the failure cue is intentionally short-lived,
+  // while an unrelated body can satisfy the aggregate bounce counter first.
+  const failureCue = page.waitForSelector(".fr-float.miss", { timeout: 8_000 });
   await page.keyboard.press("Space");
   await page.waitForFunction((throws) => window.__frRun.view().stats.throws === throws + 1, { timeout: 3_000 }, before.throws);
-  await page.waitForFunction((bounces) => window.__frRun.view().stats.bounces > bounces, { timeout: 8_000 }, before.bounces);
-  await page.waitForSelector(".fac-failure-text", { timeout: 1_200 });
+  await failureCue;
   const failed = await page.evaluate(() => {
     const rect = (element) => {
       if (element == null) return null;
@@ -317,7 +319,7 @@ const runFailureRecovery = async (page) => {
       : Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left))
         * Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
     const guide = document.querySelector(".onboarding-goal");
-    const failure = document.querySelector(".fac-failure-text");
+    const failure = document.querySelector(".fr-float.miss");
     const failureRect = rect(failure);
     const hudOverlaps = [".fhp-col-l", ".fhp-col-r"].map((selector) => ({
       selector,
@@ -330,10 +332,11 @@ const runFailureRecovery = async (page) => {
       failureRect,
       failureGuideOverlap: Math.round(overlap(failureRect, rect(guide))),
       failureHudOverlaps: hudOverlaps,
-      failureLayerPointerEvents: getComputedStyle(document.querySelector(".fac-failure-layer")).pointerEvents,
+      failureLayerPointerEvents: getComputedStyle(document.querySelector(".fr-float-layer")).pointerEvents,
       settled: window.__facBodies().filter((body) => body.settled).length,
     };
   });
+  await page.waitForFunction((bounces) => window.__frRun.view().stats.bounces > bounces, { timeout: 8_000 }, before.bounces);
 
   await page.evaluate(() => {
     window.__round12Hidden = false;

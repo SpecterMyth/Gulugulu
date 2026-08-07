@@ -19,6 +19,7 @@ import {
   closePage,
   configurePageTimeouts,
   createStageRunner,
+  findAvailablePort,
   fetchWithTimeout,
   sleep,
   stopChild,
@@ -110,7 +111,7 @@ const criticalButtons = {
 };
 
 mkdirSync(scratchDir, { recursive: true });
-const port = 4400 + (process.pid % 300);
+const port = await findAvailablePort();
 const baseUrl = `http://127.0.0.1:${port}/`;
 const vite = spawn(process.execPath, [join(appDir, "node_modules", "vite", "bin", "vite.js"), "--host", "127.0.0.1", "--port", String(port), "--strictPort"], {
   cwd: appDir,

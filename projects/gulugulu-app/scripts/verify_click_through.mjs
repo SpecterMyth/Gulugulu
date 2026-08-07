@@ -88,7 +88,7 @@ const docked = scene === "backyard" || scene === "factory";
 function Shell() {
   return (
     <main
-      className={"pet-shell state-idle facing-right ui-" + (docked ? scene : "pet")}
+      className={"paper-app pet-shell state-idle facing-right ui-" + (docked ? scene : "pet")}
       style={docked ? { width: "100%", height: "100%" } : { width: W, height: H }}
     >
       {scene === "backyard" ? (
@@ -102,8 +102,9 @@ function Shell() {
                 <NearDecor />
               </div>
             </div>
-            <div className="by-soil-ui">
-              <button type="button" className="by-upgrade-btn">升级</button>
+            <div className="by-upgrade-shell" style={{ position: "absolute", left: 24, bottom: 90, width: 220, height: 78 }}>
+              <div className="by-upgrade-frame" aria-hidden="true" />
+              <button type="button" className="by-upgrade-btn"><span>升级</span></button>
             </div>
           </div>
         </div>

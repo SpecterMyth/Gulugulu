@@ -7,7 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import puppeteer from "puppeteer-core";
-import { fetchWithTimeout, sleep, stopChild, withTimeout } from "./browser_e2e_harness.mjs";
+import { fetchWithTimeout, findAvailablePort, sleep, stopChild, withTimeout } from "./browser_e2e_harness.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
@@ -40,7 +40,7 @@ const allCardDefs = configModule.CARD_DEFS.map(({ id, maxLevel }) => ({ id, maxL
 const wantedCards = new Set((process.env.L10N_CARDS ?? "").split(",").filter(Boolean));
 const cardDefs = wantedCards.size ? allCardDefs.filter(({ id }) => wantedCards.has(id)) : allCardDefs;
 
-const port = 47000 + (process.pid % 1000);
+const port = await findAvailablePort();
 const baseUrl = `http://127.0.0.1:${port}/`;
 const vite = spawn(process.execPath, [
   join(appDir, "node_modules", "vite", "bin", "vite.js"),
