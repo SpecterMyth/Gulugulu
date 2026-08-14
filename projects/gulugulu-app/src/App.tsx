@@ -76,7 +76,7 @@ import { type GamePop, type PopKind, POP_ICONS } from "./app/pops";
 import { SettingsPanel } from "./app/SettingsPanel";
 import { SpeechBubble } from "./app/SpeechBubble";
 import { useAppSettings } from "./app/hooks/useAppSettings";
-import { useClickThrough } from "./app/hooks/useClickThrough";
+import { shouldEnableClickThrough, useClickThrough } from "./app/hooks/useClickThrough";
 import { useCodexStatus } from "./app/hooks/useCodexStatus";
 import { useDynamicQuotes } from "./app/hooks/useDynamicQuotes";
 import { useEggCountdown } from "./app/hooks/useEggCountdown";
@@ -1179,9 +1179,9 @@ export default function App() {
   // 铺满整个 shell，不存在那块空白。
   // 后院是 resizable 停靠窗（拖上沿改高），OS 边框热区压在透明天空上 → 留一圈实心带。
   useClickThrough(
-    // 强引导已经用输入互斥只放行当前目标；此时不要再让透明窗口的像素级
-    // 穿透与目标抢首个 pointerdown（A01 的蛋在边缘像素上尤其容易被穿掉）。
-    !coach.active && gameDialog == null && (uiMode === "pet" || uiMode === "backyard" || uiMode === "factory"),
+    // 引导卡、目标和确认遮罩本身都由像素命中判定保持可点；不要因长流程引导仍
+    // active 就关掉整窗穿透，否则回到桌宠态后，所有透明空白都会阻挡下层应用。
+    shouldEnableClickThrough(uiMode, gameDialog != null),
     dragRef,
     uiMode === "backyard" ? BACKYARD_RESIZE_GRIP_PX : 0,
   );
