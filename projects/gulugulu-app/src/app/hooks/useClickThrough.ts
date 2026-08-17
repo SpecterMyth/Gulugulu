@@ -2,6 +2,7 @@ import { type RefObject, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isTauri } from "../../tauri";
+import type { UiMode } from "../../game/GamePanels";
 
 /** Rust 侧 `click_through.rs` 推来的探针：主窗客户区**物理**像素。 */
 type HitProbe = { x: number; y: number };
@@ -11,6 +12,16 @@ type HitProbe = { x: number; y: number };
  *  留一圈余量；反过来也让「移向宠物」提前于真正接触就切回实心，
  *  遮住 40ms 轮询间隔可能吞掉的那一次点击。 */
 export const HIT_DILATION_PX = 10;
+
+/**
+ * Only full interaction surfaces disable pixel hit-testing. Onboarding is not
+ * one of them: its card and current target are already painted DOM regions, so
+ * keeping the watcher alive lets the rest of the transparent pet window pass
+ * clicks through to the desktop.
+ */
+export function shouldEnableClickThrough(uiMode: UiMode, hasBlockingDialog: boolean): boolean {
+  return !hasBlockingDialog && (uiMode === "pet" || uiMode === "backyard" || uiMode === "factory");
+}
 
 /** 中心 + 一圈 8 向采样（斜向按 √2/2 折算，保证都落在半径上）。 */
 const HIT_SAMPLE_RING: ReadonlyArray<readonly [number, number]> = [

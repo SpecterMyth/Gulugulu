@@ -59,7 +59,13 @@ import { createRoot } from "react-dom/client";
 import { SvgSprite, EggSvg } from "./sprites/SvgSprite";
 import { NearDecor } from "./game/BackyardDecor";
 import { FactoryScene } from "./game/FactoryScene";
-import { isSolidAt, isPaintedAt, isEdgeGrip, HIT_DILATION_PX } from "./app/hooks/useClickThrough";
+import {
+  isSolidAt,
+  isPaintedAt,
+  isEdgeGrip,
+  shouldEnableClickThrough,
+  HIT_DILATION_PX,
+} from "./app/hooks/useClickThrough";
 import rawConfig from "./game/config.json";
 import "./styles.css";
 import "./game/backyard.css";
@@ -76,6 +82,7 @@ Object.assign(window, {
   __hit: isSolidAt,
   __painted: isPaintedAt,
   __grip: isEdgeGrip,
+  __shouldEnable: shouldEnableClickThrough,
   __dilation: HIT_DILATION_PX,
   __species: species,
 });
@@ -88,7 +95,7 @@ const docked = scene === "backyard" || scene === "factory";
 function Shell() {
   return (
     <main
-      className={"pet-shell state-idle facing-right ui-" + (docked ? scene : "pet")}
+      className={"paper-app pet-shell state-idle facing-right ui-" + (docked ? scene : "pet")}
       style={docked ? { width: "100%", height: "100%" } : { width: W, height: H }}
     >
       {scene === "backyard" ? (
@@ -102,8 +109,9 @@ function Shell() {
                 <NearDecor />
               </div>
             </div>
-            <div className="by-soil-ui">
-              <button type="button" className="by-upgrade-btn">升级</button>
+            <div className="by-upgrade-shell" style={{ position: "absolute", left: 24, bottom: 90, width: 220, height: 78 }}>
+              <div className="by-upgrade-frame" aria-hidden="true" />
+              <button type="button" className="by-upgrade-btn"><span>升级</span></button>
             </div>
           </div>
         </div>
@@ -307,6 +315,29 @@ const PROBES = {
 };
 
 try {
+  // A persisted onboarding route may stay active across many returns to the
+  // compact pet view. It must not globally disable the watcher: painted guide
+  // UI/targets remain solid through the normal hit-test, while blank pixels pass.
+  const modePolicy = await (async () => {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 280, height: 320, deviceScaleFactor: 1 });
+    await page.goto(`${pathToFileURL(join(outDir, "index.html")).href}?scene=pet&w=280&h=320`, { waitUntil: "load" });
+    const result = await page.evaluate(() => ({
+      pet: window.__shouldEnable("pet", false),
+      petWithDialog: window.__shouldEnable("pet", true),
+      backyard: window.__shouldEnable("backyard", false),
+      factory: window.__shouldEnable("factory", false),
+      menu: window.__shouldEnable("menu", false),
+    }));
+    await page.close();
+    return result;
+  })();
+  ok(modePolicy.pet === true, "桌宠态应始终开启像素穿透探针（包括新手引导仍 active 时）");
+  ok(modePolicy.petWithDialog === false, "阻塞式对话框打开时应暂停穿透");
+  ok(modePolicy.backyard === true, "后院应开启像素穿透探针");
+  ok(modePolicy.factory === true, "工厂应开启像素穿透探针");
+  ok(modePolicy.menu === false, "菜单空白承担返回交互，不应开启穿透");
+
   for (const [scene, cfg] of Object.entries(SCENES)) {
     const p = await scan(scene, cfg, PROBES[scene]);
     const ratio = p.solid / p.total;
