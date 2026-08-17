@@ -720,8 +720,13 @@ fn run_claude(
     ]);
     let schema_json;
     if let Some(schema) = schema {
-        schema_json =
-            serde_json::to_string(schema).map_err(|e| format!("序列化 JSON Schema 失败：{e}"))?;
+        // Claude Code 当前的 --json-schema 校验器使用内置 draft，无法解析
+        // 2020-12 的 meta-schema URI。保留实际约束，只在传给 Claude 时移除
+        // 顶层声明；Codex 仍接收原始 schema，二者的生成结果继续由 Rust
+        // 权威校验器复核。
+        let compatible_schema = claude_compatible_schema(schema);
+        schema_json = serde_json::to_string(&compatible_schema)
+            .map_err(|e| format!("序列化 JSON Schema 失败：{e}"))?;
         cmd.args(["--json-schema", &schema_json]);
     }
     // 指定模型（如 opus=最新最强 Opus）；不给则用 CLI 默认模型。
@@ -771,6 +776,14 @@ fn run_claude(
         Err(_) => output.stdout.clone(),
     };
     extract_json_object(&text).ok_or_else(|| "输出里没有找到 JSON 对象".to_string())
+}
+
+fn claude_compatible_schema(schema: &Value) -> Value {
+    let mut compatible = schema.clone();
+    if let Some(root) = compatible.as_object_mut() {
+        root.remove("$schema");
+    }
+    compatible
 }
 
 fn run_codex(
@@ -905,6 +918,26 @@ mod tests {
         let json = extract_json_object(text).unwrap();
         assert_eq!(json, "{\"a\": {\"b\": \"x{y}\"}, \"c\": 1}");
         assert!(extract_json_object("no json here").is_none());
+    }
+
+    #[test]
+    fn claude_schema_omits_unsupported_meta_schema_without_mutating_original() {
+        let schema = serde_json::json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {"kind": {"const": "pet"}},
+            "required": ["kind"],
+            "additionalProperties": false
+        });
+        let compatible = claude_compatible_schema(&schema);
+
+        assert!(compatible.get("$schema").is_none());
+        assert_eq!(compatible["properties"], schema["properties"]);
+        assert_eq!(compatible["required"], schema["required"]);
+        assert_eq!(
+            schema["$schema"],
+            "https://json-schema.org/draft/2020-12/schema"
+        );
     }
 
     #[test]

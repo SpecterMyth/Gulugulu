@@ -975,8 +975,8 @@ eq(
 const priceDef = M.CFG.CARD_DEFS.find((card) => card.id === "attr.pure");
 eq(
   [0, 1, 2, 3, 4].map((level) => M.cardPrice(priceDef, level, 1000)),
-  [70, 210, 630, 1890, 5670],
-  "卡价从 Lv.1 起逐级乘 3",
+  [150, 300, 600, 1200, 2400],
+  "普通卡价格按 15% KPI 起价并逐级翻倍",
 );
 eq([1, 2, 3, 4, 5, 6].map((n) => metas[`tier${n}`].baseValue), [15, 12, 9, 6, 4, 3], "基础值按新六工种曲线下降");
 eq([1, 2, 3, 4, 5, 6].map(M.CFG.baseValueForTier), [15, 12, 9, 6, 4, 3], "权威基础分函数覆盖六种规格");
