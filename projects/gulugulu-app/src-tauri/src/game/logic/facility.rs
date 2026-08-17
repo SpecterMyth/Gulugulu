@@ -16,7 +16,9 @@ pub fn logic_upgrade_hatchery(
         .get(level - 1)
         .ok_or_else(|| "#missingUpgradeCost".to_string())?;
     let reimbursed = save.onboarding.status == "active"
-        && (save.hatchery_level == 1 || save.onboarding.step == "A13");
+        && (save.hatchery_level == 1
+            || save.onboarding.step == "A13"
+            || save.onboarding.step == "D08");
     if save.coins < cost && !reimbursed {
         return Err("#notEnoughCoins".to_string());
     }
@@ -24,6 +26,9 @@ pub fn logic_upgrade_hatchery(
         save.coins -= cost;
     }
     save.hatchery_level += 1;
+    if save.onboarding.status == "active" && save.onboarding.step == "D08" {
+        logic_advance_onboarding(config, save, "D08", now)?;
+    }
     Ok(())
 }
 
@@ -42,7 +47,8 @@ pub fn logic_upgrade_yard(
         .yard_upgrade_costs
         .get(level - 1)
         .ok_or_else(|| "#missingUpgradeCost".to_string())?;
-    let reimbursed = save.onboarding.status == "active" && save.yard_level == 1;
+    let reimbursed = save.onboarding.status == "active"
+        && (save.yard_level == 1 || save.onboarding.step == "D09");
     if save.coins < cost && !reimbursed {
         return Err("#notEnoughCoins".to_string());
     }
@@ -50,6 +56,9 @@ pub fn logic_upgrade_yard(
         save.coins -= cost;
     }
     save.yard_level += 1;
+    if save.onboarding.status == "active" && save.onboarding.step == "D09" {
+        logic_advance_onboarding(config, save, "D09", now)?;
+    }
     Ok(())
 }
 

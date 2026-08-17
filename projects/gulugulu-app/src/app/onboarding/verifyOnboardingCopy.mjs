@@ -40,6 +40,9 @@ const mainCopy = await importBundled(`
 const reviewedCopy = await importBundled(`
   export { REVIEWED_ONBOARDING_LOCALES } from "./src/app/onboarding/reviewedOnboardingLocales";
 `);
+const expansionCopy = await importBundled(`
+  export { ONBOARDING_EXPANSION_COPY } from "./src/app/onboarding/onboardingExpansionCopy";
+`);
 const factoryCopy = await importBundled(`
   export {
     FACTORY_FIRST_RUN_COPY,
@@ -56,7 +59,7 @@ const director = await importBundled(`
   } from "./src/app/onboarding/useOnboardingDirector";
 `);
 
-assert.equal(mainCopy.ONBOARDING_STEP_IDS.length, 60, "persisted onboarding route must stay at 60 steps");
+assert.equal(mainCopy.ONBOARDING_STEP_IDS.length, 63, "persisted onboarding route must cover all 63 steps");
 assert.deepEqual(
   Object.keys(mainCopy.ONBOARDING_EN_COPY).sort(),
   [...mainCopy.ONBOARDING_STEP_IDS].sort(),
@@ -153,14 +156,14 @@ const skippedSave = await director.skipOnboardingRoute(
 assert.equal(skippedSave.onboarding.status, "completed", "skipMain must persist completion");
 assert.equal(skippedSave.onboarding.step, "DONE", "skipMain must finish at DONE");
 assert.equal(agentSkips, 1, "skipMain must persist the optional-AI skip receipt once");
-assert.equal(fusionRewardGrants, 1, "skipMain must grant both tutorial fusion results once");
+assert.equal(fusionRewardGrants, 1, "skipMain must grant all tutorial fusion results once");
 assert.equal(
   submittedReceipts.filter((step) => step === "C12").length,
   1,
   "skipMain must submit exactly one first-shift compatibility receipt",
 );
-assert.equal(submittedReceipts.length, 49, "skipMain receipt count changed unexpectedly");
-assert.equal(savedSnapshots, 51, "every skip mutation must update the live save");
+assert.equal(submittedReceipts.length, 52, "skipMain receipt count changed unexpectedly");
+assert.equal(savedSnapshots, 54, "every skip mutation must update the live save");
 
 const queueCalls = [];
 const busyTransitions = [];
@@ -217,6 +220,17 @@ const reviewedLanguages = [
   "zh-Hant", "ja", "ko", "fr", "de", "es-ES", "es-419", "pt-BR", "pt-PT", "ru",
   "it", "pl", "tr", "uk", "ar", "th", "vi", "id", "nl",
 ];
+const allLanguages = ["en", "zh-Hans", ...reviewedLanguages];
+assert.deepEqual(
+  Object.keys(expansionCopy.ONBOARDING_EXPANSION_COPY).sort(),
+  [...allLanguages].sort(),
+  "new onboarding segment must have reviewed copy for every supported language",
+);
+for (const language of allLanguages) {
+  for (const [key, value] of Object.entries(expansionCopy.ONBOARDING_EXPANSION_COPY[language])) {
+    assert.ok(value.trim(), `${language}.expansion.${key} is empty`);
+  }
+}
 assert.deepEqual(
   Object.keys(reviewedCopy.REVIEWED_ONBOARDING_LOCALES).sort(),
   [...reviewedLanguages].sort(),
@@ -315,4 +329,4 @@ assert.equal(
       }),
 );
 
-console.log("onboarding copy: 60 English steps, bilingual factory guide, skip API, non-blocking input, and types passed");
+console.log("onboarding copy: 63 steps, 21-language expansion, factory guide, skip API, non-blocking input, and types passed");

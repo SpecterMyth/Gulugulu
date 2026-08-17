@@ -40,8 +40,7 @@ pub fn logic_validate_fusion_pair(
     if pet_a.species == pet_b.species && config.fusion_result_tier(pet_a.tier) == pet_a.tier {
         return Err("#fusionSameSpeciesNoGain".to_string());
     }
-    let tutorial_reimbursed =
-        save.onboarding.status == "active" && save.onboarding.tutorial_fusions < 2;
+    let tutorial_reimbursed = expected_tutorial_fusion_recipe(save).is_some();
     if save.coins < config.fusion_fee_for(pet_a.tier) && !tutorial_reimbursed {
         return Err("#fusionNeedFee".to_string());
     }
@@ -49,6 +48,13 @@ pub fn logic_validate_fusion_pair(
     // 客户端 pacing —— Steam 侧安全性来自 exchange 真实消耗（净 −1）+ 上游水龙头封顶。
     // 传配方**键**（recipe=），前端 recipeLabel 按语言渲染（"火+水" / "Fire + Water"）。
     let recipe_key = fusion_result_recipe_key(config, save, &pet_a, &pet_b)?;
+    if let Some(expected) = expected_tutorial_fusion_recipe(save) {
+        if recipe_key != expected {
+            return Err(format!(
+                "#tutorialFusionRecipeMismatch|expected={expected}|got={recipe_key}"
+            ));
+        }
+    }
     let cap = config.fusion_daily_mint_cap(recipe_key.split('+').count());
     let minted = save
         .daily
@@ -195,7 +201,7 @@ pub(crate) fn consume_fusion_pair(
         }
     }
     record_fusion_mint(save, recipe_key);
-    if save.onboarding.status == "active" && save.onboarding.tutorial_fusions < 2 {
+    if expected_tutorial_fusion_recipe(save).is_some() {
         save.onboarding.tutorial_fusions += 1;
     }
 }
@@ -238,6 +244,12 @@ pub(crate) fn push_fusion_egg(
         steam_item_def: None,
         shop_element: None,
     });
+    if save.onboarding.status == "active"
+        && save.onboarding.step == "D10"
+        && matches!(save.onboarding.tutorial_fusions, 3 | 4)
+    {
+        save.onboarding.guided_fusion_egg_ids.insert(egg_id.clone());
+    }
     egg_id
 }
 
@@ -310,8 +322,7 @@ pub fn plan_fusion(
 ) -> Result<FusionPlan, String> {
     use crate::fusion_slots as fs;
     let tier = pet_a.tier;
-    let tutorial_reimbursed =
-        save.onboarding.status == "active" && save.onboarding.tutorial_fusions < 2;
+    let tutorial_reimbursed = expected_tutorial_fusion_recipe(save).is_some();
     let fee = if tutorial_reimbursed {
         0
     } else {

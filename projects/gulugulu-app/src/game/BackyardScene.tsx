@@ -305,7 +305,12 @@ export type BackyardSceneProps = {
   /** 进后院时的一次性红点点题（fuse/collectEgg/buyEgg）；null=无待办或引导期让位。 */
   entryGuideKind?: "fuse" | "collectEgg" | "buyEgg" | null;
   onCoachMoved?: () => void;
-  onCoachYard?: (state: { nearShop: boolean; nearMarket: boolean; nearPetId: string | null }) => void;
+  onCoachYard?: (state: {
+    nearShop: boolean;
+    nearMarket: boolean;
+    nearNoticeBoard: boolean;
+    nearPetId: string | null;
+  }) => void;
 };
 
 export function BackyardScene({
@@ -588,6 +593,18 @@ export function BackyardScene({
   }, [save.yardLevel]);
 
   const activePet = save.pets.find((pet) => pet.id === save.activePetId) ?? null;
+  const d10Recipe = (save.onboarding?.tutorialFusions ?? 0) < 3
+    ? { first: "normal", second: "grass" }
+    : { first: "fire", second: "ice" };
+  const isMaxBaseElementPet = (pet: PetInstance, element: string) => {
+    const elements = config.species[pet.species]?.elements ?? [];
+    return pet.tier === 1 &&
+      isMaxLevel(config, pet) &&
+      elements.length === 1 &&
+      elements[0] === element;
+  };
+  const d10FirstPet = save.pets.find((pet) => isMaxBaseElementPet(pet, d10Recipe.first));
+  const d10ActiveIsFirst = d10FirstPet?.id === save.activePetId;
   const onboardingParentElement =
     save.onboarding?.status === "active"
       ? ["B02", "B03", "B04", "B05"].includes(save.onboarding.step)
@@ -596,11 +613,17 @@ export function BackyardScene({
         ? "water"
         : ["D05", "D06", "D07"].includes(save.onboarding.step)
           ? "electric"
+          : save.onboarding.step === "D10"
+            ? d10ActiveIsFirst
+              ? d10Recipe.second
+              : d10Recipe.first
           : null
       : null;
   const onboardingParentPetId = onboardingParentElement
     ? save.pets.find((pet) =>
-        onboardingParentElement === "electric"
+        save.onboarding?.step === "D10"
+          ? isMaxBaseElementPet(pet, onboardingParentElement)
+          : onboardingParentElement === "electric"
           ? pet.species === "voltmouse" && isMaxLevel(config, pet)
           : config.species[pet.species]?.elements.includes(onboardingParentElement),
       )?.id ?? null
@@ -643,16 +666,10 @@ export function BackyardScene({
         elements.includes("fire")
       ) {
         tutorialSpot = { x: ONBOARDING_PET_X.far, bottom: 142, size: 88 };
-      } else if (onboardingStep === "D04" && pet.id === onboardingParentPetId) {
-        tutorialSpot = { x: ONBOARDING_PET_X.near, bottom: 142, size: 88 };
-      } else if (
-        onboardingStep != null &&
-        ["D05", "D06", "D07"].includes(onboardingStep) &&
-        pet.id === onboardingParentPetId
-      ) {
-        tutorialSpot = { x: ONBOARDING_PET_X.far, bottom: 142, size: 88 };
       }
-      const onboardingFallbackX = onboardingStep == null
+      const preserveFusionStations = onboardingStep != null &&
+        ["D04", "D05", "D06", "D07", "D10"].includes(onboardingStep);
+      const onboardingFallbackX = onboardingStep == null || preserveFusionStations
         ? null
         : ONBOARDING_PET_SPOTS[onboardingPlacedIndex]
           ?? ONBOARDING_PET_SPOTS[ONBOARDING_PET_SPOTS.length - 1]
@@ -771,6 +788,7 @@ export function BackyardScene({
     shopOpen,
     museumOpen,
     marketOpen,
+    nearNoticeBoard,
     trainingOpen,
     poiSides,
     nearPetId,
@@ -818,12 +836,22 @@ export function BackyardScene({
     save.onboarding?.step,
   ]);
 
+  const collectingGuidedFusionEggs =
+    save.onboarding?.status === "active" &&
+    save.onboarding.step === "D10" &&
+    (save.onboarding.tutorialFusions ?? 0) >= 4 &&
+    (save.onboarding.guidedFusionEggIds?.length ?? 0) > 0;
   const onboardingFusionEggId =
     save.onboarding?.status === "active" &&
-    (save.onboarding.step === "B05" || save.onboarding.step === "D07")
+    (save.onboarding.step === "B05" || save.onboarding.step === "D07" || collectingGuidedFusionEggs)
       ? [...save.eggs]
           .reverse()
-          .find((egg) => egg.slot != null && egg.tier >= 2 && egg.shopElement == null)?.id ?? null
+          .find((egg) =>
+            egg.slot != null &&
+            egg.tier >= 2 &&
+            egg.shopElement == null &&
+            (!collectingGuidedFusionEggs || save.onboarding?.guidedFusionEggIds?.includes(egg.id)),
+          )?.id ?? null
       : null;
   useEffect(() => {
     if (!onboardingFusionEggId) return;
@@ -834,26 +862,6 @@ export function BackyardScene({
     // cover the egg and swallow the click even though the coach ring is visible.
     centerOnWorldX(HATCHERY_CENTER_X + 160);
   }, [centerOnWorldX, onboardingFusionEggId]);
-  useEffect(() => {
-    if (save.onboarding?.status !== "active" || save.onboarding.step !== "D05") return;
-    if (!onboardingParentPetId) return;
-    // Bring one eligible Volt Mouse into view as a fallback target. Any other max-level
-    // Volt Mouse the player reaches is equally valid.
-    centerOnWorldX(900);
-  }, [
-    centerOnWorldX,
-    onboardingParentPetId,
-    save.onboarding?.status,
-    save.onboarding?.step,
-  ]);
-  useEffect(() => {
-    if (save.onboarding?.status !== "active" || save.onboarding.step !== "G01") return;
-    // The Steam market is several screens to the right of the hatchery/notice-board route.
-    // Put it one obvious click away instead of asking a brand-new player to hold D across
-    // the whole backyard while the strong input mutex hides every unrelated destination.
-    centerOnWorldX(PANEL_SPAWN_X.market - 360);
-  }, [centerOnWorldX, save.onboarding?.status, save.onboarding?.step]);
-
   useEffect(() => {
     setConfirmRelease(false);
   }, [nearPetId]);
@@ -871,6 +879,14 @@ export function BackyardScene({
     prevActiveIdRef.current = curr;
     const consumed = prev != null && !save.pets.some((pet) => pet.id === prev);
     if (!consumed || curr == null) return;
+    // D10 must keep the hatchery in view until both guided fusion eggs are
+    // collected. This effect runs after the egg-centering effect in the same
+    // commit, so recentering on the replacement companion here would otherwise
+    // push the highlighted pits several screens off-camera.
+    if (collectingGuidedFusionEggs) {
+      centerOnWorldX(HATCHERY_CENTER_X + 160);
+      return;
+    }
     const spot = spotForStationSlot(stationAssignRef.current.get(curr));
     if (!spot) return;
     // 就地融合仪式进行中 / 已点融合但仪式还没起演：先别把相机拽到新陪伴站位（否则演出
@@ -881,7 +897,7 @@ export function BackyardScene({
       return;
     }
     centerOnWorldX(spot.x);
-  }, [save.activePetId, save.pets, centerOnWorldX]);
+  }, [collectingGuidedFusionEggs, save.activePetId, save.pets, centerOnWorldX]);
 
   const { petFx, workPulse, laboringIds, workClick, pulseClassFor } = useBackyardWorkFx({
     busy,
@@ -938,14 +954,16 @@ export function BackyardScene({
     fusionArmedAtRef.current = null;
     setFusionRitual(null);
     setCharHidden(false);
-    const target = pendingRecenterRef.current;
+    const target = collectingGuidedFusionEggs
+      ? HATCHERY_CENTER_X + 160
+      : pendingRecenterRef.current;
     pendingRecenterRef.current = null;
     if (target != null) {
       centerOnWorldX(target);
       // 主角此刻恰好复位可见：抢先把它的 DOM 站位对齐到回中点，免 1 帧停在旧位的闪跳。
       if (charRef.current) charRef.current.style.left = `${target - CHAR_SIZE / 2}px`;
     }
-  }, [centerOnWorldX, charRef]);
+  }, [centerOnWorldX, charRef, collectingGuidedFusionEggs]);
   fusionRitualEndRef.current = endFusionRitual;
 
   // 「点融合」入口包一层：趁两亲都还在场，抓下它们的世界站位（含物种）存进 origin ref，
@@ -986,7 +1004,8 @@ export function BackyardScene({
     if (!origin || prefersReducedMotion()) {
       const deferred = pendingRecenterRef.current;
       pendingRecenterRef.current = null;
-      if (deferred != null) centerOnWorldX(deferred);
+      if (collectingGuidedFusionEggs) centerOnWorldX(HATCHERY_CENTER_X + 160);
+      else if (deferred != null) centerOnWorldX(deferred);
       return;
     }
     const slot = celebration.slot;
@@ -1008,7 +1027,7 @@ export function BackyardScene({
       fusionRitualTimerRef.current = null;
       fusionRitualEndRef.current();
     }, durationMs);
-  }, [celebration, centerOnWorldX]);
+  }, [celebration, centerOnWorldX, collectingGuidedFusionEggs]);
 
   // ---- 头顶气泡（提示 > 融合条件 > 台词） ----
 
@@ -1034,7 +1053,8 @@ export function BackyardScene({
     const fee = fusionFeeFor(config, pet.tier);
     const tutorialReimbursed =
       save.onboarding?.status === "active" &&
-      (save.onboarding.tutorialFusions ?? 0) < 2;
+      (save.onboarding.tutorialFusions ?? 0) < 4 &&
+      ["B02", "B03", "D05", "D06", "D10"].includes(save.onboarding.step);
     if (save.coins < fee && !tutorialReimbursed) {
       return fmt(bk.hint.needCoins, { fee: formatCount(fee) });
     }
@@ -1089,8 +1109,8 @@ export function BackyardScene({
   const charBubble = coachLabel ?? charSay;
   // 把后院运行时（近商店 / 近宠）上报给 App 的 resolver；主角一移动即完成 C3。
   useEffect(() => {
-    onCoachYard?.({ nearShop: shopOpen, nearMarket: marketOpen, nearPetId });
-  }, [shopOpen, marketOpen, nearPetId, onCoachYard]);
+    onCoachYard?.({ nearShop: shopOpen, nearMarket: marketOpen, nearNoticeBoard, nearPetId });
+  }, [shopOpen, marketOpen, nearNoticeBoard, nearPetId, onCoachYard]);
   useEffect(() => {
     if (walking) onCoachMoved?.();
   }, [walking, onCoachMoved]);
@@ -1404,7 +1424,8 @@ export function BackyardScene({
                 yardMaxed ||
                 (yardUpgradeCost != null &&
                   save.coins < yardUpgradeCost &&
-                  !(save.onboarding?.status === "active" && save.onboarding.step === "A14"))
+                  !(save.onboarding?.status === "active" &&
+                    (save.onboarding.step === "A14" || save.onboarding.step === "D09")))
               }
               onClick={(event) => {
                 event.stopPropagation();
@@ -1467,30 +1488,41 @@ export function BackyardScene({
               }
               onClick={(event) => {
                 const guideStep = save.onboarding?.status === "active" ? save.onboarding.step : null;
+                const d10First = guideStep === "D10" &&
+                  isMaxBaseElementPet(pet, d10Recipe.first) &&
+                  !d10ActiveIsFirst;
                 const guideElement =
-                  guideStep === "D04"
-                    ? "water"
-                    : guideStep === "A16"
+                  guideStep === "A16"
                       ? "fire"
                       : guideStep === "B01" || guideStep === "B02"
                         ? "normal"
                         : null;
-                if (guideElement && config.species[pet.species]?.elements.includes(guideElement)) {
+                if (
+                  guideElement && config.species[pet.species]?.elements.includes(guideElement)
+                ) {
                   event.stopPropagation();
                   onFollow(pet.id);
+                  return;
+                }
+                const isWalkOnlyFusionGuideTarget =
+                  (guideStep === "D04" &&
+                    config.species[pet.species]?.elements.includes("water")) ||
+                  (guideStep === "D05" &&
+                    pet.species === "voltmouse" &&
+                    isMaxLevel(config, pet)) ||
+                  (guideStep === "D10" &&
+                    (d10First ||
+                      (d10ActiveIsFirst && isMaxBaseElementPet(pet, d10Recipe.second))));
+                if (isWalkOnlyFusionGuideTarget) {
+                  event.stopPropagation();
                   return;
                 }
                 const isFusionGuidePartner =
                   (guideStep === "B02" &&
                     pet.id === onboardingParentPetId &&
-                    config.species[pet.species]?.elements.includes("fire")) ||
-                  (guideStep === "D05" &&
-                    pet.species === "voltmouse" &&
-                    isMaxLevel(config, pet));
+                    config.species[pet.species]?.elements.includes("fire"));
                 if (isFusionGuidePartner) {
                   event.stopPropagation();
-                  // Clicking any eligible partner means "walk here"; the Fuse action appears
-                  // beside whichever max-level Volt Mouse the player chose.
                   centerOnWorldX(spot.x);
                   return;
                 }

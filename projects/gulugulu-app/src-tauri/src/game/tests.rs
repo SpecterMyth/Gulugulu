@@ -399,7 +399,7 @@ fn fusion_rules_and_result() {
 }
 
 #[test]
-fn first_two_onboarding_fusions_are_free_classic_and_eight_seconds() {
+fn four_onboarding_fusions_are_unique_free_classic_and_eight_seconds() {
     let config = test_config();
     let mut save = fresh_save(&config);
     save.eggs.clear();
@@ -408,42 +408,146 @@ fn first_two_onboarding_fusions_are_free_classic_and_eight_seconds() {
     save.coins = 321;
     let max1 = config.max_level_for_tier(1);
 
-    let normal = add_pet(&mut save, &config, "guluduck", max1);
-    let fire = add_pet(&mut save, &config, "emberfox", max1);
-    let first_egg =
-        logic_fuse_pets(&config, &mut save, &normal, &fire, 1000, "2026-07-07").unwrap();
-    let first = save.eggs.iter().find(|egg| egg.id == first_egg).unwrap();
-    assert_eq!(
-        first.species.as_str(),
-        config
-            .species_by_recipe
-            .get("fire+normal")
-            .unwrap()
-            .as_str()
-    );
-    assert_eq!(first.hatch_at, Some(1008));
-    assert!(first.pending_fusion.is_none());
-    assert_eq!(save.coins, 321, "新人报销不能吞掉玩家自己赚的金币");
-    assert_eq!(save.onboarding.tutorial_fusions, 1);
+    let cases = [
+        ("B03", "fire+normal", "fire", "normal"),
+        ("D06", "electric+water", "electric", "water"),
+        ("D10", "grass+normal", "grass", "normal"),
+        ("D10", "fire+ice", "fire", "ice"),
+    ];
+    for (index, (step, recipe, element_a, element_b)) in cases.iter().enumerate() {
+        save.onboarding.step = (*step).to_string();
+        save.eggs.clear();
+        let pet_a = add_pet(
+            &mut save,
+            &config,
+            &config.species_by_recipe[*element_a].clone(),
+            max1,
+        );
+        let pet_b = add_pet(
+            &mut save,
+            &config,
+            &config.species_by_recipe[*element_b].clone(),
+            max1,
+        );
+        let now = 1000 + index as i64 * 1000;
+        let egg_id =
+            logic_fuse_pets(&config, &mut save, &pet_a, &pet_b, now, "2026-07-07").unwrap();
+        let egg = save.eggs.iter().find(|egg| egg.id == egg_id).unwrap();
+        assert_eq!(egg.species, config.species_by_recipe[*recipe]);
+        assert_eq!(egg.hatch_at, Some(now + 8));
+        assert!(egg.pending_fusion.is_none());
+        assert_eq!(
+            save.coins, 321,
+            "tutorial reimbursement must preserve coins"
+        );
+        assert_eq!(save.onboarding.tutorial_fusions, index as u8 + 1);
+    }
 
+    save.onboarding.tutorial_fusions = 2;
+    save.onboarding.step = "D10".to_string();
+    let fire = add_pet(&mut save, &config, "emberfox", max1);
+    let ice = add_pet(&mut save, &config, "frostpeng", max1);
+    let error = logic_fuse_pets(&config, &mut save, &fire, &ice, 6000, "2026-07-07").unwrap_err();
+    assert!(error.contains("#tutorialFusionRecipeMismatch"));
+}
+
+#[test]
+fn third_and_fourth_guided_fusion_eggs_block_factory_until_both_are_collected() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
     save.eggs.clear();
-    let water = add_pet(&mut save, &config, "bubblefrog", max1);
-    let electric = add_pet(&mut save, &config, "voltmouse", max1);
-    let second_egg =
-        logic_fuse_pets(&config, &mut save, &water, &electric, 2000, "2026-07-07").unwrap();
-    let second = save.eggs.iter().find(|egg| egg.id == second_egg).unwrap();
-    assert_eq!(
-        second.species.as_str(),
-        config
-            .species_by_recipe
-            .get("electric+water")
-            .unwrap()
-            .as_str()
+    save.pets.clear();
+    save.active_pet_id = None;
+    save.hatchery_level = 3;
+    save.onboarding.step = "D10".to_string();
+    save.onboarding.tutorial_fusions = 2;
+    let max1 = config.max_level_for_tier(1);
+
+    let grass = add_pet(&mut save, &config, &config.species_by_recipe["grass"], max1);
+    let normal = add_pet(
+        &mut save,
+        &config,
+        &config.species_by_recipe["normal"],
+        max1,
     );
-    assert_eq!(second.hatch_at, Some(2008));
-    assert!(second.pending_fusion.is_none());
-    assert_eq!(save.coins, 321);
-    assert_eq!(save.onboarding.tutorial_fusions, 2);
+    let third_egg =
+        logic_fuse_pets(&config, &mut save, &grass, &normal, 1_000, "2026-07-07").unwrap();
+
+    let fire = add_pet(&mut save, &config, &config.species_by_recipe["fire"], max1);
+    let ice = add_pet(&mut save, &config, &config.species_by_recipe["ice"], max1);
+    let fourth_egg = logic_fuse_pets(&config, &mut save, &fire, &ice, 2_000, "2026-07-07").unwrap();
+
+    assert_eq!(save.onboarding.tutorial_fusions, 4);
+    assert_eq!(save.onboarding.guided_fusion_egg_ids.len(), 2);
+    assert!(save.onboarding.guided_fusion_egg_ids.contains(&third_egg));
+    assert!(save.onboarding.guided_fusion_egg_ids.contains(&fourth_egg));
+    assert_eq!(
+        logic_advance_onboarding(&config, &mut save, "D10", 2_001).unwrap_err(),
+        "#onboardingFusionEggsPending"
+    );
+
+    logic_collect_hatched(&config, &mut save, &third_egg, 2_008, "2026-07-07").unwrap();
+    assert_eq!(save.onboarding.guided_fusion_egg_ids.len(), 1);
+    assert_eq!(
+        logic_advance_onboarding(&config, &mut save, "D10", 2_009).unwrap_err(),
+        "#onboardingFusionEggsPending"
+    );
+
+    logic_collect_hatched(&config, &mut save, &fourth_egg, 2_009, "2026-07-07").unwrap();
+    assert!(save.onboarding.guided_fusion_egg_ids.is_empty());
+    logic_advance_onboarding(&config, &mut save, "D10", 2_010).unwrap();
+    assert_eq!(save.onboarding.step, "D11");
+}
+
+#[test]
+fn migration_rewinds_legacy_second_factory_cursor_to_collect_guided_fusion_eggs() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.eggs.clear();
+    save.onboarding.step = "E02".to_string();
+    save.onboarding.tutorial_fusions = 4;
+    save.onboarding.factory_formal_entered = true;
+    save.onboarding
+        .guided_fusion_egg_ids
+        .insert("stale-collected-egg".to_string());
+    for (index, recipe) in ["grass+normal", "fire+ice"].into_iter().enumerate() {
+        save.eggs.push(EggInstance {
+            id: format!("legacy-guided-{index}"),
+            species: config.species_by_recipe[recipe].clone(),
+            tier: 2,
+            hatch_kind: "tier2".to_string(),
+            slot: Some(index as u8),
+            hatch_at: Some(2_000),
+            pending_fusion: None,
+            steam_item_id: None,
+            steam_item_def: None,
+            shop_element: None,
+        });
+    }
+
+    assert!(migrate_save(
+        &config,
+        &mut save,
+        &BTreeMap::new(),
+        2_000,
+        "2026-07-07"
+    ));
+    assert_eq!(save.onboarding.step, "D10");
+    assert!(!save.onboarding.factory_formal_entered);
+    assert_eq!(
+        save.onboarding.guided_fusion_egg_ids,
+        std::collections::BTreeSet::from([
+            "legacy-guided-0".to_string(),
+            "legacy-guided-1".to_string()
+        ])
+    );
+    assert!(!migrate_save(
+        &config,
+        &mut save,
+        &BTreeMap::new(),
+        2_001,
+        "2026-07-07"
+    ));
 }
 
 #[test]
@@ -2285,8 +2389,8 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
 
     save.onboarding.step = "B05".to_string();
     logic_advance_onboarding(&config, &mut save, "B05", 2000).unwrap();
-    assert_eq!(save.pets.len(), 3, "首次异种融合后固定送三只");
-    let expected_species: Vec<String> = ["normal", "fire", "electric"]
+    assert_eq!(save.pets.len(), 6, "首次异种融合后固定送六只");
+    let expected_species: Vec<String> = ["normal", "fire", "water", "grass", "electric", "ice"]
         .iter()
         .map(|element| config.species_by_recipe[*element].clone())
         .collect();
@@ -2296,14 +2400,15 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
             .map(|pet| pet.species.clone())
             .collect::<Vec<_>>(),
         expected_species,
-        "首批奖励应固定为一般、火、电三系"
+        "首批奖励应覆盖六个基础属性"
     );
     assert!(save.onboarding.starter_trio_claimed);
     assert!(save
         .pets
         .iter()
         .all(|pet| pet.level == config.max_level_for_tier(1)));
-    assert_eq!(occupied_pet_count(&save), 3, "首批三只照常占容量");
+    assert!(save.onboarding.post_practice_roster_claimed);
+    assert_eq!(occupied_pet_count(&save), 0, "六只奖励不占后院容量");
     assert!(
         crate::steam_sync::migration_sweep(&config, &mut save),
         "新手赠送宠必须进入与普通一阶孵化相同的 Steam 铸造队列"
@@ -2313,16 +2418,16 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
             .iter()
             .filter(|op| matches!(op, SteamOp::MintTier1 { .. }))
             .count(),
-        3
+        6
     );
     assert!(
         !crate::steam_sync::migration_sweep(&config, &mut save),
         "重复登记不能重复铸造 Steam 资产"
     );
 
-    let after_trio = save.pets.len();
+    let after_roster = save.pets.len();
     logic_advance_onboarding(&config, &mut save, "B05", 2001).unwrap();
-    assert_eq!(save.pets.len(), after_trio, "重复回执不得重复发礼包");
+    assert_eq!(save.pets.len(), after_roster, "重复回执不得重复发礼包");
 
     save.onboarding.step = "C01".to_string();
     logic_advance_onboarding(&config, &mut save, "C12", 3000).unwrap();
@@ -2332,27 +2437,24 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
     );
     assert_eq!(
         save.pets.len(),
-        after_trio + 6,
-        "真实首班结束固定发六只，不做查缺"
+        after_roster,
+        "真实首班结束不再重复发放六宠礼包"
     );
     assert_eq!(save.capacity_exempt_pet_ids.len(), 6);
-    assert_eq!(occupied_pet_count(&save), 3, "六只首班礼包忽略后院上限");
+    assert_eq!(occupied_pet_count(&save), 0, "六宠礼包忽略后院上限");
     assert!(save.onboarding.post_practice_roster_claimed);
     assert_eq!(save.factory_tutorial.status, "completed");
-    assert!(
-        crate::steam_sync::migration_sweep(&config, &mut save),
-        "首班礼包也必须按一阶孵化登记 Steam"
-    );
+    assert!(!crate::steam_sync::migration_sweep(&config, &mut save));
     assert_eq!(
         save.steam_outbox
             .iter()
             .filter(|op| matches!(op, SteamOp::MintTier1 { .. }))
             .count(),
-        9
+        6
     );
 
     logic_advance_onboarding(&config, &mut save, "C12", 3001).unwrap();
-    assert_eq!(save.pets.len(), after_trio + 6, "首班礼包同样幂等");
+    assert_eq!(save.pets.len(), after_roster, "首班礼包同样幂等");
     assert!(
         !crate::steam_sync::migration_sweep(&config, &mut save),
         "礼包重复回执不能重复登记 Steam"
@@ -2360,14 +2462,14 @@ fn onboarding_rewards_are_exact_idempotent_and_capacity_exempt() {
 }
 
 #[test]
-fn skipping_onboarding_grants_both_tutorial_fusion_results_once() {
+fn skipping_onboarding_grants_all_four_tutorial_fusion_results_once() {
     let config = test_config();
     let mut save = fresh_save(&config);
     save.eggs.clear();
 
     logic_grant_skipped_onboarding_fusions(&config, &mut save, 2_000).unwrap();
 
-    let expected: Vec<String> = ["fire+normal", "electric+water"]
+    let expected: Vec<String> = ["fire+normal", "electric+water", "grass+normal", "fire+ice"]
         .iter()
         .map(|recipe| config.species_by_recipe[*recipe].clone())
         .collect();
@@ -2379,22 +2481,34 @@ fn skipping_onboarding_grants_both_tutorial_fusion_results_once() {
         expected
     );
     assert!(save.pets.iter().all(|pet| {
-        pet.tier == 2
-            && pet.level == config.max_level_for_tier(2)
-            && save.capacity_exempt_pet_ids.contains(&pet.id)
+        pet.tier == 2 && pet.level == 1 && save.capacity_exempt_pet_ids.contains(&pet.id)
     }));
-    assert_eq!(save.onboarding.tutorial_fusions, 2);
+    assert_eq!(save.onboarding.tutorial_fusions, 4);
     assert!(save.tutorial_first_fusion_done);
     assert_eq!(save.stats.highest_tier, 2);
     assert_eq!(save.dex_obtained.get(&expected[0]).copied(), Some(1));
     assert_eq!(save.dex_obtained.get(&expected[1]).copied(), Some(1));
+    assert_eq!(save.dex_obtained.get(&expected[2]).copied(), Some(1));
+    assert_eq!(save.dex_obtained.get(&expected[3]).copied(), Some(1));
+    assert_eq!(
+        save.steam_outbox
+            .iter()
+            .filter(|op| matches!(op, SteamOp::Fuse { .. }))
+            .count(),
+        4,
+        "each skipped fusion keeps a durable retryable Steam receipt"
+    );
 
     logic_grant_skipped_onboarding_fusions(&config, &mut save, 2_001).unwrap();
-    assert_eq!(save.pets.len(), 2, "retrying skip must not duplicate rewards");
+    assert_eq!(
+        save.pets.len(),
+        4,
+        "retrying skip must not duplicate rewards"
+    );
 }
 
 #[test]
-fn skipping_after_first_tutorial_fusion_only_grants_the_second_result() {
+fn skipping_after_first_tutorial_fusion_grants_the_remaining_three_results() {
     let config = test_config();
     let mut save = fresh_save(&config);
     save.eggs.clear();
@@ -2402,12 +2516,23 @@ fn skipping_after_first_tutorial_fusion_only_grants_the_second_result() {
 
     logic_grant_skipped_onboarding_fusions(&config, &mut save, 2_000).unwrap();
 
-    assert_eq!(save.pets.len(), 1);
+    assert_eq!(save.pets.len(), 3);
     assert_eq!(
         save.pets[0].species,
         config.species_by_recipe["electric+water"]
     );
-    assert_eq!(save.onboarding.tutorial_fusions, 2);
+    assert_eq!(
+        save.pets
+            .iter()
+            .map(|pet| pet.species.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            config.species_by_recipe["electric+water"].as_str(),
+            config.species_by_recipe["grass+normal"].as_str(),
+            config.species_by_recipe["fire+ice"].as_str(),
+        ]
+    );
+    assert_eq!(save.onboarding.tutorial_fusions, 4);
 }
 
 #[test]
@@ -2487,10 +2612,199 @@ fn onboarding_facility_upgrades_are_fully_reimbursed() {
         "A13 dead-end recovery must unlock one free pit without charging"
     );
 
-    save.coins = 137;
-    logic_upgrade_yard(&config, &mut save, 1_000, "2026-07-07").unwrap();
-    assert_eq!(save.yard_level, 2);
-    assert_eq!(save.coins, 137, "教学后院扩容应全额报销");
+    save.onboarding.step = "D08".to_string();
+    logic_upgrade_hatchery(&config, &mut save, 1_002, "2026-07-07").unwrap();
+    assert_eq!(save.hatchery_level, 4);
+    assert_eq!(save.coins, 0);
+    assert_eq!(
+        save.onboarding.step, "D09",
+        "upgrade and receipt commit atomically"
+    );
+
+    save.yard_level = 2;
+    save.onboarding.tutorial_fusions = 2;
+    let pets_before_second_yard_upgrade = save.pets.len();
+    logic_upgrade_yard(&config, &mut save, 1_003, "2026-07-07").unwrap();
+    assert_eq!(save.yard_level, 3);
+    assert_eq!(
+        save.coins, 0,
+        "guided backyard upgrade must be fully reimbursed"
+    );
+    assert_eq!(
+        save.onboarding.step, "D10",
+        "upgrade and receipt commit atomically"
+    );
+    assert!(save.onboarding.post_yard_roster_claimed);
+    assert_eq!(
+        save.pets.len(),
+        pets_before_second_yard_upgrade + 6,
+        "the second yard upgrade must immediately grant a fresh six-pet set"
+    );
+    for element in ["normal", "fire", "water", "grass", "electric", "ice"] {
+        let species = &config.species_by_recipe[element];
+        let parent = save
+            .pets
+            .iter()
+            .find(|pet| pet.species == *species && pet.tier == 1)
+            .unwrap_or_else(|| panic!("D10 must have a usable {element} parent"));
+        assert_eq!(parent.level, config.max_level_for_tier(1));
+        assert!(save.capacity_exempt_pet_ids.contains(&parent.id));
+    }
+    let pet_count = save.pets.len();
+    logic_advance_onboarding(&config, &mut save, "D09", 1_004).unwrap();
+    assert_eq!(
+        save.pets.len(),
+        pet_count,
+        "stale D09 receipt must not duplicate the gift"
+    );
+}
+
+#[test]
+fn d10_reload_repairs_legacy_missing_parents_and_queues_steam_recovery_once() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.eggs.clear();
+    save.pets.clear();
+    save.active_pet_id = None;
+    save.capacity_exempt_pet_ids.clear();
+    save.steam_outbox.clear();
+    save.onboarding.step = "D10".to_string();
+    save.onboarding.tutorial_fusions = 2;
+    save.onboarding.starter_trio_claimed = true;
+    save.onboarding.post_practice_roster_claimed = true;
+    save.onboarding.post_yard_roster_claimed = false;
+
+    let max_level = config.max_level_for_tier(1);
+    for (element, steam_id) in [("grass", "legacy-grass"), ("ice", "legacy-ice")] {
+        let species = config.species_by_recipe[element].clone();
+        let pet_id = add_pet_at_tier(&mut save, &config, &species, 1, max_level);
+        let pet = save.pets.iter_mut().find(|pet| pet.id == pet_id).unwrap();
+        pet.steam_item_id = Some(steam_id.to_string());
+        pet.steam_item_def = config.steam_def_for_species(&species);
+        save.capacity_exempt_pet_ids.insert(pet_id);
+    }
+
+    assert!(migrate_save(
+        &config,
+        &mut save,
+        &BTreeMap::new(),
+        2_000,
+        "2026-07-07"
+    ));
+    assert!(save.onboarding.post_yard_roster_claimed);
+    assert_eq!(
+        save.pets.len(),
+        8,
+        "legacy D10 keeps two parents and receives six new ones"
+    );
+    for element in ["normal", "fire", "water", "grass", "electric", "ice"] {
+        let species = &config.species_by_recipe[element];
+        let parent = save
+            .pets
+            .iter()
+            .find(|pet| pet.species == *species && pet.tier == 1)
+            .unwrap_or_else(|| panic!("reload must repair the {element} parent"));
+        assert_eq!(parent.level, max_level);
+        assert!(save.capacity_exempt_pet_ids.contains(&parent.id));
+    }
+
+    crate::steam_sync::migration_sweep(&config, &mut save);
+    assert_eq!(
+        save.steam_outbox
+            .iter()
+            .filter(|op| matches!(op, SteamOp::MintTier1 { .. }))
+            .count(),
+        6,
+        "all six newly granted parents need exactly one Steam mint recovery"
+    );
+    assert!(!crate::steam_sync::migration_sweep(&config, &mut save));
+    assert!(!migrate_save(
+        &config,
+        &mut save,
+        &BTreeMap::new(),
+        2_000,
+        "2026-07-07"
+    ));
+}
+
+#[test]
+fn b05_reload_accepts_collected_steam_ai_result_without_local_species_metadata() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.eggs.clear();
+    save.pets.clear();
+    save.active_pet_id = None;
+    save.capacity_exempt_pet_ids.clear();
+    save.steam_outbox.clear();
+    save.onboarding.step = "B05".to_string();
+    save.onboarding.tutorial_fusions = 1;
+    let ai_pet = add_pet_at_tier(&mut save, &config, "aif0701", 2, 1);
+    let pet = save.pets.iter_mut().find(|pet| pet.id == ai_pet).unwrap();
+    pet.steam_item_id = Some("steam-ai-result".to_string());
+    pet.steam_item_def = Some(10_701);
+
+    assert!(!config.species.contains_key("aif0701"));
+    assert!(!save.custom_species.contains_key("aif0701"));
+    assert!(migrate_save(
+        &config,
+        &mut save,
+        &BTreeMap::new(),
+        2_000,
+        "2026-07-07"
+    ));
+    assert_eq!(save.onboarding.step, "B06");
+    assert!(save.onboarding.starter_trio_claimed);
+    assert_eq!(
+        save.pets.len(),
+        7,
+        "AI result plus the complete six-pet roster"
+    );
+    assert_eq!(save.capacity_exempt_pet_ids.len(), 6);
+    assert_eq!(
+        save.steam_outbox
+            .iter()
+            .filter(|op| matches!(op, SteamOp::MintTier1 { .. }))
+            .count(),
+        6
+    );
+    assert!(!migrate_save(
+        &config,
+        &mut save,
+        &BTreeMap::new(),
+        2_001,
+        "2026-07-07"
+    ));
+    assert_eq!(save.pets.len(), 7, "reload must not duplicate the roster");
+}
+
+#[test]
+fn collected_tier_two_tutorial_pet_starts_at_level_one() {
+    let config = test_config();
+    let mut save = fresh_save(&config);
+    save.eggs.clear();
+    save.pets.clear();
+    save.active_pet_id = None;
+    save.onboarding.step = "B05".to_string();
+    let species = config.species_by_recipe["fire+normal"].clone();
+    save.eggs.push(EggInstance {
+        id: "tutorial-tier-two".into(),
+        species,
+        tier: 2,
+        hatch_kind: "tier2".into(),
+        slot: Some(0),
+        hatch_at: Some(2_000),
+        pending_fusion: None,
+        steam_item_id: None,
+        steam_item_def: None,
+        shop_element: None,
+    });
+
+    let pet_id =
+        logic_collect_hatched(&config, &mut save, "tutorial-tier-two", 2_000, "2026-07-07")
+            .unwrap();
+    let pet = save.pets.iter().find(|pet| pet.id == pet_id).unwrap();
+    assert_eq!(pet.tier, 2);
+    assert_eq!(pet.level, 1);
 }
 
 #[test]
@@ -2639,8 +2953,8 @@ fn complete_onboarding_receipt_simulation_has_no_dead_end_or_double_grant() {
         "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12", "A13",
         "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06", "B07",
         "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "D01",
-        "D02", "D03", "D04", "D05", "D06", "D07", "D08", "E01", "E02", "E03", "F01", "F02", "F03a",
-        "F04", "G01", "G02", "G03", "G04", "G05", "G06", "G07",
+        "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10", "D11", "E01", "E02", "E03",
+        "F01", "F02", "F03a", "F04", "G01", "G02", "G03", "G04", "G05", "G06", "G07",
     ];
     for step in route {
         if step.starts_with('C') {
@@ -2660,7 +2974,8 @@ fn complete_onboarding_receipt_simulation_has_no_dead_end_or_double_grant() {
     assert_eq!(save.factory_tutorial.status, "completed");
     assert!(save.onboarding.starter_trio_claimed);
     assert!(save.onboarding.post_practice_roster_claimed);
-    assert_eq!(save.capacity_exempt_pet_ids.len(), 6);
+    assert!(save.onboarding.post_yard_roster_claimed);
+    assert_eq!(save.capacity_exempt_pet_ids.len(), 12);
     assert!(save.onboarding.factory_formal_entered);
     assert!(save.onboarding.steam_market_open_attempted);
 }
@@ -2720,6 +3035,15 @@ fn claimed_pending_design_keeps_recipe_identity_and_can_fuse() {
         claimed.pending_fusion.is_some(),
         "design task must remain persisted"
     );
+    assert_eq!(
+        claimed.level, 1,
+        "claimed tier-2 pets now start at level one"
+    );
+    save.pets
+        .iter_mut()
+        .find(|pet| pet.id == claimed_id)
+        .unwrap()
+        .level = config.max_level_for_tier(2);
 
     let partner = add_pet_at_tier(
         &mut save,
@@ -2728,5 +3052,6 @@ fn claimed_pending_design_keeps_recipe_identity_and_can_fuse() {
         2,
         config.max_level_for_tier(2),
     );
+    save.coins = 10_000_000;
     assert!(logic_validate_fusion_pair(&config, &save, &claimed_id, &partner).is_ok());
 }

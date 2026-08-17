@@ -818,7 +818,9 @@
   display: grid;
   justify-items: center;
   gap: 5px;
-  z-index: 7;
+  /* 临时的近身动作必须高于 z-index:8 的常驻泥土状态牌；否则低分辨率下
+     状态牌会盖住“陪伴/融合”按钮并截获点击。 */
+  z-index: 9;
   cursor: default;
   animation: by-bubble-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
@@ -994,6 +996,13 @@
   z-index: 8;
   cursor: default;
   filter: var(--by-scene-grade-ui, none);
+}
+
+/* A nearby pet's action cards occupy the same lower soil band. Temporarily hide
+   the persistent yard cluster so it cannot cover text or steal follow/fuse clicks. */
+.backyard:has(.by-bubble) .by-soil-ui {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* On narrow windows the guided hatchery pit sits in the lower-left safe area.

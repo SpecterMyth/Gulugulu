@@ -241,6 +241,18 @@ pub(crate) fn migrate_save(
             changed = true;
         }
     }
+    // A Steam AI result may be fully collected while its optional local species
+    // metadata is absent. Recover B05 from the owned T2 pet itself. D10 has the
+    // equivalent inventory-driven repair for the second post-yard roster.
+    let repaired_first_fusion = repair_collected_first_fusion(config, save, now).unwrap_or(false);
+    let repaired_guided_collection = repair_guided_fusion_collection(config, save);
+    let repaired_guided_parents = repair_guided_fusion_parents(config, save, now).unwrap_or(false);
+    if repaired_first_fusion || repaired_guided_collection || repaired_guided_parents {
+        if crate::steam::integration_enabled() {
+            crate::steam_sync::migration_sweep(config, save);
+        }
+        changed = true;
+    }
     // 所有版本：时钟回拨防呆（settle_pet 也有同款钳制，这里让存档尽快自愈）。
     for pet in &mut save.pets {
         if pet.stamina_updated_at > now {

@@ -134,6 +134,7 @@ export function BackyardHatcheryPits({
             isNext &&
             save.onboarding?.status === "active" &&
             (save.onboarding.step === "A10" ||
+              save.onboarding.step === "D08" ||
               (save.onboarding.step === "A13" &&
                 freeSlot == null &&
                 inventoryEggs.some((egg) => egg.shopElement === "fire")));

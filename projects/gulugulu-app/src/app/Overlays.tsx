@@ -74,7 +74,8 @@ export function Overlays({
           bridge={bridge}
           tutorialMode={
             save?.onboarding?.status === "active" &&
-            (save.onboarding.tutorialFusions ?? 0) < 2
+            (save.onboarding.tutorialFusions ?? 0) < 4 &&
+            ["B02", "B03", "D05", "D06", "D10"].includes(save.onboarding.step)
           }
           onClose={() => setFusionPair(null)}
           onCommitted={handleFusionCommitted}

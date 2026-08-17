@@ -2253,3 +2253,42 @@ for (const [locale, translations] of Object.entries(FACTORY_CORE_FLOW_TRANSLATIO
     Object.fromEntries(FACTORY_CORE_FLOW_SOURCES.map((source, index) => [source, translations[index]])),
   );
 }
+
+// Steam recovery controls and the Ice hiring-price card were added after the
+// last localization batch. These compact templates were reviewed with the same
+// placeholders and economic direction as the English and Simplified Chinese sources.
+const SYNC_AND_ICE_REVIEW = {
+  "zh-Hant": ["🎮 重試 {attempt} · {countdown}", "⚠ Steam 同步需要修復 · 重試", "Steam 交換持續失敗：{error}。請先點擊對帳，再重試。", (v) => `將每隻冰系咕嚕的招募價格乘以 ×${v}。`],
+  ja: ["🎮 再試行 {attempt} · {countdown}", "⚠ Steam同期の修復が必要 · 再試行", "Steam交換が繰り返し失敗しています：{error}。先にクリックして照合し、その後もう一度お試しください。", (v) => `すべての氷属性グルの採用価格を ×${v} 倍にします。`],
+  ko: ["🎮 재시도 {attempt} · {countdown}", "⚠ Steam 동기화 복구 필요 · 재시도", "Steam 교환이 계속 실패합니다: {error}. 먼저 눌러 동기화 상태를 복구한 뒤 다시 시도하세요.", (v) => `모든 얼음 속성 Gulu의 고용 가격에 ×${v}을 곱합니다.`],
+  fr: ["🎮 Nouvelle tentative {attempt} · {countdown}", "⚠ Synchronisation Steam à réparer · réessayer", "L’échange Steam échoue toujours : {error}. Cliquez d’abord pour effectuer le rapprochement, puis réessayez.", (v) => `Multiplie le prix de recrutement de chaque Gulu Glace par ×${v}.`],
+  de: ["🎮 Versuch {attempt} · {countdown}", "⚠ Steam-Synchronisierung muss repariert werden · erneut versuchen", "Der Steam-Tausch schlägt weiterhin fehl: {error}. Klicke zuerst zum Abgleichen und versuche es danach erneut.", (v) => `Multipliziert den Anwerbepreis jedes Eis-Gulu mit ×${v}.`],
+  "es-ES": ["🎮 Reintento {attempt} · {countdown}", "⚠ Hay que reparar la sincronización de Steam · reintentar", "El intercambio de Steam sigue fallando: {error}. Haz clic para conciliar los datos y vuelve a intentarlo.", (v) => `Multiplica el precio de contratación de cada Gulu de Hielo por ×${v}.`],
+  "es-419": ["🎮 Reintento {attempt} · {countdown}", "⚠ Hay que reparar la sincronización de Steam · reintentar", "El intercambio de Steam sigue fallando: {error}. Haz clic para conciliar los datos y vuelve a intentarlo.", (v) => `Multiplica el precio de contratación de cada Gulu de Hielo por ×${v}.`],
+  "pt-BR": ["🎮 Tentativa {attempt} · {countdown}", "⚠ A sincronização da Steam precisa de reparo · tentar de novo", "A troca da Steam continua falhando: {error}. Clique primeiro para reconciliar os dados e tente novamente.", (v) => `Multiplica o preço de contratação de cada Gulu de Gelo por ×${v}.`],
+  "pt-PT": ["🎮 Tentativa {attempt} · {countdown}", "⚠ A sincronização do Steam precisa de reparação · tentar de novo", "A troca do Steam continua a falhar: {error}. Clica primeiro para reconciliar os dados e tenta novamente.", (v) => `Multiplica o preço de contratação de cada Gulu de Gelo por ×${v}.`],
+  ru: ["🎮 Попытка {attempt} · {countdown}", "⚠ Синхронизацию Steam нужно восстановить · повторить", "Обмен Steam снова не удался: {error}. Сначала нажмите для сверки, затем повторите попытку.", (v) => `Стоимость найма каждого питомца типа «Ледяной Gulu» умножается на ×${v}.`],
+  it: ["🎮 Tentativo {attempt} · {countdown}", "⚠ La sincronizzazione Steam va riparata · riprova", "Lo scambio Steam continua a non riuscire: {error}. Fai clic per riconciliare i dati, poi riprova.", (v) => `Moltiplica il prezzo di assunzione di ogni Gulu di Ghiaccio per ×${v}.`],
+  pl: ["🎮 Próba {attempt} · {countdown}", "⚠ Synchronizacja Steam wymaga naprawy · spróbuj ponownie", "Wymiana Steam nadal się nie udaje: {error}. Najpierw kliknij, aby uzgodnić dane, a potem spróbuj ponownie.", (v) => `Cena zatrudnienia każdego Gulu typu „Lodowy Gulu” jest mnożona przez ×${v}.`],
+  tr: ["🎮 Deneme {attempt} · {countdown}", "⚠ Steam eşitlemesinin onarılması gerekiyor · yeniden dene", "Steam takası başarısız olmaya devam ediyor: {error}. Önce uzlaştırmak için tıkla, ardından yeniden dene.", (v) => `Her Buz Gulu'nun işe alım fiyatını ×${v} ile çarpar.`],
+  uk: ["🎮 Спроба {attempt} · {countdown}", "⚠ Синхронізацію Steam треба відновити · повторити", "Обмін Steam знову не вдався: {error}. Спочатку натисніть для звірки, а потім повторіть спробу.", (v) => `Вартість найму кожного улюбленця типу «Крижаний Gulu» множиться на ×${v}.`],
+  ar: ["🎮 المحاولة {attempt} · {countdown}", "⚠ تحتاج مزامنة Steam إلى إصلاح · إعادة المحاولة", "ما زال تبادل Steam يفشل: {error}. انقر أولًا لمطابقة البيانات، ثم أعد المحاولة.", (v) => `يضرب سعر توظيف كل Gulu جليدي في ×${v}.`],
+  th: ["🎮 ลองใหม่ {attempt} · {countdown}", "⚠ ต้องซ่อมการซิงก์ Steam · ลองใหม่", "การแลกเปลี่ยน Steam ยังล้มเหลว: {error} คลิกเพื่อตรวจสอบยอดก่อน แล้วลองอีกครั้ง", (v) => `คูณราคาจ้าง Gulu ธาตุน้ำแข็งทุกตัวด้วย ×${v}`],
+  vi: ["🎮 Thử lại {attempt} · {countdown}", "⚠ Cần sửa đồng bộ Steam · thử lại", "Trao đổi Steam vẫn thất bại: {error}. Hãy nhấp để đối soát trước, rồi thử lại.", (v) => `Nhân giá tuyển mỗi Gulu hệ Băng với ×${v}.`],
+  id: ["🎮 Percobaan {attempt} · {countdown}", "⚠ Sinkronisasi Steam perlu diperbaiki · coba lagi", "Pertukaran Steam terus gagal: {error}. Klik untuk merekonsiliasi data terlebih dahulu, lalu coba lagi.", (v) => `Kalikan harga perekrutan setiap Gulu Es dengan ×${v}.`],
+  nl: ["🎮 Poging {attempt} · {countdown}", "⚠ Steam-synchronisatie moet worden hersteld · opnieuw proberen", "De Steam-uitwisseling blijft mislukken: {error}. Klik eerst om de gegevens af te stemmen en probeer het daarna opnieuw.", (v) => `Vermenigvuldigt de aanwervingsprijs van elke IJs-Gulu met ×${v}.`],
+};
+
+for (const [locale, [retry, repair, error, icePrice]] of Object.entries(SYNC_AND_ICE_REVIEW)) {
+  Object.assign(LLM_REVIEWED_OVERRIDES[locale], {
+    "🎮 Retry {attempt} · {countdown}": retry,
+    "⚠ Steam sync needs repair · retry": repair,
+    "Steam exchange keeps failing: {error}. Click to reconcile first, then retry.": error,
+    ...Object.fromEntries(
+      ["0.3", "0.1", "0.05", "0.02"].map((multiplier) => [
+        `Multiply the hire price of every Ice Gulu by ×${multiplier}.`,
+        icePrice(multiplier),
+      ]),
+    ),
+  });
+}

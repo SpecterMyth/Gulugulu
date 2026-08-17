@@ -162,6 +162,29 @@
   box-shadow: 0 3px 0 #a96b77;
 }
 
+.onboarding-goal button.is-breathing:not(:disabled) {
+  animation: onboarding-next-breathe 1.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes onboarding-next-breathe {
+  0%,
+  100% {
+    transform: rotate(0.3deg) scale(1);
+    box-shadow: 0 4px 0 #b93654, 0 0 0 0 rgb(255 90 120 / 0);
+  }
+  50% {
+    transform: rotate(0.3deg) scale(1.045);
+    box-shadow: 0 4px 0 #b93654, 0 0 0 9px rgb(255 90 120 / 22%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-goal button.is-breathing:not(:disabled) {
+    animation: none;
+  }
+}
+
 .onboarding-goal .onboarding-skip {
   display: block;
   width: auto;

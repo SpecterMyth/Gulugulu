@@ -296,7 +296,7 @@ const ONBOARDING_STEPS = [
   "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11",
   "A12", "A13", "A14", "A15", "A16", "A17", "A18", "A19", "B01", "B02", "B03", "B04", "B05", "B06",
   "B07", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
-  "C11", "C12", "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "E01",
+  "C11", "C12", "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10", "D11", "E01",
   "E02", "E03", "F01", "F02", "F03a", "F04", "G01", "G02", "G03", "G04", "G05",
   "G06", "G07", "DONE",
 ] as const;
@@ -335,6 +335,8 @@ function createInitialSave(config: GameConfig, now: number, today: string): Game
       tutorialFusions: 0,
       starterTrioClaimed: false,
       postPracticeRosterClaimed: false,
+      postYardRosterClaimed: false,
+      guidedFusionEggIds: [],
       factoryFormalEntered: false,
       agentPromptSkipped: false,
       steamMarketOpenAttempted: false,
@@ -355,6 +357,111 @@ function createInitialSave(config: GameConfig, now: number, today: string): Game
 
 /** v2 → v3 迁移（镜像 Rust game::migrate_save）：精力刻度换挡一次性回满、
  *  daily 换新结构、账本换 token 口径（mock 无 progress 存档，播空基线）。 */
+const BASE_ELEMENTS = ["normal", "fire", "water", "grass", "electric", "ice"] as const;
+const GUIDED_FUSION_RECIPES = ["fire+normal", "electric+water", "grass+normal", "fire+ice"] as const;
+
+function hasMaxBasePet(config: GameConfig, save: GameSave, element: string): boolean {
+  return save.pets.some((pet) => {
+    const elements = config.species[pet.species]?.elements ?? [];
+    return pet.tier === 1 && pet.level >= maxLevelForTier(config, 1) &&
+      elements.length === 1 && elements[0] === element;
+  });
+}
+
+function grantOnboardingPetToSave(
+  config: GameConfig,
+  save: GameSave,
+  recipe: string,
+  capacityExempt: boolean,
+  tier = 1,
+  startMaxed = true,
+): void {
+  const species = config.speciesByRecipe?.[recipe];
+  if (!species) throw new Error(`#missingRecipe|recipe=${recipe}`);
+  const id = newId("pet");
+  save.pets.push({
+    id,
+    species,
+    tier,
+    level: startMaxed ? maxLevelForTier(config, tier) : 1,
+    exp: 0,
+    stamina: config.staminaMax,
+    staminaUpdatedAt: nowSecs(),
+    exhausted: false,
+    keyBuffer: 0,
+    tokenBuffer: 0,
+  });
+  save.dexObtained ??= {};
+  save.dexObtained[species] = (save.dexObtained[species] ?? 0) + 1;
+  save.stats ??= {};
+  if (startMaxed) save.stats.firstMaxlevelDone = true;
+  save.stats.highestTier = Math.max(save.stats.highestTier ?? 0, tier);
+  if (capacityExempt) {
+    save.capacityExemptPetIds ??= [];
+    if (!save.capacityExemptPetIds.includes(id)) save.capacityExemptPetIds.push(id);
+  }
+  save.activePetId ??= id;
+}
+
+function grantPostYardRoster(config: GameConfig, save: GameSave): boolean {
+  const state = save.onboarding;
+  if (!state || state.postYardRosterClaimed) return false;
+  for (const element of BASE_ELEMENTS) {
+    grantOnboardingPetToSave(config, save, element, true, 1, true);
+  }
+  state.postYardRosterClaimed = true;
+  return true;
+}
+
+function ensureGuidedFusionParents(config: GameConfig, save: GameSave): boolean {
+  const state = save.onboarding;
+  if (!state || state.status !== "active" || state.step !== "D10" ||
+      state.tutorialFusions < 2 || state.tutorialFusions >= GUIDED_FUSION_RECIPES.length) {
+    return false;
+  }
+  let changed = grantPostYardRoster(config, save);
+  const required = new Set(
+    GUIDED_FUSION_RECIPES.slice(state.tutorialFusions).flatMap((recipe) => recipe.split("+")),
+  );
+  for (const element of required) {
+    if (hasMaxBasePet(config, save, element)) continue;
+    grantOnboardingPetToSave(config, save, element, true, 1, true);
+    changed = true;
+  }
+  return changed;
+}
+
+function repairGuidedFusionCollection(config: GameConfig, save: GameSave): boolean {
+  const state = save.onboarding;
+  if (!state || state.status !== "active" || state.tutorialFusions < 4 ||
+      !["D10", "D11", "E01", "E02"].includes(state.step)) return false;
+  const expected = new Set(
+    GUIDED_FUSION_RECIPES.slice(2).flatMap((recipe) => {
+      const species = config.speciesByRecipe?.[recipe];
+      return species ? [species] : [];
+    }),
+  );
+  let changed = false;
+  state.guidedFusionEggIds ??= [];
+  const liveEggIds = new Set(save.eggs.map((egg) => egg.id));
+  const liveReceipts = state.guidedFusionEggIds.filter((eggId) => liveEggIds.has(eggId));
+  if (liveReceipts.length !== state.guidedFusionEggIds.length) {
+    state.guidedFusionEggIds = liveReceipts;
+    changed = true;
+  }
+  for (const egg of save.eggs) {
+    if (egg.tier !== 2 || !expected.has(egg.species) || state.guidedFusionEggIds.includes(egg.id)) continue;
+    state.guidedFusionEggIds.push(egg.id);
+    changed = true;
+  }
+  if (state.guidedFusionEggIds.length > 0 && state.step !== "D10") {
+    state.step = "D10";
+    state.factoryFormalEntered = false;
+    changed = true;
+  }
+  return changed;
+}
+
 function migrateSave(config: GameConfig, save: GameSave, now: number, today: string) {
   if ((save.version ?? 1) < 3) {
     for (const pet of save.pets) {
@@ -421,6 +528,8 @@ function migrateSave(config: GameConfig, save: GameSave, now: number, today: str
       tutorialFusions: 0,
       starterTrioClaimed: false,
       postPracticeRosterClaimed: false,
+      postYardRosterClaimed: false,
+      guidedFusionEggIds: [],
       factoryFormalEntered: (save.stats?.factoryRogueRunsStarted ?? 0) >= 1,
       agentPromptSkipped: false,
       steamMarketOpenAttempted: false,
@@ -436,6 +545,10 @@ function migrateSave(config: GameConfig, save: GameSave, now: number, today: str
     save.version = 10;
   }
   save.onboarding ??= createInitialSave(config, now, today).onboarding;
+  if (save.onboarding) {
+    save.onboarding.postYardRosterClaimed ??= false;
+    save.onboarding.guidedFusionEggIds ??= [];
+  }
   save.factoryTutorial ??= { version: 2, status: "active", step: "C01" };
   save.capacityExemptPetIds ??= [];
   save.trainingTutorialBoostClaimed ??= false;
@@ -446,6 +559,8 @@ function migrateSave(config: GameConfig, save: GameSave, now: number, today: str
     pet.tokenBuffer ??= 0;
     if (pet.staminaUpdatedAt > now) pet.staminaUpdatedAt = now;
   }
+  repairGuidedFusionCollection(config, save);
+  ensureGuidedFusionParents(config, save);
 }
 
 export class MockGameEngine {
@@ -476,6 +591,7 @@ export class MockGameEngine {
         save.speciesSkins ??= {};
         save.skinSelected ??= {};
         migrateSave(this.config, save, nowSecs(), todayString());
+        this.persistSave(save);
         return save;
       }
     } catch {
@@ -719,6 +835,10 @@ export class MockGameEngine {
     const capacity = yardCapacityFor(config, this.save.yardLevel);
     if (occupiedPetCount(this.save) >= capacity) throw new Error("#yardFull");
     this.save.eggs.splice(index, 1);
+    if (this.save.onboarding) {
+      this.save.onboarding.guidedFusionEggIds =
+        (this.save.onboarding.guidedFusionEggIds ?? []).filter((id) => id !== egg.id);
+    }
     // 镜像 Rust apply_collect（economy.rs）的 `egg.tier.max(1)`：蛋自身的 tier 才是权威阶数。
     // 旧实现让目录物种 tier 抢先（2 阶商店蛋掷中一阶目录物种 emberfox 时会错落成 1 阶），
     // 正是 Rust 侧 2026-07-16 实测修掉的 bug——预览孪生沿用旧规则会掩盖/误报阶数问题。
@@ -738,10 +858,6 @@ export class MockGameEngine {
       keyBuffer: 0,
       tokenBuffer: 0,
     };
-    const directMax =
-      this.save.onboarding?.status === "active" &&
-      tier >= 2;
-    if (directMax) pet.level = maxLevelForTier(config, tier);
     this.save.pets.push(pet);
     if (!this.save.activePetId) this.save.activePetId = pet.id;
     return this.commit();
@@ -750,6 +866,18 @@ export class MockGameEngine {
   /** 物种资料查询：静态目录 → AI 自定义物种（镜像 Rust game::species_info）。 */
   private speciesInfoAny(species: string): SpeciesInfo | undefined {
     return this.config.species[species] ?? this.save.customSpecies[species]?.info;
+  }
+
+  private expectedTutorialFusionRecipe(): string | undefined {
+    const state = this.save.onboarding;
+    if (!state || state.status !== "active") return undefined;
+    const guided =
+      (state.tutorialFusions === 0 && (state.step === "B02" || state.step === "B03")) ||
+      (state.tutorialFusions === 1 && (state.step === "D05" || state.step === "D06")) ||
+      ((state.tutorialFusions === 2 || state.tutorialFusions === 3) && state.step === "D10");
+    return guided
+      ? ["fire+normal", "electric+water", "grass+normal", "fire+ice"][state.tutorialFusions]
+      : undefined;
   }
 
   /** 融合前提守卫（两条融合路径共用，镜像 logic_validate_fusion_pair）。 */
@@ -769,9 +897,7 @@ export class MockGameEngine {
     if (petA.species === petB.species && fusionResultTier(config, petA.tier) === petA.tier) {
       throw new Error("#fusionSameSpeciesNoGain");
     }
-    const tutorialReimbursed =
-      this.save.onboarding?.status === "active" &&
-      this.save.onboarding.tutorialFusions < 2;
+    const tutorialReimbursed = this.expectedTutorialFusionRecipe() != null;
     if (this.save.coins < fusionFeeFor(config, petA.tier) && !tutorialReimbursed) {
       throw new Error("#fusionNeedFee");
     }
@@ -781,6 +907,10 @@ export class MockGameEngine {
       ...(this.speciesInfoAny(petA.species)?.elements ?? []),
       ...(this.speciesInfoAny(petB.species)?.elements ?? []),
     ]);
+    const expected = this.expectedTutorialFusionRecipe();
+    if (expected && recipeKey !== expected) {
+      throw new Error(`#tutorialFusionRecipeMismatch|expected=${expected}|got=${recipeKey}`);
+    }
     const cap = fusionDailyMintCap(config, recipeKey.split("+").length);
     if ((this.save.daily.fusionMints?.[recipeKey] ?? 0) >= cap) {
       throw new Error(`#fusionDailyCap|recipe=${recipeKey}|cap=${cap}`);
@@ -809,8 +939,7 @@ export class MockGameEngine {
   ): { resultSpecies: string; resultTier: number; fee: number; recipeKey: string; kind: string; slot?: number } {
     const config = this.config;
     const tier = petA.tier;
-    const tutorialReimbursed =
-      this.save.onboarding?.status === "active" && this.save.onboarding.tutorialFusions < 2;
+    const tutorialReimbursed = this.expectedTutorialFusionRecipe() != null;
     const fee = tutorialReimbursed ? 0 : fusionFeeFor(config, tier);
     const resultTier = fusionResultTier(config, tier);
     const elements = [
@@ -866,7 +995,7 @@ export class MockGameEngine {
     // 每日融合计数（镜像 consume_fusion_pair → record_fusion_mint）。
     const mints = (this.save.daily.fusionMints ??= {});
     mints[recipeKey] = (mints[recipeKey] ?? 0) + 1;
-    if (this.save.onboarding?.status === "active" && this.save.onboarding.tutorialFusions < 2) {
+    if (this.expectedTutorialFusionRecipe() != null && this.save.onboarding) {
       this.save.onboarding.tutorialFusions += 1;
     }
   }
@@ -896,6 +1025,14 @@ export class MockGameEngine {
       hatchAt: slot != null ? now + hatchSecs : null,
       ...(pendingFusion ? { pendingFusion } : {}),
     });
+    if (this.save.onboarding?.status === "active" &&
+        this.save.onboarding.step === "D10" &&
+        [3, 4].includes(this.save.onboarding.tutorialFusions)) {
+      this.save.onboarding.guidedFusionEggIds ??= [];
+      if (!this.save.onboarding.guidedFusionEggIds.includes(eggId)) {
+        this.save.onboarding.guidedFusionEggIds.push(eggId);
+      }
+    }
     return eggId;
   }
 
@@ -922,9 +1059,7 @@ export class MockGameEngine {
     const plan = this.planFusion(petA, petB, Math.floor(Math.random() * 0x7fffffff), true);
 
     // #9 首次融合必产经典配方（不走 AI）+ 蛋 1 分钟孵化（镜像 fusion_gen.rs）。
-    const tutorialFusion =
-      this.save.onboarding?.status === "active" &&
-      this.save.onboarding.tutorialFusions < 2;
+    const tutorialFusion = this.expectedTutorialFusionRecipe() != null;
     const firstFusion = !this.save.tutorialFirstFusionDone;
     if (tutorialFusion || firstFusion || plan.kind !== "generate") {
       this.consumeFusionPair(idA, idB, plan.fee, plan.recipeKey);
@@ -1168,10 +1303,13 @@ export class MockGameEngine {
     if (cost == null) throw new Error("#missingUpgradeCost");
     const reimbursed =
       this.save.onboarding?.status === "active" &&
-      (level === 1 || this.save.onboarding.step === "A13");
+      (level === 1 || this.save.onboarding.step === "A13" || this.save.onboarding.step === "D08");
     if (this.save.coins < cost && !reimbursed) throw new Error("#notEnoughCoins");
     if (!reimbursed) this.save.coins -= cost;
     this.save.hatcheryLevel += 1;
+    if (this.save.onboarding?.status === "active" && this.save.onboarding.step === "D08") {
+      return this.advanceOnboarding("D08");
+    }
     return this.commit();
   }
 
@@ -1182,10 +1320,14 @@ export class MockGameEngine {
     if (level >= config.yardCapacity.length) throw new Error("#yardMaxLevel");
     const cost = config.yardUpgradeCosts[level - 1];
     if (cost == null) throw new Error("#missingUpgradeCost");
-    const reimbursed = this.save.onboarding?.status === "active" && level === 1;
+    const reimbursed = this.save.onboarding?.status === "active" &&
+      (level === 1 || this.save.onboarding.step === "D09");
     if (this.save.coins < cost && !reimbursed) throw new Error("#notEnoughCoins");
     if (!reimbursed) this.save.coins -= cost;
     this.save.yardLevel += 1;
+    if (this.save.onboarding?.status === "active" && this.save.onboarding.step === "D09") {
+      return this.advanceOnboarding("D09");
+    }
     return this.commit();
   }
 
@@ -1448,32 +1590,13 @@ export class MockGameEngine {
     return this.commit();
   }
 
-  private grantOnboardingPet(recipe: string, capacityExempt: boolean, tier = 1): void {
-    const species = this.config.speciesByRecipe?.[recipe];
-    if (!species) throw new Error(`#missingRecipe|recipe=${recipe}`);
-    const id = newId("pet");
-    this.save.pets.push({
-      id,
-      species,
-      tier,
-      level: maxLevelForTier(this.config, tier),
-      exp: 0,
-      stamina: this.config.staminaMax,
-      staminaUpdatedAt: nowSecs(),
-      exhausted: false,
-      keyBuffer: 0,
-      tokenBuffer: 0,
-    });
-    this.save.dexObtained ??= {};
-    this.save.dexObtained[species] = (this.save.dexObtained[species] ?? 0) + 1;
-    this.save.stats ??= {};
-    this.save.stats.firstMaxlevelDone = true;
-    this.save.stats.highestTier = Math.max(this.save.stats.highestTier ?? 0, tier);
-    if (capacityExempt) {
-      this.save.capacityExemptPetIds ??= [];
-      if (!this.save.capacityExemptPetIds.includes(id)) this.save.capacityExemptPetIds.push(id);
-    }
-    this.save.activePetId ??= id;
+  private grantOnboardingPet(
+    recipe: string,
+    capacityExempt: boolean,
+    tier = 1,
+    startMaxed = true,
+  ): void {
+    grantOnboardingPetToSave(this.config, this.save, recipe, capacityExempt, tier, startMaxed);
   }
 
   advanceOnboarding(completedStep: string): GameSave {
@@ -1500,17 +1623,23 @@ export class MockGameEngine {
       }
     } else if (completedStep === "A15") {
       state.tutorialWorkClicks = 0;
-    } else if (completedStep === "B05" && !state.starterTrioClaimed) {
-      for (const element of ["normal", "fire", "electric"]) this.grantOnboardingPet(element, false);
-      state.starterTrioClaimed = true;
-    } else if (completedStep === "C12") {
-      if (!state.postPracticeRosterClaimed) {
-        for (const element of ["normal", "fire", "water", "grass", "electric", "ice"]) {
-          this.grantOnboardingPet(element, true);
-        }
-        state.postPracticeRosterClaimed = true;
+    } else if (completedStep === "B05") {
+      for (const element of BASE_ELEMENTS) {
+        if (!hasMaxBasePet(this.config, this.save, element)) this.grantOnboardingPet(element, true);
       }
+      state.starterTrioClaimed = true;
+      state.postPracticeRosterClaimed = true;
+    } else if (completedStep === "C12") {
+      for (const element of BASE_ELEMENTS) {
+        if (!hasMaxBasePet(this.config, this.save, element)) this.grantOnboardingPet(element, true);
+      }
+      state.starterTrioClaimed = true;
+      state.postPracticeRosterClaimed = true;
       this.save.factoryTutorial = { version: 2, status: "completed", step: "C12" };
+    } else if (completedStep === "D09") {
+      grantPostYardRoster(this.config, this.save);
+    } else if (completedStep === "D10" && (state.guidedFusionEggIds?.length ?? 0) > 0) {
+      throw new Error("#onboardingFusionEggsPending");
     } else if (completedStep === "E02") {
       state.factoryFormalEntered = true;
     } else if (completedStep === "G03") {
@@ -1556,12 +1685,12 @@ export class MockGameEngine {
   grantSkippedOnboardingFusions(): GameSave {
     const state = this.save.onboarding;
     if (!state || state.status !== "active") return this.commit();
-    const recipes = ["fire+normal", "electric+water"];
-    const completed = Math.min(2, Math.max(0, state.tutorialFusions ?? 0));
+    const recipes = ["fire+normal", "electric+water", "grass+normal", "fire+ice"];
+    const completed = Math.min(4, Math.max(0, state.tutorialFusions ?? 0));
     for (const recipe of recipes.slice(completed)) {
-      this.grantOnboardingPet(recipe, true, 2);
+      this.grantOnboardingPet(recipe, true, 2, false);
     }
-    state.tutorialFusions = 2;
+    state.tutorialFusions = 4;
     this.save.tutorialFirstFusionDone = true;
     return this.commit();
   }

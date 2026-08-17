@@ -478,10 +478,23 @@ pub fn upgrade_hatchery(
 pub fn upgrade_yard(
     app: AppHandle,
     state: tauri::State<'_, SharedGameState>,
+    steam: tauri::State<'_, crate::steam::SharedSteamState>,
 ) -> Result<GameSave, String> {
-    let (_, save) = with_save(&app, state.inner(), |config, save| {
-        logic_upgrade_yard(config, save, now_secs(), &today_string())
+    let steam_enabled = crate::steam::integration_enabled();
+    let (has_pending_mints, save) = with_save(&app, state.inner(), |config, save| {
+        logic_upgrade_yard(config, save, now_secs(), &today_string())?;
+        if steam_enabled {
+            crate::steam_sync::migration_sweep(config, save);
+        }
+        Ok(steam_enabled
+            && save
+                .steam_outbox
+                .iter()
+                .any(|op| matches!(op, SteamOp::MintTier1 { .. })))
     })?;
+    if has_pending_mints {
+        steam.kick_sync();
+    }
     Ok(save)
 }
 
@@ -758,10 +771,15 @@ pub fn skip_onboarding_agent(
 pub fn grant_skipped_onboarding_fusions(
     app: AppHandle,
     state: tauri::State<'_, SharedGameState>,
+    steam: tauri::State<'_, crate::steam::SharedSteamState>,
 ) -> Result<GameSave, String> {
-    let (_, save) = with_save(&app, state.inner(), |config, save| {
-        logic_grant_skipped_onboarding_fusions(config, save, now_secs())
+    let (queued, save) = with_save(&app, state.inner(), |config, save| {
+        logic_grant_skipped_onboarding_fusions(config, save, now_secs())?;
+        Ok(save.steam_outbox.iter().any(|op| matches!(op, SteamOp::Fuse { .. })))
     })?;
+    if queued && crate::steam::integration_enabled() {
+        steam.kick_sync();
+    }
     Ok(save)
 }
 

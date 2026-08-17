@@ -192,6 +192,10 @@ export default function App() {
   // 催蛋：每颗蛋一条串行请求链（杜绝乱序回包把倒计时顶回去 → 卡在剩 2–3s）+ 已触发收取去重集。
   const pokeChainRef = useRef<Map<string, Promise<unknown>>>(new Map());
   const autoCollectedRef = useRef<Set<string>>(new Set());
+  const collectingEggIdsRef = useRef<Set<string>>(new Set());
+  // 收蛋会在同一屏幕坐标把蛋替换成新宠。短暂屏蔽舞台输入，避免双击的
+  // 第二次 pointerup 穿透到刚挂载的宠物并跨过下一条引导步骤。
+  const stageInputGuardUntilRef = useRef(0);
 
   // --- game state ---
   const { bridge, config: gameConfig, save, setSave } = useGame();
@@ -307,10 +311,12 @@ export default function App() {
   const [yardCoach, setYardCoach] = useState<{
     nearShop: boolean;
     nearMarket: boolean;
+    nearNoticeBoard: boolean;
     nearPetId: string | null;
   }>({
     nearShop: false,
     nearMarket: false,
+    nearNoticeBoard: false,
     nearPetId: null,
   });
   // 融合确认弹窗（fusePets 打开）—— 提前声明供教练 resolver 判「弹窗已开 → 指向开始融合」（#8）。
@@ -323,6 +329,7 @@ export default function App() {
     nearPetId: yardCoach.nearPetId,
     nearShop: yardCoach.nearShop,
     nearMarket: yardCoach.nearMarket,
+    nearNoticeBoard: yardCoach.nearNoticeBoard,
     fusionModalOpen: fusionPair != null,
     setSave,
   });
@@ -955,11 +962,14 @@ export default function App() {
   const collectEgg = useCallback(
     (eggId: string) => {
       if (!save || !gameConfig) return;
+      if (collectingEggIdsRef.current.has(eggId)) return;
+      collectingEggIdsRef.current.add(eggId);
       const egg = save.eggs.find((item) => item.id === eggId);
       setGameBusy(true);
       bridge
         .collectHatched(eggId)
         .then((next) => {
+          stageInputGuardUntilRef.current = performance.now() + 600;
           setSave(next);
           // 揭晓物种以**实际孵出的宠**为准（收取前后 pets 差集）：Steam 流的实发物种
           // 由后端 collect_species_for 决定（商店蛋掷骰 / AI 未完成孵配方经典形象），
@@ -996,7 +1006,10 @@ export default function App() {
           showToastMsg(errorMessage(error));
           emitPaperFx({ intensity: 1, preset: "failure", eventId: `hatch-collect-failed:${eggId}:${Date.now()}` });
         })
-        .finally(() => setGameBusy(false));
+        .finally(() => {
+          collectingEggIdsRef.current.delete(eggId);
+          setGameBusy(false);
+        });
     },
     [
       bridge,
@@ -1887,6 +1900,7 @@ export default function App() {
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
     if (event.button === 2) return;
+    if (performance.now() < stageInputGuardUntilRef.current) return;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -1937,6 +1951,10 @@ export default function App() {
 
   const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
     if (event.button === 2) return;
+    if (performance.now() < stageInputGuardUntilRef.current) {
+      dragRef.current = null;
+      return;
+    }
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
@@ -2024,17 +2042,14 @@ export default function App() {
   const handleOnboardingAction = useCallback(() => {
     const step = saveRef.current?.onboarding?.step;
     if (!step) return;
-    if (step === "D08") {
-      setUiMode("menu");
-      void coach.complete(step);
-      return;
-    }
     if (step === "F03a") {
       void coach.skipAgent();
       return;
     }
     if (coach.directive?.action === "navigate" && coach.directive.requiredMode) {
       setUiMode(coach.directive.requiredMode);
+      // Enter the yard, then let real proximity to the board persist F01.
+      if (step === "F01") return;
     }
     void coach.complete(step);
   }, [coach.complete, coach.directive, coach.skipAgent]);
