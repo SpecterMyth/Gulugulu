@@ -1198,7 +1198,10 @@ ok(
 finalRun.tick(1_000);
 eq(finalRun.view().rushDeadline, 301_000, "第 20 班赶工时限为 5 分钟");
 const inspectionSnap = finalRun.snapshot();
-eq(inspectionSnap?.v, 10, "检查日续局写入 v10 剩余时间存档");
+eq(inspectionSnap?.v, 11, "检查日续局写入 v11 剩余时间存档");
+const fusedAwayResume = M.RogueRun.restore(inspectionSnap, {});
+ok(fusedAwayResume != null, "本局出战宠物后来被融合移除，续局仍保留开局物种并可继续投放");
+eq(fusedAwayResume?.view().loadout, inspectionSnap?.loadout, "续局名单不受当前主存档宠物变化影响");
 eq(inspectionSnap?.rushRemainingMs, 300_000, "续局保存赶工剩余有效游玩时间");
 eq(inspectionSnap?.windSign, Math.sign(finalRun.windAx()), "续局保存当前大风方向");
 const inspectionResumed = M.RogueRun.restore(inspectionSnap, metas);
@@ -1833,7 +1836,7 @@ ok((zeroTarget?.x ?? 999) < 120, "零分加班角色不会被同分排序投到�
 
 console.log("== 续局保存招聘池与整局通胀");
 const snap = run.snapshot();
-ok(snap != null && snap.v === 10, "新存档 schema v10");
+ok(snap != null && snap.v === 11, "新存档 schema v11");
 ok((snap?.hirePool.length ?? 0) === 9, "存档保留未投雇佣池");
 ok((snap?.hireInflation.reduce((a, b) => a + b, 0) ?? 0) === 10, "存档保留整局通胀计数");
 

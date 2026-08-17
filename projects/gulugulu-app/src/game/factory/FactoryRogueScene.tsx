@@ -285,7 +285,10 @@ export function FactoryRogueScene({
     setResumeDismissed(true);
   }, [onboardingActive]);
   // 进局元数据表:loadout 展示与 RogueRun 初始化共用同一份推导。
-  const meta = useMemo(() => buildSpeciesMeta(config, save), [config, save]);
+  const meta = useMemo(
+    () => buildSpeciesMeta(config, save, resumeSnap?.loadout ?? []),
+    [config, save, resumeSnap],
+  );
   const recordBaseline = useMemo(
     () => ({
       starts: save.stats?.factoryRogueRunsStarted ?? 0,

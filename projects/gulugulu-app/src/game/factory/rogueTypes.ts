@@ -533,6 +533,8 @@ export type RogueRunSnapshot = {
   /** 本局已经实际入库的角色升阶材料；仅供续局后终局结算展示。 */
   rewards?: Record<string, number>;
   loadout: string[];
+  /** Static stats captured at run start, retained even if a selected pet is later fused. */
+  loadoutMeta?: Record<string, SpeciesRogueMeta>;
   deskOrder: RogueElement[];
   /** 当前班次被禁运、不可参与计分的桌子；旧续档缺失时按空列表迁移。 */
   disabledDesks?: RogueElement[];
