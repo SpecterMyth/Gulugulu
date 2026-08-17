@@ -142,10 +142,10 @@ for (const lang of ["zh", "en"]) {
 
 // ── 5. 日期格式化 ──
 console.log("[5] formatReportDate");
-eq(formatReportDate("2026-07-20", "zh"), "7月20日", "zh 短日期");
+eq(formatReportDate("2026-07-20", "zh-Hans"), "7月20日", "zh 短日期");
 eq(formatReportDate("2026-07-20", "en"), "Jul 20", "en 短日期");
-eq(formatReportDate("2026-01-05", "zh"), "1月5日", "zh 去前导零");
-eq(formatReportDate("bad", "zh"), "bad", "非法输入原样返回");
+eq(formatReportDate("2026-01-05", "zh-Hans"), "1月5日", "zh 去前导零");
+eq(formatReportDate("bad", "zh-Hans"), "bad", "非法输入原样返回");
 
 console.log(`\n${fail === 0 ? "✅" : "❌"} welcome-report: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

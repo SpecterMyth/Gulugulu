@@ -1,6 +1,24 @@
 import { spawn } from "node:child_process";
+import { createServer } from "node:net";
 
 export const sleep = (milliseconds) => new Promise((resolveWait) => setTimeout(resolveWait, milliseconds));
+
+/** Ask Windows for an actually bindable loopback port instead of deriving one
+ * from the PID. Hyper-V/WSL commonly reserve otherwise unused-looking ranges. */
+export const findAvailablePort = () => new Promise((resolvePort, rejectPort) => {
+  const server = createServer();
+  server.unref();
+  server.once("error", rejectPort);
+  server.listen(0, "127.0.0.1", () => {
+    const address = server.address();
+    const port = typeof address === "object" && address != null ? address.port : null;
+    server.close((error) => {
+      if (error != null) rejectPort(error);
+      else if (port == null) rejectPort(new Error("Loopback port allocation returned no port"));
+      else resolvePort(port);
+    });
+  });
+});
 
 export const withTimeout = async (work, timeoutMs, label) => {
   let timer = null;

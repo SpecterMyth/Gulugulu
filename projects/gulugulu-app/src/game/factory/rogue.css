@@ -1104,7 +1104,7 @@
 }
 .fr-lo-foot {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 14px;
   width: 100%;
@@ -1116,6 +1116,7 @@
   font-size: 12.5px;
   font-weight: 800;
   color: var(--nt-secondary);
+  justify-self: end;
 }
 
 .fr-lo-clockin {
@@ -1133,6 +1134,8 @@
   justify-content: flex-start;
   gap: 8px;
   min-width: 0;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
 }
 
 .fr-lo-legend {
@@ -1155,23 +1158,13 @@
   transform: rotate(0.6deg);
 }
 
-/* English footer copy needs roughly 900px before it can share one row with
- * the picked count and primary CTA. Collapse earlier so common 1280x720 at
- * 150% scaling (853 CSS px) keeps every explanation readable and clickable. */
+/* The panel itself is capped below wide desktop viewports, so viewport media
+ * queries cannot reliably tell whether its English legends fit beside the
+ * picked count. Keep explanations on their own row at every window width. */
 @media (max-width: 900px) {
-  .fr-lo-foot {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
-  }
+  .fr-lo-foot { gap: 10px; }
 
-  .fr-lo-legends {
-    grid-column: 1 / -1;
-    flex-wrap: wrap;
-  }
-
-  .fr-lo-count {
-    justify-self: end;
-  }
+  .fr-lo-legends { flex-wrap: wrap; }
 }
 
 .fr-lo-empty {
@@ -4585,6 +4578,16 @@
   color: #cfc6b8;
   filter: none;
   text-shadow: 0 1px 0 rgba(59, 43, 29, 0.7);
+}
+
+/* A failed drop can land directly under the right HUD in the 640px stress
+ * window while the first-run coach owns the lower lane. Use the open center
+ * there so the short reason stays readable; wider views remain world-anchored. */
+@media (max-width: 700px) {
+  .fr-float.miss {
+    left: 50% !important;
+    top: 46% !important;
+  }
 }
 
 /* ---- 总营收计数器:数量级换色(04 §1/§6) ---- */
