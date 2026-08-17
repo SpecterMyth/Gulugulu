@@ -3662,36 +3662,70 @@ pub async fn fuse_pets_ai(
         let now = game::now_secs();
         let today = game::today_string();
 
-        // v6 强制新手期的两次指定融合都走本地经典配方：
+        // v7 强制新手期的四次指定融合都走本地经典配方：
         // - 不依赖 Codex / Claude 是否已连接；
         // - 不依赖 Steam 是否已连接；
         // - 结果确定、8 秒出蛋，避免教程被外部服务或随机 AI 结果卡死。
         //
-        // logic_fuse_pets 会原子地校验双亲、扣除材料/费用、创建经典配方蛋并递增
-        // onboarding.tutorial_fusions；前端与后端因此共享同一条“前两次”边界。
+        // The local result and its Steam outbox receipt are committed together. A disconnected
+        // Steam client therefore never blocks the player and cannot lose the eventual exchange.
         {
             let (tutorial_egg, save) = game::with_save(&app, &game_state, |config, save| {
-                let forced_tutorial = save.onboarding.status == "active"
-                    && save.onboarding.tutorial_fusions < 2;
+                let forced_tutorial =
+                    game::expected_tutorial_fusion_recipe(save).is_some();
                 if !forced_tutorial {
                     return Ok(None);
                 }
-                let egg_id =
-                    game::logic_fuse_pets(config, save, &id_a, &id_b, now, &today)?;
-                if let Some(egg) = save.eggs.iter_mut().find(|egg| egg.id == egg_id) {
-                    if egg.hatch_at.is_some() {
-                        egg.hatch_at = Some(now + 8);
-                    }
-                }
-                save.tutorial_first_fusion_done = true;
-                let species = save
+                let mut working = save.clone();
+                game::settle_all(config, &mut working, now, &today);
+                let (pet_a, pet_b) =
+                    game::logic_validate_fusion_pair(config, &working, &id_a, &id_b)?;
+                let recipe_key =
+                    game::fusion_result_recipe_key(config, &working, &pet_a, &pet_b)?;
+                let target_def = crate::steam_sync::exchange_target_def(config, &recipe_key)
+                    .ok_or_else(|| format!("#missingSteamMapping|recipe={recipe_key}"))?;
+                let parents = [pet_a.species.clone(), pet_b.species.clone()];
+                let (item_a, mat_def_a) =
+                    crate::steam_sync::take_fusion_material(config, &mut working, &pet_a);
+                let (item_b, mat_def_b) =
+                    crate::steam_sync::take_fusion_material(config, &mut working, &pet_b);
+                let egg_id = game::logic_fuse_pets(
+                    config,
+                    &mut working,
+                    &id_a,
+                    &id_b,
+                    now,
+                    &today,
+                )?;
+                working.tutorial_first_fusion_done = true;
+                let species = working
                     .eggs
                     .iter()
                     .find(|egg| egg.id == egg_id)
                     .map(|egg| egg.species.clone());
+                working.steam_outbox.push(SteamOp::Fuse {
+                    op_id: game::new_id("op"),
+                    pet_a: id_a.clone(),
+                    pet_b: id_b.clone(),
+                    item_a,
+                    item_b,
+                    egg_def: target_def,
+                    recipe_key,
+                    applied: true,
+                    awaiting_result: false,
+                    mat_def_a,
+                    mat_def_b,
+                    egg_id: Some(egg_id.clone()),
+                    pet_id: None,
+                    parents: Some(parents),
+                    attempts: 0,
+                    next_retry_at: 0,
+                });
+                *save = working;
                 Ok(Some((egg_id, species)))
             })?;
             if let Some((egg_id, species)) = tutorial_egg {
+                steam_state.kick_sync();
                 let _ = app.emit(STATE_EVENT, save.clone());
                 return Ok(FusionStartResult {
                     mode: "recipe".to_string(),

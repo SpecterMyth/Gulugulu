@@ -22,6 +22,7 @@ type Input = {
   nearPetId: string | null;
   nearShop: boolean;
   nearMarket: boolean;
+  nearNoticeBoard: boolean;
   fusionModalOpen: boolean;
   setSave: (save: GameSave) => void;
 };
@@ -77,17 +78,24 @@ function speciesHasElement(config: GameConfig, species: string, element: string)
   return config.species[species]?.elements.includes(element) === true;
 }
 
-function hasCollectedFusionSpecies(save: GameSave, config: GameConfig): boolean {
-  // The catalogue's `tier` describes the species' recipe band and is intentionally absent
-  // from several fusion species. The collected pet is the authoritative result: tutorial
-  // fusion raises the pet itself to T2 and uses a multi-element recipe.
-  return save.pets.some(
-    (pet) => pet.tier >= 2 && (config.species[pet.species]?.elements.length ?? 0) >= 2,
-  );
+function hasCollectedFusionPet(save: GameSave): boolean {
+  // The collected pet instance is the durable receipt. A Steam AI-slot result can be
+  // bound and usable before its optional local species metadata/design has resolved,
+  // so consulting config/customSpecies here would strand B05 after a valid collect.
+  return save.pets.some((pet) => pet.tier >= 2);
 }
 
 function currentStepSatisfied(input: Input): boolean {
-  const { save, config, uiMode, nearPetId, nearShop, nearMarket, fusionModalOpen } = input;
+  const {
+    save,
+    config,
+    uiMode,
+    nearPetId,
+    nearShop,
+    nearMarket,
+    nearNoticeBoard,
+    fusionModalOpen,
+  } = input;
   if (!save?.onboarding || !config) return false;
   const step = save.onboarding.step;
   const fireEgg = save.eggs.find((egg) => {
@@ -120,7 +128,7 @@ function currentStepSatisfied(input: Input): boolean {
     );
     case "B02": return fusionModalOpen;
     case "B03": return save.onboarding.tutorialFusions >= 1;
-    case "B05": return hasCollectedFusionSpecies(save, config);
+    case "B05": return hasCollectedFusionPet(save);
     case "B07": return uiMode === "menu";
     case "C01":
     case "C02":
@@ -135,14 +143,19 @@ function currentStepSatisfied(input: Input): boolean {
     case "C11":
     case "C12":
       return save.factoryTutorial?.status === "completed";
+    case "D01": return uiMode === "menu";
     case "D04": return save.activePetId != null &&
       speciesHasElement(config, save.pets.find((pet) => pet.id === save.activePetId)?.species ?? "", "water");
     case "D05": return fusionModalOpen;
     case "D06": return save.onboarding.tutorialFusions >= 2;
     case "D07": return Object.values(save.dexObtained ?? {}).filter((count) => count > 0).length >= 8;
+    case "D10": return save.onboarding.tutorialFusions >= 4 &&
+      (save.onboarding.guidedFusionEggIds?.length ?? 0) === 0;
+    case "D11": return uiMode === "menu";
     case "E01": return uiMode === "factory";
     case "E02": return save.onboarding.factoryFormalEntered;
     case "E03": return save.onboarding.factoryFormalEntered && uiMode !== "factory";
+    case "F01": return nearNoticeBoard;
     case "F03a": return save.onboarding.agentPromptSkipped;
     case "G01": return nearMarket;
     case "G03": return save.onboarding.steamMarketOpenAttempted;
@@ -255,6 +268,7 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
       nearPetId: input.nearPetId,
       nearShop: input.nearShop,
       nearMarket: input.nearMarket,
+      nearNoticeBoard: input.nearNoticeBoard,
       fusionModalOpen: input.fusionModalOpen,
     }, language);
   }, [
@@ -264,6 +278,7 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
     input.nearPetId,
     input.nearShop,
     input.nearMarket,
+    input.nearNoticeBoard,
     input.fusionModalOpen,
     language,
   ]);
@@ -287,6 +302,7 @@ export function useOnboardingDirector(input: Input): OnboardingDirector {
     input.nearPetId,
     input.nearShop,
     input.nearMarket,
+    input.nearNoticeBoard,
     input.fusionModalOpen,
   ]);
 

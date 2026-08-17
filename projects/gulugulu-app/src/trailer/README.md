@@ -23,8 +23,8 @@
 
 同一套动画/时间线/特效,靠 `?lang=` 切文案与排版;英文为默认,两版都要各录一遍:
 
-- **英文版**:`http://localhost:5173/trailer.html`
-- **中文版**:`http://localhost:5173/trailer.html?lang=zh`
+- **英文版**:`http://localhost:4173/trailer.html`
+- **中文版**:`http://localhost:4173/trailer.html?lang=zh`
 
 文案表在 `copy.ts`(`COPY.en` / `COPY.zh`);语言开关/打字速度在 `lang.ts`;中文排版走
 `trailer.css` 的 `.lang-zh` 规则(重体黑体保冲击力,字标/气泡用 ZCOOL 圆润体,打字机放慢)。
@@ -32,7 +32,7 @@
 
 ## 录屏(约 5 分钟出片,每个语言版各一遍)
 
-1. `npm run dev`(Vite :5173)。
+1. `npm run dev`(Vite :4173)。
 2. **真实 Chrome**(非 IDE 里的预览面板,面板对本项目会挂)打开
    `trailer.html`(英)或 `trailer.html?lang=zh`(中),`F11` 全屏。
 3. **关掉系统「减少动态效果」**(设置 → 辅助功能 → 视觉效果 → 动画效果)。

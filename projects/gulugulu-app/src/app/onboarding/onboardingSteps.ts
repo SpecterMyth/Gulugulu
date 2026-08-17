@@ -5,6 +5,12 @@ import { GENERATED_RUNTIME_LOCALES } from "../../i18n/generatedLocales";
 import type { GameConfig, GameSave } from "../../types";
 import { REVIEWED_ONBOARDING_LOCALES } from "./reviewedOnboardingLocales";
 import {
+  ONBOARDING_EXPANSION_COPY,
+  ONBOARDING_GUIDED_EGG_COLLECT_COPY,
+  ONBOARDING_NOTICE_BOARD_CTA,
+  ONBOARDING_TIER1_SWITCH_COPY,
+} from "./onboardingExpansionCopy";
+import {
   ONBOARDING_EN_COPY,
   ONBOARDING_STEP_IDS,
   ONBOARDING_UI_EN,
@@ -33,6 +39,7 @@ type Runtime = {
   nearPetId: string | null;
   nearShop: boolean;
   nearMarket: boolean;
+  nearNoticeBoard: boolean;
   fusionModalOpen: boolean;
 };
 
@@ -61,20 +68,23 @@ const COPY: Record<string, Omit<OnboardingDirective, "step" | "progress">> = {
   B02: { chapter: "第一次异种融合", label: "点【融合】。这是异种融合，不安排复制粘贴自己。", gesture: "tap", ring: true, action: "target", requiredMode: "backyard" },
   B03: { chapter: "第一次异种融合", label: "会消耗这 2 只，换 1 颗新物种蛋。看清后点【确认融合】。", targetKey: "fuseConfirm", gesture: "tap", ring: true, action: "target" },
   B04: { chapter: "第一次异种融合", label: "融合蛋已经送往孵化区。等它准备好，再去亲手收取结果。", gesture: "ring", ring: false, action: "ack", cta: "去收取融合蛋" },
-  B05: { chapter: "第一次异种融合", label: "8 秒后跟箭头回去点【收取】。新同事直接满级，AI 暂停考勤。", targetKey: "egg", gesture: "arrow", ring: true, action: "target", requiredMode: "backyard" },
-  B06: { chapter: "三宠支援", label: "第一融通过。水、电、冰三只满级宠已空降后院，HR 坚称这叫自然增长。", gesture: "ring", ring: false, action: "ack", cta: "收下三位背锅侠" },
+  B05: { chapter: "第一次异种融合", label: "8 秒后跟箭头回去点【收取】。融合出的二阶宠物会从 Lv1 开始成长。", targetKey: "egg", gesture: "arrow", ring: true, action: "target", requiredMode: "backyard" },
+  B06: { chapter: "六宠支援", label: "六个基础属性的满级宠物已经全部送达，而且都不占后院容量。", gesture: "ring", ring: false, action: "ack", cta: "收下六只满级宠物" },
   B07: { chapter: "返回主界面", label: "先点左下角【返回】，回到主界面。工厂要从真正的入口进去。", targetKey: "yardBack", gesture: "tap", ring: true, action: "target", requiredMode: "backyard" },
 
   C01: { chapter: "真实第一局", label: "现在点主界面的【职场叠叠乐】进入游戏。接下来就是完整的真实玩法。", targetKey: "menuFactory", gesture: "tap", ring: true, action: "target", requiredMode: "menu" },
 
-  D01: { chapter: "物种快车", label: "真实第一班完成：六种基础宠各送一只，全员满级，而且不占容量。AI 这次终于没附小字。", gesture: "ring", ring: false, action: "ack", cta: "看看物种 KPI" },
+  D01: { chapter: "返回主界面", label: "第一次工厂游戏引导已经完成。请返回主界面，继续后续操作。", gesture: "ring", ring: false, action: "navigate", cta: "返回主界面", requiredMode: "menu" },
   D02: { chapter: "物种快车", label: "还差一个物种。打开【配方雷达】，不用拿脑袋撞配方表。", gesture: "ring", ring: true, action: "radar", cta: "打开配方雷达", requiredMode: "backyard" },
   D03: { chapter: "配方雷达", label: "雷达找到水 + 电：亲代都满级，结果尚未见过。AI 只负责画圈，你负责批准调岗。", gesture: "ring", ring: false, action: "radar", cta: "带我去融合", requiredMode: "backyard" },
   D04: { chapter: "配方雷达", label: "跟箭头找到水系并点它。切人不用写三页交接文档。", gesture: "arrow", ring: true, action: "target", requiredMode: "backyard" },
   D05: { chapter: "配方雷达", label: "走到啾雷鼠(电系)旁边，再点【融合】。", gesture: "arrow", ring: true, action: "target", requiredMode: "backyard" },
   D06: { chapter: "配方雷达", label: "水和电会被消耗，换一颗新物种蛋。点【确认融合】。", targetKey: "fuseConfirm", gesture: "tap", ring: true, action: "target" },
   D07: { chapter: "配方雷达", label: "8 秒后跟箭头回去点【收取】。图鉴 8/8，AI 的物种 KPI 可以闭嘴了。", targetKey: "egg", gesture: "arrow", ring: true, action: "target", requiredMode: "backyard" },
-  D08: { chapter: "物种 KPI 达标", label: "8 种齐了。下一站是正式场，成绩、材料和事故都算你的。", gesture: "ring", ring: false, action: "navigate", cta: "进入正式场", requiredMode: "menu" },
+  D08: { chapter: "扩建孵化区", label: "解锁一个新的孵化蛋坑。这次引导升级会全额报销。", targetKey: "hatcheryUpgrade", gesture: "arrow", ring: true, action: "target", requiredMode: "backyard" },
+  D09: { chapter: "扩建后院", label: "升级一次后院。这次引导升级同样会全额报销。", targetKey: "yardUpgrade", gesture: "arrow", ring: true, action: "target", requiredMode: "backyard" },
+  D10: { chapter: "连续经典融合", label: "按高亮提示连续完成两个新的经典配方。两次融合都免费，并会在 8 秒内完成。", gesture: "arrow", ring: true, action: "target", requiredMode: "backyard" },
+  D11: { chapter: "准备第二次上岗", label: "两颗融合蛋都已安全进入队列。返回主界面，开始第二次工厂游戏引导。", targetKey: "yardBack", gesture: "tap", ring: true, action: "target", requiredMode: "backyard" },
 
   E01: { chapter: "再次上岗", label: "点【职场叠叠乐】。第一局已经把玩法交给你，这次完全自由发挥。", targetKey: "menuFactory", gesture: "tap", ring: true, action: "target", requiredMode: "menu" },
   E02: { chapter: "正式上岗", label: "点【开始正式场】。从这里起不再替你选卡、招聘或投放。", targetKey: "factoryFormalStart", gesture: "tap", ring: true, action: "target", requiredMode: "factory" },
@@ -98,6 +108,16 @@ function petForElement(save: GameSave, config: GameConfig, element: string) {
   return save.pets.find((pet) => config.species[pet.species]?.elements.includes(element));
 }
 
+function maxBasePetForElement(save: GameSave, config: GameConfig, element: string) {
+  return save.pets.find((pet) => {
+    const info = config.species[pet.species];
+    return pet.tier === 1 &&
+      pet.level >= maxLevelForTier(config, pet.tier) &&
+      info?.elements.length === 1 &&
+      info.elements[0] === element;
+  });
+}
+
 function maxLevelVoltMouse(save: GameSave, config: GameConfig, preferredPetId?: string | null) {
   const eligible = (pet: GameSave["pets"][number]) =>
     pet.species === "voltmouse" && pet.level >= maxLevelForTier(config, pet.tier);
@@ -119,12 +139,14 @@ export function onboardingDirective(
   // C 段由真实对局里的首班事件推进；局内不叠加强遮罩。
   if (state.step.startsWith("C") && runtime.uiMode === "factory") return null;
   // 第一班结算后允许玩家继续真实对局；D 段等玩家主动离开工厂再恢复。
-  if (state.step.startsWith("D") && runtime.uiMode === "factory") return null;
+  if (state.step.startsWith("D") && state.step !== "D01" && runtime.uiMode === "factory") return null;
   // A real run is the player's first unassisted shift. Resume the route only after they leave it.
   if (state.step === "E03" && runtime.uiMode === "factory") return null;
 
   let targetKey = base.targetKey;
   let a13NeedsPitRecovery = false;
+  let d10NeedsTier1Switch = false;
+  let d10CollectingResults = false;
   if (state.step === "A13") {
     const hatcherySlots = hatcherySlotCount(config, save.hatcheryLevel);
     const occupiedHatcherySlots = new Set(
@@ -150,6 +172,30 @@ export function onboardingDirective(
     if (voltMouse) {
       targetKey = runtime.nearPetId === voltMouse.id ? `fuseBtn:${voltMouse.id}` : `placedPet:${voltMouse.id}`;
     }
+  } else if (state.step === "D10") {
+    d10CollectingResults = state.tutorialFusions >= 4 &&
+      (state.guidedFusionEggIds?.length ?? 0) > 0;
+    if (d10CollectingResults) {
+      targetKey = "egg";
+    } else {
+      const recipe = state.tutorialFusions < 3
+        ? { first: "normal", second: "grass" }
+        : { first: "fire", second: "ice" };
+      const first = maxBasePetForElement(save, config, recipe.first);
+      const second = maxBasePetForElement(save, config, recipe.second);
+      d10NeedsTier1Switch = first != null && save.activePetId !== first.id;
+      if (runtime.fusionModalOpen) {
+        targetKey = "fuseConfirm";
+      } else if (first && save.activePetId !== first.id) {
+        targetKey = runtime.nearPetId === first.id
+          ? `followBtn:${first.id}`
+          : `placedPet:${first.id}`;
+      } else if (second) {
+        targetKey = runtime.nearPetId === second.id
+          ? `fuseBtn:${second.id}`
+          : `placedPet:${second.id}`;
+      }
+    }
   }
 
   const index = Math.max(0, ONBOARDING_STEP_IDS.indexOf(state.step as OnboardingStepId));
@@ -166,6 +212,29 @@ export function onboardingDirective(
         ? ONBOARDING_UI_EN.occupiedPit
         : GENERATED_RUNTIME_LOCALES[language]?.onboardingUi.occupiedPit ?? ONBOARDING_UI_EN.occupiedPit
     : null;
+  const expansion = ONBOARDING_EXPANSION_COPY[language] ?? ONBOARDING_EXPANSION_COPY.en;
+  const expansionCopy =
+    state.step === "B05"
+      ? { label: expansion.b05 }
+      : state.step === "B06"
+      ? { label: expansion.b06, cta: expansion.b06Cta }
+      : state.step === "D01"
+        ? { label: expansion.d01, cta: expansion.d01Cta }
+        : state.step === "D08"
+          ? { label: expansion.d08 }
+          : state.step === "D09"
+            ? { label: expansion.d09 }
+            : state.step === "D10"
+              ? { label: d10CollectingResults
+                ? ONBOARDING_GUIDED_EGG_COLLECT_COPY[language]
+                : d10NeedsTier1Switch
+                  ? ONBOARDING_TIER1_SWITCH_COPY[language]
+                  : expansion.d10 }
+              : state.step === "D11"
+                ? { label: expansion.d11 }
+                : state.step === "F01"
+                  ? { cta: ONBOARDING_NOTICE_BOARD_CTA[language] }
+                : null;
   // Walking hints are useful until the player reaches a pet. Once the contextual
   // Follow/Fuse button is present, keep only the click cue so the movement keys do
   // not compete with the action the player must take next.
@@ -176,8 +245,9 @@ export function onboardingDirective(
   return {
     ...base,
     ...(localized ?? {}),
+    ...(expansionCopy ?? {}),
     ...(recoveryLabel ? { label: recoveryLabel } : {}),
-    cta: localized?.cta ?? base.cta,
+    cta: expansionCopy?.cta ?? localized?.cta ?? base.cta,
     step: state.step,
     targetKey,
     gesture,

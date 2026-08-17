@@ -1241,19 +1241,24 @@ pub fn repair_unbound_tier2(config: &GameConfig, save: &mut GameSave) -> bool {
             // and exchanges them atomically; it never grants/binds the tier-2 item
             // directly. This preserves Steam as the ownership authority while making
             // old saves converge with the current local-first fusion flow.
-            let tutorial_elements = if recipe_key == "fire+normal"
-                && save.tutorial_first_fusion_done
-                && save.onboarding.tutorial_fusions >= 1
-            {
-                Some(["fire", "normal"])
-            } else if recipe_key == "electric+water"
-                && save.onboarding.tutorial_fusions >= 2
-                && save.onboarding.starter_trio_claimed
-            {
-                Some(["electric", "water"])
-            } else {
-                None
-            };
+            let tutorial_elements = [
+                ("fire+normal", ["fire", "normal"]),
+                ("electric+water", ["electric", "water"]),
+                ("grass+normal", ["grass", "normal"]),
+                ("fire+ice", ["fire", "ice"]),
+            ]
+            .iter()
+            .enumerate()
+            .find(|(index, (recipe, _))| {
+                recipe_key == *recipe
+                    && usize::from(save.onboarding.tutorial_fusions) > *index
+                    && match *index {
+                        0 => save.tutorial_first_fusion_done,
+                        1 => save.onboarding.starter_trio_claimed,
+                        _ => save.onboarding.post_practice_roster_claimed,
+                    }
+            })
+            .map(|(_, (_, elements))| *elements);
             if let Some(elements) = tutorial_elements {
                 let parent_species =
                     elements.map(|element| config.species_by_recipe.get(element).cloned());

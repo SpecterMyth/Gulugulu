@@ -186,7 +186,7 @@ pub fn get_settings(app: AppHandle) -> AppSettings {
 #[tauri::command]
 pub fn set_autostart(app: AppHandle, enabled: bool) -> AppSettings {
     let manager = app.autolaunch();
-    // dev 调试版（`tauri dev`）的前端从 devUrl（http://localhost:5173）加载，脱离 Vite dev
+    // dev 调试版（`tauri dev`）的前端从 devUrl（http://localhost:4173）加载，脱离 Vite dev
     // server 无法独立启动。开机自启是直接拉起这个裸 exe、并不会先跑 Vite，于是 boot 时
     // WebView 卡在「localhost 拒绝连接」（用户实测的坏 boot）。故 dev 构建一律**拒绝登记**，
     // 并顺手清掉历史 dev 构建可能留下的坏自启项（含 Steam 伴随项）以自愈。真正支持开机自启的
@@ -270,7 +270,7 @@ fn autostart_target_is_current_exe(_app: &AppHandle) -> Option<bool> {
 
 /// 启动时对账开机自启。在 `lib.rs` 的 setup() 里调一次；幂等。
 ///
-/// 1. **dev 自愈**：`tauri dev` 构建的前端从 devUrl（localhost:5173）加载，而开机自启是直接
+/// 1. **dev 自愈**：`tauri dev` 构建的前端从 devUrl（localhost:4173）加载，而开机自启是直接
 ///    拉起裸 exe、不会先跑 Vite，于是 boot 后必然卡在「localhost 拒绝连接」。`set_autostart`
 ///    的守卫只挡**新**登记，挡不住**已存在**的坏登记——历史 dev 构建写下的那条会一直存活、
 ///    每次开机复现（用户实测：删掉后从引导弹窗又点了一次「加入自启」就又坏了）。故 dev 构建

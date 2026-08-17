@@ -114,6 +114,12 @@ pub struct OnboardingState {
     pub starter_trio_claimed: bool,
     #[serde(default)]
     pub post_practice_roster_claimed: bool,
+    /// Independent receipt for the second six-pet support drop committed with D09.
+    #[serde(default)]
+    pub post_yard_roster_claimed: bool,
+    /// Third/fourth guided fusion eggs that must be collected before D10 can finish.
+    #[serde(default)]
+    pub guided_fusion_egg_ids: std::collections::BTreeSet<String>,
     #[serde(default)]
     pub factory_formal_entered: bool,
     #[serde(default)]
@@ -132,6 +138,8 @@ impl Default for OnboardingState {
             tutorial_fusions: 0,
             starter_trio_claimed: false,
             post_practice_roster_claimed: false,
+            post_yard_roster_claimed: false,
+            guided_fusion_egg_ids: std::collections::BTreeSet::new(),
             factory_formal_entered: false,
             agent_prompt_skipped: false,
             steam_market_open_attempted: false,

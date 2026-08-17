@@ -186,6 +186,8 @@ export function applyPreviewBootstrap(): void {
             tutorialFusions: 0,
             starterTrioClaimed: false,
             postPracticeRosterClaimed: false,
+            postYardRosterClaimed: false,
+            guidedFusionEggIds: [],
             factoryFormalEntered: false,
             agentPromptSkipped: false,
             steamMarketOpenAttempted: false,

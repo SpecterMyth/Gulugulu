@@ -126,11 +126,11 @@
         "maxed": "ショップ最大 · トップスアウト T{tier} 卵 (卵)T5–6 フュージョン専用)"
       },
       "hatchery": {
-        "unlockThisTitle": "この穴のロックを解除します",
-        "unlockPrevTitle": "最初に前のピットのロックを解除します",
-        "unlockPill": "{cost} のロックを解除します 🪙",
-        "lockedPill": "ロックされています",
-        "needCoinsUnlock": "コインが足りません — ロック解除にかかるコスト {cost} 🪙",
+        "unlockThisTitle": "この卵穴を開放",
+        "unlockPrevTitle": "先に前の卵穴を開放",
+        "unlockPill": "開放 {cost} 🪙",
+        "lockedPill": "未開放",
+        "needCoinsUnlock": "コインが足りません。開放には {cost} 🪙 必要です",
         "placeEggTitle": "卵を置いて孵化させます",
         "emptyPitTitle": "空のピット",
         "placeEggPill": "🥚 卵を置く",
@@ -144,6 +144,9 @@
         "queuedProvider": "🤖 {provider} を待っています",
         "syncing": "🎮 Steamを待っています",
         "syncingTitle": "待ち合わせ Steam 融合材料を燃やし、その結果を付与する。 AI 設計はの後で始まります",
+        "syncRetry": "🎮 再試行 {attempt} · {countdown}",
+        "syncRepair": "⚠ Steam同期の修復が必要 · 再試行",
+        "syncErrorTitle": "Steam交換が繰り返し失敗しています：{error}。先にクリックして照合し、その後もう一度お試しください。",
         "collectTitle": "クリックして収集",
         "collectPill": "✨ 受け取る！",
         "noFreePitTitle": "フリーピットなし",
@@ -1529,6 +1532,18 @@
         "label": "8人全員がここにいます。次の目的地は、スコア、素材、アクシデントがすべてあなたのものとなる正式なランです。",
         "cta": "正式な実行に入る"
       },
+      "D09": {
+        "chapter": "種の KPI の完了",
+        "label": "8人全員がここにいます。次の目的地は、スコア、素材、アクシデントがすべてあなたのものとなる正式なランです。"
+      },
+      "D10": {
+        "chapter": "レシピレーダー",
+        "label": "新種の卵を作るには水と電気を消費します。融合を確認します。"
+      },
+      "D11": {
+        "chapter": "レシピレーダー",
+        "label": "8秒後、矢印を後ろに移動して収集します。 カタログは8/8に達しますので、 AI 種について議論を中止することができます KPIs."
+      },
       "E01": {
         "chapter": "バック・オン・ザ・クロック",
         "label": "「ワークプレイス スタック」を選択します。最初のランではルールを学びました。これは完全にあなたのものです。"
@@ -1965,11 +1980,11 @@
       "ice.freezeprice": {
         "name": "ウェッジ 凍結",
         "descriptions": [
-          "すべての雇用価格を乗じる 氷属性グル によって ×0.9.",
-          "すべての雇用価格を乗じる 氷属性グル によって ×0.75.",
           "すべての雇用価格を乗じる 氷属性グル によって ×0.6.",
-          "すべての雇用価格を乗じる 氷属性グル によって ×0.4.",
-          "すべての雇用価格を乗じる 氷属性グル によって ×0.2."
+          "すべての氷属性グルの採用価格を ×0.3 倍にします。",
+          "すべての氷属性グルの採用価格を ×0.1 倍にします。",
+          "すべての氷属性グルの採用価格を ×0.05 倍にします。",
+          "すべての氷属性グルの採用価格を ×0.02 倍にします。"
         ]
       },
       "ice.freeze": {
@@ -2665,11 +2680,11 @@
         "maxed": "Magasinez maxed · tops out chez T{tier} œufs (T5–6 ne sont que fusion)"
       },
       "hatchery": {
-        "unlockThisTitle": "Déverrouillez cette fosse",
-        "unlockPrevTitle": "Déverrouillez d'abord la fosse précédente",
-        "unlockPill": "Déverrouillage {cost} 🪙",
-        "lockedPill": "Verrouillé",
-        "needCoinsUnlock": "Pas assez de pièces — coûts de déverrouillage {cost} 🪙",
+        "unlockThisTitle": "Déverrouiller ce nid",
+        "unlockPrevTitle": "Déverrouillez d’abord le nid précédent",
+        "unlockPill": "Déverrouiller {cost} 🪙",
+        "lockedPill": "À déverrouiller",
+        "needCoinsUnlock": "Pas assez de pièces : il faut {cost} 🪙 pour le déverrouiller",
         "placeEggTitle": "Placer un œuf à incuber",
         "emptyPitTitle": "Trou vide",
         "placeEggPill": "🥚 Placer l'œuf",
@@ -2683,6 +2698,9 @@
         "queuedProvider": "🤖 Attendre {provider}",
         "syncing": "🎮 Attendre Steam",
         "syncingTitle": "Attendre Steam brûler les matériaux de fusion et donner le résultat; AI la conception commence après",
+        "syncRetry": "🎮 Nouvelle tentative {attempt} · {countdown}",
+        "syncRepair": "⚠ Synchronisation Steam à réparer · réessayer",
+        "syncErrorTitle": "L’échange Steam échoue toujours : {error}. Cliquez d’abord pour effectuer le rapprochement, puis réessayez.",
         "collectTitle": "Cliquez pour collecter",
         "collectPill": "✨ Récupérer !",
         "noFreePitTitle": "Pas de puits libres",
@@ -4068,6 +4086,18 @@
         "label": "Les huit sont là. Prochain arrêt : une course officielle, où le score, les matériaux et les accidents sont à vous.",
         "cta": "Entrez l'exécution formelle"
       },
+      "D09": {
+        "chapter": "Espèce KPI Complet",
+        "label": "Les huit sont là. Prochain arrêt : une course officielle, où le score, les matériaux et les accidents sont à vous."
+      },
+      "D10": {
+        "chapter": "Radar de recette",
+        "label": "L'eau et l'électricité seront consommées pour faire un nouvel oeuf. Confirmez la fusion."
+      },
+      "D11": {
+        "chapter": "Radar de recette",
+        "label": "Après 8 secondes, suivez la flèche et ramenez-la. Le catalogue atteint 8/8, donc le AI peut cesser de discuter d'espèces KPIs."
+      },
       "E01": {
         "chapter": "Retour sur l'horloge",
         "label": "Choisissez Embout en milieu de travail. La première course a enseigné les règles ; celle-ci est entièrement à vous."
@@ -4504,11 +4534,11 @@
       "ice.freezeprice": {
         "name": "Salaire Gel",
         "descriptions": [
-          "Multipliez le prix de location de chaque Gulu Glace par ×0.9.",
-          "Multipliez le prix de location de chaque Gulu Glace par ×0.75.",
           "Multipliez le prix de location de chaque Gulu Glace par ×0.6.",
-          "Multipliez le prix de location de chaque Gulu Glace par ×0.4.",
-          "Multipliez le prix de location de chaque Gulu Glace par ×0.2."
+          "Multiplie le prix de recrutement de chaque Gulu Glace par ×0.3.",
+          "Multiplie le prix de recrutement de chaque Gulu Glace par ×0.1.",
+          "Multiplie le prix de recrutement de chaque Gulu Glace par ×0.05.",
+          "Multiplie le prix de recrutement de chaque Gulu Glace par ×0.02."
         ]
       },
       "ice.freeze": {
@@ -5204,11 +5234,11 @@
         "maxed": "最大商店數 · 頂端 T{tier} 雞蛋(T5–6 僅僅是聚變)"
       },
       "hatchery": {
-        "unlockThisTitle": "解鎖這個坑",
-        "unlockPrevTitle": "先解鎖之前的坑",
-        "unlockPill": "解鎖{cost} 🪙",
-        "lockedPill": "鎖定",
-        "needCoinsUnlock": "沒有足夠的金幣 — 解鎖成本 {cost} 🪙",
+        "unlockThisTitle": "解鎖這個蛋坑",
+        "unlockPrevTitle": "先解鎖前一個蛋坑",
+        "unlockPill": "解鎖 {cost} 🪙",
+        "lockedPill": "待解鎖",
+        "needCoinsUnlock": "金幣不足，解鎖需要 {cost} 🪙",
         "placeEggTitle": "放入雞蛋進行孵化",
         "emptyPitTitle": "空坑",
         "placeEggPill": "🥚放入雞蛋",
@@ -5222,6 +5252,9 @@
         "queuedProvider": "🤖 等待{provider}",
         "syncing": "🎮等待Steam",
         "syncingTitle": "等待時間 Steam 燃燒聚變材料並給予結果; AI 設計從後面開始",
+        "syncRetry": "🎮 重試 {attempt} · {countdown}",
+        "syncRepair": "⚠ Steam 同步需要修復 · 重試",
+        "syncErrorTitle": "Steam 交換持續失敗：{error}。請先點擊對帳，再重試。",
         "collectTitle": "點擊收藏",
         "collectPill": "✨ 收取！",
         "noFreePitTitle": "沒有免費的坑",
@@ -6607,6 +6640,18 @@
         "label": "八者皆如來. 下一站:正式執行,其中的分數,材料,事故都是你的.",
         "cta": "輸入正式執行"
       },
+      "D09": {
+        "chapter": "物種 KPI 完整",
+        "label": "八者皆如來. 下一站:正式執行,其中的分數,材料,事故都是你的."
+      },
+      "D10": {
+        "chapter": "輔助雷達",
+        "label": "水電會消耗成新種蛋. 確認核聚變。"
+      },
+      "D11": {
+        "chapter": "輔助雷達",
+        "label": "8秒後,跟隨箭頭返回收集. 目錄達到了8/8 所以 AI 可以停止討論物種 KPIs."
+      },
       "E01": {
         "chapter": "回到時鐘",
         "label": "選擇工作場所堆疊 。 第一場比賽教授了規則,這是你的。"
@@ -7043,11 +7088,11 @@
       "ice.freezeprice": {
         "name": "工資 凍結",
         "descriptions": [
-          "冰系咕嚕的僱傭價格 ×0.9",
-          "冰系咕嚕的僱傭價格 ×0.75",
           "冰系咕嚕的僱傭價格 ×0.6",
-          "冰系咕嚕的僱傭價格 ×0.4",
-          "冰系咕嚕的僱傭價格 ×0.2"
+          "將每隻冰系咕嚕的招募價格乘以 ×0.3。",
+          "將每隻冰系咕嚕的招募價格乘以 ×0.1。",
+          "將每隻冰系咕嚕的招募價格乘以 ×0.05。",
+          "將每隻冰系咕嚕的招募價格乘以 ×0.02。"
         ]
       },
       "ice.freeze": {
@@ -7743,11 +7788,11 @@
         "maxed": "최대 쇼핑 · 위에 가기 T{tier} 계란 (T5–6 fusion-only는 입니다)"
       },
       "hatchery": {
-        "unlockThisTitle": "이 pit을 잠금 해제",
-        "unlockPrevTitle": "첫 번째 pit을 잠금 해제",
-        "unlockPill": "다운로드 {cost} 🪙",
-        "lockedPill": "기타 제품",
-        "needCoinsUnlock": "충분히 동전 — 잠금 해제 {cost} 🪙",
+        "unlockThisTitle": "이 알 구덩이 잠금 해제",
+        "unlockPrevTitle": "먼저 앞 알 구덩이 잠금 해제",
+        "unlockPill": "잠금 해제 {cost} 🪙",
+        "lockedPill": "잠김",
+        "needCoinsUnlock": "코인이 부족합니다. 잠금 해제에 {cost} 🪙 필요합니다",
         "placeEggTitle": "incubate에 달걀을 배치하십시오.",
         "emptyPitTitle": "빈 pit",
         "placeEggPill": "🥚 계란",
@@ -7761,6 +7806,9 @@
         "queuedProvider": "🤖 대기 중 {provider}",
         "syncing": "🎮 대기 중 Steam",
         "syncingTitle": "대기 중 Steam 퓨전 물질을 태우고 결과를 부여하십시오; AI 디자인 시작 afterward",
+        "syncRetry": "🎮 재시도 {attempt} · {countdown}",
+        "syncRepair": "⚠ Steam 동기화 복구 필요 · 재시도",
+        "syncErrorTitle": "Steam 교환이 계속 실패합니다: {error}. 먼저 눌러 동기화 상태를 복구한 뒤 다시 시도하세요.",
         "collectTitle": "자주 묻는 질문",
         "collectPill": "✨ 받기!",
         "noFreePitTitle": "무료 pits 없음",
@@ -9146,6 +9194,18 @@
         "label": "모든 8은 여기에 있습니다. 다음 중지 : 공식 실행, 점수, 자료, 사고는 모두 당신의.",
         "cta": "본문 바로가기"
       },
+      "D09": {
+        "chapter": "Species KPI 완료",
+        "label": "모든 8은 여기에 있습니다. 다음 중지 : 공식 실행, 점수, 자료, 사고는 모두 당신의."
+      },
+      "D10": {
+        "chapter": "회사 소개",
+        "label": "물과 전기는 새 종자 계란을 만들기 위해 소모됩니다. 퓨전 확인"
+      },
+      "D11": {
+        "chapter": "회사 소개",
+        "label": "8 초 후에, 화살표 뒤를 따르고 그것을 모으십시오. 카탈로그는 8/8, 이렇게 도달합니다 AI 종을 토론 할 수 있습니다 KPIs."
+      },
       "E01": {
         "chapter": "다시 시계",
         "label": "Workplace Stack을 선택하십시오. 첫 번째 실행 규칙을 가르쳤다. 이 것은 완전히 당신입니다."
@@ -9582,11 +9642,11 @@
       "ice.freezeprice": {
         "name": "뚱 베어 빙결",
         "descriptions": [
-          "각의 고용 가격을 곱합니다. 얼음 속성 Gulu 이름 * ×0.9.",
-          "각의 고용 가격을 곱합니다. 얼음 속성 Gulu 이름 * ×0.75.",
           "각의 고용 가격을 곱합니다. 얼음 속성 Gulu 이름 * ×0.6.",
-          "각의 고용 가격을 곱합니다. 얼음 속성 Gulu 이름 * ×0.4.",
-          "각의 고용 가격을 곱합니다. 얼음 속성 Gulu 이름 * ×0.2."
+          "모든 얼음 속성 Gulu의 고용 가격에 ×0.3을 곱합니다.",
+          "모든 얼음 속성 Gulu의 고용 가격에 ×0.1을 곱합니다.",
+          "모든 얼음 속성 Gulu의 고용 가격에 ×0.05을 곱합니다.",
+          "모든 얼음 속성 Gulu의 고용 가격에 ×0.02을 곱합니다."
         ]
       },
       "ice.freeze": {
@@ -10282,11 +10342,11 @@
         "maxed": "Shop maxed · Tops out bei T{tier} EierT5–6 sind Fusion-only"
       },
       "hatchery": {
-        "unlockThisTitle": "Entsperren Sie diese Grube",
-        "unlockPrevTitle": "Entsperren Sie zuerst die vorherige Box",
-        "unlockPill": "Entsperrung {cost} 🪙",
-        "lockedPill": "Verriegelt",
-        "needCoinsUnlock": "Nicht genügend Münzen — Freischaltungskosten {cost} 🪙",
+        "unlockThisTitle": "Diese Brutgrube freischalten",
+        "unlockPrevTitle": "Zuerst die vorherige Brutgrube freischalten",
+        "unlockPill": "Freischalten {cost} 🪙",
+        "lockedPill": "Nicht freigeschaltet",
+        "needCoinsUnlock": "Nicht genug Münzen – zum Freischalten werden {cost} 🪙 benötigt",
         "placeEggTitle": "Legen Sie ein Ei zum Inkubieren",
         "emptyPitTitle": "Leere Grube",
         "placeEggPill": "🥚 Eier",
@@ -10300,6 +10360,9 @@
         "queuedProvider": "🤖 Warten auf {provider}",
         "syncing": "🎮 Warten auf Steam",
         "syncingTitle": "Warten auf Steam das Fusionsmaterial zu verbrennen und das Ergebnis zu liefern; AI Design beginnt danach",
+        "syncRetry": "🎮 Versuch {attempt} · {countdown}",
+        "syncRepair": "⚠ Steam-Synchronisierung muss repariert werden · erneut versuchen",
+        "syncErrorTitle": "Der Steam-Tausch schlägt weiterhin fehl: {error}. Klicke zuerst zum Abgleichen und versuche es danach erneut.",
         "collectTitle": "Klicken Sie zum Sammeln",
         "collectPill": "✨ Einsammeln!",
         "noFreePitTitle": "Keine freien Gruben",
@@ -11685,6 +11748,18 @@
         "label": "Alle acht sind hier. Nächster Halt: ein formeller Lauf, bei dem die Punktzahl, Materialien und Unfälle Ihnen gehören.",
         "cta": "Geben Sie den formalen Lauf ein"
       },
+      "D09": {
+        "chapter": "Art KPI Complete",
+        "label": "Alle acht sind hier. Nächster Halt: ein formeller Lauf, bei dem die Punktzahl, Materialien und Unfälle Ihnen gehören."
+      },
+      "D10": {
+        "chapter": "Rezept-Radar",
+        "label": "Wasser und Elektrik werden verbraucht, um ein Ei neuer Arten herzustellen. Bestätige die Fusion."
+      },
+      "D11": {
+        "chapter": "Rezept-Radar",
+        "label": "Nach 8 Sekunden folgen Sie dem Pfeil zurück und sammeln ihn. Der Katalog erreicht 8/8, so dass die AI Kann aufhören, über Arten zu diskutieren KPIs."
+      },
       "E01": {
         "chapter": "Zurück auf der Uhr",
         "label": "Wählen Sie Workplace Stack. Der erste Lauf lehrte die Regeln; dieser ist ganz dir."
@@ -12121,11 +12196,11 @@
       "ice.freezeprice": {
         "name": "Lohn Einfrieren",
         "descriptions": [
-          "Multiplizieren Sie den Mietpreis jedes Eis-Gulu mit ×0.9.",
-          "Multiplizieren Sie den Mietpreis jedes Eis-Gulu mit ×0.75.",
           "Multiplizieren Sie den Mietpreis jedes Eis-Gulu mit ×0.6.",
-          "Multiplizieren Sie den Mietpreis jedes Eis-Gulu mit ×0.4.",
-          "Multiplizieren Sie den Mietpreis jedes Eis-Gulu mit ×0.2."
+          "Multipliziert den Anwerbepreis jedes Eis-Gulu mit ×0.3.",
+          "Multipliziert den Anwerbepreis jedes Eis-Gulu mit ×0.1.",
+          "Multipliziert den Anwerbepreis jedes Eis-Gulu mit ×0.05.",
+          "Multipliziert den Anwerbepreis jedes Eis-Gulu mit ×0.02."
         ]
       },
       "ice.freeze": {
@@ -12821,11 +12896,11 @@
         "maxed": "Tienda maxed · tops out at T{tier} huevos (T5–6 son sólo fusión)"
       },
       "hatchery": {
-        "unlockThisTitle": "Desbloquea esta fosa",
-        "unlockPrevTitle": "Desbloquear el agujero anterior primero",
+        "unlockThisTitle": "Desbloquear este nido",
+        "unlockPrevTitle": "Desbloquea primero el nido anterior",
         "unlockPill": "Desbloquear {cost} 🪙",
-        "lockedPill": "Cerrado",
-        "needCoinsUnlock": "No son suficientes monedas — costes de desbloqueo {cost} 🪙",
+        "lockedPill": "Por desbloquear",
+        "needCoinsUnlock": "No tienes suficientes monedas: necesitas {cost} 🪙 para desbloquearlo",
         "placeEggTitle": "Coloque un huevo para incubar",
         "emptyPitTitle": "Pecho vacío",
         "placeEggPill": "🥚 Coloque el huevo",
@@ -12839,6 +12914,9 @@
         "queuedProvider": "🤖 Esperando {provider}",
         "syncing": "🎮 Esperando a Steam",
         "syncingTitle": "Esperando a Steam para quemar los materiales de fusión y otorgar el resultado; el diseño de AI comienza después",
+        "syncRetry": "🎮 Reintento {attempt} · {countdown}",
+        "syncRepair": "⚠ Hay que reparar la sincronización de Steam · reintentar",
+        "syncErrorTitle": "El intercambio de Steam sigue fallando: {error}. Haz clic para conciliar los datos y vuelve a intentarlo.",
         "collectTitle": "Haga clic para recoger",
         "collectPill": "✨ Recoger!",
         "noFreePitTitle": "Sin agujeros libres",
@@ -14224,6 +14302,18 @@
         "label": "Los ocho están aquí. Siguiente parada: una carrera formal, donde la puntuación, los materiales y los accidentes son todos suyos.",
         "cta": "Entra en la carrera formal"
       },
+      "D09": {
+        "chapter": "Especies KPI Complete",
+        "label": "Los ocho están aquí. Siguiente parada: una carrera formal, donde la puntuación, los materiales y los accidentes son todos suyos."
+      },
+      "D10": {
+        "chapter": "receta radar",
+        "label": "Agua y electricidad se consumirán para hacer un huevo de nueva especie. Confirme la fusión."
+      },
+      "D11": {
+        "chapter": "receta radar",
+        "label": "Después de 8 segundos, siga la flecha y colóquela. El catálogo alcanza 8/8, por lo que el AI puede dejar de discutir especies KPIs."
+      },
       "E01": {
         "chapter": "De vuelta en el reloj",
         "label": "Elige Workplace Stack. La primera carrera enseñó las reglas; ésta es enteramente tuya."
@@ -14660,11 +14750,11 @@
       "ice.freezeprice": {
         "name": "Wage Congelación",
         "descriptions": [
-          "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.9.",
-          "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.75.",
           "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.6.",
-          "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.4.",
-          "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.2."
+          "Multiplica el precio de contratación de cada Gulu de Hielo por ×0.3.",
+          "Multiplica el precio de contratación de cada Gulu de Hielo por ×0.1.",
+          "Multiplica el precio de contratación de cada Gulu de Hielo por ×0.05.",
+          "Multiplica el precio de contratación de cada Gulu de Hielo por ×0.02."
         ]
       },
       "ice.freeze": {
@@ -15360,11 +15450,11 @@
         "maxed": "Tienda maxed · tops out at T{tier} huevos (T5–6 son sólo fusión)"
       },
       "hatchery": {
-        "unlockThisTitle": "Desbloquea esta fosa",
-        "unlockPrevTitle": "Desbloquear el agujero anterior primero",
+        "unlockThisTitle": "Desbloquear este nido",
+        "unlockPrevTitle": "Desbloquea primero el nido anterior",
         "unlockPill": "Desbloquear {cost} 🪙",
-        "lockedPill": "Cerrado",
-        "needCoinsUnlock": "No son suficientes monedas — costes de desbloqueo {cost} 🪙",
+        "lockedPill": "Por desbloquear",
+        "needCoinsUnlock": "No tienes suficientes monedas: necesitas {cost} 🪙 para desbloquearlo",
         "placeEggTitle": "Coloque un huevo para incubar",
         "emptyPitTitle": "Pecho vacío",
         "placeEggPill": "🥚 Coloque el huevo",
@@ -15378,6 +15468,9 @@
         "queuedProvider": "🤖 Esperando {provider}",
         "syncing": "🎮 Esperando a Steam",
         "syncingTitle": "Esperando a Steam para quemar los materiales de fusión y otorgar el resultado; el diseño de AI comienza después",
+        "syncRetry": "🎮 Reintento {attempt} · {countdown}",
+        "syncRepair": "⚠ Hay que reparar la sincronización de Steam · reintentar",
+        "syncErrorTitle": "El intercambio de Steam sigue fallando: {error}. Haz clic para conciliar los datos y vuelve a intentarlo.",
         "collectTitle": "Haga clic para recoger",
         "collectPill": "✨ Recoger!",
         "noFreePitTitle": "Sin agujeros libres",
@@ -16763,6 +16856,18 @@
         "label": "Los ocho están aquí. Siguiente parada: una carrera formal, donde la puntuación, los materiales y los accidentes son todos suyos.",
         "cta": "Entra en la carrera formal"
       },
+      "D09": {
+        "chapter": "Especies KPI Complete",
+        "label": "Los ocho están aquí. Siguiente parada: una carrera formal, donde la puntuación, los materiales y los accidentes son todos suyos."
+      },
+      "D10": {
+        "chapter": "receta radar",
+        "label": "Agua y electricidad se consumirán para hacer un huevo de nueva especie. Confirme la fusión."
+      },
+      "D11": {
+        "chapter": "receta radar",
+        "label": "Después de 8 segundos, siga la flecha y colóquela. El catálogo alcanza 8/8, por lo que el AI puede dejar de discutir especies KPIs."
+      },
       "E01": {
         "chapter": "De vuelta en el reloj",
         "label": "Elige Workplace Stack. La primera carrera enseñó las reglas; ésta es enteramente tuya."
@@ -17199,11 +17304,11 @@
       "ice.freezeprice": {
         "name": "Wage Congelación",
         "descriptions": [
-          "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.9.",
-          "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.75.",
           "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.6.",
-          "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.4.",
-          "Multiply el precio de alquiler de cada Gulu de Hielo por ×0.2."
+          "Multiplica el precio de contratación de cada Gulu de Hielo por ×0.3.",
+          "Multiplica el precio de contratación de cada Gulu de Hielo por ×0.1.",
+          "Multiplica el precio de contratación de cada Gulu de Hielo por ×0.05.",
+          "Multiplica el precio de contratación de cada Gulu de Hielo por ×0.02."
         ]
       },
       "ice.freeze": {
@@ -17899,11 +18004,11 @@
         "maxed": "Loja no máximo · tops para fora em T{tier} Ovos (T5–6 são exclusivamente de fusão)"
       },
       "hatchery": {
-        "unlockThisTitle": "Desbloquear este poço",
-        "unlockPrevTitle": "Desbloquear o poço anterior primeiro",
+        "unlockThisTitle": "Desbloquear este ninho",
+        "unlockPrevTitle": "Desbloqueie primeiro o ninho anterior",
         "unlockPill": "Desbloquear {cost} 🪙",
-        "lockedPill": "Travado",
-        "needCoinsUnlock": "Moedas insuficientes — custos de desbloqueio {cost} 🪙",
+        "lockedPill": "A desbloquear",
+        "needCoinsUnlock": "Moedas insuficientes: são necessárias {cost} 🪙 para desbloquear",
         "placeEggTitle": "Coloque um ovo para incubação",
         "emptyPitTitle": "Poço vazio",
         "placeEggPill": "🥚 Colocar ovo",
@@ -17917,6 +18022,9 @@
         "queuedProvider": "🤖 À espera {provider}",
         "syncing": "🎮 À espera Steam",
         "syncingTitle": "À espera Steam Queimar os materiais de fusão e conceder o resultado; AI design começa depois",
+        "syncRetry": "🎮 Tentativa {attempt} · {countdown}",
+        "syncRepair": "⚠ A sincronização da Steam precisa de reparo · tentar de novo",
+        "syncErrorTitle": "A troca da Steam continua falhando: {error}. Clique primeiro para reconciliar os dados e tente novamente.",
         "collectTitle": "Clique para coletar",
         "collectPill": "✨ Coletar!",
         "noFreePitTitle": "Não há poços livres",
@@ -19302,6 +19410,18 @@
         "label": "Todos os oito estão aqui. Próxima parada: uma corrida formal, onde a pontuação, materiais e acidentes são todos seus.",
         "cta": "Digite a execução formal"
       },
+      "D09": {
+        "chapter": "Espécie KPI Completo",
+        "label": "Todos os oito estão aqui. Próxima parada: uma corrida formal, onde a pontuação, materiais e acidentes são todos seus."
+      },
+      "D10": {
+        "chapter": "Radar de Receitas",
+        "label": "Água e Electric serão consumidos para fazer um ovo de nova espécie. Confirme a fusão."
+      },
+      "D11": {
+        "chapter": "Radar de Receitas",
+        "label": "Após 8 segundos, siga a seta para trás e recolhê-la. O catálogo chega a 8/8, de modo que AI pode parar de discutir espécies KPIs."
+      },
       "E01": {
         "chapter": "De volta ao relógio",
         "label": "Escolha a pilha do local de trabalho. A primeira corrida ensinou as regras; esta é inteiramente sua."
@@ -19738,11 +19858,11 @@
       "ice.freezeprice": {
         "name": "Salário Congelamento",
         "descriptions": [
-          "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.9.",
-          "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.75.",
           "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.6.",
-          "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.4.",
-          "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.2."
+          "Multiplica o preço de contratação de cada Gulu de Gelo por ×0.3.",
+          "Multiplica o preço de contratação de cada Gulu de Gelo por ×0.1.",
+          "Multiplica o preço de contratação de cada Gulu de Gelo por ×0.05.",
+          "Multiplica o preço de contratação de cada Gulu de Gelo por ×0.02."
         ]
       },
       "ice.freeze": {
@@ -20438,11 +20558,11 @@
         "maxed": "Loja no máximo · tops para fora em T{tier} Ovos (T5–6 são exclusivamente de fusão)"
       },
       "hatchery": {
-        "unlockThisTitle": "Desbloquear este poço",
-        "unlockPrevTitle": "Desbloquear o poço anterior primeiro",
+        "unlockThisTitle": "Desbloquear este ninho",
+        "unlockPrevTitle": "Desbloqueia primeiro o ninho anterior",
         "unlockPill": "Desbloquear {cost} 🪙",
-        "lockedPill": "Travado",
-        "needCoinsUnlock": "Moedas insuficientes — custos de desbloqueio {cost} 🪙",
+        "lockedPill": "Por desbloquear",
+        "needCoinsUnlock": "Moedas insuficientes: precisas de {cost} 🪙 para desbloquear",
         "placeEggTitle": "Coloque um ovo para incubação",
         "emptyPitTitle": "Poço vazio",
         "placeEggPill": "🥚 Colocar ovo",
@@ -20456,6 +20576,9 @@
         "queuedProvider": "🤖 À espera {provider}",
         "syncing": "🎮 À espera Steam",
         "syncingTitle": "À espera Steam Queimar os materiais de fusão e conceder o resultado; AI design começa depois",
+        "syncRetry": "🎮 Tentativa {attempt} · {countdown}",
+        "syncRepair": "⚠ A sincronização do Steam precisa de reparação · tentar de novo",
+        "syncErrorTitle": "A troca do Steam continua a falhar: {error}. Clica primeiro para reconciliar os dados e tenta novamente.",
         "collectTitle": "Clique para coletar",
         "collectPill": "✨ Recolher!",
         "noFreePitTitle": "Não há poços livres",
@@ -21841,6 +21964,18 @@
         "label": "Todos os oito estão aqui. Próxima parada: uma corrida formal, onde a pontuação, materiais e acidentes são todos seus.",
         "cta": "Digite a execução formal"
       },
+      "D09": {
+        "chapter": "Espécie KPI Completo",
+        "label": "Todos os oito estão aqui. Próxima parada: uma corrida formal, onde a pontuação, materiais e acidentes são todos seus."
+      },
+      "D10": {
+        "chapter": "Radar de Receitas",
+        "label": "Água e Electric serão consumidos para fazer um ovo de nova espécie. Confirme a fusão."
+      },
+      "D11": {
+        "chapter": "Radar de Receitas",
+        "label": "Após 8 segundos, siga a seta para trás e recolhê-la. O catálogo chega a 8/8, de modo que AI pode parar de discutir espécies KPIs."
+      },
       "E01": {
         "chapter": "De volta ao relógio",
         "label": "Escolha a pilha do local de trabalho. A primeira corrida ensinou as regras; esta é inteiramente sua."
@@ -22277,11 +22412,11 @@
       "ice.freezeprice": {
         "name": "Salário Congelamento",
         "descriptions": [
-          "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.9.",
-          "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.75.",
           "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.6.",
-          "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.4.",
-          "Multiplique o preço de aluguer de cada Gulu de Gelo por ×0.2."
+          "Multiplica o preço de contratação de cada Gulu de Gelo por ×0.3.",
+          "Multiplica o preço de contratação de cada Gulu de Gelo por ×0.1.",
+          "Multiplica o preço de contratação de cada Gulu de Gelo por ×0.05.",
+          "Multiplica o preço de contratação de cada Gulu de Gelo por ×0.02."
         ]
       },
       "ice.freeze": {
@@ -22977,11 +23112,11 @@
         "maxed": "Магазин maxed · Tops Out at T{tier} яйцаT5–6 только для слияния"
       },
       "hatchery": {
-        "unlockThisTitle": "Разблокируй яму",
-        "unlockPrevTitle": "Сначала разблокируйте предыдущую яму",
-        "unlockPill": "Разблокировать {cost} 🪙",
-        "lockedPill": "Запертый",
-        "needCoinsUnlock": "Недостаточно монет — стоимость разблокировки {cost} 🪙",
+        "unlockThisTitle": "Открыть это гнездо",
+        "unlockPrevTitle": "Сначала откройте предыдущее гнездо",
+        "unlockPill": "Открыть {cost} 🪙",
+        "lockedPill": "Не открыто",
+        "needCoinsUnlock": "Недостаточно монет: для открытия нужно {cost} 🪙",
         "placeEggTitle": "Поместите яйцо, чтобы инкубировать",
         "emptyPitTitle": "Пустая яма",
         "placeEggPill": "🥚 Место для яиц",
@@ -22995,6 +23130,9 @@
         "queuedProvider": "🤖 В ожидании {provider}",
         "syncing": "🎮 В ожидании Steam",
         "syncingTitle": "В ожидании Steam сжигать термоядерные материалы и давать результат; AI Дизайн начинается после",
+        "syncRetry": "🎮 Попытка {attempt} · {countdown}",
+        "syncRepair": "⚠ Синхронизацию Steam нужно восстановить · повторить",
+        "syncErrorTitle": "Обмен Steam снова не удался: {error}. Сначала нажмите для сверки, затем повторите попытку.",
         "collectTitle": "Нажмите, чтобы собрать",
         "collectPill": "✨ Забрать!",
         "noFreePitTitle": "Никаких свободных ям",
@@ -24380,6 +24518,18 @@
         "label": "Все восемь здесь. Следующая остановка: формальный забег, где счет, материалы и несчастные случаи все ваши.",
         "cta": "Войдите в формальный забег"
       },
+      "D09": {
+        "chapter": "Виды животных KPI Complete",
+        "label": "Все восемь здесь. Следующая остановка: формальный забег, где счет, материалы и несчастные случаи все ваши."
+      },
+      "D10": {
+        "chapter": "Рецепт радара",
+        "label": "Вода и электричество будут использоваться для производства нового вида яиц. Подтвердите слияние."
+      },
+      "D11": {
+        "chapter": "Рецепт радара",
+        "label": "Через 8 секунд последуйте за стрелкой и соберите ее. Каталог достигает 8/8. AI Может перестать обсуждать виды KPIs."
+      },
       "E01": {
         "chapter": "Назад в часы",
         "label": "Выберите Workplace Stack. Первый забег учил правилам; этот полностью твой."
@@ -24816,11 +24966,11 @@
       "ice.freezeprice": {
         "name": "зарплата Заморозка",
         "descriptions": [
-          "Умножьте стоимость аренды каждого Ледяной Gulu на ×0.9.",
-          "Умножьте стоимость аренды каждого Ледяной Gulu на ×0.75.",
           "Умножьте стоимость аренды каждого Ледяной Gulu на ×0.6.",
-          "Умножьте стоимость аренды каждого Ледяной Gulu на ×0.4.",
-          "Умножьте стоимость аренды каждого Ледяной Gulu на ×0.2."
+          "Стоимость найма каждого питомца типа «Ледяной Gulu» умножается на ×0.3.",
+          "Стоимость найма каждого питомца типа «Ледяной Gulu» умножается на ×0.1.",
+          "Стоимость найма каждого питомца типа «Ледяной Gulu» умножается на ×0.05.",
+          "Стоимость найма каждого питомца типа «Ледяной Gulu» умножается на ×0.02."
         ]
       },
       "ice.freeze": {
@@ -25516,11 +25666,11 @@
         "maxed": "Negozio maxed · top fuori a T{tier} uova (T5–6 sono solo fusion)"
       },
       "hatchery": {
-        "unlockThisTitle": "Sblocca questo pozzo",
-        "unlockPrevTitle": "Sblocca prima il pozzo precedente",
+        "unlockThisTitle": "Sblocca questo nido",
+        "unlockPrevTitle": "Sblocca prima il nido precedente",
         "unlockPill": "Sblocca {cost} 🪙",
-        "lockedPill": "Bloccato",
-        "needCoinsUnlock": "Non abbastanza monete — costi di sblocco {cost} 🪙",
+        "lockedPill": "Da sbloccare",
+        "needCoinsUnlock": "Monete insufficienti: servono {cost} 🪙 per sbloccarlo",
         "placeEggTitle": "Mettere un uovo per incubare",
         "emptyPitTitle": "Pozzo vuoto",
         "placeEggPill": "🥚 Mettere l'uovo",
@@ -25534,6 +25684,9 @@
         "queuedProvider": "🤖 In attesa di {provider}",
         "syncing": "🎮 Aspettare Steam",
         "syncingTitle": "In attesa che Steam bruci i materiali di fusione e conceda il risultato; il design AI inizia in seguito",
+        "syncRetry": "🎮 Tentativo {attempt} · {countdown}",
+        "syncRepair": "⚠ La sincronizzazione Steam va riparata · riprova",
+        "syncErrorTitle": "Lo scambio Steam continua a non riuscire: {error}. Fai clic per riconciliare i dati, poi riprova.",
         "collectTitle": "Clicca per raccogliere",
         "collectPill": "✨ Raccogli!",
         "noFreePitTitle": "Nessun pozzo libero",
@@ -26919,6 +27072,18 @@
         "label": "Tutti e otto sono qui. Prossima fermata: una corsa formale, dove il punteggio, i materiali e gli incidenti sono tutti vostri.",
         "cta": "Immettere l'esecuzione formale"
       },
+      "D09": {
+        "chapter": "Specie KPI Complete",
+        "label": "Tutti e otto sono qui. Prossima fermata: una corsa formale, dove il punteggio, i materiali e gli incidenti sono tutti vostri."
+      },
+      "D10": {
+        "chapter": "Ricetta Radar",
+        "label": "Acqua ed Elettrica saranno consumati per fare un uovo di nuova specie. Conferma la fusione."
+      },
+      "D11": {
+        "chapter": "Ricetta Radar",
+        "label": "Dopo 8 secondi, seguire la freccia indietro e raccogliere. Il catalogo raggiunge 8/8, quindi il AI può smettere di discutere specie KPIs."
+      },
       "E01": {
         "chapter": "Indietro sull'orologio",
         "label": "Scegli Workplace Stack. La prima corsa insegnava le regole; questa è tutta tua."
@@ -27355,11 +27520,11 @@
       "ice.freezeprice": {
         "name": "Wage Congelamento",
         "descriptions": [
-          "Multiply il prezzo di noleggio di ogni Gulu di Ghiaccio da ×0.9.",
-          "Multiply il prezzo di noleggio di ogni Gulu di Ghiaccio da ×0.75.",
           "Multiply il prezzo di noleggio di ogni Gulu di Ghiaccio da ×0.6.",
-          "Multiply il prezzo di noleggio di ogni Gulu di Ghiaccio da ×0.4.",
-          "Multiply il prezzo di noleggio di ogni Gulu di Ghiaccio da ×0.2."
+          "Moltiplica il prezzo di assunzione di ogni Gulu di Ghiaccio per ×0.3.",
+          "Moltiplica il prezzo di assunzione di ogni Gulu di Ghiaccio per ×0.1.",
+          "Moltiplica il prezzo di assunzione di ogni Gulu di Ghiaccio per ×0.05.",
+          "Moltiplica il prezzo di assunzione di ogni Gulu di Ghiaccio per ×0.02."
         ]
       },
       "ice.freeze": {
@@ -28055,11 +28220,11 @@
         "maxed": "Sklep maxed · top out at T{tier} jaja (T5–6 są tylko fusion- only)"
       },
       "hatchery": {
-        "unlockThisTitle": "Odblokuj ten dół",
-        "unlockPrevTitle": "Najpierw odblokuj poprzedni dół",
+        "unlockThisTitle": "Odblokuj to gniazdo",
+        "unlockPrevTitle": "Najpierw odblokuj poprzednie gniazdo",
         "unlockPill": "Odblokuj {cost} 🪙",
-        "lockedPill": "Zamknięte",
-        "needCoinsUnlock": "Za mało monet — koszty odblokowania {cost} 🪙",
+        "lockedPill": "Do odblokowania",
+        "needCoinsUnlock": "Za mało monet: odblokowanie wymaga {cost} 🪙",
         "placeEggTitle": "Umieść jajo do inkubacji",
         "emptyPitTitle": "Pusty dół",
         "placeEggPill": "🥚 Miejscowe jaja",
@@ -28073,6 +28238,9 @@
         "queuedProvider": "🤖 Czekam na {provider}",
         "syncing": "🎮 Czekam na Steam",
         "syncingTitle": "Czekając, aż Steam spali materiały termojądrowe i zapewni wynik; projekt AI zaczyna się później",
+        "syncRetry": "🎮 Próba {attempt} · {countdown}",
+        "syncRepair": "⚠ Synchronizacja Steam wymaga naprawy · spróbuj ponownie",
+        "syncErrorTitle": "Wymiana Steam nadal się nie udaje: {error}. Najpierw kliknij, aby uzgodnić dane, a potem spróbuj ponownie.",
         "collectTitle": "Kliknij, aby zebrać",
         "collectPill": "✨ Odbierz!",
         "noFreePitTitle": "Brak darmowych dołów",
@@ -29458,6 +29626,18 @@
         "label": "Cała ósemka jest tutaj. Następny przystanek: formalny bieg, gdzie wynik, materiały i wypadki są wszystkie twoje.",
         "cta": "Wprowadź formalny bieg"
       },
+      "D09": {
+        "chapter": "Gatunek KPI Kompletny",
+        "label": "Cała ósemka jest tutaj. Następny przystanek: formalny bieg, gdzie wynik, materiały i wypadki są wszystkie twoje."
+      },
+      "D10": {
+        "chapter": "Przepis Radar",
+        "label": "Woda i Electric zostaną zużyte do produkcji nowego gatunku jaj. Potwierdź fuzję."
+      },
+      "D11": {
+        "chapter": "Przepis Radar",
+        "label": "Po 8 sekundach podążaj za strzałką i ją zbieraj. Katalog osiąga 8 / 8, więc AI może przestać omawiać gatunki KPIs."
+      },
       "E01": {
         "chapter": "Powrót na zegar",
         "label": "Wybierz zestaw miejsc pracy. Pierwszy kurs nauczył zasad; ten jest całkowicie twój."
@@ -29894,11 +30074,11 @@
       "ice.freezeprice": {
         "name": "Płaca Zamrożenie",
         "descriptions": [
-          "Pomnóż cenę najmu każdego Lodowy Gulu przez ×0.9.",
-          "Pomnóż cenę najmu każdego Lodowy Gulu przez ×0.75.",
           "Pomnóż cenę najmu każdego Lodowy Gulu przez ×0.6.",
-          "Pomnóż cenę najmu każdego Lodowy Gulu przez ×0.4.",
-          "Pomnóż cenę najmu każdego Lodowy Gulu przez ×0.2."
+          "Cena zatrudnienia każdego Gulu typu „Lodowy Gulu” jest mnożona przez ×0.3.",
+          "Cena zatrudnienia każdego Gulu typu „Lodowy Gulu” jest mnożona przez ×0.1.",
+          "Cena zatrudnienia każdego Gulu typu „Lodowy Gulu” jest mnożona przez ×0.05.",
+          "Cena zatrudnienia każdego Gulu typu „Lodowy Gulu” jest mnożona przez ×0.02."
         ]
       },
       "ice.freeze": {
@@ -30594,11 +30774,11 @@
         "maxed": "Shop maxed · üstlerde T{tier} Yumurta ( Yumurta)T5–6 füzyon-sadece)"
       },
       "hatchery": {
-        "unlockThisTitle": "Bu çukur",
-        "unlockPrevTitle": "Önceki çukur ilk önce",
-        "unlockPill": "kilidini aç {cost} 🪙",
-        "lockedPill": "Aç olana kadar açıklanamaz",
-        "needCoinsUnlock": "Yeterli para değil — Maliyetlerin kilidini açmak {cost} 🪙",
+        "unlockThisTitle": "Bu yuvanın kilidini aç",
+        "unlockPrevTitle": "Önce önceki yuvanın kilidini aç",
+        "unlockPill": "Kilidi aç {cost} 🪙",
+        "lockedPill": "Kilitli",
+        "needCoinsUnlock": "Yeterli jeton yok; kilidi açmak için {cost} 🪙 gerekiyor",
         "placeEggTitle": "Bir yumurtayı incubate",
         "emptyPitTitle": "Boş çukur",
         "placeEggPill": "🥚 Yer",
@@ -30612,6 +30792,9 @@
         "queuedProvider": "🤖 Beklemek için {provider}",
         "syncing": "🎮 Beklemek için Steam",
         "syncingTitle": "Beklemek için Steam füzyon malzemeleri yakmak ve sonucu vermek; AI Tasarım daha sonra başlar",
+        "syncRetry": "🎮 Deneme {attempt} · {countdown}",
+        "syncRepair": "⚠ Steam eşitlemesinin onarılması gerekiyor · yeniden dene",
+        "syncErrorTitle": "Steam takası başarısız olmaya devam ediyor: {error}. Önce uzlaştırmak için tıkla, ardından yeniden dene.",
         "collectTitle": "toplamak için tıklayın",
         "collectPill": "✨ Topla!",
         "noFreePitTitle": "Ücretsiz pit yok",
@@ -31997,6 +32180,18 @@
         "label": "Sekizi burada. Sonraki durak: resmi bir koşu, puan, malzeme ve kazalar tüm sizindir.",
         "cta": "Resmi koşmaya girin"
       },
+      "D09": {
+        "chapter": "Türler KPI Complete",
+        "label": "Sekizi burada. Sonraki durak: resmi bir koşu, puan, malzeme ve kazalar tüm sizindir."
+      },
+      "D10": {
+        "chapter": "Yeniden Radar",
+        "label": "Su ve Elektrikli yeni türlerin yumurtası yapmak için tüketilecektir. füzyonu onaylayın."
+      },
+      "D11": {
+        "chapter": "Yeniden Radar",
+        "label": "8 saniye sonra, ok geri takip edin ve toplayın. Katalog 8/8'e ulaşır, bu yüzden AI türlerin tartışmasını durdurabilir KPIs."
+      },
       "E01": {
         "chapter": "Saate geri dön",
         "label": "İşyeri Stack seçin. İlk koş kuralları öğretti; bu tamamen sizin."
@@ -32433,11 +32628,11 @@
       "ice.freezeprice": {
         "name": "Wage Dondurma",
         "descriptions": [
-          "Multiply her şeyin kira fiyatı Buz Gulu Yemin ederim ×0.9.",
-          "Multiply her şeyin kira fiyatı Buz Gulu Yemin ederim ×0.75.",
           "Multiply her şeyin kira fiyatı Buz Gulu Yemin ederim ×0.6.",
-          "Multiply her şeyin kira fiyatı Buz Gulu Yemin ederim ×0.4.",
-          "Multiply her şeyin kira fiyatı Buz Gulu Yemin ederim ×0.2."
+          "Her Buz Gulu'nun işe alım fiyatını ×0.3 ile çarpar.",
+          "Her Buz Gulu'nun işe alım fiyatını ×0.1 ile çarpar.",
+          "Her Buz Gulu'nun işe alım fiyatını ×0.05 ile çarpar.",
+          "Her Buz Gulu'nun işe alım fiyatını ×0.02 ile çarpar."
         ]
       },
       "ice.freeze": {
@@ -33133,11 +33328,11 @@
         "maxed": "Магазин maxed · tops в T{tier} яйця (T5–6 fusion-only)"
       },
       "hatchery": {
-        "unlockThisTitle": "Розблокувати цю плювати",
-        "unlockPrevTitle": "Розблокувати попередній плювати першим",
-        "unlockPill": "Розблокувати {cost} 🪙",
-        "lockedPill": "Замка",
-        "needCoinsUnlock": "Не вистачає монет — розблокування витрат {cost} 🪙",
+        "unlockThisTitle": "Відкрити це гніздо",
+        "unlockPrevTitle": "Спочатку відкрийте попереднє гніздо",
+        "unlockPill": "Відкрити {cost} 🪙",
+        "lockedPill": "Не відкрито",
+        "needCoinsUnlock": "Недостатньо монет: для відкриття потрібно {cost} 🪙",
         "placeEggTitle": "Помістіть яйце на інкубатор",
         "emptyPitTitle": "Порожня плювати",
         "placeEggPill": "🥚 Місце яйце",
@@ -33151,6 +33346,9 @@
         "queuedProvider": "🤖 Очікується {provider}",
         "syncing": "🎮 Очікується Steam",
         "syncingTitle": "Очікується Steam загорнути fusion матеріали і надати результат; AI дизайн починається після",
+        "syncRetry": "🎮 Спроба {attempt} · {countdown}",
+        "syncRepair": "⚠ Синхронізацію Steam треба відновити · повторити",
+        "syncErrorTitle": "Обмін Steam знову не вдався: {error}. Спочатку натисніть для звірки, а потім повторіть спробу.",
         "collectTitle": "Натисніть, щоб зібрати",
         "collectPill": "✨ Забрати!",
         "noFreePitTitle": "Ні безкоштовні сиськи",
@@ -34536,6 +34734,18 @@
         "label": "Всі вісім тут. Наступна зупинка: формальний запуск, де бал, матеріали, а також нещасні випадки.",
         "cta": "Введіть формальний рядок"
       },
+      "D09": {
+        "chapter": "Характеристики KPI Повний",
+        "label": "Всі вісім тут. Наступна зупинка: формальний запуск, де бал, матеріали, а також нещасні випадки."
+      },
+      "D10": {
+        "chapter": "Радар",
+        "label": "Вода і електрика будуть споживати, щоб зробити нове яйце. Підтвердіть настою."
+      },
+      "D11": {
+        "chapter": "Радар",
+        "label": "Після 8 секунд слідкувати за стрілкою і зібрати її. Каталог досягає 8/8, тому AI може зупинити обговорення видів KPIs."
+      },
       "E01": {
         "chapter": "Назад на годинник",
         "label": "Виберіть робоче місце Стейк. В першу чергу вивчайте правила; це абсолютно Ваше."
@@ -34972,11 +35182,11 @@
       "ice.freezeprice": {
         "name": "Навігація Замороження",
         "descriptions": [
-          "Ціна оренди кожного Крижаний Gulu від ×0.9.",
-          "Ціна оренди кожного Крижаний Gulu від ×0.75.",
           "Ціна оренди кожного Крижаний Gulu від ×0.6.",
-          "Ціна оренди кожного Крижаний Gulu від ×0.4.",
-          "Ціна оренди кожного Крижаний Gulu від ×0.2."
+          "Вартість найму кожного улюбленця типу «Крижаний Gulu» множиться на ×0.3.",
+          "Вартість найму кожного улюбленця типу «Крижаний Gulu» множиться на ×0.1.",
+          "Вартість найму кожного улюбленця типу «Крижаний Gulu» множиться на ×0.05.",
+          "Вартість найму кожного улюбленця типу «Крижаний Gulu» множиться на ×0.02."
         ]
       },
       "ice.freeze": {
@@ -35672,11 +35882,11 @@
         "maxed": "Shop maxed · في الخارج T{tier} البيضT5–6 هي الإندماج فقط"
       },
       "hatchery": {
-        "unlockThisTitle": "افتح هذه الحفرة",
-        "unlockPrevTitle": "إفتح الحفرة السابقة أولاً",
-        "unlockPill": "إفتح {cost} 🪙",
-        "lockedPill": "مقفل",
-        "needCoinsUnlock": "ليست عملات كافية — تكاليف الفتح {cost} 🪙",
+        "unlockThisTitle": "افتح هذا العش",
+        "unlockPrevTitle": "افتح العش السابق أولًا",
+        "unlockPill": "فتح {cost} 🪙",
+        "lockedPill": "غير مفتوح",
+        "needCoinsUnlock": "العملات غير كافية؛ يلزم {cost} 🪙 لفتحه",
         "placeEggTitle": "وضع بيضة لحضانة",
         "emptyPitTitle": "حفرة فارغة",
         "placeEggPill": "🥚 بيض",
@@ -35690,6 +35900,9 @@
         "queuedProvider": "🤖 انتظر {provider}",
         "syncing": "🎮 انتظر Steam",
         "syncingTitle": "انتظر Steam حرق مواد الدمج ومنح النتيجة؛ AI التصميم يبدأ بعد ذلك",
+        "syncRetry": "🎮 المحاولة {attempt} · {countdown}",
+        "syncRepair": "⚠ تحتاج مزامنة Steam إلى إصلاح · إعادة المحاولة",
+        "syncErrorTitle": "ما زال تبادل Steam يفشل: {error}. انقر أولًا لمطابقة البيانات، ثم أعد المحاولة.",
         "collectTitle": "قم بجمع",
         "collectPill": "✨ جمع!",
         "noFreePitTitle": "لا حفر مجانية",
@@ -37075,6 +37288,18 @@
         "label": "كل الثمانية هنا المحطة التالية: ركض رسمي، حيث النتيجة والمواد والحوادث كلها لك.",
         "cta": "أدخلوا الركض الرسمي"
       },
+      "D09": {
+        "chapter": "الأنواع KPI اكتمل",
+        "label": "كل الثمانية هنا المحطة التالية: ركض رسمي، حيث النتيجة والمواد والحوادث كلها لك."
+      },
+      "D10": {
+        "chapter": "الرادار الوصفي",
+        "label": "ستستهلك المياه والكهرباء لصنع بيضة جديدة تأكد من الإندماج"
+      },
+      "D11": {
+        "chapter": "الرادار الوصفي",
+        "label": "بعد 8 ثواني، إتبع السهم وأجمعه الفهرس يصل إلى 8/8 AI يمكن التوقف عن مناقشة الأنواع KPIs."
+      },
       "E01": {
         "chapter": "عودوا إلى القفل",
         "label": "اختر مكان العمل الركض الأول علم القواعد هذا هو لك بالكامل"
@@ -37511,11 +37736,11 @@
       "ice.freezeprice": {
         "name": "الأجر تجميد",
         "descriptions": [
-          "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.9.",
-          "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.75.",
           "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.6.",
-          "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.4.",
-          "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.2."
+          "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.3.",
+          "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.1.",
+          "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.05.",
+          "يتضاعف سعر توظيف كل Gulu جليدي بمقدار ×0.02."
         ]
       },
       "ice.freeze": {
@@ -38211,11 +38436,11 @@
         "maxed": "ร้านที่ขยายใหญ่สุด · ด้านบนออกที่ T{tier} ไข่ (T5–6 เป็นฟิวชั่นเท่านั้น)"
       },
       "hatchery": {
-        "unlockThisTitle": "ปลดล็อคหลุมนี้",
-        "unlockPrevTitle": "ปลดล็อคหลุมก่อนหน้าก่อน",
-        "unlockPill": "ปลดล็อค {cost} 🪙",
-        "lockedPill": "ล็อค",
-        "needCoinsUnlock": "เงิน ไม่ พอ — ค่า ใช้ จ่าย ที่ ปลด ปล่อย ได้ {cost} 🪙",
+        "unlockThisTitle": "ปลดล็อกหลุมฟักนี้",
+        "unlockPrevTitle": "ปลดล็อกหลุมฟักก่อนหน้าก่อน",
+        "unlockPill": "ปลดล็อก {cost} 🪙",
+        "lockedPill": "ยังไม่ปลดล็อก",
+        "needCoinsUnlock": "เหรียญไม่พอ ต้องใช้ {cost} 🪙 เพื่อปลดล็อก",
         "placeEggTitle": "วางไข่ใบหนึ่งเพื่อสอดท่อ",
         "emptyPitTitle": "หลุมว่าง",
         "placeEggPill": "🥚 วางไข่",
@@ -38229,6 +38454,9 @@
         "queuedProvider": "🤖 รอ {provider}",
         "syncing": "🎮 รอ Steam",
         "syncingTitle": "รอ Steam เพื่อเผาวัสดุฟิวชั่น และให้ผล AI การออกแบบเริ่มต้นภายหลัง",
+        "syncRetry": "🎮 ลองใหม่ {attempt} · {countdown}",
+        "syncRepair": "⚠ ต้องซ่อมการซิงก์ Steam · ลองใหม่",
+        "syncErrorTitle": "การแลกเปลี่ยน Steam ยังล้มเหลว: {error} คลิกเพื่อตรวจสอบยอดก่อน แล้วลองอีกครั้ง",
         "collectTitle": "คลิกเพื่อเรียกเก็บ",
         "collectPill": "✨ เก็บ!",
         "noFreePitTitle": "ไม่มีหลุมฟรี",
@@ -39614,6 +39842,18 @@
         "label": "ทั้งแปดอยู่ที่นี่ ป้ายต่อไป วิ่งอย่างเป็นทางการ ที่ที่คะแนน วัสดุ และอุบัติเหตุเป็นของคุณ",
         "cta": "ป้อนการทํางานอย่างเป็นทางการ"
       },
+      "D09": {
+        "chapter": "หมวดหมู่ KPI เสร็จสมบูรณ์แล้ว",
+        "label": "ทั้งแปดอยู่ที่นี่ ป้ายต่อไป วิ่งอย่างเป็นทางการ ที่ที่คะแนน วัสดุ และอุบัติเหตุเป็นของคุณ"
+      },
+      "D10": {
+        "chapter": "หมุน & 90",
+        "label": "น้ําและไฟฟ้าจะถูกบริโภค เพื่อสร้างไข่พันธุ์ใหม่ ยืนยันการฟิวชั่น"
+      },
+      "D11": {
+        "chapter": "หมุน & 90",
+        "label": "หลังจาก 8 วินาที ตามลูกศรกลับไปและเก็บมัน แคตตาล็อกถึง 8/8 ดังนั้น AI เลิกพูดถึงสายพันธุ์ได้แล้ว KPIs."
+      },
       "E01": {
         "chapter": "กลับมาที่นาฬิกา",
         "label": "เลือกที่วางที่ทํางาน การวิ่งครั้งแรกเป็นการสอนกฎ และอันนี้เป็นของคุณทั้งหมด"
@@ -40050,11 +40290,11 @@
       "ice.freezeprice": {
         "name": "แฟ้มภาพ แช่แข็ง",
         "descriptions": [
-          "คูณราคาค่าจ้างของทุก Gulu ธาตุน้ำแข็ง โดย ×0.9.",
-          "คูณราคาค่าจ้างของทุก Gulu ธาตุน้ำแข็ง โดย ×0.75.",
           "คูณราคาค่าจ้างของทุก Gulu ธาตุน้ำแข็ง โดย ×0.6.",
-          "คูณราคาค่าจ้างของทุก Gulu ธาตุน้ำแข็ง โดย ×0.4.",
-          "คูณราคาค่าจ้างของทุก Gulu ธาตุน้ำแข็ง โดย ×0.2."
+          "คูณราคาจ้าง Gulu ธาตุน้ำแข็งทุกตัวด้วย ×0.3",
+          "คูณราคาจ้าง Gulu ธาตุน้ำแข็งทุกตัวด้วย ×0.1",
+          "คูณราคาจ้าง Gulu ธาตุน้ำแข็งทุกตัวด้วย ×0.05",
+          "คูณราคาจ้าง Gulu ธาตุน้ำแข็งทุกตัวด้วย ×0.02"
         ]
       },
       "ice.freeze": {
@@ -40750,11 +40990,11 @@
         "maxed": "Cửa hàng tối đa · ở T{tier} trứng (T5–6 là chỉ hợp hạch)"
       },
       "hatchery": {
-        "unlockThisTitle": "Mở khóa hầm này.",
-        "unlockPrevTitle": "Mở khóa hố trước",
-        "unlockPill": "Bỏ khoá {cost} 🪙",
-        "lockedPill": "Bị khóa",
-        "needCoinsUnlock": "Không đủ tiền — chi phí mở khóa {cost} 🪙",
+        "unlockThisTitle": "Mở ô ấp này",
+        "unlockPrevTitle": "Hãy mở ô ấp trước đó trước",
+        "unlockPill": "Mở {cost} 🪙",
+        "lockedPill": "Chưa mở",
+        "needCoinsUnlock": "Không đủ xu; cần {cost} 🪙 để mở",
         "placeEggTitle": "Name",
         "emptyPitTitle": "Cái hố rỗng",
         "placeEggPill": "🥚 Đặt trứng",
@@ -40768,6 +41008,9 @@
         "queuedProvider": "🤖 Đang đợi {provider}",
         "syncing": "🎮 Đang đợi Steam",
         "syncingTitle": "Chờ Steam đốt các vật liệu hợp hạch và cung cấp kết quả; thiết kế AI bắt đầu sau đó",
+        "syncRetry": "🎮 Thử lại {attempt} · {countdown}",
+        "syncRepair": "⚠ Cần sửa đồng bộ Steam · thử lại",
+        "syncErrorTitle": "Trao đổi Steam vẫn thất bại: {error}. Hãy nhấp để đối soát trước, rồi thử lại.",
         "collectTitle": "Nhấn vào để thu thập",
         "collectPill": "✨ Thu thập!",
         "noFreePitTitle": "Không có đấu trường miễn phí",
@@ -42153,6 +42396,18 @@
         "label": "Cả tám người đều ở đây. Điểm dừng tiếp theo: cuộc chạy bộ trang trọng, điểm số, vật liệu và tai nạn là của tất cả các bạn.",
         "cta": "Nhập chính thức"
       },
+      "D09": {
+        "chapter": "Các loài KPI Hoàn tất",
+        "label": "Cả tám người đều ở đây. Điểm dừng tiếp theo: cuộc chạy bộ trang trọng, điểm số, vật liệu và tai nạn là của tất cả các bạn."
+      },
+      "D10": {
+        "chapter": "Số mũ",
+        "label": "Nước và điện sẽ được tiêu thụ để tạo ra một quả trứng lai mới. Xác nhận sự hợp hạch."
+      },
+      "D11": {
+        "chapter": "Số mũ",
+        "label": "Sau 8 giây, theo sau mũi tên và thu thập nó. Danh mục lên 8/8, vì vậy AI có thể ngừng thảo luận về các loài KPIs."
+      },
       "E01": {
         "chapter": "Trở lại trên đồng hồ",
         "label": "Chọn nơi làm việc là Stack. Cuộc chạy đầu tiên dạy luật; cái này hoàn toàn là của anh."
@@ -42589,11 +42844,11 @@
       "ice.freezeprice": {
         "name": "Comment Đóng băng",
         "descriptions": [
-          "Nhân giá thuê cho mỗi người Gulu hệ Băng by ×0.9.",
-          "Nhân giá thuê cho mỗi người Gulu hệ Băng by ×0.75.",
           "Nhân giá thuê cho mỗi người Gulu hệ Băng by ×0.6.",
-          "Nhân giá thuê cho mỗi người Gulu hệ Băng by ×0.4.",
-          "Nhân giá thuê cho mỗi người Gulu hệ Băng by ×0.2."
+          "Nhân giá tuyển mỗi Gulu hệ Băng với ×0.3.",
+          "Nhân giá tuyển mỗi Gulu hệ Băng với ×0.1.",
+          "Nhân giá tuyển mỗi Gulu hệ Băng với ×0.05.",
+          "Nhân giá tuyển mỗi Gulu hệ Băng với ×0.02."
         ]
       },
       "ice.freeze": {
@@ -43289,11 +43544,11 @@
         "maxed": "Toko maxed · puncak keluar di T{tier} telur (T5–6 adalah fusion- saja)"
       },
       "hatchery": {
-        "unlockThisTitle": "Buka lubang ini",
-        "unlockPrevTitle": "Membuka lubang sebelumnya pertama",
-        "unlockPill": "Buka Kunci {cost} 🪙",
-        "lockedPill": "Terkunci",
-        "needCoinsUnlock": "Tidak cukup koin — unlocking biaya {cost} 🪙",
+        "unlockThisTitle": "Buka sarang ini",
+        "unlockPrevTitle": "Buka sarang sebelumnya terlebih dahulu",
+        "unlockPill": "Buka {cost} 🪙",
+        "lockedPill": "Belum dibuka",
+        "needCoinsUnlock": "Koin tidak cukup; perlu {cost} 🪙 untuk membukanya",
         "placeEggTitle": "Tempatkan telur untuk inkubasi",
         "emptyPitTitle": "Lubang kosong",
         "placeEggPill": "🥚 Tempat telur",
@@ -43307,6 +43562,9 @@
         "queuedProvider": "🤖 Menunggu {provider}",
         "syncing": "🎮 Menunggu Steam",
         "syncingTitle": "Menunggu Steam membakar bahan fusi dan memberikan hasilnya; desain AI dimulai setelahnya",
+        "syncRetry": "🎮 Percobaan {attempt} · {countdown}",
+        "syncRepair": "⚠ Sinkronisasi Steam perlu diperbaiki · coba lagi",
+        "syncErrorTitle": "Pertukaran Steam terus gagal: {error}. Klik untuk merekonsiliasi data terlebih dahulu, lalu coba lagi.",
         "collectTitle": "Klik untuk mengumpulkan",
         "collectPill": "✨ Ambil!",
         "noFreePitTitle": "Tidak ada lubang bebas",
@@ -44692,6 +44950,18 @@
         "label": "Semua delapan di sini. Pemberhentian berikutnya: lari formal, di mana skor, bahan, dan kecelakaan semua milikmu.",
         "cta": "Masukkan run formal"
       },
+      "D09": {
+        "chapter": "Species KPI Lengkap",
+        "label": "Semua delapan di sini. Pemberhentian berikutnya: lari formal, di mana skor, bahan, dan kecelakaan semua milikmu."
+      },
+      "D10": {
+        "chapter": "Radar Recipe",
+        "label": "Air dan listrik akan dikonsumsi untuk membuat telur spesies baru. Konfirmasi fusi."
+      },
+      "D11": {
+        "chapter": "Radar Recipe",
+        "label": "Setelah 8 detik, ikuti panah kembali dan mengumpulkan itu. Katalog mencapai 8 / 8, jadi AI dapat berhenti membahas spesies KPIs."
+      },
       "E01": {
         "chapter": "Kembali pada Jam",
         "label": "Pilih Workplace Stack. Jalankan pertama mengajarkan aturan, yang satu ini sepenuhnya milikmu."
@@ -45128,11 +45398,11 @@
       "ice.freezeprice": {
         "name": "Wage Pembekuan",
         "descriptions": [
-          "Kalikan harga sewa setiap Gulu Es oleh ×0.9.",
-          "Kalikan harga sewa setiap Gulu Es oleh ×0.75.",
           "Kalikan harga sewa setiap Gulu Es oleh ×0.6.",
-          "Kalikan harga sewa setiap Gulu Es oleh ×0.4.",
-          "Kalikan harga sewa setiap Gulu Es oleh ×0.2."
+          "Kalikan harga perekrutan setiap Gulu Es dengan ×0.3.",
+          "Kalikan harga perekrutan setiap Gulu Es dengan ×0.1.",
+          "Kalikan harga perekrutan setiap Gulu Es dengan ×0.05.",
+          "Kalikan harga perekrutan setiap Gulu Es dengan ×0.02."
         ]
       },
       "ice.freeze": {
@@ -45828,11 +46098,11 @@
         "maxed": "Winkel max. · tops out op T{tier} eieren (T5–6 alleen voor fusie)"
       },
       "hatchery": {
-        "unlockThisTitle": "Ontgrendel deze put",
-        "unlockPrevTitle": "Ontgrendel eerst de vorige put",
-        "unlockPill": "Ontgrendelen {cost} 🪙",
-        "lockedPill": "Vergrendeld",
-        "needCoinsUnlock": "Niet genoeg munten — Ontgrendelingskosten {cost} 🪙",
+        "unlockThisTitle": "Dit nest vrijspelen",
+        "unlockPrevTitle": "Speel eerst het vorige nest vrij",
+        "unlockPill": "Vrijspelen {cost} 🪙",
+        "lockedPill": "Nog niet vrijgespeeld",
+        "needCoinsUnlock": "Niet genoeg munten; vrijspelen kost {cost} 🪙",
         "placeEggTitle": "Plaats een ei om te incuben",
         "emptyPitTitle": "Lege put",
         "placeEggPill": "🥚 Plaats ei",
@@ -45846,6 +46116,9 @@
         "queuedProvider": "🤖 Wachten op {provider}",
         "syncing": "🎮 Wachten op Steam",
         "syncingTitle": "Wachten op Steam de fusiematerialen te verbranden en het resultaat toe te kennen; AI ontwerp begint daarna",
+        "syncRetry": "🎮 Poging {attempt} · {countdown}",
+        "syncRepair": "⚠ Steam-synchronisatie moet worden hersteld · opnieuw proberen",
+        "syncErrorTitle": "De Steam-uitwisseling blijft mislukken: {error}. Klik eerst om de gegevens af te stemmen en probeer het daarna opnieuw.",
         "collectTitle": "Klik om te verzamelen",
         "collectPill": "✨ Ophalen!",
         "noFreePitTitle": "Geen vrije putten",
@@ -47231,6 +47504,18 @@
         "label": "Alle acht zijn er. Volgende halte: een formele run, waar de score, materialen, en ongevallen zijn helemaal van jou.",
         "cta": "Voer de formele run in"
       },
+      "D09": {
+        "chapter": "Soort KPI Complete",
+        "label": "Alle acht zijn er. Volgende halte: een formele run, waar de score, materialen, en ongevallen zijn helemaal van jou."
+      },
+      "D10": {
+        "chapter": "Recept radar",
+        "label": "Water en elektriciteit worden verbruikt om een nieuw soort ei te maken. Bevestig de fusie."
+      },
+      "D11": {
+        "chapter": "Recept radar",
+        "label": "Volg na 8 seconden de pijl terug en verzamel hem. De catalogus bedraagt 8/8, zodat de AI kan stoppen met het bespreken van soorten KPIs."
+      },
       "E01": {
         "chapter": "Terug op de klok",
         "label": "Kies Workplace Stack. De eerste run leerde de regels; deze is helemaal van jou."
@@ -47667,11 +47952,11 @@
       "ice.freezeprice": {
         "name": "Loon Bevriezen",
         "descriptions": [
-          "Vermenigvuldig de huurprijs van elke IJs-Gulu door ×0.9.",
-          "Vermenigvuldig de huurprijs van elke IJs-Gulu door ×0.75.",
           "Vermenigvuldig de huurprijs van elke IJs-Gulu door ×0.6.",
-          "Vermenigvuldig de huurprijs van elke IJs-Gulu door ×0.4.",
-          "Vermenigvuldig de huurprijs van elke IJs-Gulu door ×0.2."
+          "Vermenigvuldigt de aanwervingsprijs van elke IJs-Gulu met ×0.3.",
+          "Vermenigvuldigt de aanwervingsprijs van elke IJs-Gulu met ×0.1.",
+          "Vermenigvuldigt de aanwervingsprijs van elke IJs-Gulu met ×0.05.",
+          "Vermenigvuldigt de aanwervingsprijs van elke IJs-Gulu met ×0.02."
         ]
       },
       "ice.freeze": {

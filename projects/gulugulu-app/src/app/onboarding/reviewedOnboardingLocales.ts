@@ -1,5 +1,6 @@
 import type { Language } from "../../i18n/core";
 import {
+  ONBOARDING_EN_COPY,
   ONBOARDING_STEP_IDS,
   type OnboardingLocalizedCopy,
   type OnboardingStepId,
@@ -56,14 +57,14 @@ const CHAPTER_BY_STEP: Record<OnboardingStepId, ChapterId> = {
   C04: "orientation", C05: "orientation", C06: "orientation", C07: "orientation", C08: "orientation",
   C09: "orientation", C10: "orientation", C11: "orientation", C12: "orientation", D01: "express",
   D02: "express", D03: "radar", D04: "radar", D05: "radar", D06: "radar", D07: "radar",
-  D08: "kpi", E01: "clock", E02: "official", E03: "official", F01: "ai", F02: "ai", F03a: "ai",
+  D08: "kpi", D09: "kpi", D10: "kpi", D11: "back", E01: "clock", E02: "official", E03: "official", F01: "ai", F02: "ai", F03a: "ai",
   F04: "ai", G01: "steam", G02: "steam", G03: "steam", G04: "steam", G05: "check",
   G06: "check", G07: "done",
 };
 
 type LocalePack = {
   chapters: Record<ChapterId, string>;
-  labels: Record<OnboardingStepId, string>;
+  labels: Partial<Record<OnboardingStepId, string>>;
   ctas: Partial<Record<OnboardingStepId, string>>;
   ui: OnboardingUiCopy;
   factory: ReviewedFactoryGuideCopy;
@@ -1294,7 +1295,7 @@ export const REVIEWED_ONBOARDING_LOCALES = Object.fromEntries(
           step,
           {
             chapter: pack.chapters[CHAPTER_BY_STEP[step]],
-            label: pack.labels[step],
+            label: pack.labels[step] ?? ONBOARDING_EN_COPY[step].label,
             ...(pack.ctas[step] ? { cta: pack.ctas[step] } : {}),
           },
         ]),

@@ -265,7 +265,7 @@ pub(crate) fn apply_collect(
     granted: Option<(String, String, u32)>,
 ) -> String {
     let egg = save.eggs.remove(egg_index);
-    let tutorial_direct_max = save.onboarding.status == "active" && egg.tier >= 2;
+    save.onboarding.guided_fusion_egg_ids.remove(&egg.id);
     let pending_fusion = egg
         .pending_fusion
         .filter(|pending| pending.status != "resolved");
@@ -299,16 +299,11 @@ pub(crate) fn apply_collect(
     } else {
         new_id("pet")
     };
-    let level = if tutorial_direct_max {
-        config.max_level_for_tier(tier)
-    } else {
-        1
-    };
     save.pets.push(PetInstance {
         id: pet_id.clone(),
         species,
         tier,
-        level,
+        level: 1,
         exp: 0,
         stamina: config.stamina_max,
         stamina_updated_at: now,
@@ -319,9 +314,6 @@ pub(crate) fn apply_collect(
         steam_item_id,
         steam_item_def,
     });
-    if tutorial_direct_max {
-        save.stats.first_maxlevel_done = true;
-    }
     if save.active_pet_id.is_none() {
         save.active_pet_id = Some(pet_id.clone());
     }

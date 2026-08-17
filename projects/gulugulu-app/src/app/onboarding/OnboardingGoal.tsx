@@ -260,7 +260,13 @@ export function OnboardingGoal({
         </header>
         <p>{directive.label}</p>
         {showAction ? (
-          <button type="button" data-onboarding-allow disabled={busy} onClick={onAction}>
+          <button
+            type="button"
+            className={directive.action === "ack" ? "is-breathing" : undefined}
+            data-onboarding-allow
+            disabled={busy}
+            onClick={onAction}
+          >
             {busy ? busyLabel : directive.cta ?? ui.gotIt}
           </button>
         ) : !targetPresent ? (

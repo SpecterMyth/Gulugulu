@@ -52,7 +52,8 @@ export function BackyardNearPetActions({
   const canFuse = hint == null && !busy;
   const tutorialReimbursed =
     save.onboarding?.status === "active" &&
-    (save.onboarding.tutorialFusions ?? 0) < 2;
+    (save.onboarding.tutorialFusions ?? 0) < 4 &&
+    ["B02", "B03", "D05", "D06", "D10"].includes(save.onboarding.step);
   return (
     <div className="by-bubble" style={{ left: spot.x - 150, bottom: 68 }} onClick={stopClick}>
       {/* 左：大融合印章（与右列两个小按钮等高）；右：陪伴/放生上下排布。
