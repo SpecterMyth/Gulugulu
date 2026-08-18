@@ -45,10 +45,16 @@ function buildAiGroupNos(save: GameSave): Map<string, number> {
 }
 
 /** 当前后院拥有的物种 → 进局元数据表。图鉴中已解锁但后院不再持有的物种不能进入工厂。 */
-export function buildSpeciesMeta(config: GameConfig, save: GameSave): Record<string, SpeciesRogueMeta> {
+export function buildSpeciesMeta(
+  config: GameConfig,
+  save: GameSave,
+  retainedSpecies: readonly string[] = [],
+): Record<string, SpeciesRogueMeta> {
   const aiGroupNos = buildAiGroupNos(save);
   const out: Record<string, SpeciesRogueMeta> = {};
-  const owned = new Set(save.pets.map((pet) => pet.species));
+  // Only an unfinished run may retain species no longer in the live roster.
+  // A new run still starts from the pets the player currently owns.
+  const owned = new Set([...save.pets.map((pet) => pet.species), ...retainedSpecies]);
   for (const species of owned) {
     const info = config.species[species] ?? save.customSpecies?.[species]?.info;
     if (!info) continue;

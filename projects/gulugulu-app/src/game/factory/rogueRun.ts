@@ -150,7 +150,7 @@ function saveRecords(records: RogueRecords): void {
 }
 
 /** 续局存档 schema 版本(RogueRunSnapshot 结构变更时 +1,旧档读盘即弃)。 */
-const RUN_SNAPSHOT_VERSION = 10;
+const RUN_SNAPSHOT_VERSION = 11;
 
 /** 读未结束局的续局存档;缺失/损坏/版本不符一律 null(退化为从头开局)。 */
 export function loadRunSnapshot(): RogueRunSnapshot | null {
@@ -160,7 +160,7 @@ export function loadRunSnapshot(): RogueRunSnapshot | null {
     if (!raw) return null;
     const p = JSON.parse(raw) as Partial<RogueRunSnapshot>;
     // v9 没有检查日剩余时间；restore 会安全迁移为完整时限。
-    if (p == null || (p.v !== 9 && p.v !== RUN_SNAPSHOT_VERSION)) return null;
+    if (p == null || (p.v !== 9 && p.v !== 10 && p.v !== RUN_SNAPSHOT_VERSION)) return null;
     if (
       p.phase !== "hiring"
       && p.phase !== "shift"
@@ -2306,6 +2306,12 @@ export class RogueRun implements RogueRunApi {
     return {
       v: RUN_SNAPSHOT_VERSION,
       loadout: this.loadout.slice(),
+      loadoutMeta: Object.fromEntries(this.loadout.flatMap((species) => {
+        const entry = this.meta[species];
+        return entry == null
+          ? []
+          : [[species, { ...entry, elements: entry.elements.slice() }]];
+      })),
       deskOrder: this.deskOrderArr.slice(),
       disabledDesks: this.disabledDesks.slice(),
       bodies: sceneBodies
@@ -2419,11 +2425,18 @@ export class RogueRun implements RogueRunApi {
     meta: Record<string, SpeciesRogueMeta>,
     recordBaseline?: { starts: number; runs: number },
   ): RogueRun | null {
-    const loadout = snap.loadout.filter((s) => meta[s] != null);
+    const runMeta = { ...meta };
+    for (const species of snap.loadout) {
+      const retained = snap.loadoutMeta?.[species];
+      if (retained != null && Array.isArray(retained.elements)) {
+        runMeta[species] = { ...retained, elements: retained.elements.slice() };
+      }
+    }
+    const loadout = snap.loadout.filter((s) => runMeta[s] != null);
     if (loadout.length === 0) return null;
     const run = new RogueRun({
       loadout,
-      meta,
+      meta: runMeta,
       deskOrder: snap.deskOrder,
       seed: snap.rngState,
       countStart: false,
