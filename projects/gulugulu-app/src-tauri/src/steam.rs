@@ -425,25 +425,31 @@ impl SharedSteamState {
 
     /// 命令侧同步调用：发请求给泵线程并等待（不得持任何锁调用）。
     pub fn call_blocking(&self, call: SteamCall) -> OpOutcome {
-        let tx = match self.0.tx.lock() {
-            Ok(guard) => guard.clone(),
-            Err(_) => None,
-        };
-        let Some(tx) = tx else {
-            return OpOutcome::Failed("#steamNotConnected".to_string());
-        };
-        let (reply_tx, reply_rx) = mpsc::channel();
-        let request = SteamRequest {
-            call,
-            reply: reply_tx,
-            deadline: Some(Instant::now() + COMMAND_TIMEOUT),
-        };
-        if tx.send(request).is_err() {
-            return OpOutcome::Failed("#steamPumpExited".to_string());
+        // Steam 可能比开机自启的 app 晚十几秒就绪，或正处在掉线重建泵的窗口。
+        // send 失败表示请求确定没有进入旧泵，因此可安全等待新通道并重发；一旦 send
+        // 成功则绝不重发（回复断开时结果不确定，避免库存变更执行两次）。
+        let deadline = Instant::now() + COMMAND_TIMEOUT;
+        loop {
+            let tx = self.0.tx.lock().ok().and_then(|guard| guard.clone());
+            if let Some(tx) = tx {
+                let (reply_tx, reply_rx) = mpsc::channel();
+                let request = SteamRequest {
+                    call: call.clone(),
+                    reply: reply_tx,
+                    deadline: Some(deadline),
+                };
+                if tx.send(request).is_ok() {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    return reply_rx
+                        .recv_timeout(remaining)
+                        .unwrap_or(OpOutcome::Uncertain);
+                }
+            }
+            if Instant::now() >= deadline {
+                return OpOutcome::Failed("#steamNotConnected".to_string());
+            }
+            std::thread::sleep(Duration::from_millis(100));
         }
-        reply_rx
-            .recv_timeout(COMMAND_TIMEOUT)
-            .unwrap_or(OpOutcome::Uncertain)
     }
 
     pub fn leaderboard_page_blocking(
@@ -603,6 +609,8 @@ pub fn init(app: AppHandle, game_state: SharedGameState, steam_state: SharedStea
         return;
     }
     std::thread::spawn(move || loop {
+        let cycle_started = Instant::now();
+        let cycle = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let client = connect_with_retry(&app, &steam_state);
         let steam_id = client.user().steam_id().raw().to_string();
 
@@ -687,7 +695,16 @@ pub fn init(app: AppHandle, game_state: SharedGameState, steam_state: SharedStea
         );
         steam_state.detach(&app);
         drop(client);
-        if uptime < FLAP_WINDOW {
+        }));
+
+        if cycle.is_err() {
+            // A panic in any Steam/Cloud/Workshop callback used to kill this background thread
+            // permanently while the UI kept its last `connected` snapshot. Always detach the
+            // dead channels and let the outer supervisor create a fresh Client + pump.
+            eprintln!("[steam] worker panicked — detached stale channels, will reconnect");
+            steam_state.detach(&app);
+        }
+        if cycle_started.elapsed() < FLAP_WINDOW {
             std::thread::sleep(RECONNECT_DELAY);
         }
     });
@@ -939,6 +956,9 @@ fn pump_loop(
             last_liveness = Instant::now();
             strikes = if steam_running() { 0 } else { strikes + 1 };
             if strikes >= LIVENESS_STRIKES {
+                // Publish the disconnect before this function drops its receivers. This prevents
+                // callers from observing `connected` while cloning a sender for a dead pump.
+                steam_state.detach(&app);
                 return;
             }
         }
@@ -1865,6 +1885,26 @@ mod retry_tests {
         assert!(!fuse_retry_is_due(true, 0, 0, 100));
         assert!(fuse_retry_is_due(false, FUSE_AUTO_RETRY_LIMIT - 1, 0, 100));
         assert!(!fuse_retry_is_due(false, FUSE_AUTO_RETRY_LIMIT, 0, 100));
+    }
+
+    #[test]
+    fn blocking_call_retries_a_dead_sender_on_the_replacement_pump() {
+        let steam = SharedSteamState::new();
+        let (dead_tx, dead_rx) = mpsc::channel();
+        drop(dead_rx);
+        *steam.0.tx.lock().unwrap() = Some(dead_tx);
+
+        let caller = steam.clone();
+        let call = std::thread::spawn(move || caller.call_blocking(SteamCall::GetAll));
+
+        std::thread::sleep(Duration::from_millis(50));
+        let (replacement_tx, replacement_rx) = mpsc::channel();
+        *steam.0.tx.lock().unwrap() = Some(replacement_tx);
+        let request = replacement_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(matches!(request.call, SteamCall::GetAll));
+        request.reply.send(OpOutcome::Granted(Vec::new())).unwrap();
+
+        assert!(matches!(call.join().unwrap(), OpOutcome::Granted(items) if items.is_empty()));
     }
 }
 
