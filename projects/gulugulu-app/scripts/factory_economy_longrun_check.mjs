@@ -147,11 +147,11 @@ const bulkDepartureSamples = [1, 20, 47].map((shift) => {
 });
 
 const capShift = shiftSamples.find((sample) => sample.kpi === CFG.FACTORY_KPI_CAP)?.shift ?? null;
-check(firstLegacyBackendRejectionShift === 50, "legacy curve crossed backend score cap at shift 50", {
+check(firstLegacyBackendRejectionShift === 51, "legacy curve crossed backend score cap at shift 51", {
   firstLegacyBackendRejectionShift,
 });
-check(firstLegacyInfinityShift === 398, "legacy curve became Infinity at shift 398", { firstLegacyInfinityShift });
-check(capShift === 47, "new KPI curve reserves arithmetic headroom from shift 47", { capShift });
+check(firstLegacyInfinityShift === 399, "legacy curve became Infinity at shift 399", { firstLegacyInfinityShift });
+check(capShift === 60, "new KPI curve caps before unsafe integer growth", { capShift });
 check(
   shiftSamples.every((sample) => [
     sample.kpi,
